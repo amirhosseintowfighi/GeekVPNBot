@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from geekvpn.application.bot.read_models import (
     ProfileSummary,
+    ReferralSummary,
     ServerHealth,
     ServerStatusRow,
     SubscriptionCard,
@@ -31,6 +35,7 @@ from geekvpn.application.bot.read_models import (
 from geekvpn.domain.provisioning.enums import NodeState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
+from geekvpn.infrastructure.persistence.models.provisioning import ReferralModel
 from geekvpn.infrastructure.persistence.repositories.nodes import SqlAlchemyNodeRepository
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SqlAlchemyOrderRepository,
@@ -164,6 +169,53 @@ class SqlServerStatusReader:
         ]
 
 
+class SqlReferralSummaryReader:
+    """Implements ``ReferralReader``.
+
+    Per-customer, unlike ``analytics.SqlReferralReader`` which aggregates the
+    whole programme over a date range. One query: the referral table is an edge
+    per invitee, so signups, conversions and cost are three aggregates over the
+    same rows.
+    """
+
+    def __init__(
+        self,
+        *,
+        session: AsyncSession,
+        users: SqlAlchemyUserRepository,
+    ) -> None:
+        self._session = session
+        self._users = users
+
+    async def summary(self, user_id: uuid.UUID) -> ReferralSummary:
+        user = await self._users.get(user_id)
+        if user is None:
+            raise LookupError(f"No user {user_id}.")
+
+        row = (
+            await self._session.execute(
+                select(
+                    func.count(ReferralModel.id),
+                    func.count(ReferralModel.converted_at),
+                    func.coalesce(func.sum(ReferralModel.reward_paid), 0),
+                ).where(ReferralModel.referrer_id == user.telegram_id)
+            )
+        ).one()
+        invited, converted, earned = row
+
+        return ReferralSummary(
+            code=user.referral_code,
+            invited_count=int(invited),
+            converted_count=int(converted),
+            total_earned=int(earned),
+            # No column records an accrued-but-unpaid reward: `reward_paid` is
+            # written at the moment the wallet is credited. Reporting anything
+            # here would be inventing a number, so it stays zero until the
+            # programme grows a payout queue.
+            pending_earned=0,
+        )
+
+
 async def _telegram_id(users: SqlAlchemyUserRepository, user_id: uuid.UUID) -> int | None:
     user = await users.get(user_id)
     return user.telegram_id if user else None
@@ -207,6 +259,7 @@ def _as_uuid(value: str) -> uuid.UUID:
 
 __all__ = [
     "SqlProfileReader",
+    "SqlReferralSummaryReader",
     "SqlServerStatusReader",
     "SqlSubscriptionCardReader",
 ]
