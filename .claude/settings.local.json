@@ -64,7 +64,14 @@
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/readers.py)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/checkout.py)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/services.py src/geekvpn/presentation/bot/identity.py)",
-      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/ src/geekvpn/infrastructure/bot/)"
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/ src/geekvpn/infrastructure/bot/)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/handlers/purchase.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/handlers/wallet.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/notifications.py)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/notifications.py src/geekvpn/presentation/bot/ui/text.py)",
+      "Bash(./.venv/Scripts/mypy.exe)",
+      "Bash(grep -E \"bot\\\\\\\\\\\\\\\\\")"
     ]
   }
 }

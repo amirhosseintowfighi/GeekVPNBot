@@ -152,6 +152,9 @@ class ReferralSummary:
 class ProfileSummary:
     user_id: uuid.UUID
     telegram_id: int
+    #: Shown on the profile screen so a customer can share it without first
+    #: navigating to the referral page.
+    referral_code: str = ""
     display_name: str | None = None
     username: str | None = None
     phone: str | None = None

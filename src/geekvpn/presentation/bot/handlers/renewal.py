@@ -39,10 +39,10 @@ def _upgrade_keyboard(plans: list[Any], *, same_plan_id: Any) -> InlineKeyboardM
     """Same package first, then every other package in the product."""
     rows: list[list[Any]] = []
     for plan in plans:
-        prefix = T.RENEW_SAME_PLAN if plan.plan_id == same_plan_id else ""
+        prefix = T.RENEW_SAME_PLAN if plan.id == same_plan_id else ""
         label = R.plan_button_label(plan)
         rows.append(
-            [K.btn(f"{prefix} {label}".strip(), ShopCB(action="plan", ref=short_ref(plan.plan_id)))]
+            [K.btn(f"{prefix} {label}".strip(), ShopCB(action="plan", ref=short_ref(plan.id)))]
         )
     rows.append([K.btn(T.BTN_BACK, NavCB(to="dashboard")), K.home_button()])
     return K.stack(rows)
@@ -76,7 +76,7 @@ async def on_renew(
     owning_product = None
     for category in view.categories:
         for product in category.products:
-            if any(p.plan_id == card.plan_id for p in product.plans):
+            if any(p.id == card.plan_id for p in product.plans):
                 owning_product = product
                 break
         if owning_product:

@@ -76,7 +76,7 @@ async def _find_plan(*, plan_id: uuid.UUID, user: Any, scope: Any, services: Any
     for category in view.categories:
         for product in category.products:
             for plan in product.plans:
-                if plan.plan_id == plan_id:
+                if plan.id == plan_id:
                     return plan, product
     return None, None
 
@@ -107,7 +107,7 @@ async def _render_review(
     snapshot = await services.wallet.snapshot(user.id)
     try:
         quote = await scope.quoting.quote_view(
-            plan_id=plan.plan_id,
+            plan_id=plan.id,
             user_id=user.id,
             coupon_code=coupon,
             loyalty_tier=tier_of(snapshot.lifetime_spend),
@@ -117,13 +117,13 @@ async def _render_review(
         # and re-quote clean rather than dead-ending the purchase.
         await state.update_data(coupon=None)
         quote = await scope.quoting.quote_view(
-            plan_id=plan.plan_id,
+            plan_id=plan.id,
             user_id=user.id,
             loyalty_tier=tier_of(snapshot.lifetime_spend),
         )
         coupon = None
 
-    name = f"{product.name_fa} \u2014 {plan.name_fa}"
+    name = f"{product.name} \u2014 {plan.name_fa}"
     await state.update_data(total=quote.total, plan_name=name)
     await state.set_state(Purchase.reviewing)
     await safe_edit(
@@ -246,12 +246,12 @@ async def on_coupon_text(
     if plan is None:
         return
     quote = await scope.quoting.quote_view(
-        plan_id=plan.plan_id,
+        plan_id=plan.id,
         user_id=user.id,
         coupon_code=preview.code,
         loyalty_tier=tier_of(snapshot.lifetime_spend),
     )
-    name = f"{product.name_fa} \u2014 {plan.name_fa}"
+    name = f"{product.name} \u2014 {plan.name_fa}"
     await state.update_data(total=quote.total, plan_name=name)
     await answer(
         message,
@@ -310,16 +310,18 @@ async def on_pay(
 
     try:
         if method == "wallet":
-            payment = await services.checkout.pay_from_wallet(
+            await services.checkout.pay_from_wallet(
                 user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
             )
             await state.clear()
             cashback = data.get("cashback") or 0
+            # A wallet purchase settles immediately, so the amount shown is the
+            # quote the customer just confirmed rather than a payment record.
             await safe_edit(
                 query,
                 T.PAY_SUCCESS.format(
                     plan=data.get("plan_name", ""),
-                    amount=toman(payment.amount),
+                    amount=toman(int(data.get("total") or 0)),
                     cashback_line=(
                         T.PAY_CASHBACK_LINE.format(amount=toman(cashback)) if cashback else ""
                     ),
@@ -329,27 +331,33 @@ async def on_pay(
             return
 
         if method == "card":
-            payment, details = await services.checkout.begin_card(
+            details = await services.checkout.begin_card(
                 user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
             )
-            await state.update_data(payment_id=str(payment.payment_id))
+            if details.payment is None:
+                await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+                return
+            await state.update_data(payment_id=str(details.payment.payment_id))
             await state.set_state(Purchase.awaiting_receipt)
             await safe_edit(
                 query,
-                _card_body(details, amount=payment.amount),
+                _card_body(details, amount=details.payment.amount),
                 markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
             )
             return
 
         if method == "crypto":
-            payment, details = await services.checkout.begin_crypto(
+            crypto = await services.checkout.begin_crypto(
                 user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
             )
-            await state.update_data(payment_id=str(payment.payment_id))
+            if crypto.payment is None:
+                await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+                return
+            await state.update_data(payment_id=str(crypto.payment.payment_id))
             await state.set_state(Purchase.awaiting_crypto_txid)
             await safe_edit(
                 query,
-                _crypto_body(details, amount=payment.amount),
+                _crypto_body(crypto, amount=crypto.payment.amount),
                 markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
             )
             return
@@ -384,6 +392,7 @@ async def on_receipt_photo(
     message: Message,
     state: FSMContext,
     services: BotServices,
+    user: Any = None,
 ) -> None:
     """Accept the card-to-card receipt image.
 
@@ -397,9 +406,14 @@ async def on_receipt_photo(
         await state.clear()
         return
 
+    if user is None:
+        await answer(message, T.ERR_SESSION_EXPIRED)
+        await state.clear()
+        return
+
     file_id = message.photo[-1].file_id
     payment = await services.checkout.attach_receipt(
-        payment_id=uuid.UUID(str(payment_id)), file_id=file_id
+        user.id, payment_id=uuid.UUID(str(payment_id)), file_id=file_id
     )
     await state.clear()
     await answer(
@@ -419,10 +433,11 @@ async def on_txid(
     message: Message,
     state: FSMContext,
     services: BotServices,
+    user: Any = None,
 ) -> None:
     data = await state.get_data()
     payment_id = data.get("payment_id")
-    if not payment_id:
+    if not payment_id or user is None:
         await answer(message, T.ERR_SESSION_EXPIRED)
         await state.clear()
         return
@@ -432,7 +447,9 @@ async def on_txid(
         await answer(message, T.PAY_CRYPTO_BAD_TXID)
         return
 
-    payment = await services.checkout.attach_txid(payment_id=uuid.UUID(str(payment_id)), txid=txid)
+    payment = await services.checkout.attach_txid(
+        user.id, payment_id=uuid.UUID(str(payment_id)), txid=txid
+    )
     await state.clear()
     await answer(
         message,

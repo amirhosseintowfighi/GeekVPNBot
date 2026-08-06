@@ -21,7 +21,6 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
-    CryptoPaymentDetails,
     WalletSnapshot,
 )
 from geekvpn.application.bot.services import BotServices
@@ -172,24 +171,25 @@ async def _begin_topup(
         return
 
     try:
-        payment, details = await services.checkout.begin_topup(
-            user_id=user.id, amount=amount, method=method
-        )
+        details = await services.checkout.begin_topup(user_id=user.id, amount=amount, method=method)
     except Exception:
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return
 
+    payment = details.payment
+    if payment is None:
+        await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+        return
     await state.update_data(payment_id=str(payment.payment_id))
 
+    # The port returns one of exactly two shapes, so there is no third branch
+    # to guard: a new payment method would fail the type check here first.
     if isinstance(details, CardPaymentDetails):
         await state.set_state(Wallet.awaiting_receipt)
         body = _card_body(details, amount=payment.amount)
-    elif isinstance(details, CryptoPaymentDetails):
+    else:
         await state.set_state(Wallet.awaiting_crypto_txid)
         body = _crypto_body(details, amount=payment.amount)
-    else:
-        await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
-        return
 
     await safe_edit(query, body, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="wallet"))))
 
@@ -213,15 +213,17 @@ async def on_topup_crypto(
 
 
 @router.message(Wallet.awaiting_receipt, F.photo)
-async def on_topup_receipt(message: Message, state: FSMContext, services: BotServices) -> None:
+async def on_topup_receipt(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
     data = await state.get_data()
     payment_id = data.get("payment_id")
-    if not payment_id or not message.photo:
+    if not payment_id or not message.photo or user is None:
         await answer(message, T.ERR_SESSION_EXPIRED)
         await state.clear()
         return
     payment = await services.checkout.attach_receipt(
-        payment_id=uuid.UUID(str(payment_id)), file_id=message.photo[-1].file_id
+        user.id, payment_id=uuid.UUID(str(payment_id)), file_id=message.photo[-1].file_id
     )
     await state.clear()
     await answer(
@@ -237,10 +239,12 @@ async def on_topup_receipt_wrong(message: Message) -> None:
 
 
 @router.message(Wallet.awaiting_crypto_txid, F.text)
-async def on_topup_txid(message: Message, state: FSMContext, services: BotServices) -> None:
+async def on_topup_txid(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
     data = await state.get_data()
     payment_id = data.get("payment_id")
-    if not payment_id:
+    if not payment_id or user is None:
         await answer(message, T.ERR_SESSION_EXPIRED)
         await state.clear()
         return
@@ -248,7 +252,9 @@ async def on_topup_txid(message: Message, state: FSMContext, services: BotServic
     if len(txid) < 10 or " " in txid:
         await answer(message, T.PAY_CRYPTO_BAD_TXID)
         return
-    payment = await services.checkout.attach_txid(payment_id=uuid.UUID(str(payment_id)), txid=txid)
+    payment = await services.checkout.attach_txid(
+        user.id, payment_id=uuid.UUID(str(payment_id)), txid=txid
+    )
     await state.clear()
     await answer(
         message,
@@ -290,6 +296,6 @@ async def _render_history(
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     rows: list[list[Any]] = []
     if pages > 1:
-        rows.append(K.pagination_row(scope="wtx", page=page, pages=pages))
+        rows.append(K.pagination_row(scope="wtx", page=page, total_pages=pages))
     rows.append([K.btn(T.BTN_BACK, NavCB(to="wallet")), K.home_button()])
     await safe_edit(query, R.wallet_history(transactions), markup=K.stack(rows))

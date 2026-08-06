@@ -44,9 +44,10 @@ async def safe_edit(
 ) -> None:
     """Edit the message behind a callback query, tolerating a no-op edit."""
     message = query.message
-    if message is None:
-        # The original message aged out of the client's cache (48h+). Nothing
-        # to edit; the caller should have already answered the query.
+    if not isinstance(message, Message):
+        # Either the original aged out of the client's cache (48h+) or Telegram
+        # sent an InaccessibleMessage stub. Neither can be edited; the caller
+        # should have already answered the query.
         return
     try:
         await message.edit_text(clamp(body), reply_markup=markup)

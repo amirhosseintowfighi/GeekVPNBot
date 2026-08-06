@@ -55,20 +55,21 @@ async def load_storefront(*, user: Any, scope: Any, services: BotServices) -> St
     except Exception:
         is_first = False
 
-    return await scope.storefront.load(
+    view: StorefrontView = await scope.storefront.load(
         user_id=user.id,
         loyalty_tier=tier_of(snapshot.lifetime_spend),
         is_first_purchase=is_first,
         wallet_balance=snapshot.balance,
     )
+    return view
 
 
 def _category_keyboard(view: StorefrontView) -> Any:
     rows = [
         [
             K.btn(
-                f"{category.icon or E.SHOP} {category.name_fa}",
-                ShopCB(action="cat", ref=short_ref(category.category_id)),
+                f"{category.icon or E.SHOP} {category.name}",
+                ShopCB(action="cat", ref=short_ref(category.id)),
             )
         ]
         for category in view.categories
@@ -81,8 +82,8 @@ def _product_keyboard(category: CategoryView) -> Any:
     rows = [
         [
             K.btn(
-                f"{product.icon or E.ROCKET} {product.name_fa}",
-                ShopCB(action="prod", ref=short_ref(product.product_id)),
+                f"{product.icon or E.ROCKET} {product.name}",
+                ShopCB(action="prod", ref=short_ref(product.id)),
             )
         ]
         for product in category.products
@@ -101,7 +102,7 @@ def _plan_keyboard(product: ProductView) -> Any:
         [
             K.btn(
                 R.plan_button_label(plan),
-                ShopCB(action="plan", ref=short_ref(plan.plan_id)),
+                ShopCB(action="plan", ref=short_ref(plan.id)),
             )
         ]
         for plan in product.plans
@@ -176,7 +177,7 @@ async def on_category(
     if not category.products:
         await safe_edit(query, T.SHOP_EMPTY, markup=K.single(K.home_button()))
         return
-    body = f"{category.icon or E.SHOP} <b>{category.name_fa}</b>\n\n{T.SHOP_INTRO}"
+    body = f"{category.icon or E.SHOP} <b>{category.name}</b>\n\n{T.SHOP_INTRO}"
     await safe_edit(query, body, markup=_product_keyboard(category))
 
 

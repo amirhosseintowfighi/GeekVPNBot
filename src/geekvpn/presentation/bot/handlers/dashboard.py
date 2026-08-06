@@ -136,7 +136,9 @@ async def on_config(
         return
     cards = await _load(services, user)
     card = match_ref(cards, callback_data.ref, "subscription_id")
-    if card is None or not card.subscription_url:
+    # An InaccessibleMessage cannot be replied to, and a stale button is
+    # exactly what the customer sees in both cases.
+    if card is None or not card.subscription_url or not isinstance(query.message, Message):
         await toast(query, T.ERR_STALE_BUTTON, alert=True)
         return
     body = f"{T.CONFIG_CAPTION}\n\n<code>{card.subscription_url}</code>"
@@ -160,7 +162,9 @@ async def on_qr(
         return
     cards = await _load(services, user)
     card = match_ref(cards, callback_data.ref, "subscription_id")
-    if card is None or not card.subscription_url:
+    # An InaccessibleMessage cannot be replied to, and a stale button is
+    # exactly what the customer sees in both cases.
+    if card is None or not card.subscription_url or not isinstance(query.message, Message):
         await toast(query, T.ERR_STALE_BUTTON, alert=True)
         return
     await answer(query.message, f"{T.QR_CAPTION}\n\n<code>{card.subscription_url}</code>")

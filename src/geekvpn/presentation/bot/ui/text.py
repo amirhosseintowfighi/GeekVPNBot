@@ -425,6 +425,9 @@ NOTIFY_PAYMENT_REJECTED: Final = (
 NOTIFY_TICKET_REPLY: Final = (
     "\U0001f4ac \u067e\u0627\u0633\u062e \u062a\u06cc\u06a9\u062a {ref}\n\n{message}"
 )
+NOTIFY_WALLET_CREDITED: Final = (
+    "\U0001f4b0 کیف پول شما شارژ شد\n\nمبلغ: {amount}\nموجودی: {balance}"
+)
 NOTIFY_REFERRAL_EARNED: Final = (
     "\U0001f381 \u067e\u0627\u062f\u0627\u0634 \u062f\u0639\u0648\u062a!\n\n"
     "{amount} \u0628\u0627\u0628\u062a \u062e\u0631\u06cc\u062f {invitee} \u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644\u062a\u0627\u0646 \u0627\u0636\u0627\u0641\u0647 \u0634\u062f."

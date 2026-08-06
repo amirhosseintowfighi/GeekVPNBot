@@ -123,6 +123,7 @@ class SqlProfileReader:
         return ProfileSummary(
             user_id=user.id,
             telegram_id=user.telegram_id,
+            referral_code=user.referral_code,
             display_name=user.display_name,
             username=user.username,
             joined_at=user.created_at,

@@ -90,7 +90,10 @@ class IdentityMiddleware(BaseMiddleware):
 def _extract_user(event: TelegramObject) -> TelegramUser | None:
     if not isinstance(event, Update):
         return None
-    return event.event_from_user
+    # `event_from_user` is resolved dynamically by aiogram, so it is invisible
+    # to the type checker while being present on every real update.
+    sender: TelegramUser | None = getattr(event, "event_from_user", None)
+    return sender
 
 
 def _extract_start_param(event: TelegramObject) -> str | None:

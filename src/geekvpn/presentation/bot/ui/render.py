@@ -232,10 +232,12 @@ def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
         used = ratio(card.used_gib, card.quota_gib)
         bar = progress_bar(card.usage_fraction)
 
-    devices = f"{fa_digits(card.devices_online)} \u0627\u0632 {fa_digits(card.device_limit)}"
+    # Nothing records how many devices are connected right now - that would be a
+    # live panel query - so the plan's allowance is the only honest number here.
+    devices = fa_digits(card.device_limit)
 
     return T.SUB_DETAIL.format(
-        icon=card.icon or E.ROCKET,
+        icon=E.ROCKET,
         name=f"<b>{card.product_name_fa}</b> \u2014 {card.plan_name_fa}",
         status_emoji=state_emoji,
         status=state_label,
@@ -250,16 +252,24 @@ def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
 # -- Wallet ------------------------------------------------------------------
 
 
-def wallet(snapshot: WalletSnapshot, *, tier_label: str, tier_emoji: str) -> str:
+def wallet(
+    snapshot: WalletSnapshot,
+    *,
+    tier_label: str,
+    tier_emoji: str,
+    cashback_percent: float = 0.0,
+) -> str:
     pending_line = (
-        T.WALLET_PENDING_LINE.format(amount=toman(snapshot.pending)) if snapshot.pending else ""
+        T.WALLET_PENDING_LINE.format(amount=toman(snapshot.pending_credit))
+        if snapshot.pending_credit
+        else ""
     )
     return T.WALLET_BODY.format(
         balance=f"<b>{toman(snapshot.balance)}</b>",
         pending_line=pending_line,
         tier=tier_label,
         tier_emoji=tier_emoji,
-        cashback_rate=percent(snapshot.cashback_bps / 100),
+        cashback_rate=percent(cashback_percent),
     )
 
 
@@ -319,7 +329,7 @@ def profile(
         code=f"<code>{summary.referral_code}</code>",
         tier=tier_label,
         tier_emoji=tier_emoji,
-        joined=fa_date(summary.joined_at),
+        joined=fa_date(summary.joined_at) if summary.joined_at else "—",
         orders=fa_digits(summary.order_count),
         balance=toman(balance),
     )
@@ -355,7 +365,7 @@ def server_status(rows: list[ServerStatusRow], *, checked_at: datetime) -> str:
     if not rows:
         return rtl_line(T.STATUS_NO_SERVERS)
 
-    all_ok = all(r.health is ServerHealth.OPERATIONAL for r in rows)
+    all_ok = all(r.health is ServerHealth.HEALTHY for r in rows)
     header = T.STATUS_ALL_OK if all_ok else T.STATUS_SOME_DEGRADED
 
     lines = [rtl_line(f"<b>{T.STATUS_TITLE}</b>"), "", rtl_line(header), ""]
@@ -375,8 +385,8 @@ def server_status(rows: list[ServerStatusRow], *, checked_at: datetime) -> str:
 
 def ticket_button_label(ticket: TicketCard) -> str:
     state = _TICKET_LABEL.get(ticket.state, "")
-    badge = f" ({fa_digits(ticket.unread_replies)})" if ticket.unread_replies else ""
-    return f"{state} {ticket.subject_fa}{badge}"
+    badge = f" ({fa_digits(ticket.unread_count)})" if ticket.unread_count else ""
+    return f"{state} {ticket.topic_fa}{badge}"
 
 
 def ticket_list(tickets: list[TicketCard]) -> str:
@@ -385,7 +395,7 @@ def ticket_list(tickets: list[TicketCard]) -> str:
     lines = [rtl_line(f"<b>{T.BTN_MY_TICKETS}</b>"), ""]
     for ticket in tickets:
         state = _TICKET_LABEL.get(ticket.state, "")
-        lines.append(rtl_line(f"{state} {ticket.subject_fa}"))
+        lines.append(rtl_line(f"{state} {ticket.topic_fa}"))
         lines.append(
             rtl_line(f"    <code>{ticket.reference}</code> \u00b7 {fa_date(ticket.created_at)}")
         )

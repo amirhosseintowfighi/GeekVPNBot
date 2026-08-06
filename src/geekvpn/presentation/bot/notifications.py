@@ -27,7 +27,7 @@ from geekvpn.presentation.bot.handlers.common import local_hour
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB
-from geekvpn.presentation.bot.ui.fa import fa_digits, gib, toman
+from geekvpn.presentation.bot.ui.fa import gib, pluralize_days, toman
 
 QUIET_START = 23
 QUIET_END = 8
@@ -130,7 +130,7 @@ class Notifier:
     async def expiring_soon(
         self, *, user_id: Any, plan_name: str, days_left: int, now: datetime | None = None
     ) -> Delivery:
-        body = T.NOTIFY_EXPIRING.format(plan=plan_name, days=fa_digits(days_left))
+        body = T.NOTIFY_EXPIRY_SOON.format(plan=plan_name, remaining=pluralize_days(days_left))
         return await self.send(
             user_id=user_id,
             category=Category.EXPIRY,
@@ -160,11 +160,8 @@ class Notifier:
         percent: int,
         now: datetime | None = None,
     ) -> Delivery:
-        body = T.NOTIFY_QUOTA.format(
-            plan=plan_name,
-            percent=fa_digits(percent),
-            used=gib(used_gib),
-            total=gib(total_gib),
+        body = T.NOTIFY_TRAFFIC_LOW.format(
+            plan=plan_name, used=f"{gib(used_gib)} / {gib(total_gib)}"
         )
         return await self.send(
             user_id=user_id,
@@ -212,23 +209,33 @@ class Notifier:
         )
 
     async def referral_reward(
-        self, *, user_id: Any, amount: int, now: datetime | None = None
+        self,
+        *,
+        user_id: Any,
+        amount: int,
+        invitee: str = "",
+        now: datetime | None = None,
     ) -> Delivery:
         return await self.send(
             user_id=user_id,
             category=Category.PROMOS,
-            body=T.NOTIFY_REFERRAL_REWARD.format(amount=toman(amount)),
+            body=T.NOTIFY_REFERRAL_EARNED.format(amount=toman(amount), invitee=invitee),
             markup=K.single(K.btn(T.MENU_REFERRAL, NavCB(to="referral"))),
             now=now,
         )
 
     async def ticket_reply(
-        self, *, user_id: Any, reference: str, now: datetime | None = None
+        self,
+        *,
+        user_id: Any,
+        reference: str,
+        message: str = "",
+        now: datetime | None = None,
     ) -> Delivery:
         return await self.send(
             user_id=user_id,
             category=Category.CRITICAL,
-            body=T.NOTIFY_TICKET_REPLY.format(ref=f"<code>{reference}</code>"),
+            body=T.NOTIFY_TICKET_REPLY.format(ref=f"<code>{reference}</code>", message=message),
             markup=K.single(K.btn(T.BTN_MY_TICKETS, NavCB(to="support"))),
             now=now,
         )
