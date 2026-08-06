@@ -9,6 +9,8 @@ second replica must not lose a user mid-flow.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -40,7 +42,6 @@ from geekvpn.presentation.bot.middlewares import (
     CorrelationIdMiddleware,
     LoggingMiddleware,
 )
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.throttle import ThrottlingMiddleware
 
 #: Registration order matters. Aiogram walks routers in order and stops at the
@@ -76,24 +77,24 @@ def create_bot(settings: Settings) -> Bot:
 def create_dispatcher(
     settings: Settings,
     container: Container,
-    services: BotServices | None = None,
+    *,
+    fetch_receipt: Callable[[str], Awaitable[bytes]] | None = None,
 ) -> Dispatcher:
     """Build the dispatcher.
 
-    `services` is registered as workflow data, so aiogram injects it by name
-    into every handler that declares a `services: BotServices` parameter.
-    Handlers therefore never touch the container, which is what makes them
-    callable directly from a test with a bundle of fakes.
+    `services` used to be a parameter here and could never have worked: the
+    bundle needs a database session, and a dispatcher is built once per
+    process. `IdentityMiddleware` builds it per update instead and injects it
+    as workflow data, so aiogram still hands every handler its
+    `services: BotServices` argument by name.
 
-    It is optional so that a caller which only needs the wiring - a smoke
-    test asserting the router order, for instance - does not have to build
-    eight adapters first.
+    `fetch_receipt` is threaded through to the checkout adapter, which needs
+    the receipt's bytes - not its Telegram file id - to fingerprint it.
     """
     dispatcher = Dispatcher(
         storage=RedisStorage(redis=container.redis),
         settings=settings,
         container=container,
-        services=services,
     )
 
     # Applied to every update type, before any handler runs. Order is the
@@ -103,7 +104,7 @@ def create_dispatcher(
     for observer in (dispatcher.update,):
         observer.outer_middleware(CorrelationIdMiddleware())
         observer.outer_middleware(LoggingMiddleware())
-        observer.outer_middleware(IdentityMiddleware(container))
+        observer.outer_middleware(IdentityMiddleware(container, fetch_receipt=fetch_receipt))
         observer.outer_middleware(ThrottlingMiddleware())
 
     for module in ROUTERS:

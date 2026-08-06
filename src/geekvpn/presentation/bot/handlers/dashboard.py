@@ -16,6 +16,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -23,7 +24,6 @@ from geekvpn.presentation.bot.handlers.common import (
     short_ref,
     toast,
 )
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T

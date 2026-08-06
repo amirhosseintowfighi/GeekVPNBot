@@ -13,6 +13,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers import (
     dashboard,
     faq,
@@ -26,7 +27,6 @@ from geekvpn.presentation.bot.handlers import (
 )
 from geekvpn.presentation.bot.handlers.common import answer, toast
 from geekvpn.presentation.bot.handlers.menu import render_home
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T
 

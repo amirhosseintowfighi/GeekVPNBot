@@ -16,8 +16,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import NotificationPreferences
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T

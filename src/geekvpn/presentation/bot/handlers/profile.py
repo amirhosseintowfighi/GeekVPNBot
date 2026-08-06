@@ -15,6 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import WalletSnapshot
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     next_tier,
@@ -24,7 +25,6 @@ from geekvpn.presentation.bot.handlers.common import (
     tier_of,
     toast,
 )
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Profile
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R

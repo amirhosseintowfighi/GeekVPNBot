@@ -18,6 +18,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     display_name_of,
@@ -25,7 +26,6 @@ from geekvpn.presentation.bot.handlers.common import (
     toast,
 )
 from geekvpn.presentation.bot.handlers.menu import render_home
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Registration
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T

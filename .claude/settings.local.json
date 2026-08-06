@@ -62,7 +62,9 @@
       "Bash(grep -n \"enabled\\\\|/state'\\\\|/state\\\\`\\\\|orders/\\\\${orderId}/\" -B3 admin/src/lib/api.ts)",
       "Bash(grep -n \"enabled\\\\`\\\\|tickets/\\\\${ticketId}/state\" -B2 admin/src/lib/api.ts)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/readers.py)",
-      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/checkout.py)"
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/checkout.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/services.py src/geekvpn/presentation/bot/identity.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/ src/geekvpn/infrastructure/bot/)"
     ]
   }
 }

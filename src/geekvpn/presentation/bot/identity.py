@@ -22,6 +22,7 @@ from geekvpn.application.identity.dto import RequestContext
 from geekvpn.application.ports.telegram_auth import TelegramIdentity
 from geekvpn.domain.identity.enums import AuthMethod
 from geekvpn.domain.identity.errors import AccountSuspendedError
+from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.logging.setup import get_logger
@@ -32,10 +33,16 @@ Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 
 class IdentityMiddleware(BaseMiddleware):
-    """Injects `user` (domain `User`) and `scope` into handler data."""
+    """Injects `user`, `scope` and `services` into handler data."""
 
-    def __init__(self, container: Container) -> None:
+    def __init__(
+        self,
+        container: Container,
+        *,
+        fetch_receipt: Callable[[str], Awaitable[bytes]] | None = None,
+    ) -> None:
         self._container = container
+        self._fetch_receipt = fetch_receipt
 
     async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         telegram_user = _extract_user(event)
@@ -70,6 +77,11 @@ class IdentityMiddleware(BaseMiddleware):
             data["scope"] = scope
             data["user"] = result.user
             data["is_new_user"] = result.is_new_user
+            # Built here, not in `create_dispatcher`: the bundle needs this
+            # update's session, and a dispatcher is constructed once per
+            # process. Handlers declare `services: BotServices` and aiogram
+            # injects it by name.
+            data["services"] = build_bot_services(scope, fetch_receipt=self._fetch_receipt)
             outcome = await handler(event, data)
             await uow.commit()
             return outcome

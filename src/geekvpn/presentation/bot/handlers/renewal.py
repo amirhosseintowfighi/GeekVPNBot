@@ -17,6 +17,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     match_ref,
     safe_edit,
@@ -24,7 +25,6 @@ from geekvpn.presentation.bot.handlers.common import (
     toast,
 )
 from geekvpn.presentation.bot.handlers.shop import load_storefront
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R

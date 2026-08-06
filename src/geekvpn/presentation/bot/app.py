@@ -10,10 +10,11 @@ update is parsed.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from secrets import compare_digest
 
+from aiogram import Bot
 from aiogram.types import Update
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
@@ -36,6 +37,23 @@ logger = get_logger(__name__)
 SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"  # noqa: S105 - a constant name, not a credential
 
 
+def _receipt_fetcher(bot: Bot) -> Callable[[str], Awaitable[bytes]]:
+    """Download a receipt so it can be fingerprinted from its bytes.
+
+    The digest has to come from the image itself: forwarding a photo yields a
+    fresh Telegram file id for identical bytes, so a file-id digest would let
+    the same receipt be submitted twice. See `infrastructure/bot/checkout.py`.
+    """
+
+    async def fetch(file_id: str) -> bytes:
+        buffer = await bot.download(file_id)
+        if buffer is None:  # pragma: no cover - only when downloading to disk
+            raise RuntimeError("Telegram returned no data for the receipt.")
+        return buffer.read()
+
+    return fetch
+
+
 def create_bot_app(
     settings: Settings | None = None,
     *,
@@ -55,7 +73,11 @@ def create_bot_app(
         app.state.container = container or build_container(settings)
         app.state.settings = settings
         app.state.bot = create_bot(settings)
-        app.state.dispatcher = create_dispatcher(settings, app.state.container)
+        app.state.dispatcher = create_dispatcher(
+            settings,
+            app.state.container,
+            fetch_receipt=_receipt_fetcher(app.state.bot),
+        )
 
         if settings.telegram.set_webhook_on_startup:
             await app.state.bot.set_webhook(

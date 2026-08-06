@@ -1,9 +1,14 @@
 """The bundle of read-model ports handed to every handler.
 
-Registered once as dispatcher workflow data, so aiogram injects it by name
-into any handler that declares a `services: BotServices` parameter. This keeps
-handlers free of container lookups and makes them trivially testable -- a test
-builds a `BotServices` of fakes and calls the handler directly.
+Built once per update by `IdentityMiddleware` and injected as workflow data,
+so aiogram hands it by name to any handler declaring a `services: BotServices`
+parameter. This keeps handlers free of container lookups and makes them
+trivially testable -- a test builds a `BotServices` of fakes and calls the
+handler directly.
+
+It lives in the application layer because it names only application ports.
+Keeping it in `presentation` forced infrastructure to import presentation in
+order to assemble it, which the layering contract rightly refuses.
 """
 
 from __future__ import annotations

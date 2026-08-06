@@ -24,6 +24,7 @@ from geekvpn.application.bot.read_models import (
     CryptoPaymentDetails,
     WalletSnapshot,
 )
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     safe_edit,
@@ -33,7 +34,6 @@ from geekvpn.presentation.bot.handlers.common import (
     toast,
 )
 from geekvpn.presentation.bot.handlers.purchase import _card_body, _crypto_body
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Wallet
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R

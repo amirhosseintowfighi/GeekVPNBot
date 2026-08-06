@@ -16,6 +16,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import CategoryView, ProductView, StorefrontView
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -25,7 +26,6 @@ from geekvpn.presentation.bot.handlers.common import (
     tier_of,
     toast,
 )
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import emoji as E
 from geekvpn.presentation.bot.ui import keyboards as K

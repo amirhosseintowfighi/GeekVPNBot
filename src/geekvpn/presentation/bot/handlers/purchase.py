@@ -30,6 +30,7 @@ from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
     CryptoPaymentDetails,
 )
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -38,7 +39,6 @@ from geekvpn.presentation.bot.handlers.common import (
     toast,
 )
 from geekvpn.presentation.bot.handlers.shop import load_storefront
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R

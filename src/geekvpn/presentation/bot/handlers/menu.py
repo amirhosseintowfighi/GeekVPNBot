@@ -16,6 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import SubscriptionState
+from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import (
     display_name_of,
     local_hour,
@@ -25,7 +26,6 @@ from geekvpn.presentation.bot.handlers.common import (
     tier_of,
     toast,
 )
-from geekvpn.presentation.bot.services import BotServices
 from geekvpn.presentation.bot.ui import emoji as E
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
