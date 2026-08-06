@@ -34,6 +34,7 @@ from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.platform.settings_service import SettingsService
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
+from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
@@ -279,6 +280,20 @@ class RequestScope:
             clock=self.container.clock,
             ids=Uuid4IdGenerator(),
             events=LoggingEventPublisher(),
+        )
+
+    @cached_property
+    def usage_sync(self) -> UsageSyncService:
+        """Reads traffic figures back from the panels.
+
+        Shared by the operator's "sync now" button and the scheduled sweep, so
+        the two can never disagree about what a reading means.
+        """
+        return UsageSyncService(
+            subscriptions=self.subscriptions,
+            nodes=self.nodes,
+            panels=self.panel_provider,
+            clock=self.container.clock,
         )
 
     # -- helpers -----------------------------------------------------------

@@ -21,7 +21,7 @@ from typing import Protocol, runtime_checkable
 
 from geekvpn.application.ports.panel import PanelAdapter
 from geekvpn.domain.panels.enums import PanelKind
-from geekvpn.domain.provisioning.enums import NodeState
+from geekvpn.domain.provisioning.enums import NodeState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -59,6 +59,35 @@ class NodeRecord:
         if self.capacity == 0:
             return 0.0
         return self.account_count / self.capacity
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class NodeAdminRecord:
+    """A node as the admin panel is allowed to see it.
+
+    Separate from :class:`NodeRecord` because an operator needs the connection
+    settings that selection has no business seeing. It still carries
+    ``has_password`` rather than the password: an operator editing a node needs
+    to know whether one is set, never what it is, and a field that is never
+    populated cannot be leaked by a careless serialiser.
+    """
+
+    id: str
+    name_fa: str
+    panel_kind: PanelKind
+    state: NodeState
+    base_url: str
+    username: str
+    has_password: bool
+    verify_tls: bool
+    timeout_seconds: float
+    capacity: int
+    account_count: int
+    accepting_new: bool
+    country_code: str | None = None
+    sort_order: int = 0
+    last_check_at: datetime | None = None
+    last_error: str | None = None
 
 
 @runtime_checkable
@@ -117,6 +146,22 @@ class SubscriptionRepository(Protocol):
 
     async def update(self, subscription: Subscription) -> None: ...
 
+    async def search(
+        self,
+        *,
+        state: SubscriptionState | None = None,
+        user_id: int | None = None,
+        node_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[Sequence[Subscription], int]:
+        """A filtered page plus the unpaged total.
+
+        Used by the admin list and by the usage sync, which needs every account
+        on one node so it can ask the panel for them in a single request.
+        """
+        ...
+
 
 @runtime_checkable
 class NodeRepository(Protocol):
@@ -146,6 +191,7 @@ class PanelProvider(Protocol):
 __all__ = [
     "EventPublisher",
     "IdGenerator",
+    "NodeAdminRecord",
     "NodeRecord",
     "NodeRepository",
     "OrderNumberGenerator",

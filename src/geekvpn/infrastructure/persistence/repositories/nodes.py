@@ -13,12 +13,13 @@ node" and "the selector knows the password".
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from geekvpn.application.provisioning.ports import NodeRecord
+from geekvpn.application.provisioning.ports import NodeAdminRecord, NodeRecord
 from geekvpn.domain.panels.enums import PanelKind
 from geekvpn.domain.provisioning.enums import NodeState
 from geekvpn.infrastructure.persistence.models.provisioning import NodeModel
@@ -37,6 +38,34 @@ def node_to_record(model: NodeModel) -> NodeRecord:
         country_code=model.country_code,
         sort_order=model.sort_order,
     )
+
+
+def node_to_admin_record(model: NodeModel) -> NodeAdminRecord:
+    """Project a row onto the operator-facing shape. Still drops the password."""
+    timeout = model.timeout_seconds
+    return NodeAdminRecord(
+        id=model.id,
+        name_fa=model.name_fa,
+        panel_kind=PanelKind(model.panel_kind),
+        state=NodeState(model.state),
+        base_url=model.base_url,
+        username=model.username,
+        has_password=bool(model.password_encrypted),
+        verify_tls=model.verify_tls,
+        timeout_seconds=float(timeout) if isinstance(timeout, Decimal) else timeout,
+        capacity=model.capacity,
+        account_count=model.account_count,
+        accepting_new=model.accepting_new,
+        country_code=model.country_code,
+        sort_order=model.sort_order,
+        last_check_at=model.last_check_at,
+        last_error=model.last_error,
+    )
+
+
+#: Request fields whose column name differs, kept in one place so `update` stays
+#: a loop rather than a wall of `if`.
+_COLUMN_ALIASES: dict[str, str] = {"password": "password_encrypted"}
 
 
 class SqlAlchemyNodeRepository:
@@ -91,6 +120,90 @@ class SqlAlchemyNodeRepository:
         }
         return row.panel_kind, payload
 
+    # -- administration ----------------------------------------------------
+    #
+    # Operators need to see and edit the connection settings that selection is
+    # deliberately kept away from, so these return `NodeAdminRecord`. None of
+    # them ever returns the password.
+
+    async def list_all(self) -> Sequence[NodeAdminRecord]:
+        stmt = select(NodeModel).order_by(NodeModel.sort_order, NodeModel.id)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [node_to_admin_record(row) for row in rows]
+
+    async def get_for_admin(self, node_id: str) -> NodeAdminRecord | None:
+        row = await self._session.get(NodeModel, node_id)
+        return node_to_admin_record(row) if row else None
+
+    async def create(
+        self,
+        *,
+        node_id: str,
+        name_fa: str,
+        panel_kind: PanelKind,
+        base_url: str,
+        username: str,
+        password: str,
+        country_code: str | None,
+        capacity: int,
+        verify_tls: bool,
+        timeout_seconds: float,
+        sort_order: int,
+        config: dict[str, object] | None = None,
+    ) -> NodeAdminRecord:
+        row = NodeModel(
+            id=node_id,
+            name_fa=name_fa,
+            panel_kind=panel_kind.value,
+            base_url=base_url,
+            username=username,
+            password_encrypted=password,
+            country_code=country_code,
+            capacity=capacity,
+            verify_tls=verify_tls,
+            timeout_seconds=timeout_seconds,
+            sort_order=sort_order,
+            config_json=config or {},
+            state=NodeState.ONLINE.value,
+            accepting_new=True,
+            account_count=0,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return node_to_admin_record(row)
+
+    async def update(self, node_id: str, **changes: object) -> NodeAdminRecord | None:
+        """Apply only the fields the caller actually sent.
+
+        A password of ``None`` means "leave it alone", which is what lets the
+        admin panel round-trip a node it was never shown the password for.
+        """
+        row = await self._session.get(NodeModel, node_id)
+        if row is None:
+            return None
+        for field, value in changes.items():
+            if value is None:
+                continue
+            setattr(row, _COLUMN_ALIASES.get(field, field), value)
+        await self._session.flush()
+        return node_to_admin_record(row)
+
+    async def delete(self, node_id: str) -> bool:
+        row = await self._session.get(NodeModel, node_id)
+        if row is None:
+            return False
+        await self._session.delete(row)
+        await self._session.flush()
+        return True
+
+    async def record_check(self, node_id: str, *, at: datetime, error: str | None) -> None:
+        """Store the outcome of a connection test so the list view can show it."""
+        row = await self._session.get(NodeModel, node_id)
+        if row is not None:
+            row.last_check_at = at
+            row.last_error = error
+            await self._session.flush()
+
     async def record_account_added(self, node_id: str) -> None:
         """Increment the load counter after a successful create.
 
@@ -104,4 +217,4 @@ class SqlAlchemyNodeRepository:
             await self._session.flush()
 
 
-__all__ = ["SqlAlchemyNodeRepository", "node_to_record"]
+__all__ = ["SqlAlchemyNodeRepository", "node_to_admin_record", "node_to_record"]

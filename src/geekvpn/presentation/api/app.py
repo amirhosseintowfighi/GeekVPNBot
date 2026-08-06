@@ -26,7 +26,11 @@ from geekvpn.presentation.api.routers import (
     admin_analytics,
     admin_auth,
     admin_catalog,
+    admin_customers,
+    admin_orders,
+    admin_panels,
     admin_payments,
+    admin_subscriptions,
     admin_support,
     admin_users,
     admin_wallet,
@@ -198,5 +202,9 @@ def create_app(
     app.include_router(admin_support.router, prefix=API_V1_PREFIX)
     app.include_router(admin_support.templates_router, prefix=API_V1_PREFIX)
     app.include_router(admin_wallet.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_panels.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_orders.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_subscriptions.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_customers.router, prefix=API_V1_PREFIX)
 
     return app

@@ -76,6 +76,46 @@ class SqlAlchemyOrderRepository:
         stmt = select(func.count()).select_from(OrderModel).where(OrderModel.user_id == user_id)
         return int((await self._session.execute(stmt)).scalar_one())
 
+    async def search(
+        self,
+        *,
+        state: OrderState | None = None,
+        user_id: int | None = None,
+        number: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[Sequence[Order], int]:
+        """Platform-wide order list for the admin panel, with the total.
+
+        Returns the count alongside the page because the operator screen needs
+        to paginate, and running the filter twice from the router would let the
+        two drift apart.
+        """
+        filters = []
+        if state is not None:
+            filters.append(OrderModel.state == state.value)
+        if user_id is not None:
+            filters.append(OrderModel.user_id == user_id)
+        if number is not None:
+            filters.append(OrderModel.number == number)
+
+        total = int(
+            (
+                await self._session.execute(
+                    select(func.count()).select_from(OrderModel).where(*filters)
+                )
+            ).scalar_one()
+        )
+        stmt = (
+            select(OrderModel)
+            .where(*filters)
+            .order_by(OrderModel.placed_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [order_to_domain(row) for row in rows], total
+
     async def has_completed_order(self, user_id: int) -> bool:
         """Used for first-purchase pricing and referral conversion.
 
@@ -147,6 +187,41 @@ class SqlAlchemySubscriptionRepository:
         stmt = stmt.order_by(SubscriptionModel.expires_at.desc())
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
+
+    async def search(
+        self,
+        *,
+        state: SubscriptionState | None = None,
+        user_id: int | None = None,
+        node_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[Sequence[Subscription], int]:
+        """Platform-wide subscription list for the admin panel, with the total."""
+        filters = []
+        if state is not None:
+            filters.append(SubscriptionModel.state == state.value)
+        if user_id is not None:
+            filters.append(SubscriptionModel.user_id == user_id)
+        if node_id is not None:
+            filters.append(SubscriptionModel.node_id == node_id)
+
+        total = int(
+            (
+                await self._session.execute(
+                    select(func.count()).select_from(SubscriptionModel).where(*filters)
+                )
+            ).scalar_one()
+        )
+        stmt = (
+            select(SubscriptionModel)
+            .where(*filters)
+            .order_by(SubscriptionModel.expires_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows], total
 
     async def list_expiring(
         self, *, now: datetime, within_days: int, limit: int = 500

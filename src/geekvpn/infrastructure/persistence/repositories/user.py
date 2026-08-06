@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.domain.identity.enums import Language, UserStatus
@@ -19,6 +20,51 @@ class SqlAlchemyUserRepository:
     async def get(self, user_id: uuid.UUID) -> User | None:
         model = await self._session.get(UserModel, user_id)
         return _to_domain(model) if model else None
+
+    async def search(
+        self,
+        *,
+        status: UserStatus | None = None,
+        query: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[Sequence[User], int]:
+        """The customer list for the admin panel, with the unpaged total.
+
+        ``query`` matches the username or either name part. Telegram ids are
+        matched exactly when the term is numeric, because a partial id is never
+        what an operator means.
+        """
+        filters = []
+        if status is not None:
+            filters.append(UserModel.status == status.value)
+        if query:
+            term = f"%{query}%"
+            matches = [
+                UserModel.username.ilike(term),
+                UserModel.first_name.ilike(term),
+                UserModel.last_name.ilike(term),
+            ]
+            if query.isdigit():
+                matches.append(UserModel.telegram_id == int(query))
+            filters.append(or_(*matches))
+
+        total = int(
+            (
+                await self._session.execute(
+                    select(func.count()).select_from(UserModel).where(*filters)
+                )
+            ).scalar_one()
+        )
+        stmt = (
+            select(UserModel)
+            .where(*filters)
+            .order_by(UserModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(row) for row in rows], total
 
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         stmt = select(UserModel).where(UserModel.telegram_id == telegram_id)
