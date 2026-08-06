@@ -77,7 +77,12 @@ export default function UserDetailPage() {
     setBusy(true)
     setActionError(null)
     try {
-      if (dialog === 'state') await api.setUserState(userId, nextState, reason.trim())
+      if (dialog === 'state') {
+        // Reinstating carries no reason; suspending always does.
+        await (nextState === 'active'
+          ? api.reinstateUser(userId)
+          : api.suspendUser(userId, reason.trim()))
+      }
       if (dialog === 'wallet') await api.adjustWallet(userId, parsedAmount, reason.trim())
       await mutate()
       close()

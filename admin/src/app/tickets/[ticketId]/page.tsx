@@ -95,7 +95,7 @@ export default function TicketDetailPage() {
               <Button
                 variant="outline"
                 onClick={async () => {
-                  await api.setTicketState(ticketId, 'closed')
+                  await api.closeTicket(ticketId)
                   thread.mutate()
                 }}
               >

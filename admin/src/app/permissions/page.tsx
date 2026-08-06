@@ -201,9 +201,11 @@ export default function PermissionsPage() {
                         <TableCell>
                           <Switch
                             checked={operator.enabled}
-                            disabled={!mayManage}
-                            onCheckedChange={async (checked) => {
-                              await api.setOperatorEnabled(operator.id, checked)
+                            // Disabling is one-way server-side: it deletes the
+                            // operator and ends their sessions.
+                            disabled={!mayManage || !operator.enabled}
+                            onCheckedChange={async () => {
+                              await api.disableOperator(operator.id)
                               mutate()
                             }}
                           />

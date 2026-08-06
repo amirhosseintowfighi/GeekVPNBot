@@ -146,3 +146,55 @@ Headings are Persian, values are ASCII digits, and the filename is ASCII
 5987 and still breaks in older clients.
 
 Permissions: `analytics.view` for the bundle, `analytics.export` for the CSV.
+
+---
+
+## Path alignment decision (2026-08-07)
+
+The panel and the backend had diverged: the client called `/admin/session`,
+`/admin/dashboard`, `/admin/categories` and so on, none of which were
+registered routes.
+
+**The backend won.** It has tests, two other clients, and an OpenAPI document;
+the panel had none of the three. Every path in `src/lib/api.ts` was moved onto
+the registered route.
+
+| was | is |
+|---|---|
+| `/admin/session` | `/admin/auth/me` |
+| `/admin/dashboard` | `/admin/analytics/dashboard` |
+| `/admin/logs` | `/admin/audit-logs` |
+| `/admin/operators` | `/admin/admins` |
+| `/admin/users` | `/admin/customers` |
+| `/admin/servers` | `/admin/panels` |
+| `/admin/categories`, `/products`, `/plans`, `/coupons`, `/campaigns` | the same under `/admin/catalog/` |
+| `/admin/panels/{id}/test` | `/admin/panels/{id}/test-connection` |
+
+Three calls changed shape rather than path, because the backend models them
+differently and the difference is deliberate:
+
+- `setOperatorEnabled(id, bool)` → `disableOperator(id)`. Disabling is a
+  `DELETE` that also ends every session the operator holds, and there is no
+  re-enable.
+- `setUserState(id, state, reason)` → `suspendUser(id, reason)` /
+  `reinstateUser(id)`. A suspension always carries a reason; a reinstatement
+  never does, and one function taking an optional reason hid that.
+- `setTicketState(id, state)` → `closeTicket(id)`. Closing is the only
+  transition exposed as a single call; priority, category and assignment have
+  their own routes.
+
+### Enforcement
+
+`tests/integration/test_admin_api_contract.py` extracts every `${ROOT}/…`
+literal from `admin/src` and diffs it against `create_app()`'s routes. It fails
+on a new mismatch **and** on a `KNOWN_GAPS` entry that has quietly been
+implemented, so the exemption list can only shrink.
+
+### Still missing a backend
+
+Listed in `KNOWN_GAPS` with a reason each: broadcasts (4), the duration ladder
+(2), nested plan creation, panel account-count resync, subscription link
+rotation, admin sign-out, the two wallet routes that need a customer id, and
+order approve/reject/refund — the last three because the backend keys those on
+a *payment* id while the panel holds an *order* id, which is a contract change
+rather than a path edit.

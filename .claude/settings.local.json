@@ -58,7 +58,9 @@
       "Bash(sed -i 's/    def __init__\\(self, config: HypotheticalConfig, client: object, panel_id: uuid.UUID\\):/    def __init__\\(\\\\n        self, config: HypotheticalConfig, client: object, panel_id: uuid.UUID\\\\n    \\) -> None:/' tests/unit/panels/test_extensibility.py)",
       "Bash(./.venv/Scripts/ruff.exe format *)",
       "Bash(grep -rhoE \"\\\\`?/admin/[a-zA-Z0-9_/{}$.\\\\-]*\" admin/src/lib/api.ts)",
-      "Bash(grep -rhoE \"\\\\\\(['\\\\`\\\\\"][/a-zA-Z0-9_{}$.-]+['\\\\`\\\\\"]\" admin/src/lib/api.ts)"
+      "Bash(grep -rhoE \"\\\\\\(['\\\\`\\\\\"][/a-zA-Z0-9_{}$.-]+['\\\\`\\\\\"]\" admin/src/lib/api.ts)",
+      "Bash(grep -n \"enabled\\\\|/state'\\\\|/state\\\\`\\\\|orders/\\\\${orderId}/\" -B3 admin/src/lib/api.ts)",
+      "Bash(grep -n \"enabled\\\\`\\\\|tickets/\\\\${ticketId}/state\" -B2 admin/src/lib/api.ts)"
     ]
   }
 }

@@ -149,12 +149,12 @@ const ROOT = '/api/v1/admin'
 
 export const api = {
   // ------------------------------------------------------------- session
-  session: () => fetcher<AdminSession>(`${ROOT}/session`),
-  signOut: () => mutate<void>('POST', `${ROOT}/session/sign-out`),
+  session: () => fetcher<AdminSession>(`${ROOT}/auth/me`),
+  signOut: () => mutate<void>('POST', `${ROOT}/auth/sign-out`),
 
   // ----------------------------------------------------------- dashboard
   dashboard: (days: number) =>
-    fetcher<DashboardSummary>(`${ROOT}/dashboard${qs({ days })}`),
+    fetcher<DashboardSummary>(`${ROOT}/analytics/dashboard${qs({ days })}`),
 
   // --------------------------------------------------------------- users
   users: (params: {
@@ -163,15 +163,17 @@ export const api = {
     query?: string
     state?: string
     tier?: string
-  }) => fetcher<Paged<UserRow>>(`${ROOT}/users${qs({ page_size: 25, ...params })}`),
+  }) => fetcher<Paged<UserRow>>(`${ROOT}/customers${qs({ page_size: 25, ...params })}`),
 
-  user: (userId: string) => fetcher<UserDetail>(`${ROOT}/users/${userId}`),
+  user: (userId: string) => fetcher<UserDetail>(`${ROOT}/customers/${userId}`),
 
   updateUser: (userId: string, patch: { displayName?: string; noteFa?: string }) =>
-    mutate<UserDetail>('PATCH', `${ROOT}/users/${userId}`, patch),
+    mutate<UserDetail>('PATCH', `${ROOT}/customers/${userId}`, patch),
 
-  setUserState: (userId: string, state: 'active' | 'suspended' | 'banned', reasonFa: string) =>
-    mutate<UserDetail>('POST', `${ROOT}/users/${userId}/state`, { state, reasonFa }),
+  suspendUser: (userId: string, reasonFa: string) =>
+    mutate<UserDetail>('POST', `${ROOT}/customers/${userId}/suspend`, { reason: reasonFa }),
+  reinstateUser: (userId: string) =>
+    mutate<UserDetail>('POST', `${ROOT}/customers/${userId}/reinstate`),
 
   // -------------------------------------------------------- subscriptions
   subscriptions: (params: { page: number; query?: string; state?: string }) =>
@@ -202,21 +204,21 @@ export const api = {
     mutate<OrderDetail>('POST', `${ROOT}/orders/${orderId}/refund`, { amount, reasonFa }),
 
   // ------------------------------------------------------------ catalog
-  categories: () => fetcher<CategoryRow[]>(`${ROOT}/categories`),
+  categories: () => fetcher<CategoryRow[]>(`${ROOT}/catalog/categories`),
   saveCategory: (body: Partial<CategoryRow>) =>
-    mutate<CategoryRow>('POST', `${ROOT}/categories`, body),
+    mutate<CategoryRow>('POST', `${ROOT}/catalog/categories`, body),
 
   products: (params: { categoryId?: string; state?: string }) =>
-    fetcher<ProductRow[]>(`${ROOT}/products${qs(params)}`),
+    fetcher<ProductRow[]>(`${ROOT}/catalog/products${qs(params)}`),
   saveProduct: (body: Partial<ProductRow>) =>
-    mutate<ProductRow>('POST', `${ROOT}/products`, body),
+    mutate<ProductRow>('POST', `${ROOT}/catalog/products`, body),
   setProductState: (productId: string, state: string) =>
-    mutate<ProductRow>('POST', `${ROOT}/products/${productId}/state`, { state }),
+    mutate<ProductRow>('POST', `${ROOT}/catalog/products/${productId}/state`, { state }),
 
-  plans: (productId: string) => fetcher<PlanRow[]>(`${ROOT}/products/${productId}/plans`),
-  savePlan: (body: Partial<PlanRow>) => mutate<PlanRow>('POST', `${ROOT}/plans`, body),
+  plans: (productId: string) => fetcher<PlanRow[]>(`${ROOT}/catalog/products/${productId}/plans`),
+  savePlan: (body: Partial<PlanRow>) => mutate<PlanRow>('POST', `${ROOT}/catalog/plans`, body),
   setPlanState: (planId: string, state: string) =>
-    mutate<PlanRow>('POST', `${ROOT}/plans/${planId}/state`, { state }),
+    mutate<PlanRow>('POST', `${ROOT}/catalog/plans/${planId}/state`, { state }),
 
   /** The duration ladder from domain/catalog/durations.py. */
   durationLadder: () => fetcher<DurationRung[]>(`${ROOT}/duration-ladder`),
@@ -233,7 +235,7 @@ export const api = {
     deviceLimit?: number
     cashbackBps?: number
     days?: number[]
-  }) => mutate<PlanRow[]>('POST', `${ROOT}/plans/generate-ladder`, body),
+  }) => mutate<PlanRow[]>('POST', `${ROOT}/catalog/plans/generate-ladder`, body),
 
   // ------------------------------------------------------ panels/servers
   panels: () => fetcher<PanelRow[]>(`${ROOT}/panels`),
@@ -242,30 +244,30 @@ export const api = {
   testPanel: (panelId: string) =>
     mutate<{ ok: boolean; messageFa: string; latencyMs: number | null }>(
       'POST',
-      `${ROOT}/panels/${panelId}/test`,
+      `${ROOT}/panels/${panelId}/test-connection`,
     ),
   syncPanel: (panelId: string) =>
     mutate<PanelRow>('POST', `${ROOT}/panels/${panelId}/sync`),
 
-  servers: () => fetcher<ServerRow[]>(`${ROOT}/servers`),
+  servers: () => fetcher<ServerRow[]>(`${ROOT}/panels`),
   saveServer: (body: Partial<ServerRow>) =>
-    mutate<ServerRow>('POST', `${ROOT}/servers`, body),
+    mutate<ServerRow>('POST', `${ROOT}/panels`, body),
 
   // --------------------------------------------------------- promotions
   coupons: (params: { page: number; query?: string; state?: string }) =>
-    fetcher<Paged<CouponRow>>(`${ROOT}/coupons${qs(params)}`),
+    fetcher<Paged<CouponRow>>(`${ROOT}/catalog/coupons${qs(params)}`),
   saveCoupon: (body: Partial<CouponRow>) =>
-    mutate<CouponRow>('POST', `${ROOT}/coupons`, body),
+    mutate<CouponRow>('POST', `${ROOT}/catalog/coupons`, body),
   bulkCreateCoupons: (body: { count: number; prefix: string; template: Partial<CouponRow> }) =>
-    mutate<CouponRow[]>('POST', `${ROOT}/coupons/bulk`, body),
+    mutate<CouponRow[]>('POST', `${ROOT}/catalog/coupons/bulk`, body),
   archiveCoupon: (couponId: string) =>
-    mutate<CouponRow>('POST', `${ROOT}/coupons/${couponId}/archive`),
+    mutate<CouponRow>('POST', `${ROOT}/catalog/coupons/${couponId}`),
 
-  campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/campaigns`),
+  campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/catalog/campaigns`),
   saveCampaign: (body: Partial<CampaignRow>) =>
-    mutate<CampaignRow>('POST', `${ROOT}/campaigns`, body),
+    mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns`, body),
   setCampaignState: (campaignId: string, state: string) =>
-    mutate<CampaignRow>('POST', `${ROOT}/campaigns/${campaignId}/state`, { state }),
+    mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),
 
   // ---------------------------------------------------------- analytics
   analytics: (params: { from: string; to: string; granularity: 'day' | 'week' | 'month' }) =>
@@ -293,8 +295,8 @@ export const api = {
     fetcher<AdminTicketMessage[]>(`${ROOT}/tickets/${ticketId}/messages`),
   replyToTicket: (ticketId: string, bodyFa: string) =>
     mutate<AdminTicketMessage>('POST', `${ROOT}/tickets/${ticketId}/messages`, { bodyFa }),
-  setTicketState: (ticketId: string, state: string) =>
-    mutate<AdminTicketRow>('POST', `${ROOT}/tickets/${ticketId}/state`, { state }),
+  closeTicket: (ticketId: string) =>
+    mutate<AdminTicketRow>('POST', `${ROOT}/tickets/${ticketId}/close`),
 
   // ------------------------------------------------------------- wallet
   walletTransactions: (params: {
@@ -317,7 +319,7 @@ export const api = {
     query?: string
     from?: string
     to?: string
-  }) => fetcher<Paged<AuditLogRow>>(`${ROOT}/logs${qs(params)}`),
+  }) => fetcher<Paged<AuditLogRow>>(`${ROOT}/audit-logs${qs(params)}`),
 
   // ----------------------------------------------------------- settings
   settings: () => fetcher<PolicySetting[]>(`${ROOT}/settings`),
@@ -325,9 +327,11 @@ export const api = {
     mutate<PolicySetting[]>('PUT', `${ROOT}/settings`, { values }),
 
   // -------------------------------------------------------- permissions
-  operators: () => fetcher<OperatorRow[]>(`${ROOT}/operators`),
+  operators: () => fetcher<OperatorRow[]>(`${ROOT}/admins`),
   saveOperator: (body: { operatorId?: string; telegramUsername: string; displayName: string; role: Role }) =>
-    mutate<OperatorRow>('POST', `${ROOT}/operators`, body),
-  setOperatorEnabled: (operatorId: string, isEnabled: boolean) =>
-    mutate<OperatorRow>('POST', `${ROOT}/operators/${operatorId}/enabled`, { isEnabled }),
+    mutate<OperatorRow>('POST', `${ROOT}/admins`, body),
+  // The backend models disabling as deleting the operator, which also ends
+  // every session they hold. There is no re-enable; create a new operator.
+  disableOperator: (operatorId: string) =>
+    mutate<OperatorRow>('DELETE', `${ROOT}/admins/${operatorId}`),
 }
