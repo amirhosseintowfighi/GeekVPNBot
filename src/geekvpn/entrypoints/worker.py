@@ -61,6 +61,11 @@ PROVISIONING_INTERVAL_SECONDS = 45
 #: never races the checkout request that is still in flight.
 PROVISIONING_GRACE_SECONDS = 60
 
+#: Usage is read back from the panels on a slower cadence than provisioning.
+#: Panels cache their counters and every sweep is a round trip per node, so
+#: asking more often costs traffic without producing fresher numbers.
+USAGE_SYNC_INTERVAL_SECONDS = 600
+
 #: Guards a tick across processes. Comfortably longer than a tick should take,
 #: short enough that a killed worker does not block the next one for long.
 LOCK_TTL_SECONDS = 300
@@ -82,18 +87,23 @@ class Worker:
     async def run(self) -> None:
         logger.info("worker.started", tick_seconds=TICK_SECONDS)
         provisioning_due = 0.0
+        usage_due = 0.0
         while not self._stopping.is_set():
-            await self._guarded_tick(run_provisioning=provisioning_due <= 0)
+            await self._guarded_tick(
+                run_provisioning=provisioning_due <= 0,
+                run_usage_sync=usage_due <= 0,
+            )
             provisioning_due = (
                 PROVISIONING_INTERVAL_SECONDS
                 if provisioning_due <= 0
                 else provisioning_due - TICK_SECONDS
             )
+            usage_due = USAGE_SYNC_INTERVAL_SECONDS if usage_due <= 0 else usage_due - TICK_SECONDS
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._stopping.wait(), timeout=TICK_SECONDS)
         logger.info("worker.stopped")
 
-    async def _guarded_tick(self, *, run_provisioning: bool) -> None:
+    async def _guarded_tick(self, *, run_provisioning: bool, run_usage_sync: bool) -> None:
         """Take the cross-process lock, then tick. Skip quietly if held."""
         redis = self._container.redis
         acquired = await redis.set(LOCK_KEY, "1", nx=True, ex=LOCK_TTL_SECONDS)
@@ -103,6 +113,8 @@ class Worker:
         try:
             if run_provisioning:
                 await self._drain_provisioning()
+            if run_usage_sync:
+                await self._sync_usage()
             await self._run_scheduled_jobs()
         except Exception:
             # Never let one bad tick kill the process; the next one may succeed.
@@ -127,6 +139,30 @@ class Worker:
                 await scope.aclose()
         if done:
             logger.info("worker.provisioned", count=len(done), orders=list(done))
+
+    async def _sync_usage(self) -> None:
+        """Read traffic counters back from every sellable node.
+
+        One batched request per node, and a node that refuses is logged and
+        skipped rather than aborting the sweep - otherwise a single dead panel
+        freezes the usage figures for every other node too.
+        """
+        async with self._container.session_factory() as session:
+            scope = build_scope(self._container, session)
+            try:
+                report = await scope.usage_sync.sync_all()
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await scope.aclose()
+        logger.info(
+            "worker.usage_synced",
+            updated=report.updated,
+            nodes=len(report.nodes),
+            failed_nodes=report.failed_nodes,
+        )
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.
