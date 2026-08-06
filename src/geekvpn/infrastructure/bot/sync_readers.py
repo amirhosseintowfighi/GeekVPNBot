@@ -1,0 +1,269 @@
+"""Bot ports whose data lives in the synchronous scope.
+
+Wallets, tickets and notification preferences are owned by the synchronous
+services (see ``di/sync_scope.py``), but the bot runs asynchronously and its
+ports are ``async``. ``CLAUDE.md`` forbids mixing the two scopes in one
+transaction, so these adapters do what the admin API already does: open a
+**separate** synchronous session on a worker thread, finish the unit of work
+there, and return a plain read model.
+
+That means a bot update touching the wallet commits in two transactions, not
+one. It is the correct trade: the alternative is a single transaction spanning
+two engines, which is the thing the two-scope split exists to prevent.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Callable
+from dataclasses import replace
+from typing import TypeVar
+
+from starlette.concurrency import run_in_threadpool
+
+from geekvpn.application.bot.read_models import (
+    NotificationPreferences as PreferencesCard,
+)
+from geekvpn.application.bot.read_models import (
+    TicketCard,
+    WalletSnapshot,
+    WalletTransaction,
+)
+from geekvpn.application.bot.read_models import (
+    TicketState as CardTicketState,
+)
+from geekvpn.application.bot.read_models import (
+    TransactionKind as CardKind,
+)
+from geekvpn.application.support.ticket_service import OpenTicketRequest, TicketSummary
+from geekvpn.domain.payments.enums import TransactionKind
+from geekvpn.domain.payments.wallet import LedgerEntry
+from geekvpn.domain.support.enums import TicketState
+from geekvpn.infrastructure.di.container import Container
+from geekvpn.infrastructure.di.sync_scope import SyncScope, build_sync_scope
+from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
+
+T = TypeVar("T")
+
+#: `statement` slices in memory, so this is "give me the page that is the
+#: whole history" rather than a real database limit.
+_ALL_ENTRIES = 1_000_000
+
+#: Ledger kinds the bot has no separate label for collapse onto ADJUSTMENT
+#: rather than being dropped: a customer must be able to account for every
+#: movement, even one whose name is only meaningful internally.
+_CARD_KIND: dict[TransactionKind, CardKind] = {
+    TransactionKind.TOPUP: CardKind.TOPUP,
+    TransactionKind.PURCHASE: CardKind.PURCHASE,
+    TransactionKind.REFUND: CardKind.REFUND,
+    TransactionKind.CASHBACK: CardKind.CASHBACK,
+    TransactionKind.REFERRAL_REWARD: CardKind.REFERRAL,
+    TransactionKind.ADJUSTMENT: CardKind.ADJUSTMENT,
+}
+
+_CARD_TICKET_STATE: dict[TicketState, CardTicketState] = {
+    TicketState.OPEN: CardTicketState.OPEN,
+    TicketState.ANSWERED: CardTicketState.ANSWERED,
+    TicketState.WAITING_USER: CardTicketState.WAITING,
+    TicketState.CLOSED: CardTicketState.CLOSED,
+}
+
+
+class SyncBridge:
+    """Runs one synchronous unit of work off the event loop.
+
+    Shared by the adapters below so the commit/rollback discipline is written
+    once. Mirrors ``presentation/api/admin_common.mutate_scope``.
+    """
+
+    def __init__(self, *, container: Container, users: SqlAlchemyUserRepository) -> None:
+        self._container = container
+        self._users = users
+
+    async def telegram_id(self, user_id: uuid.UUID) -> int | None:
+        user = await self._users.get(user_id)
+        return user.telegram_id if user else None
+
+    async def run(self, work: Callable[[SyncScope], T]) -> T:
+        def _call() -> T:
+            with self._container.sync_sessions() as session:
+                scope = build_sync_scope(self._container, session)
+                try:
+                    result = work(scope)
+                    session.commit()
+                    return result
+                except Exception:
+                    session.rollback()
+                    raise
+
+        return await run_in_threadpool(_call)
+
+
+class SyncWalletCardReader:
+    """Implements ``WalletReader``."""
+
+    def __init__(self, bridge: SyncBridge) -> None:
+        self._bridge = bridge
+
+    async def snapshot(self, user_id: uuid.UUID) -> WalletSnapshot:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return WalletSnapshot()
+
+        def work(scope: SyncScope) -> WalletSnapshot:
+            # ponytail: lifetime spend is summed from the full ledger, which
+            # `statement` already materialises whatever limit it is given. Fine
+            # at a few hundred entries per customer; move to a stored total on
+            # the wallet aggregate if a heavy user makes this show up.
+            statement = scope.wallet.statement(telegram_id, limit=_ALL_ENTRIES)
+            spend = sum(-e.amount for e in statement.entries if e.amount < 0)
+            return WalletSnapshot(balance=statement.balance, lifetime_spend=spend)
+
+        return await self._bridge.run(work)
+
+    async def transactions(
+        self, user_id: uuid.UUID, *, limit: int = 8, offset: int = 0
+    ) -> list[WalletTransaction]:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return []
+
+        def work(scope: SyncScope) -> list[WalletTransaction]:
+            statement = scope.wallet.statement(telegram_id, limit=limit, offset=offset)
+            return [_to_transaction(entry) for entry in statement.entries]
+
+        return await self._bridge.run(work)
+
+    async def transaction_count(self, user_id: uuid.UUID) -> int:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return 0
+
+        def work(scope: SyncScope) -> int:
+            return scope.wallet.statement(telegram_id, limit=0).total
+
+        return await self._bridge.run(work)
+
+
+class SyncTicketCardReader:
+    """Implements ``TicketReader``."""
+
+    def __init__(self, bridge: SyncBridge) -> None:
+        self._bridge = bridge
+
+    async def open_ticket(self, user_id: uuid.UUID, *, topic: str, message: str) -> TicketCard:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            raise LookupError(f"No user {user_id}.")
+
+        def work(scope: SyncScope) -> TicketCard:
+            summary = scope.support.open_ticket(
+                OpenTicketRequest(
+                    user_id=telegram_id,
+                    subject_fa=topic,
+                    first_message_fa=message,
+                )
+            )
+            return _to_ticket_card(summary)
+
+        return await self._bridge.run(work)
+
+    async def list_for_user(self, user_id: uuid.UUID) -> list[TicketCard]:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return []
+
+        def work(scope: SyncScope) -> list[TicketCard]:
+            return [
+                _to_ticket_card(summary) for summary in scope.support.list_for_user(telegram_id)
+            ]
+
+        return await self._bridge.run(work)
+
+
+class SyncPreferencesCardStore:
+    """Implements ``PreferencesStore``.
+
+    The domain model carries quiet hours and per-channel switches that the bot
+    surfaces as one toggle, so this narrows rather than round-trips: only the
+    four category flags and the quiet-hours switch cross the boundary.
+    """
+
+    def __init__(self, bridge: SyncBridge) -> None:
+        self._bridge = bridge
+
+    async def load(self, user_id: uuid.UUID) -> PreferencesCard:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return PreferencesCard()
+
+        def work(scope: SyncScope) -> PreferencesCard:
+            stored = scope.preferences.load(telegram_id)
+            return PreferencesCard(
+                expiry=stored.expiry,
+                traffic=stored.traffic,
+                promos=stored.promos,
+                news=stored.news,
+                quiet_hours=stored.quiet.enabled,
+            )
+
+        return await self._bridge.run(work)
+
+    async def save(self, user_id: uuid.UUID, preferences: PreferencesCard) -> PreferencesCard:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return preferences
+
+        def work(scope: SyncScope) -> PreferencesCard:
+            stored = scope.preferences.load(telegram_id)
+            scope.preferences.save(
+                telegram_id,
+                replace(
+                    stored,
+                    expiry=preferences.expiry,
+                    traffic=preferences.traffic,
+                    promos=preferences.promos,
+                    news=preferences.news,
+                    quiet=replace(stored.quiet, enabled=preferences.quiet_hours),
+                ),
+            )
+            return preferences
+
+        return await self._bridge.run(work)
+
+
+def _to_transaction(entry: LedgerEntry) -> WalletTransaction:
+    return WalletTransaction(
+        transaction_id=_as_uuid(entry.entry_id),
+        kind=_CARD_KIND.get(entry.kind, CardKind.ADJUSTMENT),
+        amount=entry.amount,
+        created_at=entry.occurred_at,
+        description_fa=entry.description_fa,
+        balance_after=entry.balance_after,
+    )
+
+
+def _to_ticket_card(summary: TicketSummary) -> TicketCard:
+    return TicketCard(
+        ticket_id=_as_uuid(summary.ticket_id),
+        reference=summary.reference,
+        topic_fa=summary.subject_fa,
+        state=_CARD_TICKET_STATE.get(summary.state, CardTicketState.OPEN),
+        created_at=summary.created_at,
+        unread_count=summary.unread_for_customer,
+    )
+
+
+def _as_uuid(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        return uuid.UUID(int=0)
+
+
+__all__ = [
+    "SyncBridge",
+    "SyncPreferencesCardStore",
+    "SyncTicketCardReader",
+    "SyncWalletCardReader",
+]
