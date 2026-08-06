@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * Dark tokens only.
+   *
+   * The surface ladder is deliberately shallow - #0A0A0F background, #111118
+   * cards, and a single hairline border. On an OLED phone at night, deeper
+   * elevation stacks read as grey mud; separation comes from the border and
+   * the accent glow instead of from a dozen shades of near-black.
+   */
+  :root {
+    --background: 240 20% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 17% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 17% 7%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 250 80% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 12% 14%;
+    --secondary-foreground: 0 0% 92%;
+
+    --muted: 240 12% 13%;
+    /* 4.6:1 on the card surface. Anything dimmer fails WCAG AA for body copy. */
+    --muted-foreground: 240 6% 64%;
+
+    --accent: 268 74% 62%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 62% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 240 20% 8%;
+
+    --border: 240 12% 17%;
+    --input: 240 12% 17%;
+    --ring: 250 80% 62%;
+
+    --radius: 1rem;
+
+    /*
+     * Telegram exposes the webview insets as CSS variables only on some
+     * clients, so these carry a fallback. Without the bottom inset the tab
+     * bar sits under the iOS home indicator.
+     */
+    --tg-safe-top: env(safe-area-inset-top, 0px);
+    --tg-safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* Persian text is the default; individual runs opt out via `dir="ltr"`. */
+    direction: rtl;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'ss01', 'ss02';
+    /* Stop iOS from zooming the whole webview on input focus. */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+
+  /*
+   * Latin runs inside Persian copy. Applying this to the element rather than
+   * relying on the bidi algorithm keeps URLs and crypto addresses from having
+   * their punctuation reordered.
+   */
+  [dir='ltr'] {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  /* Tabular figures keep prices from jittering as they update. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-lg border border-border/80 bg-card;
+  }
+
+  /*
+   * The premium accent. A 1px gradient ring drawn with two backgrounds and
+   * `mask-composite`, which stays crisp at any radius - unlike a gradient
+   * border, which browsers cannot round.
+   */
+  .ring-gradient {
+    position: relative;
+  }
+
+  .ring-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      hsl(226 78% 60% / 0.9),
+      hsl(268 74% 62% / 0.35)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .glow {
+    background-image: theme('backgroundImage.brand-glow');
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: calc(var(--tg-safe-top) + 0.5rem);
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(var(--tg-safe-bottom) + 0.5rem);
+  }
+
+  /* Hide scrollbars on horizontal chip rows without losing scrollability. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * Respect the OS reduce-motion setting. The Mini App leans on motion heavily,
+ * which makes honouring this non-optional rather than a nicety.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

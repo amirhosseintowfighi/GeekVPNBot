@@ -1,0 +1,148 @@
+"""Support tickets.
+
+Deliberate funnel: the support screen leads with the FAQ, because most
+incoming tickets are "how do I install it" and answering those instantly is
+better for the customer than a 30-minute queue. Opening a ticket is always
+one tap away, never hidden.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from aiogram import F, Router
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+
+from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
+from geekvpn.presentation.bot.services import BotServices
+from geekvpn.presentation.bot.states import Support
+from geekvpn.presentation.bot.ui import keyboards as K
+from geekvpn.presentation.bot.ui import render as R
+from geekvpn.presentation.bot.ui import text as T
+from geekvpn.presentation.bot.ui.callbacks import NavCB, TicketCB
+from geekvpn.presentation.bot.ui.fa import normalize_input
+
+router = Router(name="support")
+
+MIN_MESSAGE = 10
+
+TOPICS: tuple[tuple[str, str], ...] = (
+    ("connection", T.TOPIC_CONNECTION),
+    ("payment", T.TOPIC_PAYMENT),
+    ("account", T.TOPIC_ACCOUNT),
+    ("speed", T.TOPIC_SPEED),
+    ("other", T.TOPIC_OTHER),
+)
+TOPIC_LABELS = dict(TOPICS)
+
+
+def _menu_keyboard() -> InlineKeyboardMarkup:
+    return K.stack(
+        [
+            [K.btn(f"\u2753 {T.MENU_FAQ}", NavCB(to="faq"))],
+            [K.btn(T.BTN_NEW_TICKET, TicketCB(action="new", ref="-"))],
+            [K.btn(T.BTN_MY_TICKETS, TicketCB(action="list", ref="-"))],
+            [K.home_button()],
+        ]
+    )
+
+
+def _topic_keyboard() -> InlineKeyboardMarkup:
+    rows = [[K.btn(label, TicketCB(action="topic", ref=key))] for key, label in TOPICS]
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="support"))])
+    return K.stack(rows)
+
+
+@router.message(Command("support"))
+async def on_support_command(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await answer(message, f"{T.SUPPORT_TITLE}\n\n{T.SUPPORT_INTRO}", reply_markup=_menu_keyboard())
+
+
+@router.callback_query(NavCB.filter(F.to == "support"))
+async def on_support(query: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await toast(query)
+    await safe_edit(query, f"{T.SUPPORT_TITLE}\n\n{T.SUPPORT_INTRO}", markup=_menu_keyboard())
+
+
+@router.callback_query(TicketCB.filter(F.action == "new"))
+async def on_new_ticket(query: CallbackQuery, state: FSMContext) -> None:
+    await toast(query)
+    await state.set_state(Support.choosing_topic)
+    await safe_edit(query, T.TICKET_CHOOSE_TOPIC, markup=_topic_keyboard())
+
+
+@router.callback_query(Support.choosing_topic, TicketCB.filter(F.action == "topic"))
+async def on_topic(query: CallbackQuery, callback_data: TicketCB, state: FSMContext) -> None:
+    await toast(query)
+    await state.update_data(topic=callback_data.ref)
+    await state.set_state(Support.writing_message)
+    label = TOPIC_LABELS.get(callback_data.ref, T.TOPIC_OTHER)
+    await safe_edit(
+        query,
+        f"{label}\n\n{T.TICKET_ASK_MESSAGE}",
+        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="support"))),
+    )
+
+
+@router.message(Support.writing_message, F.text)
+async def on_ticket_message(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
+    body = normalize_input(message.text or "")
+    if len(body) < MIN_MESSAGE:
+        await answer(message, T.TICKET_TOO_SHORT)
+        return
+    if user is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    data = await state.get_data()
+    topic = str(data.get("topic") or "other")
+
+    try:
+        ticket = await services.tickets.open_ticket(user.id, topic=topic, message=body)
+    except Exception:
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    await state.clear()
+    await answer(
+        message,
+        T.TICKET_CREATED.format(
+            ref=f"<code>{ticket.reference}</code>",
+            sla="\u06f3\u06f0 \u062f\u0642\u06cc\u0642\u0647",
+        ),
+        reply_markup=K.main_menu(),
+    )
+
+
+@router.message(Support.writing_message, F.photo)
+async def on_ticket_photo(message: Message) -> None:
+    """Screenshots are welcome but must carry a caption.
+
+    An image with no words gives an agent nothing to work with, so we ask for
+    the description rather than opening an empty ticket.
+    """
+    if message.caption:
+        return
+    await answer(message, T.TICKET_ASK_MESSAGE)
+
+
+@router.callback_query(TicketCB.filter(F.action == "list"))
+async def on_ticket_list(query: CallbackQuery, services: BotServices, user: Any = None) -> None:
+    await toast(query)
+    if user is None:
+        return
+    try:
+        tickets = await services.tickets.list_for_user(user.id)
+    except Exception:
+        tickets = []
+    await safe_edit(
+        query,
+        R.ticket_list(tickets),
+        markup=K.single(K.btn(T.BTN_BACK, NavCB(to="support"))),
+    )

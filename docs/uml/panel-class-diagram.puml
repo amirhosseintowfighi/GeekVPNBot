@@ -1,0 +1,207 @@
+@startuml GeekVPN-Panel-Architecture
+!theme plain
+skinparam backgroundColor #0A0A0F
+skinparam shadowing false
+skinparam defaultFontName Inter
+skinparam defaultFontColor #FFFFFF
+skinparam ArrowColor #8B5CF6
+skinparam class {
+  BackgroundColor #111118
+  BorderColor #3B82F6
+  FontColor #FFFFFF
+  AttributeFontColor #A1A1AA
+  StereotypeFontColor #A855F7
+}
+skinparam package {
+  BackgroundColor #0A0A0F
+  BorderColor #3B82F6
+  FontColor #A855F7
+}
+
+title Geek VPN - VPN Panel Abstraction Layer
+
+package "domain.panels" {
+  enum PanelKind {
+    PASARGUARD
+    MARZBAN
+    MARZNESHIN
+    SANAEI
+    ALIREZA
+  }
+
+  enum Capability {
+    RESET_TRAFFIC
+    NATIVE_EXPIRY_EXTEND
+    NATIVE_QUOTA_EXTEND
+    BULK_USAGE
+    NODE_INVENTORY
+    PER_NODE_ASSIGNMENT
+    SUBSCRIPTION_URL
+    DEVICE_LIMIT
+  }
+
+  enum AccountState {
+    ACTIVE
+    SUSPENDED
+    EXPIRED
+    QUOTA_EXHAUSTED
+    UNKNOWN
+    --
+    +is_usable: bool
+  }
+
+  class AccountSpec <<value>> {
+    +username: str
+    +quota: TrafficQuota
+    +expires_at: datetime (aware UTC)
+    +protocols: tuple
+    +group_tags: tuple
+    +device_limit: int
+  }
+
+  class PanelAccount <<value>> {
+    +ref: PanelAccountRef
+    +state: AccountState
+    +usage: AccountUsage
+    +expires_at: datetime
+    +subscription_url: str
+  }
+
+  class PanelError <<error>> {
+    +retryable: bool
+    +panel: str
+  }
+}
+
+package "application.ports" {
+  interface PanelAdapter <<Protocol>> {
+    +kind: PanelKind
+    +capabilities: frozenset<Capability>
+    --  mandatory  --
+    +health(): PanelHealth
+    +create_account(spec, idempotency_key)
+    +get_account(ref)
+    +delete_account(ref, idempotency_key)
+    +suspend(ref, idempotency_key)
+    +resume(ref, idempotency_key)
+    +usage(ref)
+    +renew(ref, extend_by, new_quota, ...)
+    +close()
+    --  capability gated  --
+    +reset_traffic(ref, idempotency_key)
+    +bulk_usage(refs)
+    +nodes()
+    +subscription(ref, fmt)
+  }
+}
+
+package "infrastructure.panels" {
+  class PanelRegistry {
+    -_plugins: dict
+    +register(plugin)
+    +get(kind): PanelPlugin
+    +kinds: set<PanelKind>
+  }
+
+  class PanelPlugin <<value>> {
+    +kind: PanelKind
+    +adapter_cls: type
+    +config_cls: type
+    +capabilities: frozenset
+  }
+
+  class PanelFactory {
+    +validate_config(kind, payload)
+    +build(kind, payload, panel_id): PanelAdapter
+    .. contains ZERO panel names ..
+  }
+
+  class PanelHttpClient {
+    +request(method, url, ...)
+    +json(response)
+    .. retries 5xx + timeouts ..
+    .. never retries 4xx ..
+    .. full-jitter backoff ..
+  }
+
+  abstract class HttpPanelAdapter {
+    #_config
+    #_http: PanelHttpClient
+    +panel_id: UUID
+    +require(cap)
+    +supports(cap)
+    #_login()
+    #_bearer()
+    +ref(username)
+  }
+
+  class PanelConnectionConfig <<pydantic>> {
+    +base_url: str
+    +username: str
+    +password: SecretStr
+    +verify_tls: bool
+    +timeout_seconds: float
+    +max_attempts: int
+  }
+}
+
+package "infrastructure.panels.adapters" {
+  class PasarGuardAdapter {
+    8 capabilities
+    /api/admin/token
+    /api/user
+  }
+  class MarzbanAdapter {
+    6 capabilities
+    per-protocol inbounds
+    unlimited == 0
+  }
+  class MarzneshinAdapter {
+    6 capabilities
+    service_ids
+    ISO expire_date
+    items envelope
+  }
+  abstract class XuiFamilyAdapter {
+    4 capabilities
+    {static} login_path
+    {static} api_prefix
+    .. cookie session ..
+    .. success/msg/obj ..
+    .. clients in settings ..
+  }
+  class SanaeiAdapter {
+    /panel/api/inbounds
+  }
+  class AlirezaAdapter {
+    /xui/API/inbounds
+  }
+}
+
+PanelAdapter <|.. HttpPanelAdapter : structural
+HttpPanelAdapter <|-- PasarGuardAdapter
+HttpPanelAdapter <|-- MarzbanAdapter
+HttpPanelAdapter <|-- MarzneshinAdapter
+HttpPanelAdapter <|-- XuiFamilyAdapter
+XuiFamilyAdapter <|-- SanaeiAdapter
+XuiFamilyAdapter <|-- AlirezaAdapter
+
+HttpPanelAdapter *-- PanelHttpClient
+HttpPanelAdapter o-- PanelConnectionConfig
+PanelRegistry o-- PanelPlugin
+PanelFactory --> PanelRegistry : resolves via
+PanelFactory ..> HttpPanelAdapter : builds
+PanelAdapter ..> AccountSpec : consumes
+PanelAdapter ..> PanelAccount : returns
+PanelAdapter ..> PanelError : raises
+PanelPlugin --> PanelKind
+PanelPlugin --> Capability
+PanelAccount --> AccountState
+
+note bottom of PanelFactory
+  Adding a panel = one new adapter module.
+  The factory, registry, port and business
+  logic are never edited.
+end note
+
+@enduml

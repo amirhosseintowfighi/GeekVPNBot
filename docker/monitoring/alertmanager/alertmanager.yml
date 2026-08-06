@@ -1,0 +1,67 @@
+# Alertmanager configuration.
+#
+# Delivery is to a private Telegram group through the bot the product already
+# owns. No new vendor, no SMTP relay to configure, and the operator already has
+# Telegram open - which matters more than elegance at three in the morning.
+#
+# The chat id must be a group the customers are not in. Alert annotations contain
+# internal path names and counts.
+
+global:
+  resolve_timeout: 5m
+
+# Inhibition: when the whole API is down, the derived alerts (error rate,
+# latency, saturation) are consequences, not information. Sending five messages
+# for one outage is how an on-call person learns to ignore the channel.
+inhibit_rules:
+  - source_matchers: ["alertname = ApiDown"]
+    target_matchers: ["severity =~ warning|critical"]
+    equal: ["environment"]
+  - source_matchers: ["severity = critical"]
+    target_matchers: ["severity = warning"]
+    equal: ["alertname", "environment"]
+
+route:
+  receiver: telegram-warning
+  # Group by alert name, not by instance. Two API colours failing the same way is
+  # one incident, and grouping by instance would report it twice.
+  group_by: ["alertname", "environment"]
+  group_wait: 30s
+  group_interval: 5m
+  # Four hours between repeats of an unresolved alert. Shorter trains people to
+  # mute the channel; longer risks an overnight problem being forgotten.
+  repeat_interval: 4h
+  routes:
+    - matchers: ["severity = critical"]
+      receiver: telegram-critical
+      # Critical alerts skip most of the grouping delay. Thirty seconds of
+      # batching is worth it for a warning, not for "nobody can pay".
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: telegram-warning
+    telegram_configs:
+      - bot_token: ${TELEGRAM__BOT_TOKEN}
+        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+        parse_mode: HTML
+        send_resolved: true
+        message: |-
+          {{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b>
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          <i>{{ .Annotations.description }}</i>
+          Runbook: {{ .Annotations.runbook }}
+          {{ end }}
+
+  - name: telegram-critical
+    telegram_configs:
+      - bot_token: ${TELEGRAM__BOT_TOKEN}
+        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+        parse_mode: HTML
+        send_resolved: true
+        message: |-
+          {{ if eq .Status "firing" }}🔴 <b>CRITICAL</b>{{ else }}✅ <b>RESOLVED</b>{{ end }} {{ .CommonLabels.alertname }}
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          <i>{{ .Annotations.description }}</i>
+          Runbook: {{ .Annotations.runbook }}
+          {{ end }}

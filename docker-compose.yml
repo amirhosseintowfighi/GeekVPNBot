@@ -1,0 +1,125 @@
+name: geekvpn
+
+x-backend-build: &backend-build
+  build:
+    context: .
+    dockerfile: docker/backend/Dockerfile
+    target: runtime
+
+x-backend-env: &backend-env
+  env_file: [.env]
+  environment:
+    POSTGRES__HOST: postgres
+    REDIS__HOST: redis
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    <<: *restart
+    environment:
+      POSTGRES_USER: ${POSTGRES__USER:-geekvpn}
+      POSTGRES_PASSWORD: ${POSTGRES__PASSWORD:?POSTGRES__PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES__DB:-geekvpn}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES__USER:-geekvpn} -d ${POSTGRES__DB:-geekvpn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    <<: *restart
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+
+  migrate:
+    <<: [*backend-build, *backend-env, ]
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+
+  api:
+    <<: [*backend-build, *backend-env, *restart]
+    command:
+      ["uvicorn", "geekvpn.entrypoints.api:app", "--host", "0.0.0.0", "--port", "8000",
+       "--proxy-headers", "--forwarded-allow-ips", "*"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "geekvpn.entrypoints.healthcheck", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [backend]
+
+  bot:
+    <<: [*backend-build, *backend-env, *restart]
+    command:
+      ["uvicorn", "geekvpn.entrypoints.bot:app", "--host", "0.0.0.0", "--port", "8081",
+       "--proxy-headers", "--forwarded-allow-ips", "*"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "geekvpn.entrypoints.healthcheck", "http://localhost:8081/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [backend]
+
+  nginx:
+    image: nginx:1.27-alpine
+    <<: *restart
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      bot:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [backend, edge]
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  backend:
+    internal: true
+  edge:

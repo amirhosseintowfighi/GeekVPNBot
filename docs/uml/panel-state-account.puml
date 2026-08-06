@@ -1,0 +1,60 @@
+@startuml GeekVPN-Panel-Account-State
+!theme plain
+skinparam backgroundColor #0A0A0F
+skinparam shadowing false
+skinparam defaultFontName Inter
+skinparam defaultFontColor #FFFFFF
+skinparam state {
+  BackgroundColor #111118
+  BorderColor #3B82F6
+  FontColor #FFFFFF
+  ArrowColor #8B5CF6
+  StartColor #22C55E
+  EndColor #EF4444
+}
+
+title Geek VPN - Normalised Account Lifecycle
+
+[*] --> ACTIVE : create_account()
+
+state ACTIVE #111118 : is_usable = true
+state SUSPENDED #111118 : is_usable = false
+state EXPIRED #111118 : is_usable = false
+state QUOTA_EXHAUSTED #111118 : is_usable = false
+state UNKNOWN #111118 : panel reported\na status we do\nnot recognise
+
+ACTIVE --> SUSPENDED : suspend()
+SUSPENDED --> ACTIVE : resume()
+
+ACTIVE --> EXPIRED : expiry reached
+EXPIRED --> ACTIVE : renew(extend_by)
+
+ACTIVE --> QUOTA_EXHAUSTED : data cap hit
+QUOTA_EXHAUSTED --> ACTIVE : renew(new_quota)
+QUOTA_EXHAUSTED --> ACTIVE : reset_traffic()
+
+ACTIVE --> UNKNOWN : unmapped status
+UNKNOWN --> ACTIVE : status recognised again
+
+ACTIVE --> [*] : delete_account()
+SUSPENDED --> [*] : delete_account()
+EXPIRED --> [*] : delete_account()
+QUOTA_EXHAUSTED --> [*] : delete_account()
+
+note right of UNKNOWN
+  Deliberately not treated as
+  usable. A panel upgrade that
+  introduces a new status must
+  never silently grant access.
+end note
+
+note bottom
+  Every panel's private vocabulary
+  (active / on_hold / disabled /
+  limited / expired) is mapped onto
+  these five states inside its own
+  adapter. Billing and the bot never
+  see panel-specific status strings.
+end note
+
+@enduml

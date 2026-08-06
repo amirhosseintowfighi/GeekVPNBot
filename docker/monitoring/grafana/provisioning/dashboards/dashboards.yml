@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: geekvpn
+    orgId: 1
+    folder: GeekVPN
+    type: file
+    # Deletion allowed: a dashboard removed from git should disappear from
+    # Grafana, otherwise the UI slowly fills with panels nobody maintains.
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

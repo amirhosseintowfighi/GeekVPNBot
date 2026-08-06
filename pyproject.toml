@@ -1,0 +1,176 @@
+[project]
+name = "geekvpn"
+version = "0.3.0"
+description = "Geek VPN - premium Telegram VPN sales platform"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30.0",
+  "alembic>=1.14.0",
+  "redis>=5.2.0",
+  "aiogram>=3.15.0",
+  "structlog>=24.4.0",
+  "orjson>=3.10.0",
+  # Phase 2 - authentication.
+  "pyjwt>=2.10.0",        # access tokens; algorithm pinning support
+  "argon2-cffi>=23.1.0",  # admin password hashing (Argon2id)
+  # Phase 13 - encryption at rest (AES-256-GCM, HKDF).
+  "cryptography>=44.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=6.0.0",
+  "httpx>=0.28.0",
+  "ruff>=0.8.0",
+  "mypy>=1.13.0",
+  "import-linter>=2.1",
+  "pre-commit>=4.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/geekvpn"]
+
+# --------------------------------------------------------------------------
+# Formatting + linting (ruff replaces black, isort, flake8, pyupgrade)
+# --------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",    # pycodestyle
+  "F",         # pyflakes
+  "I",         # isort
+  "UP",        # pyupgrade
+  "B",         # bugbear
+  "C4",        # comprehensions
+  "SIM",       # simplify
+  "ASYNC",     # async correctness
+  "S",         # bandit security
+  "T20",       # no print()
+  "RUF",
+  "ANN",       # missing annotations
+  "TID",       # tidy imports
+]
+ignore = [
+  "ANN401",  # allow typing.Any where genuinely needed
+  "B008",    # FastAPI Depends() in defaults is idiomatic
+  # `ruff format` owns line length and holds code to 100. What E501 still
+  # catches is what the formatter deliberately will not split: a Persian
+  # message that is one string literal. Breaking those hurts the copy.
+  "E501",
+  # The product is Persian. These rules warn that Arabic letters and
+  # Persian digits resemble Latin ones, which is true and not a defect here.
+  "RUF001", "RUF002", "RUF003",
+  # `str, Enum` is deliberate. StrEnum changes what `str(member)` and an
+  # f-string produce, and these enum values are the wire contract shared with
+  # the admin panel and the Mini App. Not worth the risk for a style win.
+  "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "S101", "ANN201", "ANN001", "ANN202", "ANN003", "S105", "S106", "PLR2004",
+  "S311",   # test fixtures generate sample data, not keys
+  "RUF009", # frozen value objects are safe as dataclass defaults
+]
+"migrations/**" = ["ANN", "E501"]
+"src/geekvpn/entrypoints/create_admin.py" = ["T20"]  # a CLI is allowed to print
+
+[tool.ruff.lint.isort]
+known-first-party = ["geekvpn"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --------------------------------------------------------------------------
+# Typing
+# --------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["geekvpn"]
+exclude = "^migrations/"
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# --------------------------------------------------------------------------
+# Tests
+# --------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "unit: fast, no I/O",
+  "integration: requires Postgres/Redis",
+  "architecture: layering and convention checks",
+]
+
+[tool.coverage.run]
+source = ["src/geekvpn"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\."]
+
+# --------------------------------------------------------------------------
+# Clean Architecture enforcement
+# --------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "geekvpn"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture layers"
+type = "layers"
+layers = [
+  "geekvpn.presentation",
+  "geekvpn.infrastructure",
+  "geekvpn.application",
+  "geekvpn.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain is framework-free"
+type = "forbidden"
+source_modules = ["geekvpn.domain"]
+forbidden_modules = [
+  "sqlalchemy", "fastapi", "aiogram", "redis", "pydantic",
+  "pydantic_settings", "structlog", "alembic", "jwt", "argon2",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application depends on ports, not frameworks"
+type = "forbidden"
+source_modules = ["geekvpn.application"]
+forbidden_modules = [
+  "sqlalchemy", "fastapi", "aiogram", "redis", "alembic", "jwt", "argon2",
+]

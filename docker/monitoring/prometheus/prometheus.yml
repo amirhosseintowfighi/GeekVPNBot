@@ -1,0 +1,59 @@
+# Prometheus configuration.
+#
+# Scrape interval of fifteen seconds. Faster produces prettier graphs and more
+# disk; slower makes a two-minute incident invisible. Fifteen means a `rate()`
+# over five minutes has twenty samples, which is enough for the average not to be
+# dominated by a single scrape.
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  # Rules are evaluated less often than metrics are scraped. Evaluating faster
+  # than the scrape interval only re-reads the same samples.
+  evaluation_interval: 30s
+  external_labels:
+    environment: ${ENVIRONMENT:-production}
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Prometheus itself. Cheap, and the first thing to check when a graph is empty.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Both API colours are scraped unconditionally. Scraping only the active one
+  # would mean the new colour's metrics are invisible during exactly the window
+  # where they matter most - the minute after a deploy, before traffic is
+  # switched. `down` on the idle colour is expected and is handled in alerts.yml.
+  - job_name: geekvpn-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api_blue:8000"]
+        labels:
+          colour: blue
+      - targets: ["api_green:8000"]
+        labels:
+          colour: green
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # Nginx is intentionally absent. The open-source build exposes no metrics
+  # endpoint, and adding a log-parsing exporter would duplicate numbers the
+  # application already reports more accurately. Nginx health is covered by its
+  # container healthcheck and by the blackbox-style probe on /health/ready.

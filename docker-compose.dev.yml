@@ -1,0 +1,47 @@
+# Local development overlay: hot reload, exposed ports, source mounted.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    ports: ["5432:5432"]
+
+  redis:
+    ports: ["6379:6379"]
+
+  migrate:
+    build:
+      target: development
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
+
+  api:
+    build:
+      target: development
+    command:
+      ["uvicorn", "geekvpn.entrypoints.api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports: ["8000:8000"]
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./migrations:/app/migrations
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic.ini:/app/alembic.ini
+
+  bot:
+    build:
+      target: development
+    command:
+      ["uvicorn", "geekvpn.entrypoints.bot:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
+    ports: ["8081:8081"]
+    volumes:
+      - ./src:/app/src
+
+  # The backend network is internal in production; open it locally so the
+  # containers can reach the internet (pip, Telegram API) during development.
+  nginx:
+    networks: [backend, edge]
+
+networks:
+  backend:
+    internal: false

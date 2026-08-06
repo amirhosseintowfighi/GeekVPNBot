@@ -1,0 +1,119 @@
+@startuml GeekVPN-Panel-Provisioning
+!theme plain
+skinparam backgroundColor #0A0A0F
+skinparam shadowing false
+skinparam defaultFontName Inter
+skinparam defaultFontColor #FFFFFF
+skinparam sequence {
+  ArrowColor #8B5CF6
+  LifeLineBorderColor #3B82F6
+  LifeLineBackgroundColor #111118
+  ParticipantBackgroundColor #111118
+  ParticipantBorderColor #3B82F6
+  ParticipantFontColor #FFFFFF
+  ActorBackgroundColor #111118
+  ActorBorderColor #A855F7
+  GroupBackgroundColor #111118
+  GroupBorderColor #A855F7
+  GroupFontColor #A855F7
+}
+
+title Geek VPN - Provisioning a Subscription
+
+actor "Customer" as user #111118
+participant "Telegram Bot" as bot
+participant "Provisioning\nService" as svc
+participant "PanelFactory" as factory
+participant "PanelRegistry" as registry
+participant "PanelAdapter" as adapter
+participant "PanelHttpClient" as http
+participant "VPN Panel" as panel #111118
+
+user -> bot : buys a package
+activate bot
+bot -> svc : provision(order)
+activate svc
+
+svc -> factory : build(kind, config, panel_id)
+activate factory
+factory -> registry : get(kind)
+activate registry
+registry --> factory : PanelPlugin
+deactivate registry
+factory -> factory : validate_config(payload)
+note right of factory
+  Rejected here if the operator
+  mistyped a setting - never
+  mid-purchase.
+end note
+factory --> svc : adapter
+deactivate factory
+
+svc -> adapter : create_account(spec, idempotency_key)
+activate adapter
+
+adapter -> adapter : _bearer()
+alt token missing or near expiry
+  adapter -> http : POST /login (or /token)
+  activate http
+  http -> panel : credentials
+  activate panel
+  panel --> http : token / session cookie
+  deactivate panel
+  http --> adapter : token
+  deactivate http
+else cached token still valid
+  note right of adapter
+    Reused - logging in per
+    request would trip the
+    panel's rate limits.
+  end note
+end
+
+adapter -> http : POST create user
+activate http
+http -> panel : quota in BYTES, expiry in UTC
+activate panel
+
+alt success
+  panel --> http : 200 account
+  http --> adapter : response
+  adapter -> adapter : map to PanelAccount
+else 409 conflict (lost response)
+  panel --> http : 409
+  http --> adapter : response
+  adapter -> http : GET existing account
+  http -> panel : read
+  panel --> http : account
+  http --> adapter : response
+  alt quota matches the order
+    note right of adapter
+      Our earlier attempt actually
+      succeeded. The customer paid;
+      do not fail the sale.
+    end note
+  else different account
+    adapter -->x svc : AccountAlreadyExists
+  end
+else 5xx or timeout
+  panel --> http : failure
+  deactivate panel
+  http -> http : full-jitter backoff, retry
+  note right of http
+    Retries only 5xx + timeouts.
+    A 401 is terminal.
+  end note
+  http -->x adapter : PanelUnreachable(retryable=True)
+end
+deactivate http
+
+adapter --> svc : PanelAccount
+deactivate adapter
+
+svc -> svc : persist subscription + panel ref
+svc --> bot : subscription ready
+deactivate svc
+bot --> user : config link + QR (Persian)
+deactivate bot
+
+@enduml

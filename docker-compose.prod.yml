@@ -1,0 +1,211 @@
+# Production overlay. Used as:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Three things this file does that the base file does not:
+#   1. runs TWO api services (api_blue / api_green) so deploys are zero-downtime;
+#   2. builds nginx from docker/nginx so TLS and templating are baked in;
+#   3. adds the monitoring stack, on a network reachable from nowhere else.
+#
+# The base `api` service is disabled here by giving it zero replicas would not
+# work in plain compose, so instead the base file's `api` is simply not started
+# in production: `make deploy` names the services explicitly. That is documented
+# in docs/deployment.md and enforced by scripts/deploy.sh.
+
+name: geekvpn
+
+x-api-common: &api-common
+  build:
+    context: .
+    dockerfile: docker/backend/Dockerfile
+    target: runtime
+    args:
+      PYTHON_VERSION: "3.12"
+  image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
+  env_file: [.env]
+  environment:
+    POSTGRES__HOST: postgres
+    REDIS__HOST: redis
+    # Number of proxies in front of the app. One (nginx). The IP allowlist reads
+    # X-Forwarded-For from the right using this count, so a forged leftmost entry
+    # cannot impersonate an allowlisted address.
+    SECURITY__TRUSTED_PROXY_COUNT: "1"
+  restart: unless-stopped
+  # --proxy-headers with an explicit trusted host, not the base file's wildcard.
+  # "*" tells uvicorn to believe forwarding headers from any source, which in
+  # production means believing the client.
+  command:
+    - uvicorn
+    - geekvpn.entrypoints.api:app
+    - --host=0.0.0.0
+    - --port=8000
+    - --workers=${UVICORN_WORKERS:-4}
+    - --proxy-headers
+    - --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-172.16.0.0/12}
+  healthcheck:
+    # Readiness, not liveness. During a deploy the question is "can this container
+    # serve traffic", which means its database and Redis must answer too.
+    test: ["CMD", "python", "-m", "geekvpn.entrypoints.healthcheck", "http://localhost:8000/health/ready"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  networks: [backend]
+  deploy:
+    resources:
+      limits:
+        # A limit, not a reservation. Without one, a runaway query in the
+        # analytics endpoints can starve Postgres on the same host, and the
+        # database dying is far worse than one slow request.
+        memory: ${API_MEMORY_LIMIT:-1g}
+
+services:
+  postgres:
+    restart: unless-stopped
+    # Not published. In the base file this port is internal already; stated here
+    # so a future edit to the base file cannot quietly expose it.
+    ports: []
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-16MB}
+      - -c
+      # Log anything slower than a second. The analytics queries are the reason
+      # this exists: they are the ones that regress silently as data grows.
+      - log_min_duration_statement=1000
+      - -c
+      - log_lock_waits=on
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backups:/backups
+
+  redis:
+    restart: unless-stopped
+    ports: []
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      # noeviction on purpose. Redis holds rate-limit counters and captcha
+      # answers; silently evicting a rate-limit key under memory pressure would
+      # disable the limiter exactly when the site is under load.
+      - --maxmemory-policy
+      - noeviction
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-512mb}
+      - --requirepass
+      - ${REDIS__PASSWORD:?REDIS__PASSWORD is required in production}
+
+  migrate:
+    image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
+    restart: "no"
+
+  api_blue:
+    <<: *api-common
+    container_name: geekvpn-api-blue
+
+  api_green:
+    <<: *api-common
+    container_name: geekvpn-api-green
+
+  bot:
+    restart: unless-stopped
+    environment:
+      SECURITY__TRUSTED_PROXY_COUNT: "1"
+    ports: []
+
+  # Every scheduled behaviour the platform promises runs here: the provisioning
+  # retry queue, expiry and traffic reminders, and the deferred notification
+  # flush. Before this service existed those jobs were unreachable code.
+  #
+  # Exactly one replica. The worker takes a Redis lock per tick, so a second one
+  # would be harmless but pointless; scaling belongs at the job level, not by
+  # adding processes that mostly wait on a lock.
+  worker:
+    image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
+    container_name: geekvpn-worker
+    restart: unless-stopped
+    env_file: [.env]
+    command: ["python", "-m", "geekvpn.entrypoints.worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    ports: []
+    healthcheck:
+      # The worker has no socket to probe, so liveness is "the interpreter is
+      # still running the module". A hung tick is caught by the lock TTL, not here.
+      test: ["CMD", "pgrep", "-f", "geekvpn.entrypoints.worker"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPOSITORY:-geekvpn}-nginx:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:?PRIMARY_DOMAIN is required}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-}
+      MINIAPP_DOMAIN: ${MINIAPP_DOMAIN:-}
+      ADMIN_ALLOW_CIDRS: ${ADMIN_ALLOW_CIDRS:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # The active-colour file is bind-mounted from the host so scripts/deploy.sh
+      # can rewrite it and reload nginx without rebuilding the image.
+      - ./docker/nginx/conf.d/active-api.conf:/etc/nginx/conf.d/active-api.conf
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+      - nginx-tls:/etc/nginx/tls
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [backend, edge]
+
+  certbot:
+    image: certbot/certbot:v3.1.0
+    restart: unless-stopped
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    # Renewal attempt twice a day with a random delay. Let's Encrypt asks for
+    # exactly this: renewal is a no-op until the certificate is inside its
+    # thirty-day window, and a fixed hourly schedule from every install on earth
+    # is what their rate limits exist to stop.
+    entrypoint: >-
+      /bin/sh -c 'trap exit TERM;
+      while :; do
+        certbot renew --webroot --webroot-path=/var/www/certbot --quiet --deploy-hook "touch /etc/letsencrypt/.renewed";
+        sleep 12h & wait $${!};
+      done'
+    networks: [edge]
+
+volumes:
+  postgres-data:
+  redis-data:
+  certbot-conf:
+  certbot-www:
+  nginx-tls:
+
+networks:
+  backend:
+    internal: true
+  edge:

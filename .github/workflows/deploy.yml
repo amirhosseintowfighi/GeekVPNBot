@@ -1,0 +1,258 @@
+# Deployment pipeline.
+#
+# Shape: build once, push to the registry, deploy that exact image to staging,
+# then wait for a human to approve production. Building separately per environment
+# would mean production runs an image that was never tested.
+#
+# The production job is gated by a GitHub Environment with required reviewers.
+# That approval is the only manual step and it is deliberate: this project takes
+# real money from real customers, and a bad deploy at the wrong hour produces a
+# support queue nobody can drain.
+
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      skip_staging:
+        description: Deploy straight to production (emergencies only)
+        type: boolean
+        default: false
+
+# Never run two deploys at once. cancel-in-progress is FALSE here, unlike in CI:
+# cancelling a half-finished deploy can leave nginx pointing at a colour that is
+# still starting up.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      tag: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.backend.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse to deploy a commit whose CI failed
+        # Without this the pipeline will happily ship a tag pushed onto a red
+        # branch, which is the most common way a broken build reaches production.
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+            });
+            const failed = data.check_runs.filter(c => c.conclusion === 'failure');
+            if (failed.length) {
+              core.setFailed('CI failed: ' + failed.map(c => c.name).join(', '));
+            } else if (!data.check_runs.length) {
+              core.warning('No completed check runs found for this commit.');
+            }
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,format=long
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - id: backend
+        name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/backend/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Recorded inside the image so a running container can always be traced
+          # back to a commit. "Which version is live?" must never be a guess.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            APP_VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Edge image
+        # The nginx image is ours now: it carries the TLS configuration and the
+        # templating entrypoint, so it has to be built and versioned like the app.
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/nginx
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/nginx:${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          subject-digest: ${{ steps.backend.outputs.digest }}
+          push-to-registry: true
+
+  # ---------------------------------------------------------------------------
+  staging:
+    name: Deploy to staging
+    needs: build
+    if: ${{ github.event.inputs.skip_staging != 'true' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # A hung deploy must fail rather than hold the runner for an hour.
+          command_timeout: 15m
+          script: |
+            set -Eeuo pipefail
+            cd ${{ secrets.STAGING_PATH }}
+            git fetch --tags origin
+            git checkout --force ${{ github.sha }}
+            export IMAGE_TAG=${{ needs.build.outputs.tag }}
+            # The same blue/green script an operator runs by hand. CI must not
+            # have a separate deployment path: a rehearsal that differs from the
+            # real thing rehearses nothing.
+            scripts/deploy.sh deploy
+
+      - name: Smoke test staging through its public edge
+        env:
+          DOMAIN: ${{ vars.STAGING_DOMAIN }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 10); do
+            if curl -fsS --max-time 10 "https://$DOMAIN/health/ready" >/dev/null; then
+              echo "staging is ready"; exit 0
+            fi
+            echo "attempt $attempt: not ready yet"; sleep 10
+          done
+          echo "staging never became ready"; exit 1
+
+  # ---------------------------------------------------------------------------
+  production:
+    name: Deploy to production
+    needs: [build, staging]
+    # always() so a deliberately skipped staging job does not block an emergency
+    # deploy, while a FAILED staging job still does.
+    if: ${{ always() && needs.build.result == 'success' && needs.staging.result != 'failure' }}
+    runs-on: ubuntu-latest
+    environment:
+      # Required reviewers are configured on this environment in repository
+      # settings, not here, so the approval gate cannot be removed by editing a
+      # workflow file in a pull request.
+      name: production
+    steps:
+      - name: Record the colour currently serving, for rollback
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.PRODUCTION_PATH }}
+            scripts/deploy.sh status | head -2
+
+      - name: Back up the database before migrating
+        # Migrations run as part of the deploy. A backup taken minutes earlier is
+        # the difference between a rollback and a data-loss incident.
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 20m
+          envs: BACKUP_PASSPHRASE
+          script: |
+            set -Eeuo pipefail
+            cd ${{ secrets.PRODUCTION_PATH }}
+            scripts/backup.sh
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+
+      - name: Blue/green deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -Eeuo pipefail
+            cd ${{ secrets.PRODUCTION_PATH }}
+            git fetch --tags origin
+            git checkout --force ${{ github.sha }}
+            export IMAGE_TAG=${{ needs.build.outputs.tag }}
+            scripts/deploy.sh deploy
+
+      - name: Verify through the public edge
+        id: verify
+        env:
+          DOMAIN: ${{ vars.PRIMARY_DOMAIN }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 10 "https://$DOMAIN/health/ready" >/dev/null; then
+              echo "production is serving"; exit 0
+            fi
+            echo "attempt $attempt: not ready"; sleep 10
+          done
+          exit 1
+
+      - name: Roll back if verification failed
+        if: ${{ failure() && steps.verify.outcome == 'failure' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.PRODUCTION_PATH }}
+            scripts/deploy.sh rollback
+
+      - name: Report the outcome to Telegram
+        if: ${{ always() }}
+        # Same bot and same private group as the alerts: the people who need to
+        # know a deploy happened are already watching that channel.
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+          STATUS: ${{ job.status }}
+          VERSION: ${{ needs.build.outputs.tag }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          if [ "$STATUS" = "success" ]; then ICON="OK"; else ICON="FAILED"; fi
+          curl -fsS -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+            -d chat_id="$CHAT_ID" -d parse_mode=HTML \
+            --data-urlencode "text=<b>Production deploy: $ICON</b>%0Aversion: $VERSION%0Acommit: $COMMIT" \
+            >/dev/null || echo "could not notify Telegram; the deploy result stands regardless"

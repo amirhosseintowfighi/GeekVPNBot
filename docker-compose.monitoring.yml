@@ -1,0 +1,131 @@
+# Monitoring overlay. Separate from docker-compose.prod.yml so it can be omitted
+# on a small single-server install without editing the production file, and so a
+# problem with Grafana can never keep the API from starting.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.monitoring.yml up -d
+#
+# Nothing here publishes a port. Grafana and Prometheus are reached over an SSH
+# tunnel or through the admin hostname. A Prometheus exposed to the internet is
+# an unauthenticated read of every internal metric; a Grafana exposed to the
+# internet is a login page for an admin/admin default that somebody eventually
+# forgets to change.
+
+name: geekvpn
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Fifteen days. Long enough to see a month-over-month shape during an
+      # investigation, short enough that the TSDB stays small on a VPS disk.
+      # Long-term trend data belongs in the analytics tables, not here.
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=8GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./docker/monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [backend, monitoring]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    restart: unless-stopped
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    environment:
+      # Alerts are delivered to a private Telegram group through the same bot the
+      # product already uses. No new dependency, and the operator already has the
+      # app open. The chat id must be a group the customers are not in.
+      TELEGRAM__BOT_TOKEN: ${TELEGRAM__BOT_TOKEN:?TELEGRAM__BOT_TOKEN is required}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:?ALERT_TELEGRAM_CHAT_ID is required}
+    volumes:
+      - ./docker/monitoring/alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+    networks: [monitoring, edge]
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      # Sign-ups off and anonymous access off. Both default to a state where a
+      # publicly reachable Grafana hands out accounts.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SERVER_ROOT_URL: https://${ADMIN_DOMAIN:-localhost}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - ./docker/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on: [prometheus]
+    networks: [monitoring]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      # The container filesystem mounts are noise; the host disk is the number
+      # that matters, because a full disk stops Postgres.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|host/var/lib/docker/.+)($$|/)
+      # Textfile collector. scripts/backup.sh writes a timestamp here after a
+      # verified dump, which is what the BackupMissing alert reads. The backup
+      # job is a cron script, not a long-running server, so it has nowhere to
+      # expose a metrics endpoint of its own - a file is the honest mechanism.
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - ./backups/metrics:/var/lib/node_exporter/textfile:ro
+    networks: [monitoring]
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES__DB:-geekvpn}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES__USER:-geekvpn}
+      DATA_SOURCE_PASS: ${POSTGRES__PASSWORD:?POSTGRES__PASSWORD is required}
+    depends_on: [postgres]
+    networks: [backend, monitoring]
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS__PASSWORD:?REDIS__PASSWORD is required}
+    depends_on: [redis]
+    networks: [backend, monitoring]
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+
+networks:
+  backend:
+    internal: true
+  edge:
+  monitoring:
+    internal: true

@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Dark theme only, and unlike the Mini App this is not a stylistic choice.
+ * An operator stares at this panel for a full shift. A near-black slate at
+ * moderate contrast is easier on the eyes over hours than a white sheet, and
+ * it keeps the status colours - the only saturated pixels on screen - loud.
+ */
+@layer base {
+  :root {
+    --background: 225 14% 7%;
+    --foreground: 220 14% 96%;
+
+    --card: 225 13% 10%;
+    --card-foreground: 220 14% 96%;
+
+    --popover: 225 13% 11%;
+    --popover-foreground: 220 14% 96%;
+
+    /* Muted, not the brand gradient. A primary button in a control room is a
+       thing you press deliberately, not a thing that advertises itself. */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 12% 16%;
+    --secondary-foreground: 220 14% 92%;
+
+    --muted: 225 12% 14%;
+    --muted-foreground: 220 9% 62%;
+
+    --accent: 225 12% 18%;
+    --accent-foreground: 220 14% 96%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 60% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 52%;
+    --warning-foreground: 30 60% 10%;
+
+    --info: 199 89% 52%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 225 10% 20%;
+    --input: 225 10% 20%;
+    --ring: 217 91% 60%;
+
+    --sidebar: 225 14% 9%;
+
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Latin identifiers must not be reordered by the RTL context. An operator
+   * copying a crypto address, a panel hostname or an order reference out of
+   * this panel needs the exact characters in the exact order.
+   */
+  [dir='ltr'] {
+    unicode-bidi: isolate;
+  }
+
+  /* Persian body text needs more leading than Latin. */
+  p,
+  li {
+    line-height: 1.9;
+  }
+
+  /* A visible focus ring is not optional on a surface with destructive
+     actions. Keyboard operators are the fast ones. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@layer utilities {
+  /* Tabular figures. Without this, a column of amounts shifts sideways as
+     digits change width, and scanning a ledger becomes impossible. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .surface {
+    @apply rounded-lg border border-border bg-card;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Applied to the sticky first column of a wide table so the row stays
+     identifiable while the operator scrolls horizontally. */
+  .sticky-col {
+    @apply sticky start-0 z-10 bg-card;
+  }
+}

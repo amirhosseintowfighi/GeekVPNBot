@@ -1,0 +1,17 @@
+# Provisioned datasource. Defined as a file rather than clicked in the UI so a
+# rebuilt Grafana comes back identical, and so this configuration is reviewable
+# in git like everything else.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    # Must match Prometheus' scrape_interval, or Grafana suggests step values
+    # that interpolate between real samples and invent smooth lines.
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+    editable: false

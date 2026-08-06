@@ -1,0 +1,441 @@
+"""Checkout: review -> optional coupon -> payment method -> proof.
+
+Three payment rails, deliberately different in shape:
+
+* **Wallet** is synchronous. Balance is sufficient, service provisions now.
+* **Card-to-card** is asynchronous and manual. We show the destination card,
+  take a receipt photo, and park the payment in `PENDING_REVIEW` for an admin.
+* **Crypto** is asynchronous. We show an address and take a TxID.
+
+A bank gateway is intentionally absent. `CheckoutService` is the seam it will
+plug into later -- adding it means one new `begin_*` method and one new
+button, with no change to this flow's structure.
+
+The selected plan id is held in FSM state, but the *price* is never trusted
+from state: it is re-quoted immediately before the payment intent is created.
+A customer must not be able to sit on a review screen through the end of a
+flash sale and still pay the sale price.
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+
+from geekvpn.application.bot.read_models import (
+    CardPaymentDetails,
+    CryptoPaymentDetails,
+)
+from geekvpn.presentation.bot.handlers.common import (
+    answer,
+    match_ref,
+    safe_edit,
+    tier_of,
+    toast,
+)
+from geekvpn.presentation.bot.handlers.shop import load_storefront
+from geekvpn.presentation.bot.services import BotServices
+from geekvpn.presentation.bot.states import Purchase
+from geekvpn.presentation.bot.ui import keyboards as K
+from geekvpn.presentation.bot.ui import render as R
+from geekvpn.presentation.bot.ui import text as T
+from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
+from geekvpn.presentation.bot.ui.fa import normalize_input, toman
+
+router = Router(name="purchase")
+
+MIN_TXID = 10
+
+
+def _review_keyboard(*, has_coupon: bool) -> InlineKeyboardMarkup:
+    rows: list[list[Any]] = [[K.btn(T.BTN_PAY, PayCB(action="choose", method="-", ref="-"))]]
+    if has_coupon:
+        rows.append([K.btn(T.BTN_DROP_COUPON, PayCB(action="uncoupon", method="-", ref="-"))])
+    else:
+        rows.append([K.btn(T.BTN_APPLY_COUPON, PayCB(action="coupon", method="-", ref="-"))])
+    rows.append([K.btn(T.BTN_BACK, NavCB(to="shop")), K.home_button()])
+    return K.stack(rows)
+
+
+def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
+    rows: list[list[Any]] = []
+    if wallet_ok:
+        rows.append([K.btn(T.PAY_WALLET, PayCB(action="pay", method="wallet", ref="-"))])
+    rows.append([K.btn(T.PAY_CARD, PayCB(action="pay", method="card", ref="-"))])
+    rows.append([K.btn(T.PAY_CRYPTO, PayCB(action="pay", method="crypto", ref="-"))])
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="home"))])
+    return K.stack(rows)
+
+
+async def _find_plan(*, plan_id: uuid.UUID, user: Any, scope: Any, services: Any) -> Any:
+    view = await load_storefront(user=user, scope=scope, services=services)
+    for category in view.categories:
+        for product in category.products:
+            for plan in product.plans:
+                if plan.plan_id == plan_id:
+                    return plan, product
+    return None, None
+
+
+async def _render_review(
+    *,
+    query: CallbackQuery,
+    state: FSMContext,
+    user: Any,
+    scope: Any,
+    services: Any,
+) -> None:
+    """Re-quote the selected plan and redraw the review screen."""
+    data = await state.get_data()
+    plan_id = data.get("plan_id")
+    coupon = data.get("coupon")
+    if not plan_id:
+        await safe_edit(query, T.ERR_SESSION_EXPIRED, markup=K.single(K.home_button()))
+        return
+
+    plan, product = await _find_plan(
+        plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
+    )
+    if plan is None:
+        await safe_edit(query, T.PLAN_UNAVAILABLE, markup=K.single(K.home_button()))
+        return
+
+    snapshot = await services.wallet.snapshot(user.id)
+    try:
+        quote = await scope.quoting.quote_view(
+            plan_id=plan.plan_id,
+            user_id=user.id,
+            coupon_code=coupon,
+            loyalty_tier=tier_of(snapshot.lifetime_spend),
+        )
+    except Exception:
+        # A coupon that validated a moment ago can expire mid-flow. Drop it
+        # and re-quote clean rather than dead-ending the purchase.
+        await state.update_data(coupon=None)
+        quote = await scope.quoting.quote_view(
+            plan_id=plan.plan_id,
+            user_id=user.id,
+            loyalty_tier=tier_of(snapshot.lifetime_spend),
+        )
+        coupon = None
+
+    name = f"{product.name_fa} \u2014 {plan.name_fa}"
+    await state.update_data(total=quote.total, plan_name=name)
+    await state.set_state(Purchase.reviewing)
+    await safe_edit(
+        query,
+        R.quote_breakdown(quote, plan_name=name),
+        markup=_review_keyboard(has_coupon=bool(coupon)),
+    )
+
+
+@router.callback_query(ShopCB.filter(F.action == "plan"))
+async def on_select_plan(
+    query: CallbackQuery,
+    callback_data: ShopCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    await toast(query)
+    if user is None or scope is None:
+        return
+    view = await load_storefront(user=user, scope=scope, services=services)
+    found = None
+    for category in view.categories:
+        for product in category.products:
+            candidate = match_ref(list(product.plans), callback_data.ref, "plan_id")
+            if candidate is not None:
+                found = candidate
+                break
+        if found:
+            break
+    if found is None:
+        await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
+        return
+    await state.update_data(plan_id=str(found.plan_id), coupon=None)
+    await _render_review(query=query, state=state, user=user, scope=scope, services=services)
+
+
+@router.callback_query(PayCB.filter(F.action == "coupon"))
+async def on_ask_coupon(query: CallbackQuery, state: FSMContext) -> None:
+    await toast(query)
+    await state.set_state(Purchase.entering_coupon)
+    await safe_edit(query, T.ASK_COUPON, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="review"))))
+
+
+@router.callback_query(PayCB.filter(F.action == "uncoupon"))
+async def on_drop_coupon(
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    await toast(query, T.COUPON_REMOVED)
+    await state.update_data(coupon=None)
+    if user and scope:
+        await _render_review(query=query, state=state, user=user, scope=scope, services=services)
+
+
+@router.callback_query(NavCB.filter(F.to == "review"))
+async def on_back_to_review(
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    await toast(query)
+    if user and scope:
+        await _render_review(query=query, state=state, user=user, scope=scope, services=services)
+
+
+@router.message(Purchase.entering_coupon, F.text)
+async def on_coupon_text(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    """Validate a typed coupon.
+
+    `preview_coupon` reports rejection as data with a Persian reason, so the
+    customer is told *why* the code failed rather than a flat "invalid".
+    """
+    if user is None or scope is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    data = await state.get_data()
+    plan_id = data.get("plan_id")
+    if not plan_id:
+        await answer(message, T.ERR_SESSION_EXPIRED)
+        await state.clear()
+        return
+
+    code = normalize_input(message.text or "").upper()
+    snapshot = await services.wallet.snapshot(user.id)
+    preview = await scope.quoting.preview_coupon(
+        plan_id=uuid.UUID(str(plan_id)),
+        code=code,
+        user_id=user.id,
+        loyalty_tier=tier_of(snapshot.lifetime_spend),
+    )
+
+    if not preview.is_valid:
+        await answer(message, f"\u274c {preview.message_fa}")
+        return
+
+    await state.update_data(coupon=preview.code)
+    await state.set_state(Purchase.reviewing)
+    await answer(
+        message,
+        T.COUPON_APPLIED.format(code=preview.code, amount=toman(preview.discount)),
+    )
+
+    plan, product = await _find_plan(
+        plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
+    )
+    if plan is None:
+        return
+    quote = await scope.quoting.quote_view(
+        plan_id=plan.plan_id,
+        user_id=user.id,
+        coupon_code=preview.code,
+        loyalty_tier=tier_of(snapshot.lifetime_spend),
+    )
+    name = f"{product.name_fa} \u2014 {plan.name_fa}"
+    await state.update_data(total=quote.total, plan_name=name)
+    await answer(
+        message,
+        R.quote_breakdown(quote, plan_name=name),
+        reply_markup=_review_keyboard(has_coupon=True),
+    )
+
+
+@router.callback_query(PayCB.filter(F.action == "choose"))
+async def on_choose_method(
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+) -> None:
+    await toast(query)
+    if user is None:
+        return
+    data = await state.get_data()
+    total = int(data.get("total") or 0)
+    snapshot = await services.wallet.snapshot(user.id)
+    wallet_ok = snapshot.balance >= total > 0
+
+    body = f"{T.PAY_CHOOSE}\n\n{T.LBL_TOTAL}: <b>{toman(total)}</b>"
+    if not wallet_ok and total:
+        body += "\n\n" + T.PAY_WALLET_SHORT.format(
+            balance=toman(snapshot.balance),
+            needed=toman(total),
+            shortfall=toman(max(0, total - snapshot.balance)),
+        )
+    await state.set_state(Purchase.choosing_payment)
+    await safe_edit(query, body, markup=_method_keyboard(wallet_ok=wallet_ok))
+
+
+@router.callback_query(PayCB.filter(F.action == "pay"))
+async def on_pay(
+    query: CallbackQuery,
+    callback_data: PayCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+) -> None:
+    await toast(query)
+    if user is None:
+        return
+
+    data = await state.get_data()
+    plan_id = data.get("plan_id")
+    coupon = data.get("coupon")
+    if not plan_id:
+        await safe_edit(query, T.ERR_SESSION_EXPIRED, markup=K.single(K.home_button()))
+        return
+
+    plan_uuid = uuid.UUID(str(plan_id))
+    method = callback_data.method
+
+    try:
+        if method == "wallet":
+            payment = await services.checkout.pay_from_wallet(
+                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+            )
+            await state.clear()
+            cashback = data.get("cashback") or 0
+            await safe_edit(
+                query,
+                T.PAY_SUCCESS.format(
+                    plan=data.get("plan_name", ""),
+                    amount=toman(payment.amount),
+                    cashback_line=(
+                        T.PAY_CASHBACK_LINE.format(amount=toman(cashback)) if cashback else ""
+                    ),
+                ),
+                markup=K.single(K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"))),
+            )
+            return
+
+        if method == "card":
+            payment, details = await services.checkout.begin_card(
+                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+            )
+            await state.update_data(payment_id=str(payment.payment_id))
+            await state.set_state(Purchase.awaiting_receipt)
+            await safe_edit(
+                query,
+                _card_body(details, amount=payment.amount),
+                markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
+            )
+            return
+
+        if method == "crypto":
+            payment, details = await services.checkout.begin_crypto(
+                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+            )
+            await state.update_data(payment_id=str(payment.payment_id))
+            await state.set_state(Purchase.awaiting_crypto_txid)
+            await safe_edit(
+                query,
+                _crypto_body(details, amount=payment.amount),
+                markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
+            )
+            return
+
+        await safe_edit(query, T.PAY_GATEWAY_SOON, markup=K.single(K.home_button()))
+    except Exception:
+        await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+
+
+def _card_body(details: CardPaymentDetails, *, amount: int) -> str:
+    return T.PAY_CARD_INSTRUCTIONS.format(
+        amount=f"<b>{toman(amount)}</b>",
+        card_number=f"<code>{details.card_number}</code>",
+        card_holder=details.card_holder_fa,
+        bank=details.bank_fa,
+        sla=details.review_sla_fa,
+    )
+
+
+def _crypto_body(details: CryptoPaymentDetails, *, amount: int) -> str:
+    return T.PAY_CRYPTO_INSTRUCTIONS.format(
+        amount=f"<b>{toman(amount)}</b>",
+        network=details.network,
+        asset=details.asset,
+        crypto_amount=f"<code>{details.amount_display}</code>",
+        address=f"<code>{details.address}</code>",
+    )
+
+
+@router.message(Purchase.awaiting_receipt, F.photo)
+async def on_receipt_photo(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+) -> None:
+    """Accept the card-to-card receipt image.
+
+    `photo[-1]` is the highest resolution Telegram kept -- an admin needs to
+    read a reference number off it.
+    """
+    data = await state.get_data()
+    payment_id = data.get("payment_id")
+    if not payment_id or not message.photo:
+        await answer(message, T.ERR_SESSION_EXPIRED)
+        await state.clear()
+        return
+
+    file_id = message.photo[-1].file_id
+    payment = await services.checkout.attach_receipt(
+        payment_id=uuid.UUID(str(payment_id)), file_id=file_id
+    )
+    await state.clear()
+    await answer(
+        message,
+        T.PAY_RECEIPT_RECEIVED.format(ref=f"<code>{payment.reference}</code>"),
+        reply_markup=K.main_menu(),
+    )
+
+
+@router.message(Purchase.awaiting_receipt)
+async def on_receipt_not_photo(message: Message) -> None:
+    await answer(message, T.PAY_RECEIPT_NOT_IMAGE)
+
+
+@router.message(Purchase.awaiting_crypto_txid, F.text)
+async def on_txid(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+) -> None:
+    data = await state.get_data()
+    payment_id = data.get("payment_id")
+    if not payment_id:
+        await answer(message, T.ERR_SESSION_EXPIRED)
+        await state.clear()
+        return
+
+    txid = normalize_input(message.text or "")
+    if len(txid) < MIN_TXID or " " in txid:
+        await answer(message, T.PAY_CRYPTO_BAD_TXID)
+        return
+
+    payment = await services.checkout.attach_txid(payment_id=uuid.UUID(str(payment_id)), txid=txid)
+    await state.clear()
+    await answer(
+        message,
+        T.PAY_PENDING_REVIEW.format(ref=f"<code>{payment.reference}</code>"),
+        reply_markup=K.main_menu(),
+    )

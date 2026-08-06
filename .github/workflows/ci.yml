@@ -1,0 +1,238 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  quality:
+    name: Lint, format, types, architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check --output-format=github src tests
+      - name: Ruff format check
+        run: ruff format --check src tests
+      - name: Mypy (strict)
+        run: mypy
+      - name: Import-linter (Clean Architecture)
+        run: lint-imports
+
+  security:
+    name: Security scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the secret scan compares commits, and a shallow clone
+          # makes it scan only the tip, which finds nothing on a merge.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+
+      - name: SQL injection gate
+        # Our own AST scanner. Refuses any string-built SQL passed to execute()
+        # or text(). Proven against a deliberately malicious file, so it is not a
+        # rubber stamp.
+        run: python scripts/sqli_gate.py
+
+      - name: Deployment configuration gate
+        # Alert rules referencing metrics that do not exist, scrape targets naming
+        # services that do not exist, undocumented environment variables.
+        run: python scripts/deploy_gate.py
+
+      - name: Dependency audit
+        # Fails the build on a known CVE in a pinned dependency. This closes the
+        # gap docs/security.md section 5 admits to: until now nothing checked our
+        # dependencies at all.
+        run: |
+          python -m pip install pip-audit
+          pip-audit --strict --desc
+
+      - name: Static analysis (bandit)
+        run: |
+          python -m pip install bandit
+          # B101 (assert) is excluded: asserts are used in gates and tests on
+          # purpose. Everything else is a finding.
+          bandit -r src -ll --skip B101
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: geekvpn
+          POSTGRES_PASSWORD: geekvpn
+          POSTGRES_DB: geekvpn_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U geekvpn"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES__HOST: localhost
+      POSTGRES__USER: geekvpn
+      POSTGRES__PASSWORD: geekvpn
+      POSTGRES__DB: geekvpn_test
+      REDIS__HOST: localhost
+      TELEGRAM__BOT_TOKEN: "000000:test-token"
+      TELEGRAM__WEBHOOK_SECRET: "test-secret"
+      # 32+ characters, and distinct from the encryption key. The production
+      # guardrails enforce both, and a test env that violates them would let a
+      # config regression reach production unnoticed.
+      SECURITY__SECRET_KEY: "test-secret-key-of-sufficient-length-000"
+      SECURITY__ENCRYPTION_MASTER_KEY: "test-encryption-master-key-different-01"
+      SECURITY__TRUSTED_PROXY_COUNT: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+      - name: Pytest
+        run: pytest --cov --cov-report=xml --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/backend/Dockerfile
+          target: runtime
+          push: false
+          load: true
+          tags: geekvpn-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy scan (backend)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: geekvpn-backend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Build nginx image
+        # The edge image is now ours, not the stock one: it carries the TLS
+        # config, the templating entrypoint and openssl. An unscanned edge image
+        # is the one container reachable from the internet.
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/nginx
+          file: docker/nginx/Dockerfile
+          push: false
+          load: true
+          tags: geekvpn-nginx:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan (nginx)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: geekvpn-nginx:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Nginx configuration is valid
+        # `nginx -t` inside the built image, with the templating entrypoint doing
+        # its substitution first. This is what catches a typo in a server block
+        # before it takes the edge down at deploy time.
+        run: |
+          docker run --rm \
+            -e PRIMARY_DOMAIN=example.com \
+            -e ADMIN_ALLOW_CIDRS="10.0.0.0/8" \
+            --entrypoint /bin/sh geekvpn-nginx:ci -c \
+            'PRIMARY_DOMAIN=example.com ADMIN_DOMAIN=admin.example.com MINIAPP_DOMAIN=app.example.com \
+             envsubst "\$$PRIMARY_DOMAIN \$$ADMIN_DOMAIN \$$MINIAPP_DOMAIN" \
+               < /etc/nginx/templates/geekvpn.conf > /etc/nginx/conf.d/geekvpn.conf &&
+             printf "# test\n" > /etc/nginx/conf.d/admin-allow.conf &&
+             mkdir -p /etc/nginx/tls /etc/letsencrypt/live/example.com &&
+             openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+               -keyout /etc/letsencrypt/live/example.com/privkey.pem \
+               -out /etc/letsencrypt/live/example.com/fullchain.pem \
+               -subj "/CN=example.com" 2>/dev/null &&
+             cp /etc/letsencrypt/live/example.com/fullchain.pem /etc/letsencrypt/live/example.com/chain.pem &&
+             openssl dhparam -out /etc/nginx/tls/dhparam.pem 1024 2>/dev/null &&
+             nginx -t
+
+  compose:
+    name: Compose config is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - name: Development overlay
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+      - name: Production and monitoring overlays
+        # These are the files that actually run in production, and until now
+        # nothing validated them. Required variables are supplied inline because
+        # the prod overlay uses ${VAR:?...} to fail fast on a missing secret -
+        # which is the behaviour being tested here.
+        env:
+          PRIMARY_DOMAIN: example.com
+          POSTGRES__PASSWORD: ci-postgres-password
+          REDIS__PASSWORD: ci-redis-password
+          TELEGRAM__BOT_TOKEN: "000000:test-token"
+          ALERT_TELEGRAM_CHAT_ID: "-1000000000"
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+                         -f docker-compose.monitoring.yml config --quiet
+      - name: Prometheus rules are valid
+        # promtool parses the PromQL. Our own gate proves the metrics exist;
+        # promtool proves the expressions are syntactically valid, which the gate
+        # cannot check with a regex.
+        run: |
+          docker run --rm -v "$PWD/docker/monitoring/prometheus:/rules:ro" \
+            --entrypoint promtool prom/prometheus:v3.1.0 check rules /rules/alerts.yml
+      - name: Shell scripts parse
+        run: |
+          for script in scripts/*.sh docker/nginx/entrypoint.sh; do
+            bash -n "$script" || sh -n "$script"
+          done
+          sudo apt-get install -y shellcheck
+          shellcheck -S warning scripts/*.sh || true   # advisory, not blocking

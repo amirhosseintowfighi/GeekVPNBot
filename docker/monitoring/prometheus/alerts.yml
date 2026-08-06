@@ -1,0 +1,196 @@
+# Alert rules.
+#
+# Every expression below references a metric that AppMetrics actually registers,
+# or a standard exporter metric. This is verified mechanically by
+# scripts/deploy_gate.py, because an alert on a metric name that does not exist
+# is worse than no alert: it is permanently silent and looks like coverage.
+#
+# Two rules of thumb applied throughout:
+#   * `for:` is never zero. A single bad scrape is noise, and an alert that fires
+#     on noise gets muted, and a muted alert protects nothing.
+#   * Symptoms page, causes only inform. High CPU is not an incident; customers
+#     receiving errors is.
+
+groups:
+  - name: availability
+    rules:
+      - alert: ApiDown
+        # Both colours are scraped, so `up == 0` on one of them is normal between
+        # deploys. This fires only when NO colour is up, which is a real outage.
+        expr: sum(up{job="geekvpn-api"}) == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "هیچ نمونه‌ای از API در دسترس نیست"
+          description: "No API instance has answered a scrape for one minute. Customers cannot buy or connect."
+          runbook: "docs/runbook.md#api-down"
+
+      - alert: HighErrorRate
+        # 5xx share of all responses. Deliberately not counting 4xx: a burst of
+        # 401s is someone probing, a burst of 500s is us failing.
+        expr: |
+          sum(rate(geekvpn_http_requests_total{status="5xx"}[5m]))
+            / clamp_min(sum(rate(geekvpn_http_requests_total[5m])), 0.001) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "نرخ خطای ۵xx بالای ۲٪"
+          description: "More than 2% of responses are server errors over five minutes."
+          runbook: "docs/runbook.md#high-error-rate"
+
+      - alert: LatencyRegression
+        # p95 above the 500ms target from the load-test thresholds. The same
+        # number appears in scripts/loadtest/k6.js so the alert and the test
+        # cannot disagree about what "acceptable" means.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(geekvpn_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "تأخیر p95 از ۵۰۰ میلی‌ثانیه گذشت"
+          description: "The 95th percentile response time has exceeded the load-test target for ten minutes."
+          runbook: "docs/runbook.md#latency"
+
+      - alert: SaturatedWorkers
+        expr: sum(geekvpn_http_requests_in_flight) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "تعداد درخواست‌های در جریان بالاست"
+          description: "Concurrent in-flight requests suggest workers are queueing rather than serving."
+          runbook: "docs/runbook.md#saturation"
+
+  - name: business
+    rules:
+      - alert: PaymentReviewBacklog
+        # This is the alert that actually protects revenue. Card-to-card payments
+        # are approved by hand; every unreviewed payment is a paying customer
+        # waiting. Thirty minutes is well inside the six-hour payment window.
+        expr: max(geekvpn_payments_awaiting_review) > 20
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "صف بررسی پرداخت‌ها طولانی شده"
+          description: "More than 20 payments have been awaiting manual review for half an hour."
+          runbook: "docs/runbook.md#payment-backlog"
+
+      - alert: ProvisioningFailing
+        expr: sum(rate(geekvpn_provisioning_failures_total[15m])) by (panel) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "تحویل سرویس روی پنل {{ $labels.panel }} خطا می‌دهد"
+          description: "Customers are paying and not receiving a configuration. This is the worst failure mode in the product."
+          runbook: "docs/runbook.md#provisioning-failure"
+
+      - alert: PanelSlow
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(geekvpn_panel_request_duration_seconds_bucket[10m])) by (le, panel)
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "پنل {{ $labels.panel }} کند شده"
+          description: "Panel calls are taking over five seconds at p95; checkout will feel broken."
+          runbook: "docs/runbook.md#panel-slow"
+
+      - alert: NotificationsFailing
+        expr: |
+          sum(rate(geekvpn_notifications_total{outcome="failed"}[15m]))
+            / clamp_min(sum(rate(geekvpn_notifications_total[15m])), 0.001) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "بیش از ۱۰٪ اعلان‌ها ناموفق است"
+          description: "Expiry reminders are the main renewal driver; silent failure here shows up as churn, not as an error page."
+          runbook: "docs/runbook.md#notifications"
+
+  - name: security
+    rules:
+      - alert: AuthFailureSpike
+        expr: sum(rate(geekvpn_auth_failures_total[5m])) by (kind) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "موج خطای احراز هویت از نوع {{ $labels.kind }}"
+          description: "Sustained authentication failures. Check whether the lockout ladder is engaging."
+          runbook: "docs/runbook.md#auth-spike"
+
+      - alert: RateLimiterUnusuallyQuiet
+        # An inverted alert, and the most valuable one in this group. The limiter
+        # fails OPEN by design: if Redis is unreachable it allows the request. A
+        # limiter that has refused nothing for an hour on a live site is more
+        # likely broken than it is a sign of polite traffic.
+        expr: |
+          sum(rate(geekvpn_rate_limited_total[1h])) == 0
+            and sum(rate(geekvpn_http_requests_total[1h])) > 1
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "محدودکنندهٔ نرخ هیچ درخواستی را رد نکرده - احتمال خرابی"
+          description: "The limiter fails open. Zero refusals under real traffic suggests Redis is unreachable and the limiter is silently allowing everything."
+          runbook: "docs/runbook.md#limiter-silent"
+
+  - name: infrastructure
+    rules:
+      - alert: DiskFillingUp
+        # Predictive, not threshold-based. "Disk is 90% full" tells you after it is
+        # too late to act calmly; "will be full in four hours" is actionable.
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{mountpoint="/host"}[6h], 4 * 3600) < 0
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "دیسک طی حدود چهار ساعت پر می‌شود"
+          description: "A full disk stops Postgres accepting writes, which stops sales."
+          runbook: "docs/runbook.md#disk"
+
+      - alert: PostgresConnectionsHigh
+        expr: |
+          sum(pg_stat_activity_count) / clamp_min(max(pg_settings_max_connections), 1) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "۸۰٪ اتصالات پستگرس مصرف شده"
+          description: "Connection exhaustion presents as random failures across unrelated endpoints."
+          runbook: "docs/runbook.md#postgres-connections"
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ردیس در دسترس نیست"
+          description: "Sessions, rate limiting and the report cache all depend on Redis. The limiter will fail open while it is down."
+          runbook: "docs/runbook.md#redis-down"
+
+      - alert: BackupMissing
+        # Watches the timestamp file that scripts/backup.sh writes. A backup
+        # system nobody checks is a backup system that has already failed; this
+        # turns "we assume it ran" into an alert.
+        expr: time() - max(geekvpn_backup_last_success_timestamp_seconds) > 129600
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "بیش از ۳۶ ساعت است پشتیبان موفقی گرفته نشده"
+          description: "Nightly backups have not succeeded. Restore capability is currently unproven."
+          runbook: "docs/runbook.md#backup-missing"
