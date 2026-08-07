@@ -89,7 +89,7 @@ class SqlSubscriptionCardReader:
         cards: list[SubscriptionCard] = []
         for subscription in await self._subscriptions.list_for_user(telegram_id):
             order = await self._orders.get(subscription.order_id)
-            cards.append(_to_card(subscription, order))
+            cards.append(to_card(subscription, order))
         return cards
 
     async def rotate_link(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> SubscriptionCard:
@@ -229,7 +229,7 @@ def _load_percent(load_ratio: float, capacity: int) -> int | None:
     return int(min(1.0, load_ratio) * 100)
 
 
-def _to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard:
+def to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard:
     quota_mib = subscription.traffic_limit_mib
     return SubscriptionCard(
         subscription_id=_as_uuid(subscription.id),
@@ -263,4 +263,5 @@ __all__ = [
     "SqlReferralSummaryReader",
     "SqlServerStatusReader",
     "SqlSubscriptionCardReader",
+    "to_card",
 ]

@@ -27,6 +27,8 @@ import hashlib
 import uuid
 from collections.abc import Awaitable, Callable
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
     CryptoPaymentDetails,
@@ -43,11 +45,14 @@ from geekvpn.application.catalog.quoting_service import QuotingService
 from geekvpn.application.payments.checkout_service import CheckoutRequest, CheckoutResult
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.order_service import OrderService
+from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.pricing import PriceQuote
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.invoice import InvoiceLine
 from geekvpn.domain.payments.proof import PaymentProof
+from geekvpn.domain.provisioning.order import Order
+from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.persistence.repositories.catalog import SqlAlchemyPlanRepository
@@ -87,6 +92,8 @@ class BotCheckoutAdapter:
         quoting: QuotingService,
         orders: OrderService,
         order_repository: SqlAlchemyOrderRepository,
+        provisioning: ProvisioningService,
+        session: AsyncSession,
         plans: SqlAlchemyPlanRepository,
         clock: Clock,
         jalali_year: int,
@@ -100,6 +107,8 @@ class BotCheckoutAdapter:
         self._quoting = quoting
         self._orders = orders
         self._order_repository = order_repository
+        self._provisioning = provisioning
+        self._session = session
         self._plans = plans
         self._clock = clock
         self._jalali_year = jalali_year
@@ -111,20 +120,29 @@ class BotCheckoutAdapter:
     async def pay_from_wallet(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> SubscriptionCard:
-        """Settles immediately, so provisioning is what the customer waits for.
+        """Debit the wallet and deliver the service in one call.
 
-        Not implemented as a card/crypto variant because the wallet gateway
-        settles inside ``begin`` and there is no proof step to wait through.
+        Unlike card and crypto there is no proof step: the wallet gateway
+        settles inside ``begin``, the sync scope publishes ``PaymentApproved``,
+        and ``OrderPaymentBridge`` moves the order to PAID before that
+        transaction commits. Provisioning then runs here, so what the customer
+        waits for is the panel rather than a reviewer.
         """
-        raise NotImplementedError(
-            "Wallet checkout settles synchronously and then has to drive "
-            "provisioning; see docs/next-tasks.md."
-        )
+        _, order = await self._begin(user_id, plan_id, coupon_code, gateway_key=WALLET)
+
+        # The order was marked PAID by the *other* scope. This session created
+        # it moments ago and still holds the PENDING copy in its identity map,
+        # so `provision` would read a stale state and refuse. Expiring is what
+        # forces the re-read; without it wallet checkout fails every time.
+        self._session.expire_all()
+
+        subscription = await self._provisioning.provision(order.id)
+        return to_card(subscription, order)
 
     async def begin_card(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> CardPaymentDetails:
-        result = await self._begin(user_id, plan_id, coupon_code, gateway_key=CARD)
+        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=CARD)
         gateway = await self._bridge.run(lambda scope: scope.gateways.get(CARD))
         return CardPaymentDetails(
             card_number=getattr(gateway, "card_number", ""),
@@ -137,7 +155,7 @@ class BotCheckoutAdapter:
     async def begin_crypto(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> CryptoPaymentDetails:
-        result = await self._begin(user_id, plan_id, coupon_code, gateway_key=CRYPTO)
+        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=CRYPTO)
         return CryptoPaymentDetails(
             network=result.instruction.network or "",
             asset=result.instruction.network or "",
@@ -225,7 +243,7 @@ class BotCheckoutAdapter:
         coupon_code: str | None,
         *,
         gateway_key: str,
-    ) -> CheckoutResult:
+    ) -> tuple[CheckoutResult, Order]:
         telegram_id = await self._require_telegram_id(user_id)
         plan = await self._plans.get(plan_id)
         if plan is None:
@@ -270,7 +288,7 @@ class BotCheckoutAdapter:
         # approved payment cannot find its order and nothing gets provisioned.
         order.invoice_id = result.invoice.id
         await self._order_repository.update(order)
-        return result
+        return result, order
 
     async def _submit_proof(self, proof: PaymentProof, payment_id: uuid.UUID) -> PendingPayment:
         def work(scope: SyncScope) -> PendingPayment:

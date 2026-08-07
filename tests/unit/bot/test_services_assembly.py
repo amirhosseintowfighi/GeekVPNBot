@@ -54,6 +54,7 @@ class FakeScope:
     quoting = object()
     order_service = object()
     catalog_plans = object()
+    provisioning = object()
 
 
 def test_every_slot_in_the_bundle_is_filled_by_something_satisfying_its_port() -> None:

@@ -31,6 +31,8 @@ def build(**overrides: object) -> BotCheckoutAdapter:
         "quoting": object(),
         "orders": object(),
         "order_repository": object(),
+        "provisioning": object(),
+        "session": object(),
         "plans": object(),
         "clock": object(),
         "jalali_year": 1405,
@@ -132,9 +134,23 @@ async def test_the_same_image_under_two_file_ids_produces_one_digest() -> None:
 # -- unimplemented paths are loud -----------------------------------------
 
 
-async def test_wallet_checkout_is_explicitly_unimplemented_rather_than_silently_wrong() -> None:
-    with pytest.raises(NotImplementedError):
+async def test_wallet_checkout_refuses_an_unknown_customer_like_every_other_method() -> None:
+    with pytest.raises(LookupError):
         await build().pay_from_wallet(uuid.uuid4(), plan_id=uuid.uuid4())
+
+
+def test_wallet_checkout_expires_the_session_before_provisioning() -> None:
+    """The order is marked PAID by the *other* scope.
+
+    This session created it moments ago and still holds the PENDING copy, so
+    without expiring the identity map `provision` reads a stale state and
+    refuses - which would make wallet checkout fail every single time.
+    """
+    import inspect
+
+    source = inspect.getsource(BotCheckoutAdapter.pay_from_wallet)
+    assert "expire_all()" in source
+    assert source.index("expire_all()") < source.index("provision(")
 
 
 async def test_an_unknown_customer_cannot_start_a_payment() -> None:

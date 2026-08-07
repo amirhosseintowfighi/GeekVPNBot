@@ -65,6 +65,8 @@ def build_bot_services(
             quoting=scope.quoting,
             orders=scope.order_service,
             order_repository=scope.orders,
+            provisioning=scope.provisioning,
+            session=scope.session,
             plans=scope.catalog_plans,
             clock=container.clock,
             jalali_year=jalali_year,

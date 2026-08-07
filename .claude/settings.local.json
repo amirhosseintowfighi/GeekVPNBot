@@ -72,7 +72,9 @@
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/bot/notifications.py src/geekvpn/presentation/bot/ui/text.py)",
       "Bash(./.venv/Scripts/mypy.exe)",
       "Bash(grep -E \"bot\\\\\\\\\\\\\\\\\")",
-      "Bash(grep -oE \"\\(get|post|patch|put|del\\)<[^>]*>\\\\\\(|['\\\\`]/api/miniapp/[^'\\\\`]*['\\\\`]\" miniapp/src/lib/api.ts)"
+      "Bash(grep -oE \"\\(get|post|patch|put|del\\)<[^>]*>\\\\\\(|['\\\\`]/api/miniapp/[^'\\\\`]*['\\\\`]\" miniapp/src/lib/api.ts)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/unit/bot/)"
     ]
   }
 }
