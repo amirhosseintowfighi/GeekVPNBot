@@ -34,6 +34,7 @@ from geekvpn.domain.catalog.audit import CatalogAuditAction
 from geekvpn.domain.catalog.category import Category
 from geekvpn.domain.catalog.enums import PublicationState
 from geekvpn.domain.catalog.errors import CatalogConflict, CatalogError
+from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.product import Product
 
@@ -57,7 +58,7 @@ class CatalogAdminService:
     # -- categories --------------------------------------------------------
 
     async def list_categories(self) -> list[Category]:
-        return await self._categories.list_all()
+        return list(await self._categories.list_all())
 
     async def create_category(
         self, command: CreateCategoryCommand, *, actor_id: uuid.UUID | None = None
@@ -130,7 +131,7 @@ class CatalogAdminService:
     # -- products ----------------------------------------------------------
 
     async def list_products(self, *, category_id: uuid.UUID | None = None) -> list[Product]:
-        return await self._products.list_all(category_id=category_id)
+        return list(await self._products.list_all(category_id=category_id))
 
     async def create_product(
         self, command: CreateProductCommand, *, actor_id: uuid.UUID | None = None
@@ -242,7 +243,12 @@ class CatalogAdminService:
     # -- plans -------------------------------------------------------------
 
     async def list_plans(self, *, product_id: uuid.UUID | None = None) -> list[Plan]:
-        return await self._plans.list_all(product_id=product_id)
+        plans = (
+            await self._plans.list_all()
+            if product_id is None
+            else await self._plans.list_for_product(product_id)
+        )
+        return list(plans)
 
     async def create_plan(
         self, command: CreatePlanCommand, *, actor_id: uuid.UUID | None = None
@@ -264,14 +270,18 @@ class CatalogAdminService:
             plan_type=command.plan_type,
             name_fa=command.name_fa,
             duration_days=command.duration_days,
-            base_price=command.base_price,
+            base_price=Money(command.base_price),
             quota_gib=command.quota_gib,
             daily_quota_gib=command.daily_quota_gib,
             description_fa=command.description_fa,
             badge_fa=command.badge_fa,
             device_limit=command.device_limit,
-            compare_at_price=command.compare_at_price,
-            min_price=command.min_price,
+            compare_at_price=(
+                Money(command.compare_at_price)
+                if isinstance(command.compare_at_price, int)
+                else None
+            ),
+            min_price=None if command.min_price is None else Money(command.min_price),
             cashback_bps=command.cashback_bps,
             max_per_user=command.max_per_user,
             sort_order=command.sort_order,
@@ -298,9 +308,10 @@ class CatalogAdminService:
 
         # Price changes go through the aggregate so the event is emitted and
         # the price-invariant check runs.
-        if command.base_price is not None and command.base_price != plan.base_price:
+        new_price = None if command.base_price is None else Money(command.base_price)
+        if new_price is not None and new_price != plan.base_price:
             old = plan.base_price
-            plan.change_price(command.base_price, changed_by=actor_id)
+            plan.change_price(new_price, changed_by=actor_id)
             await self._record(
                 CatalogAuditAction.PLAN_PRICE_CHANGED,
                 plan.id,
@@ -318,8 +329,12 @@ class CatalogAdminService:
             quota_gib=command.quota_gib,
             daily_quota_gib=command.daily_quota_gib,
             device_limit=command.device_limit,
-            compare_at_price=command.compare_at_price,
-            min_price=command.min_price,
+            compare_at_price=(
+                Money(command.compare_at_price)
+                if isinstance(command.compare_at_price, int)
+                else None
+            ),
+            min_price=None if command.min_price is None else Money(command.min_price),
             cashback_bps=command.cashback_bps,
             max_per_user=command.max_per_user,
             sort_order=command.sort_order,

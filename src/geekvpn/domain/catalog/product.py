@@ -109,6 +109,11 @@ class Product(AggregateRoot[uuid.UUID]):
     def archive(self) -> None:
         self.state = PublicationState.ARCHIVED
 
+    def update_features(self, features_fa: tuple[str, ...]) -> None:
+        """Replace the feature bullets, running the same validation as the
+        constructor - otherwise an edit could store what a create refuses."""
+        self.features_fa = _validate_features(features_fa)
+
     def bind_panel(self, panel_id: uuid.UUID, *, node_tags: tuple[str, ...] = ()) -> None:
         self.panel_id = panel_id
         self.node_tags = node_tags

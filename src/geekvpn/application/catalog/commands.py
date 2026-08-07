@@ -127,6 +127,11 @@ class UpdatePlanCommand:
     name_fa: str | None = None
     description_fa: str | None = None
     badge_fa: str | None = None
+    #: The package's terms are editable until it has been sold; the aggregate
+    #: refuses a change that would rewrite what an existing order promised.
+    duration_days: int | None = None
+    quota_gib: int | None = None
+    daily_quota_gib: int | None = None
     base_price: int | None = None
     compare_at_price: int | _Unset | None = UNSET
     min_price: int | None = None

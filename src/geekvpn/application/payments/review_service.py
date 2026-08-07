@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from geekvpn.application.payments.loaders import require_invoice, require_payment
 from geekvpn.application.payments.ports import (
     Clock,
     EventPublisher,
@@ -78,8 +79,8 @@ class PaymentReviewService:
         second gets ``IllegalPaymentTransition`` from the state machine rather
         than provisioning a second subscription.
         """
-        payment = self._payments.get(request.payment_id)
-        invoice = self._invoices.get(payment.invoice_id)
+        payment = require_payment(self._payments, request.payment_id)
+        invoice = require_invoice(self._invoices, payment.invoice_id)
         now = self._clock.now()
 
         expected = invoice.total
@@ -129,7 +130,7 @@ class PaymentReviewService:
 
     def reject(self, *, payment_id: str, actor_id: int, reason_fa: str) -> Payment:
         """Decline. The reason is shown to the customer word for word."""
-        payment = self._payments.get(payment_id)
+        payment = require_payment(self._payments, payment_id)
         payment.reject(at=self._clock.now(), reason_fa=reason_fa, rejected_by=actor_id)
         self._payments.save(payment)
         self._audit.record(
@@ -147,7 +148,7 @@ class PaymentReviewService:
         A blurred photo from an honest customer is not fraud. Rejecting it
         loses the order; asking again does not.
         """
-        payment = self._payments.get(payment_id)
+        payment = require_payment(self._payments, payment_id)
         payment.request_better_proof()
         self._payments.save(payment)
         self._audit.record(

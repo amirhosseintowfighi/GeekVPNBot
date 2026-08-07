@@ -30,6 +30,11 @@ class PaymentNotFound(NotFoundError):
     message = "The payment was not found."
 
 
+class InvoiceNotFound(NotFoundError):
+    code = "invoice_not_found"
+    message = "The invoice was not found."
+
+
 class PaymentValidationError(ValidationError):
     code = "payment_validation_error"
     message = "The payment data is invalid."

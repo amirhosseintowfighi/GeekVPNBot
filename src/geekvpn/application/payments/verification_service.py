@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from geekvpn.application.payments.loaders import require_invoice, require_payment
 from geekvpn.application.payments.ports import (
     Clock,
     EventPublisher,
@@ -95,7 +96,7 @@ class VerificationService:
         reported as confirmed without calling the provider again. Callbacks
         fire more than once, and the second one must be harmless.
         """
-        payment = self._payments.get(payment_id)
+        payment = require_payment(self._payments, payment_id)
 
         if payment.state.is_settled():
             return VerificationResult(
@@ -104,7 +105,7 @@ class VerificationService:
         if payment.state.is_terminal():
             return VerificationResult(outcome=VerificationOutcome.DECLINED)
 
-        invoice = self._invoices.get(payment.invoice_id)
+        invoice = require_invoice(self._invoices, payment.invoice_id)
         gateway = self._gateways.get(payment.gateway_key or payment.method.value)
 
         reference = payment.gateway_reference or (payment.proof.reference if payment.proof else "")
@@ -165,7 +166,7 @@ class VerificationService:
             return
 
         now = self._clock.now()
-        invoice = self._invoices.get(payment.invoice_id)
+        invoice = require_invoice(self._invoices, payment.invoice_id)
         payment.approve(at=now, approved_by=None, captured=actual)
         invoice.mark_paid(payment_id=payment.id, at=now)
 

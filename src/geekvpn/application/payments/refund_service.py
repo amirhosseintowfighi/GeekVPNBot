@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from geekvpn.application.payments.loaders import require_invoice, require_payment
 from geekvpn.application.payments.ports import (
     Clock,
     EventPublisher,
@@ -105,7 +106,7 @@ class RefundService:
         self._audit = audit
 
     def refund(self, request: RefundRequest) -> RefundOutcome:
-        payment = self._payments.get(request.payment_id)
+        payment = require_payment(self._payments, request.payment_id)
         now = self._clock.now()
 
         refundable = payment.refundable
@@ -144,7 +145,7 @@ class RefundService:
             self._wallets.save(wallet)
 
         if payment.state is PaymentState.REFUNDED:
-            invoice = self._invoices.get(payment.invoice_id)
+            invoice = require_invoice(self._invoices, payment.invoice_id)
             invoice.mark_refunded()
             self._invoices.save(invoice)
             self._publish(invoice)
