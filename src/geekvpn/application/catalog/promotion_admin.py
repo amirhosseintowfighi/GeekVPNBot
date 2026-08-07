@@ -35,9 +35,11 @@ from geekvpn.domain.catalog.window import TimeWindow
 MAX_BULK_COUPONS = 500
 
 
-def _build_discount(kind: DiscountKind, value: int, max_discount: Money | None) -> Discount:
+def _build_discount(kind: DiscountKind, value: int, max_discount: int | None) -> Discount:
+    """``max_discount`` arrives as a plain int from the API and is money."""
     if kind is DiscountKind.PERCENTAGE:
-        return Discount.percentage(value, cap=max_discount)
+        cap = None if max_discount is None else Money(max_discount)
+        return Discount.percentage(value, cap=cap)
     return Discount.fixed(value)
 
 
@@ -68,7 +70,9 @@ class PromotionAdminService:
     async def list_coupons(
         self, *, active_only: bool = False, limit: int = 50, offset: int = 0
     ) -> list[Coupon]:
-        return await self._coupons.list_all(active_only=active_only, limit=limit, offset=offset)
+        return list(
+            await self._coupons.list_all(active_only=active_only, limit=limit, offset=offset)
+        )
 
     async def create_coupon(
         self, command: CreateCouponCommand, *, actor_id: uuid.UUID | None = None
@@ -140,7 +144,7 @@ class PromotionAdminService:
     # -- campaigns ---------------------------------------------------------
 
     async def list_campaigns(self, *, limit: int = 50, offset: int = 0) -> list[Campaign]:
-        return await self._campaigns.list_all(limit=limit, offset=offset)
+        return list(await self._campaigns.list_all(limit=limit, offset=offset))
 
     async def create_campaign(
         self, command: CreateCampaignCommand, *, actor_id: uuid.UUID | None = None
@@ -233,7 +237,10 @@ class PromotionAdminService:
             description_fa=command.description_fa,
             max_redemptions=command.max_redemptions,
             max_per_user=command.max_per_user,
-            min_order_amount=command.min_order_amount,
+            # 0 means "no minimum", which the domain expresses as None.
+            min_order_amount=(
+                Money(command.min_order_amount) if command.min_order_amount else None
+            ),
             target_user_id=command.target_user_id,
             stacks_with_campaign=command.stacks_with_campaign,
             first_purchase_only=command.first_purchase_only,

@@ -307,7 +307,7 @@ def _plan_view(plan: Plan) -> PlanAdminResponse:
         sort_order=plan.sort_order,
         is_featured=plan.is_featured,
         state=plan.state.value,
-        price_per_gib=price_per_gib.amount if price_per_gib else None,
+        price_per_gib=price_per_gib,
         savings_percent=plan.savings_bps // 100,
     )
 

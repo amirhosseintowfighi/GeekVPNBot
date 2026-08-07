@@ -146,6 +146,14 @@ class Coupon(AggregateRoot[uuid.UUID]):
 
     # -- state -------------------------------------------------------------
 
+    def archive(self) -> None:
+        """Withdraw the coupon.
+
+        Archiving rather than deleting: redemptions already reference it, and a
+        dangling code on a past order is worse than a row nobody can use.
+        """
+        self.state = PublicationState.ARCHIVED
+
     @property
     def is_exhausted(self) -> bool:
         return self.max_redemptions is not None and self.redemption_count >= self.max_redemptions

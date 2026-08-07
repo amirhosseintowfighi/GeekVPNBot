@@ -15,6 +15,7 @@ zero in the sweep or - worse - silently treating unlimited as zero.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
@@ -59,7 +60,7 @@ class SqlSubscriptionReader:
         that row exactly once.
         """
         horizon = now + timedelta(days=days)
-        stmt: Select = (
+        stmt: Select[Any] = (
             select(SubscriptionModel)
             .where(
                 SubscriptionModel.state == SubscriptionState.ACTIVE.value,
@@ -80,7 +81,7 @@ class SqlSubscriptionReader:
         subscription in the system to discard 95% of them.
         """
         ratio = min_percent / 100.0
-        stmt: Select = (
+        stmt: Select[Any] = (
             select(SubscriptionModel)
             .where(
                 SubscriptionModel.state == SubscriptionState.ACTIVE.value,

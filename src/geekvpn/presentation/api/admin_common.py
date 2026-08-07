@@ -27,7 +27,7 @@ Three things every admin write needs, written once instead of once per router.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Header, Query
 from starlette.concurrency import run_in_threadpool
@@ -88,10 +88,14 @@ async def claim_idempotency(container: ContainerDep, key: str, *, scope_label: s
         )
 
 
-async def read_scope(container: ContainerDep, work: Callable[[SyncScope], Any]) -> Any:
-    """Run a read-only use case off the event loop."""
+async def read_scope[T](container: ContainerDep, work: Callable[[SyncScope], T]) -> T:
+    """Run a read-only use case off the event loop.
 
-    def _call() -> Any:
+    Generic in the work's return type, so a router keeps the type it built
+    instead of every admin endpoint decaying to ``Any`` at this boundary.
+    """
+
+    def _call() -> T:
         session = container.sync_sessions()
         try:
             return work(build_sync_scope(container, session))
@@ -101,10 +105,10 @@ async def read_scope(container: ContainerDep, work: Callable[[SyncScope], Any]) 
     return await run_in_threadpool(_call)
 
 
-async def mutate_scope(container: ContainerDep, work: Callable[[SyncScope], Any]) -> Any:
+async def mutate_scope[T](container: ContainerDep, work: Callable[[SyncScope], T]) -> T:
     """Run a mutating use case off the event loop, owning the transaction."""
 
-    def _call() -> Any:
+    def _call() -> T:
         session = container.sync_sessions()
         try:
             result = work(build_sync_scope(container, session))

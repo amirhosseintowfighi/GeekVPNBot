@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -297,7 +298,7 @@ class SqlAlchemyCardAccountRepository:
         self._session = session
 
     async def list_all(self, *, active_only: bool = False) -> Sequence[CardAccountModel]:
-        stmt: Select = select(CardAccountModel).order_by(
+        stmt: Select[Any] = select(CardAccountModel).order_by(
             CardAccountModel.sort_order, CardAccountModel.id
         )
         if active_only:

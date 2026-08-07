@@ -17,6 +17,7 @@ Schema decisions worth defending:
 
 from __future__ import annotations
 
+import enum
 from datetime import datetime
 from typing import Any
 
@@ -43,7 +44,7 @@ from geekvpn.domain.support.enums import (
 from geekvpn.infrastructure.persistence.base import Base, TimestampMixin
 
 
-def _values(enum_type: type) -> str:
+def _values(enum_type: type[enum.Enum]) -> str:
     return ", ".join(f"'{member.value}'" for member in enum_type)
 
 

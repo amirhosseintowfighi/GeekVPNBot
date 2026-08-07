@@ -44,8 +44,12 @@ def parse_entry(entry: str) -> IpNetwork:
         raise AllowlistConfigError(f"{text!r} is not a valid IP address or CIDR range.") from exc
 
 
-def parse_ip(value: str) -> IpAddress | None:
-    """Parse an address, tolerating a ``host:port`` pair and IPv6 brackets."""
+def parse_ip(value: str | None) -> IpAddress | None:
+    """Parse an address, tolerating a ``host:port`` pair and IPv6 brackets.
+
+    Accepts ``None`` because every caller here reads an optional header, and
+    "absent" and "unparseable" must both come back as ``None``.
+    """
     text = (value or "").strip()
     if not text:
         return None

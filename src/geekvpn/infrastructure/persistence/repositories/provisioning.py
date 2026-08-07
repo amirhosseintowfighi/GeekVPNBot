@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -181,7 +182,7 @@ class SqlAlchemySubscriptionRepository:
     async def list_for_user(
         self, user_id: int, *, active_only: bool = False
     ) -> Sequence[Subscription]:
-        stmt: Select = select(SubscriptionModel).where(SubscriptionModel.user_id == user_id)
+        stmt: Select[Any] = select(SubscriptionModel).where(SubscriptionModel.user_id == user_id)
         if active_only:
             stmt = stmt.where(SubscriptionModel.state == SubscriptionState.ACTIVE.value)
         stmt = stmt.order_by(SubscriptionModel.expires_at.desc())

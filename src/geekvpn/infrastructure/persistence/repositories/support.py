@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,7 +98,7 @@ class SqlAlchemyTicketRepository:
         limit: int = 25,
         offset: int = 0,
     ) -> Sequence[Ticket]:
-        stmt: Select = select(TicketModel)
+        stmt: Select[Any] = select(TicketModel)
         if state is not None:
             stmt = stmt.where(TicketModel.state == state.value)
         if category is not None:
@@ -182,7 +183,7 @@ class SqlAlchemyTemplateRepository:
         return template_to_domain(row) if row else None
 
     async def list_all(self, *, active_only: bool = True) -> Sequence[Template]:
-        stmt: Select = select(ReplyTemplateModel).order_by(
+        stmt: Select[Any] = select(ReplyTemplateModel).order_by(
             ReplyTemplateModel.use_count.desc(), ReplyTemplateModel.title_fa
         )
         if active_only:
