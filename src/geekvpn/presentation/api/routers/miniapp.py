@@ -20,12 +20,60 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from geekvpn.application.bot.read_models import NotificationPreferences
+from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
-from geekvpn.presentation.api.dependencies import UnitOfWorkDep
+from geekvpn.domain.payments.payment import Payment
+from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
+from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 from geekvpn.presentation.api.miniapp_security import CurrentMiniAppUser, ServicesDep
 from geekvpn.presentation.api.security import ScopeDep
 
 router = APIRouter(prefix="/api/miniapp", tags=["mini-app"])
+
+#: A customer with more outstanding payments than this has a support problem,
+#: not a pagination problem.
+_PENDING_LIMIT = 50
+
+
+def _require_own_ticket(scope: SyncScope, ticket_id: str, telegram_id: int) -> None:
+    """Refuse a ticket that belongs to somebody else.
+
+    The support service is written for agents, who may read any ticket, so the
+    ownership check has to happen here. Answering 404 rather than 403 keeps a
+    customer from confirming that a ticket id exists.
+    """
+    try:
+        summary = scope.support.get_ticket(ticket_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ticket not found.") from exc
+    if summary.user_id != telegram_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+
+
+def _message_view(message: MessageView) -> dict[str, Any]:
+    return {
+        "message_id": message.message_id,
+        "ticket_id": message.ticket_id,
+        "kind": message.kind.value,
+        "body_fa": message.body_fa,
+        "created_at": message.created_at,
+        "attachment_count": message.attachment_count,
+        "is_read": message.is_read,
+    }
+
+
+def _payment_view(payment: Payment) -> dict[str, Any]:
+    """The card number and the receipt digest deliberately stay server-side."""
+    return {
+        "payment_id": payment.id,
+        "reference": payment.id,
+        "amount": payment.amount.amount,
+        "method": payment.method.value,
+        "state": payment.state.value,
+        "created_at": payment.created_at,
+        "expires_at": payment.expires_at,
+    }
 
 
 # -- request bodies --------------------------------------------------------
@@ -187,11 +235,24 @@ async def attach_txid(
 
 
 @router.get("/payments/pending", summary="Payments still awaiting proof or review")
-async def pending_payments(user: CurrentMiniAppUser, services: ServicesDep) -> Any:
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Listing pending payments needs a reader; see docs/next-tasks.md.",
-    )
+async def pending_payments(user: CurrentMiniAppUser, container: ContainerDep) -> Any:
+    """Everything this customer still owes us proof for, or we owe them a decision on.
+
+    Settled and terminal payments are filtered out here rather than in SQL: the
+    two predicates already live on the enum, and duplicating them in a WHERE
+    clause is how the list and the badge start disagreeing.
+    """
+    telegram_id = user.telegram_id
+
+    def work(scope: SyncScope) -> list[dict[str, Any]]:
+        payments = scope.payments.list_for_user(telegram_id, limit=_PENDING_LIMIT)
+        return [
+            _payment_view(payment)
+            for payment in payments
+            if not payment.state.is_settled() and not payment.state.is_terminal()
+        ]
+
+    return await read_scope(container, work)
 
 
 # -- subscriptions ---------------------------------------------------------
@@ -209,6 +270,18 @@ async def rotate_link(
     services: ServicesDep,
     uow: UnitOfWorkDep,
 ) -> Any:
+    """Still unimplemented, and the reason is a missing panel capability.
+
+    Rotating a link means asking the panel to reissue the subscription token.
+    No adapter exposes that - `PanelAdapter` can read a subscription but not
+    regenerate one - so honouring this would mean adding a capability across
+    six panel implementations, each with a different API, none of which can be
+    verified without the panels themselves.
+
+    Answering 501 rather than returning the existing card is the whole point:
+    telling a customer their leaked link was replaced while it still works is
+    worse than telling them the button does not work yet.
+    """
     try:
         card = await services.subscriptions.rotate_link(user.id, subscription_id)
     except NotImplementedError as exc:
@@ -221,13 +294,25 @@ async def rotate_link(
     "/subscriptions/{subscription_id}/renewal-options",
     summary="Plans this subscription can renew onto",
 )
-async def renewal_options(
-    subscription_id: uuid.UUID, user: CurrentMiniAppUser, scope: ScopeDep
-) -> Any:
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Renewal options need a reader; see docs/next-tasks.md.",
-    )
+async def renewal_options(subscription_id: str, user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
+    """Every published plan on the same product, priced for this customer.
+
+    Scoped to the product rather than the whole catalogue: renewing is meant to
+    keep or upgrade the package someone already has, and offering an unrelated
+    product here is a different purchase wearing a renewal button.
+    """
+    subscription = await scope.subscriptions.get(subscription_id)
+    if subscription is None or subscription.user_id != user.telegram_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+
+    plan = await scope.catalog_plans.get(uuid.UUID(subscription.plan_id))
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="The plan no longer exists.")
+
+    siblings = await scope.catalog_plans.list_for_product(plan.product_id, published_only=True)
+    return [
+        await scope.quoting.quote_view(plan_id=sibling.id, user_id=user.id) for sibling in siblings
+    ]
 
 
 # -- wallet ----------------------------------------------------------------
@@ -298,26 +383,36 @@ async def open_ticket(
 
 
 @router.get("/tickets/{ticket_id}/messages", summary="One ticket's thread")
-async def ticket_messages(
-    ticket_id: uuid.UUID, user: CurrentMiniAppUser, services: ServicesDep
-) -> Any:
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Reading a ticket thread needs a reader; see docs/next-tasks.md.",
-    )
+async def ticket_messages(ticket_id: str, user: CurrentMiniAppUser, container: ContainerDep) -> Any:
+    """Internal notes are excluded, and the ticket must belong to the caller."""
+    telegram_id = user.telegram_id
+
+    def work(scope: SyncScope) -> list[dict[str, Any]]:
+        _require_own_ticket(scope, ticket_id, telegram_id)
+        return [_message_view(m) for m in scope.support.get_messages(ticket_id)]
+
+    return await read_scope(container, work)
 
 
 @router.post("/tickets/{ticket_id}/messages", summary="Reply to a ticket")
 async def reply_to_ticket(
-    ticket_id: uuid.UUID,
+    ticket_id: str,
     payload: TicketReplyRequest,
     user: CurrentMiniAppUser,
-    services: ServicesDep,
+    container: ContainerDep,
 ) -> Any:
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Replying needs a customer-side reply port; see docs/next-tasks.md.",
-    )
+    telegram_id = user.telegram_id
+    body = payload.message
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        _require_own_ticket(scope, ticket_id, telegram_id)
+        return _message_view(
+            scope.support.customer_reply(
+                ReplyRequest(ticket_id=ticket_id, body_fa=body, author_id=telegram_id)
+            )
+        )
+
+    return await mutate_scope(container, work)
 
 
 @router.get("/profile", summary="Profile summary")

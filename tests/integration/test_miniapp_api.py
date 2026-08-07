@@ -82,3 +82,86 @@ def test_every_miniapp_route_requires_authentication(app) -> None:
             if "authorization" not in params:
                 unprotected.append(f"{method.upper()} {path}")
     assert not unprotected, unprotected
+
+
+# -- one customer must not read another's ticket --------------------------
+
+
+class _OtherPersonsTicket:
+    """A support scope whose ticket belongs to somebody else."""
+
+    class support:
+        @staticmethod
+        def get_ticket(ticket_id: str):  # noqa: ANN205
+            from types import SimpleNamespace
+
+            return SimpleNamespace(user_id=999, ticket_id=ticket_id)
+
+
+def test_reading_someone_elses_ticket_is_refused() -> None:
+    """The support service is written for agents, who may read any ticket, so
+    the ownership check has to live in the Mini App router."""
+    from fastapi import HTTPException
+
+    from geekvpn.presentation.api.routers.miniapp import _require_own_ticket
+
+    with pytest.raises(HTTPException) as caught:
+        _require_own_ticket(_OtherPersonsTicket(), "TK-1", 555)
+
+    assert caught.value.status_code == 404
+
+
+def test_the_refusal_is_a_404_not_a_403() -> None:
+    """A 403 would confirm to a stranger that the ticket id is real."""
+    from fastapi import HTTPException
+
+    from geekvpn.presentation.api.routers.miniapp import _require_own_ticket
+
+    with pytest.raises(HTTPException) as caught:
+        _require_own_ticket(_OtherPersonsTicket(), "TK-1", 555)
+
+    assert caught.value.status_code != 403
+
+
+def test_the_owner_passes_the_check() -> None:
+    from geekvpn.presentation.api.routers.miniapp import _require_own_ticket
+
+    _require_own_ticket(_OtherPersonsTicket(), "TK-1", 999)
+
+
+def test_a_pending_payment_never_exposes_the_receipt_or_card() -> None:
+    """The list is rendered to the customer; proof material stays server-side.
+
+    Asserted on the emitted keys rather than the source, so a field added to
+    Payment later cannot leak by being passed straight through.
+    """
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
+    from geekvpn.presentation.api.routers.miniapp import _payment_view
+
+    payment = SimpleNamespace(
+        id="pay-1",
+        amount=SimpleNamespace(amount=250_000),
+        method=PaymentMethod.CARD,
+        state=PaymentState.PENDING_REVIEW,
+        created_at=datetime(2026, 8, 7, tzinfo=UTC),
+        expires_at=None,
+        proof="secret-receipt",
+        gateway_reference="gw-ref",
+    )
+
+    view = _payment_view(payment)
+
+    assert set(view) == {
+        "payment_id",
+        "reference",
+        "amount",
+        "method",
+        "state",
+        "created_at",
+        "expires_at",
+    }
+    assert "secret-receipt" not in str(view)
+    assert "gw-ref" not in str(view)
