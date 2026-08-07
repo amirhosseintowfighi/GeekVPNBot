@@ -141,7 +141,9 @@ class NotificationPreferences:
 
     def with_toggled(self, key: str) -> NotificationPreferences:
         if key in ("expiry", "traffic", "promos", "news"):
-            return replace(self, **{key: not getattr(self, key)})
+            # The key set is checked on the line above, which is more than a
+            # checker can do with a name built at runtime.
+            return replace(self, **{key: not getattr(self, key)})  # type: ignore[arg-type]
         if key == "quiet_hours":
             return replace(self, quiet=replace(self.quiet, enabled=not self.quiet.enabled))
         if key in ("telegram", "miniapp"):

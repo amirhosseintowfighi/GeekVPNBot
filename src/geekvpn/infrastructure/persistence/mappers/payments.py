@@ -84,9 +84,9 @@ def invoice_apply(model: InvoiceModel, invoice: Invoice) -> InvoiceModel:
     """
     model.state = invoice.state.value
     model.lines = [line_to_json(line) for line in invoice.lines]
-    model.subtotal = int(invoice.subtotal)
-    model.discount_total = int(invoice.discount_total)
-    model.total = int(invoice.total)
+    model.subtotal = invoice.subtotal.amount
+    model.discount_total = invoice.discount_total.amount
+    model.total = invoice.total.amount
     model.subject_fa = invoice.subject_fa
     model.issued_at = invoice.issued_at
     model.due_at = invoice.due_at
@@ -202,9 +202,9 @@ def payment_apply(model: PaymentModel, payment: Payment) -> PaymentModel:
     model.state = payment.state.value
     model.method = payment.method.value
     model.amount = int(payment.amount.amount)
-    model.captured = int(payment.captured)
+    model.captured = payment.captured.amount
     # Denormalised for the admin list; recomputed from the rows on load.
-    model.refunded_total = int(payment.refunded_total)
+    model.refunded_total = payment.refunded_total.amount
     model.gateway_key = payment.gateway_key
     model.gateway_reference = payment.gateway_reference
     model.proof = proof_to_json(payment.proof) if payment.proof else None

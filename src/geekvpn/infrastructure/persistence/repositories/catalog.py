@@ -20,6 +20,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,7 +70,7 @@ class SqlAlchemyCategoryRepository:
         return category_to_domain(row) if row else None
 
     async def list_all(self, *, published_only: bool = False) -> Sequence[Category]:
-        stmt: Select = select(CategoryModel).order_by(
+        stmt: Select[Any] = select(CategoryModel).order_by(
             CategoryModel.sort_order, CategoryModel.name_fa
         )
         if published_only:
@@ -108,7 +109,9 @@ class SqlAlchemyProductRepository:
         category_id: uuid.UUID | None = None,
         published_only: bool = False,
     ) -> Sequence[Product]:
-        stmt: Select = select(ProductModel).order_by(ProductModel.sort_order, ProductModel.name_fa)
+        stmt: Select[Any] = select(ProductModel).order_by(
+            ProductModel.sort_order, ProductModel.name_fa
+        )
         if category_id is not None:
             stmt = stmt.where(ProductModel.category_id == category_id)
         if published_only:
@@ -144,7 +147,7 @@ class SqlAlchemyPlanRepository:
     async def list_for_product(
         self, product_id: uuid.UUID, *, published_only: bool = False
     ) -> Sequence[Plan]:
-        stmt: Select = (
+        stmt: Select[Any] = (
             select(PlanModel)
             .where(PlanModel.product_id == product_id)
             .order_by(PlanModel.sort_order, PlanModel.duration_days)
@@ -155,7 +158,9 @@ class SqlAlchemyPlanRepository:
         return [plan_to_domain(row) for row in rows]
 
     async def list_all(self, *, published_only: bool = False) -> Sequence[Plan]:
-        stmt: Select = select(PlanModel).order_by(PlanModel.sort_order, PlanModel.duration_days)
+        stmt: Select[Any] = select(PlanModel).order_by(
+            PlanModel.sort_order, PlanModel.duration_days
+        )
         if published_only:
             # Joining to the product means an unpublished product hides its
             # plans automatically. Otherwise archiving a product leaves its
@@ -204,7 +209,7 @@ class SqlAlchemyCouponRepository:
     async def list_all(
         self, *, active_only: bool = False, limit: int = 100, offset: int = 0
     ) -> Sequence[Coupon]:
-        stmt: Select = (
+        stmt: Select[Any] = (
             select(CouponModel).order_by(CouponModel.created_at.desc()).limit(limit).offset(offset)
         )
         if active_only:

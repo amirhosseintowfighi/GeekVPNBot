@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Float, and_, case, cast, distinct, func, or_, select
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, Select
 
@@ -69,7 +70,9 @@ PAID_ORDER_STATES = (*SETTLED_ORDER_STATES, "refunded")
 MONTH_KEY_FORMAT = "%Y-%m"
 
 
-def _zero_filled(rows: Iterable[tuple[datetime, float]], range: DateRange) -> dict[datetime, float]:
+def _zero_filled(
+    rows: Iterable[tuple[datetime | None, float | None]], range: DateRange
+) -> dict[datetime, float]:
     """Snap query rows onto the range's buckets and fill the gaps with zero."""
     buckets = dict.fromkeys(range.buckets(), 0.0)
     for at, value in rows:
@@ -612,7 +615,7 @@ class SqlCustomerReader:
         )
 
     @staticmethod
-    def _to_snapshot(row: tuple, now: datetime) -> CustomerSnapshot:
+    def _to_snapshot(row: Row[Any], now: datetime) -> CustomerSnapshot:
         (
             user_id,
             joined_at,

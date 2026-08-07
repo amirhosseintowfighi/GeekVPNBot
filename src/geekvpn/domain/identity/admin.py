@@ -109,8 +109,9 @@ class Admin(AggregateRoot[uuid.UUID]):
     def ensure_can_authenticate(self, *, now: datetime) -> None:
         if not self.status.can_authenticate:
             raise AccountSuspendedError()
-        if self.is_locked(now=now):
-            raise AccountLockedError(locked_until=self.locked_until.isoformat())
+        locked_until = self.locked_until
+        if locked_until is not None and locked_until > now:
+            raise AccountLockedError(locked_until=locked_until.isoformat())
 
     def register_failed_attempt(self, *, now: datetime) -> None:
         """Count a failure and lock the account once the threshold is crossed."""

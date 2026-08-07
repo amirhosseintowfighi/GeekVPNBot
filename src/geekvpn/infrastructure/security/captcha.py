@@ -156,7 +156,7 @@ def _word(number: int) -> str:
     return _WORDS_FA[number] if number < len(_WORDS_FA) else str(number)
 
 
-def normalise_answer(raw: str) -> int | None:
+def normalise_answer(raw: str | None) -> int | None:
     """Read a human's answer, or ``None`` if it is not a number.
 
     Persian and Arabic-Indic digits are folded, Arabic-Indic and Persian

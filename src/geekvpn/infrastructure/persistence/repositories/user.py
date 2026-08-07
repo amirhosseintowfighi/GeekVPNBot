@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.domain.identity.enums import Language, UserStatus
@@ -35,12 +35,12 @@ class SqlAlchemyUserRepository:
         matched exactly when the term is numeric, because a partial id is never
         what an operator means.
         """
-        filters = []
+        filters: list[ColumnElement[bool]] = []
         if status is not None:
             filters.append(UserModel.status == status.value)
         if query:
             term = f"%{query}%"
-            matches = [
+            matches: list[ColumnElement[bool]] = [
                 UserModel.username.ilike(term),
                 UserModel.first_name.ilike(term),
                 UserModel.last_name.ilike(term),

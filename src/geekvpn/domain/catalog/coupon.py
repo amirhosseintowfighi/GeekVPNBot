@@ -130,7 +130,7 @@ class Coupon(AggregateRoot[uuid.UUID]):
                     code=self.code,
                     max_redemptions=max_redemptions,
                 )
-            self.max_redemptions = 1
+            self.max_redemptions: int | None = 1
         else:
             self.max_redemptions = max_redemptions
 

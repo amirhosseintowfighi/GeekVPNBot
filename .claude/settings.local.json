@@ -83,7 +83,9 @@
       "Bash(sed -i 's/^from typing import Any$/from typing import Any, cast/' src/geekvpn/infrastructure/persistence/repositories/session.py)",
       "PowerShell(cd C:\\\\Users\\\\admin\\\\Downloads\\\\geekvpn; & .\\\\.venv\\\\Scripts\\\\mypy.exe 2>&1 | Select-String -Pattern \"admin_support\" | Select-Object -First 8; \"=== by file ===\"; & .\\\\.venv\\\\Scripts\\\\mypy.exe 2>&1 | Select-String -Pattern \"error:\" | ForEach-Object { \\($_ -split ':'\\)[0] } | Group-Object | Sort-Object Count -Descending | Select-Object -First 10 | Format-Table Count,Name -AutoSize)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/application/catalog/promotion_admin.py src/geekvpn/infrastructure/security/ip_allowlist.py)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/domain/catalog/coupon.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/security/captcha.py src/geekvpn/infrastructure/analytics/sql_readers.py)"
     ]
   }
 }

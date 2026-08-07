@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,7 +63,7 @@ class SqlAlchemyNotificationRepository:
     async def list_inbox(
         self, user_id: int, *, limit: int = 20, offset: int = 0, unread_only: bool = False
     ) -> Sequence[Notification]:
-        stmt: Select = select(NotificationModel).where(NotificationModel.user_id == user_id)
+        stmt: Select[Any] = select(NotificationModel).where(NotificationModel.user_id == user_id)
         if unread_only:
             stmt = stmt.where(NotificationModel.read_at.is_(None))
         stmt = stmt.order_by(NotificationModel.queued_at.desc()).limit(limit).offset(offset)
@@ -174,7 +175,7 @@ class SqlAlchemyBroadcastRepository:
     async def list_recent(
         self, *, limit: int = 25, offset: int = 0, state: BroadcastState | None = None
     ) -> Sequence[Broadcast]:
-        stmt: Select = select(BroadcastModel)
+        stmt: Select[Any] = select(BroadcastModel)
         if state is not None:
             stmt = stmt.where(BroadcastModel.state == state.value)
         stmt = stmt.order_by(BroadcastModel.created_at.desc()).limit(limit).offset(offset)

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +51,9 @@ def node_to_admin_record(model: NodeModel) -> NodeAdminRecord:
         username=model.username,
         has_password=bool(model.password_encrypted),
         verify_tls=model.verify_tls,
-        timeout_seconds=float(timeout) if isinstance(timeout, Decimal) else timeout,
+        # Numeric() hands back a Decimal at runtime even though the column is
+        # declared float, so the cast is real however the checker sees it.
+        timeout_seconds=float(timeout),
         capacity=model.capacity,
         account_count=model.account_count,
         accepting_new=model.accepting_new,
@@ -116,7 +117,7 @@ class SqlAlchemyNodeRepository:
             "username": row.username,
             "password": row.password_encrypted,
             "verify_tls": row.verify_tls,
-            "timeout_seconds": float(timeout) if isinstance(timeout, Decimal) else timeout,
+            "timeout_seconds": float(timeout),
         }
         return row.panel_kind, payload
 
