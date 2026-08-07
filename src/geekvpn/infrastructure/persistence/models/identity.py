@@ -19,6 +19,7 @@ Schema decisions worth defending:
 
 from __future__ import annotations
 
+import enum
 import uuid
 from datetime import datetime
 
@@ -37,13 +38,13 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from geekvpn.domain.identity.enums import AdminStatus, Language, SubjectType, UserStatus
+from geekvpn.domain.identity.enums import AdminStatus, AuthMethod, Language, SubjectType, UserStatus
 from geekvpn.domain.identity.permissions import AdminRole
-from geekvpn.domain.identity.session import RevocationReason
+from geekvpn.domain.identity.session import DeviceInfo, RefreshToken, RevocationReason, Session
 from geekvpn.infrastructure.persistence.base import Base, TimestampMixin
 
 
-def _values(enum_type: type) -> str:
+def _values(enum_type: type[enum.Enum]) -> str:
     return ", ".join(f"'{member.value}'" for member in enum_type)
 
 
@@ -123,6 +124,56 @@ class SessionModel(Base):
         lazy="noload",
     )
 
+    # -- mapping ----------------------------------------------------------
+    #
+    # The session repository was written against these and they did not exist,
+    # so every login and every refresh failed on the first attribute access.
+    # They live on the model rather than in a mapper module because that is
+    # what the repository already expects.
+
+    def to_domain(self) -> Session:
+        return Session(
+            self.id,
+            subject_type=SubjectType(self.subject_type),
+            subject_id=self.subject_id,
+            auth_method=AuthMethod(self.auth_method),
+            device=DeviceInfo(ip=self.ip, user_agent=self.user_agent, label=self.device_label),
+            created_at=self.created_at,
+            last_used_at=self.last_used_at,
+            absolute_expires_at=self.absolute_expires_at,
+            revoked_at=self.revoked_at,
+            revocation_reason=(
+                RevocationReason(self.revocation_reason) if self.revocation_reason else None
+            ),
+        )
+
+    @classmethod
+    def from_domain(cls, session: Session) -> SessionModel:
+        model = cls(id=session.id)
+        model.apply(session)
+        return model
+
+    def apply(self, session: Session) -> None:
+        """Copy every mutable field across.
+
+        Assignment rather than a fresh instance: the row may already be in the
+        identity map, and replacing it there would detach the one the caller
+        holds.
+        """
+        self.subject_type = session.subject_type.value
+        self.subject_id = session.subject_id
+        self.auth_method = session.auth_method.value
+        self.ip = session.device.ip
+        self.user_agent = session.device.user_agent
+        self.device_label = session.device.label
+        self.created_at = session.created_at
+        self.last_used_at = session.last_used_at
+        self.absolute_expires_at = session.absolute_expires_at
+        self.revoked_at = session.revoked_at
+        self.revocation_reason = (
+            session.revocation_reason.value if session.revocation_reason else None
+        )
+
     __table_args__ = (
         CheckConstraint(f"subject_type IN ({_values(SubjectType)})", name="sessions_subject"),
         CheckConstraint(
@@ -153,6 +204,31 @@ class RefreshTokenModel(Base):
     replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True))
 
     session: Mapped[SessionModel] = relationship(back_populates="refresh_tokens", lazy="noload")
+
+    def to_domain(self) -> RefreshToken:
+        return RefreshToken(
+            id=self.id,
+            session_id=self.session_id,
+            token_hash=self.token_hash,
+            issued_at=self.issued_at,
+            expires_at=self.expires_at,
+            used_at=self.used_at,
+            revoked_at=self.revoked_at,
+            replaced_by_id=self.replaced_by_id,
+        )
+
+    @classmethod
+    def from_domain(cls, token: RefreshToken) -> RefreshTokenModel:
+        return cls(
+            id=token.id,
+            session_id=token.session_id,
+            token_hash=token.token_hash,
+            issued_at=token.issued_at,
+            expires_at=token.expires_at,
+            used_at=token.used_at,
+            revoked_at=token.revoked_at,
+            replaced_by_id=token.replaced_by_id,
+        )
 
     __table_args__ = (
         UniqueConstraint("token_hash", name="uq_refresh_tokens_token_hash"),

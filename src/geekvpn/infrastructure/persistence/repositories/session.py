@@ -11,8 +11,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any, cast
 
 from sqlalchemy import delete, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.domain.identity.enums import SubjectType
@@ -122,14 +124,19 @@ class SqlAlchemySessionRepository:
         COMMITTED the second transaction blocks on the row lock, then
         re-evaluates the predicate and matches zero rows.
         """
-        result = await self._db.execute(
-            update(RefreshTokenModel)
-            .where(
-                RefreshTokenModel.id == token_id,
-                RefreshTokenModel.used_at.is_(None),
-                RefreshTokenModel.revoked_at.is_(None),
-            )
-            .values(used_at=now, replaced_by_id=replaced_by_id)
+        # An UPDATE/DELETE yields a CursorResult, which is what carries
+        # rowcount; the declared Result type does not.
+        result = cast(
+            "CursorResult[Any]",
+            await self._db.execute(
+                update(RefreshTokenModel)
+                .where(
+                    RefreshTokenModel.id == token_id,
+                    RefreshTokenModel.used_at.is_(None),
+                    RefreshTokenModel.revoked_at.is_(None),
+                )
+                .values(used_at=now, replaced_by_id=replaced_by_id)
+            ),
         )
         await self._db.flush()
         return bool(result.rowcount == 1)
@@ -137,21 +144,31 @@ class SqlAlchemySessionRepository:
     async def revoke_refresh_tokens_for_session(
         self, session_id: uuid.UUID, *, now: datetime
     ) -> int:
-        result = await self._db.execute(
-            update(RefreshTokenModel)
-            .where(
-                RefreshTokenModel.session_id == session_id,
-                RefreshTokenModel.revoked_at.is_(None),
-            )
-            .values(revoked_at=now)
+        # An UPDATE/DELETE yields a CursorResult, which is what carries
+        # rowcount; the declared Result type does not.
+        result = cast(
+            "CursorResult[Any]",
+            await self._db.execute(
+                update(RefreshTokenModel)
+                .where(
+                    RefreshTokenModel.session_id == session_id,
+                    RefreshTokenModel.revoked_at.is_(None),
+                )
+                .values(revoked_at=now)
+            ),
         )
         await self._db.flush()
         return int(result.rowcount or 0)
 
     async def delete_expired(self, *, now: datetime) -> int:
         """Housekeeping for the scheduler; expired rows carry no security value."""
-        result = await self._db.execute(
-            delete(RefreshTokenModel).where(RefreshTokenModel.expires_at < now)
+        # An UPDATE/DELETE yields a CursorResult, which is what carries
+        # rowcount; the declared Result type does not.
+        result = cast(
+            "CursorResult[Any]",
+            await self._db.execute(
+                delete(RefreshTokenModel).where(RefreshTokenModel.expires_at < now)
+            ),
         )
         await self._db.flush()
         return int(result.rowcount or 0)

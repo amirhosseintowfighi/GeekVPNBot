@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
+from geekvpn.application.payments.loaders import require_payment
 from geekvpn.application.payments.ports import (
     Clock,
     EventPublisher,
@@ -246,7 +247,7 @@ class CheckoutService:
         2. duplicate, because a reused receipt must never enter the review
            queue and waste an operator's attention.
         """
-        payment = self._payments.get(payment_id)
+        payment = require_payment(self._payments, payment_id)
         now = self._clock.now()
 
         if payment.is_expired_at(now):

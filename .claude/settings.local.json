@@ -74,7 +74,13 @@
       "Bash(grep -E \"bot\\\\\\\\\\\\\\\\\")",
       "Bash(grep -oE \"\\(get|post|patch|put|del\\)<[^>]*>\\\\\\(|['\\\\`]/api/miniapp/[^'\\\\`]*['\\\\`]\" miniapp/src/lib/api.ts)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/bot/)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/unit/bot/)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/unit/bot/)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/persistence/repositories/session.py)",
+      "Bash(sed -i '40s/.*/from geekvpn.domain.identity.enums import AdminStatus, AuthMethod, Language, SubjectType, UserStatus/' src/geekvpn/infrastructure/persistence/models/identity.py)",
+      "Bash(sed -i '42s/.*/from geekvpn.domain.identity.session import DeviceInfo, RefreshToken, RevocationReason, Session/' src/geekvpn/infrastructure/persistence/models/identity.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/persistence/models/identity.py src/geekvpn/infrastructure/persistence/repositories/session.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/persistence/)",
+      "Bash(sed -i 's/^from typing import Any$/from typing import Any, cast/' src/geekvpn/infrastructure/persistence/repositories/session.py)"
     ]
   }
 }
