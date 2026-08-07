@@ -166,6 +166,19 @@ class TestGenerationAndRedaction:
             assert len(value) == 48
             assert weakness_of(value, min_length=MIN_KEY_LENGTH) is None
 
+    def test_a_generated_secret_never_trips_the_weakness_check(self) -> None:
+        """The generator and the validator must agree.
+
+        `weakness_of` rejects any value containing a development marker, and a
+        random 48-character string spells "todo" roughly once every 23,000
+        draws. Before the generator re-drew, it would occasionally hand an
+        operator a secret that this module's own guardrail then refused at
+        boot - and the failure surfaced as an intermittent test, which is the
+        least useful place to notice it.
+        """
+        for _ in range(5_000):
+            assert weakness_of(generate_secret(), min_length=MIN_KEY_LENGTH) is None
+
     def test_generating_a_weak_length_is_refused(self) -> None:
         with pytest.raises(ValueError):
             generate_secret(16)

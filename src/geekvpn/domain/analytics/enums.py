@@ -81,7 +81,9 @@ class MetricKey(enum.StrEnum):
     def label_fa(self) -> str:
         return _METRIC_LABELS[self]
 
-    def format(self) -> MetricFormat:
+    # Shadows str.format on purpose: this enum is a metric, and `format`
+    # reads correctly at every call site.
+    def format(self) -> MetricFormat:  # type: ignore[override]
         return _METRIC_FORMATS[self]
 
     def lower_is_better(self) -> bool:

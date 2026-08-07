@@ -57,7 +57,7 @@ def _services(container: ContainerDep) -> dict[str, Any]:
     }
 
 
-async def _run(container: ContainerDep, work: Callable[[Any], Any]) -> Any:
+async def _run[T](container: ContainerDep, work: Callable[[Any], T]) -> T:
     """Run one synchronous report off the event loop and always close its session."""
     services = _services(container)
 

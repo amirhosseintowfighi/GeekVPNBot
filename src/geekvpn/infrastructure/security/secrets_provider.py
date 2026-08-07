@@ -65,6 +65,10 @@ INSECURE_MARKERS: Final = ("insecure", "do-not-use", "example", "sample", "todo"
 _LOW_ENTROPY_PATTERN: Final = re.compile(r"^(.)\1*$")
 _ALPHABET: Final = string.ascii_letters + string.digits + "-_"
 
+#: Draws before giving up. One is almost always enough; the bound only
+#: exists so a mistake in `weakness_of` cannot hang a boot forever.
+_GENERATE_ATTEMPTS: Final = 16
+
 
 class SecretsError(RuntimeError):
     """A secret is missing or unusable. Always a boot-time failure."""
@@ -223,7 +227,19 @@ def generate_secret(length: int = 48) -> str:
     """
     if length < MIN_KEY_LENGTH:
         raise ValueError(f"Refusing to generate a secret shorter than {MIN_KEY_LENGTH}.")
-    return "".join(secrets.choice(_ALPHABET) for _ in range(length))
+
+    # A random 48-character string spells "todo" somewhere about once every
+    # 23,000 draws, and `weakness_of` rejects any value containing a
+    # development marker. Without this loop the generator occasionally emits a
+    # secret that this module's own validator then refuses at boot - so it is
+    # re-drawn rather than handed to an operator who would hit the guardrail.
+    for _ in range(_GENERATE_ATTEMPTS):
+        candidate = "".join(secrets.choice(_ALPHABET) for _ in range(length))
+        if weakness_of(candidate, min_length=MIN_KEY_LENGTH) is None:
+            return candidate
+    raise SecretsError(  # pragma: no cover - needs ~10^20 unlucky draws
+        "Could not generate a secret that passes the weakness check."
+    )
 
 
 def redact(value: str | None, *, keep: int = 4) -> str:

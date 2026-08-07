@@ -20,7 +20,7 @@ class Entity[IdT]:
     def __eq__(self, other: object) -> bool:
         if type(other) is not type(self):
             return NotImplemented
-        return self.id == other.id  # type: ignore[attr-defined]
+        return bool(self.id == other.id)
 
     def __hash__(self) -> int:
         return hash((type(self).__name__, self.id))

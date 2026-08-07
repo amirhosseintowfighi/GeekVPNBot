@@ -19,10 +19,9 @@ from typing import Annotated
 from fastapi import Depends, Header
 
 from geekvpn.application.bot.services import BotServices
-from geekvpn.application.identity.dto import RequestContext
-from geekvpn.domain.identity.user import User
+from geekvpn.application.identity.dto import RequestContext, UserProfile
+from geekvpn.domain.base.errors import AuthenticationError
 from geekvpn.infrastructure.bot.services import build_bot_services
-from geekvpn.presentation.api.errors import AuthenticationError
 from geekvpn.presentation.api.security import ScopeDep
 
 #: The scheme Telegram's Mini App SDK uses. Compared case-insensitively because
@@ -42,7 +41,7 @@ def _init_data(authorization: str | None) -> str:
 async def current_mini_app_user(
     scope: ScopeDep,
     authorization: Annotated[str | None, Header()] = None,
-) -> User:
+) -> UserProfile:
     """Verify the initData signature and resolve it to a customer.
 
     A bad signature and an unknown scheme produce the same 401 with the same
@@ -53,10 +52,14 @@ async def current_mini_app_user(
         _init_data(authorization),
         context=RequestContext(device_label="telegram-mini-app"),
     )
+    if result.user is None:
+        # Only an admin sign-in leaves this empty, and initData never
+        # authenticates an operator.
+        raise AuthenticationError("An Authorization: tma <initData> header is required.")
     return result.user
 
 
-CurrentMiniAppUser = Annotated[User, Depends(current_mini_app_user)]
+CurrentMiniAppUser = Annotated[UserProfile, Depends(current_mini_app_user)]
 
 
 async def mini_app_services(scope: ScopeDep) -> BotServices:

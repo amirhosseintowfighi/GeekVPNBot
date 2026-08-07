@@ -54,7 +54,8 @@ def normalise(raw: str) -> str:
     for junk in (" ", "-", "_", ".", "\u200c"):
         text = text.replace(junk, "")
     return text.translate(
-        str.maketrans({"O": "Q", "0": "Q", "I": "J", "1": "7", "L": "J", "U": "V"})
+        # Two-argument form: the mapping overload is typed for int keys.
+        str.maketrans("O0I1LU", "QQJ7JV")
     )
 
 

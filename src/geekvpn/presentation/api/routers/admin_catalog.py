@@ -36,6 +36,7 @@ from geekvpn.application.catalog.dto import QuoteView
 from geekvpn.domain.catalog.campaign import Campaign
 from geekvpn.domain.catalog.category import Category
 from geekvpn.domain.catalog.coupon import Coupon
+from geekvpn.domain.catalog.enums import PublicationState
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.product import Product
 from geekvpn.domain.catalog.rewards import LoyaltyTier
@@ -155,7 +156,9 @@ async def set_category_state(
     scope: ScopeDep,
 ) -> CategoryAdminResponse:
     category = await scope.catalog_admin.set_category_state(
-        category_id, publish=payload.publish, actor_id=actor.subject_id
+        category_id,
+        state=PublicationState.PUBLISHED if payload.publish else PublicationState.ARCHIVED,
+        actor_id=actor.subject_id,
     )
     return _category_view(category)
 
@@ -277,7 +280,9 @@ async def set_product_state(
     is the most expensive mistake this platform can make.
     """
     product = await scope.catalog_admin.set_product_state(
-        product_id, publish=payload.publish, actor_id=actor.subject_id
+        product_id,
+        state=PublicationState.PUBLISHED if payload.publish else PublicationState.ARCHIVED,
+        actor_id=actor.subject_id,
     )
     return _product_view(product)
 
@@ -382,7 +387,9 @@ async def set_plan_state(
     scope: ScopeDep,
 ) -> PlanAdminResponse:
     plan = await scope.catalog_admin.set_plan_state(
-        plan_id, publish=payload.publish, actor_id=actor.subject_id
+        plan_id,
+        state=PublicationState.PUBLISHED if payload.publish else PublicationState.ARCHIVED,
+        actor_id=actor.subject_id,
     )
     return _plan_view(plan)
 
@@ -426,7 +433,7 @@ def _coupon_view(coupon: Coupon) -> CouponAdminResponse:
         max_per_user=coupon.max_per_user,
         redemption_count=coupon.redemption_count,
         remaining_redemptions=coupon.remaining_redemptions,
-        min_order_amount=coupon.min_order_amount.amount,
+        min_order_amount=(coupon.min_order_amount.amount if coupon.min_order_amount else 0),
         target_user_id=coupon.target_user_id,
         stacks_with_campaign=coupon.stacks_with_campaign,
         first_purchase_only=coupon.first_purchase_only,

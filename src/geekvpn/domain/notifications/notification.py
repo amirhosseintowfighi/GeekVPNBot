@@ -210,7 +210,7 @@ class Notification(AggregateRoot[str]):
         current = self._deliveries.get(channel)
         if current is None:
             current = DeliveryAttempt(channel=channel)
-        merged = {
+        merged: dict[str, object] = {
             "channel": channel,
             "state": current.state,
             "reason": current.reason,

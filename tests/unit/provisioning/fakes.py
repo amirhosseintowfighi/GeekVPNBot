@@ -51,7 +51,7 @@ class SequentialNumbers:
     def __init__(self) -> None:
         self._counter = count(1)
 
-    def next_number(self, *, jalali_year: int) -> str:
+    async def next_number(self, *, jalali_year: int) -> str:
         return f"{jalali_year}-{next(self._counter):04d}"
 
 

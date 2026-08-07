@@ -85,7 +85,9 @@
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/application/catalog/promotion_admin.py src/geekvpn/infrastructure/security/ip_allowlist.py)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/domain/catalog/coupon.py)",
-      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/security/captcha.py src/geekvpn/infrastructure/analytics/sql_readers.py)"
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/infrastructure/security/captcha.py src/geekvpn/infrastructure/analytics/sql_readers.py)",
+      "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/api/miniapp_security.py src/geekvpn/presentation/api/routers/admin_catalog.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/unit/security/)"
     ]
   }
 }

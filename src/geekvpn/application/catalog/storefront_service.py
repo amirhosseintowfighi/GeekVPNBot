@@ -35,6 +35,7 @@ from geekvpn.application.ports.catalog import (
     ProductRepository,
 )
 from geekvpn.application.ports.clock import Clock
+from geekvpn.domain.catalog.campaign import Campaign
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.pricing import PricingContext, quote_plan
 from geekvpn.domain.catalog.product import Product
@@ -141,7 +142,7 @@ class StorefrontService:
         *,
         context: PricingContext,
         policy: object,
-        campaigns: list,
+        campaigns: list[Campaign],
     ) -> ProductView | None:
         plan_views: list[PlanView] = []
         for plan in sorted(plans, key=lambda p: (p.sort_order, p.duration_days)):

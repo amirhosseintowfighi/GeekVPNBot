@@ -43,7 +43,10 @@ class AppSettings(BaseSettings):
 
 class LoggingSettings(BaseSettings):
     level: str = "INFO"
-    json: bool = True
+    #: Shadows the deprecated `BaseModel.json` method. Kept because the name
+    #: is the documented `LOGGING__JSON` environment variable, and renaming
+    #: the field would silently ignore every existing deployment's setting.
+    json: bool = True  # type: ignore[assignment]
     # Values never written to logs, whatever the key path.
     redact_keys: tuple[str, ...] = (
         "password",

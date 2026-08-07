@@ -52,7 +52,7 @@ _STATE_MAP = {
 }
 
 #: Protocols Marzban expects as `proxies` keys when creating a user.
-_DEFAULT_PROXIES = {"vless": {}, "vmess": {}}
+_DEFAULT_PROXIES: dict[str, dict[str, str]] = {"vless": {}, "vmess": {}}
 
 
 @register_panel(

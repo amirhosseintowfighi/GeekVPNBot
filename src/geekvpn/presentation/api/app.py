@@ -84,7 +84,8 @@ class _LimiterProxy:
                 remaining=policy.limit,
                 retry_after_seconds=0,
             )
-        return await limiter.check(policy, subject_id=subject_id, ip=ip)
+        decision: Decision = await limiter.check(policy, subject_id=subject_id, ip=ip)
+        return decision
 
 
 def create_app(

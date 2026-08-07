@@ -174,7 +174,7 @@ def lockout_seconds(consecutive_failures: int) -> int:
     if consecutive_failures < LOCKOUT_THRESHOLD:
         return 0
     excess = consecutive_failures - LOCKOUT_THRESHOLD
-    return min(LOCKOUT_BASE_SECONDS * (2**excess), LOCKOUT_MAX_SECONDS)
+    return int(min(LOCKOUT_BASE_SECONDS * (2**excess), LOCKOUT_MAX_SECONDS))
 
 
 def requires_captcha(consecutive_failures: int) -> bool:

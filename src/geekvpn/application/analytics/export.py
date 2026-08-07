@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import io
+from typing import Any
 
 from geekvpn.domain.analytics.dashboard import AnalyticsBundle
 from geekvpn.domain.analytics.series import TimeSeries
@@ -30,7 +31,7 @@ HEADER_LABEL = "\u0639\u0646\u0648\u0627\u0646"
 HEADER_COUNT = "\u062a\u0639\u062f\u0627\u062f"
 
 
-def _writer() -> tuple[io.StringIO, csv._writer]:
+def _writer() -> tuple[io.StringIO, Any]:
     buffer = io.StringIO()
     buffer.write(BOM)
     return buffer, csv.writer(buffer, lineterminator="\n")

@@ -30,8 +30,10 @@ class RedisCache:
         return f"{self._namespace}:{key}"
 
     async def get(self, key: str) -> str | None:
-        value: str | None = await self._client.get(self._key(key))
-        return value
+        # The client is built with decode_responses=True, which the stubs
+        # cannot express, so the declared type still admits bytes.
+        value = await self._client.get(self._key(key))
+        return None if value is None else str(value)
 
     async def set(self, key: str, value: str, *, ttl_seconds: int | None = None) -> None:
         await self._client.set(self._key(key), value, ex=ttl_seconds)

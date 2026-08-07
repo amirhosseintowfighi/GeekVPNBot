@@ -104,7 +104,7 @@ class OrderNumberGenerator(Protocol):
     while the id is an opaque primary key.
     """
 
-    def next_number(self, *, jalali_year: int) -> str: ...
+    async def next_number(self, *, jalali_year: int) -> str: ...
 
 
 @runtime_checkable

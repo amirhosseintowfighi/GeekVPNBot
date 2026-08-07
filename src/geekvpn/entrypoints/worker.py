@@ -38,7 +38,7 @@ import contextlib
 import signal
 from types import FrameType
 
-from geekvpn.application.notifications.scheduler import NotificationScheduler
+from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.domain.notifications.enums import JobKind
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
@@ -177,7 +177,7 @@ class Worker:
         for run in report.ran():
             logger.info("worker.job_ran", job=str(run.job))
 
-    def _tick_sync(self) -> object:
+    def _tick_sync(self) -> TickReport:
         with self._container.sync_sessions() as session:
             scope = build_sync_scope(self._container, session)
             scheduler = NotificationScheduler(clock=self._container.clock)

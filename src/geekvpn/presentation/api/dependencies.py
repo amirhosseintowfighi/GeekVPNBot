@@ -18,7 +18,7 @@ from geekvpn.infrastructure.persistence.unit_of_work import SqlAlchemyUnitOfWork
 
 
 def get_container(request: Request) -> Container:
-    container = getattr(request.app.state, "container", None)
+    container: Container | None = getattr(request.app.state, "container", None)
     if container is None:  # pragma: no cover - only reachable on a broken lifespan
         raise RuntimeError("Dependency container is not initialised.")
     return container

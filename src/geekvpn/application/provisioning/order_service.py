@@ -81,7 +81,7 @@ class OrderService:
         """
         order = Order.place(
             self._ids.new_id(),
-            number=self._numbers.next_number(jalali_year=jalali_year),
+            number=await self._numbers.next_number(jalali_year=jalali_year),
             user_id=user_id,
             plan_id=plan_id,
             plan_name_fa=plan_name_fa,

@@ -182,10 +182,10 @@ class EngineSupportNotifier:
         self._notify_agents(ticket)
 
     def _notify_agents(self, ticket: Any, *, assignee_id: int | None = None) -> None:
-        targets = (assignee_id,) if assignee_id else self._agent_chat_ids
+        targets: tuple[int, ...] = (
+            (assignee_id,) if assignee_id is not None else self._agent_chat_ids
+        )
         for agent_id in targets:
-            if agent_id is None:
-                continue
             self._engine.notify(
                 user_id=agent_id,
                 template_key="ticket.replied",
