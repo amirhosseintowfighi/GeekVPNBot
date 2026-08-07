@@ -89,7 +89,11 @@
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/api/miniapp_security.py src/geekvpn/presentation/api/routers/admin_catalog.py)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/unit/security/)",
       "Bash(./.venv/Scripts/mypy.exe src/geekvpn/presentation/api/routers/miniapp.py)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/integration/test_miniapp_api.py)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/integration/test_miniapp_api.py)",
+      "Bash(cp .env.example /tmp/envtest)",
+      "Bash(APP__ENVIRONMENT=production ./.venv/Scripts/python.exe -c ' *)",
+      "Bash(python -c \"print\\('a'*40\\)\")",
+      "Bash(APP__ENV=production APP__DEBUG=false SECURITY__SECRET_KEY=__CMDSUB_OUTPUT__ SECURITY__ENCRYPTION_MASTER_KEY=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb POSTGRES__PASSWORD=realpassword TELEGRAM__BOT_TOKEN=123:abc TELEGRAM__WEBHOOK_SECRET=cccccccccccccccccccccccccccccccc ./.venv/Scripts/python.exe -c ' *)"
     ]
   }
 }
