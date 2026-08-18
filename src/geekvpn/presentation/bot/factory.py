@@ -20,6 +20,7 @@ from geekvpn.infrastructure.config.settings import Settings
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.presentation.bot.handlers import (
     dashboard,
+    errors,
     fallback,
     faq,
     menu,
@@ -49,6 +50,7 @@ from geekvpn.presentation.bot.throttle import ThrottlingMiddleware
 #: last. `fallback` matches essentially everything, which is exactly why it is
 #: the final entry and must stay there.
 ROUTERS = (
+    errors,
     system,
     start,
     menu,

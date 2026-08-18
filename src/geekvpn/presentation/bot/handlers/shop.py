@@ -170,7 +170,7 @@ async def on_category(
     if user is None or scope is None:
         return
     view = await load_storefront(user=user, scope=scope, services=services)
-    category = match_ref(list(view.categories), callback_data.ref, "category_id")
+    category = match_ref(list(view.categories), callback_data.ref, "id")
     if category is None:
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
@@ -195,7 +195,7 @@ async def on_product(
     view = await load_storefront(user=user, scope=scope, services=services)
     product = None
     for category in view.categories:
-        product = match_ref(list(category.products), callback_data.ref, "product_id")
+        product = match_ref(list(category.products), callback_data.ref, "id")
         if product is not None:
             break
     if product is None:

@@ -91,6 +91,14 @@ def match_ref(items: list[Any], ref: str, attribute: str) -> Any | None:
     the honest explanation, since a miss means the underlying list changed
     since the keyboard was rendered.
     """
+    if items and not hasattr(items[0], attribute):
+        # A miss is normal; a misspelled field is a bug, and the two must not
+        # look alike. Without this the whole funnel answered ERR_STALE_BUTTON
+        # for every click and nothing said why.
+        raise AttributeError(
+            f"{type(items[0]).__name__} has no attribute {attribute!r}; "
+            f"match_ref cannot resolve a ref against a field that does not exist"
+        )
     for item in items:
         if short_ref(getattr(item, attribute)) == ref:
             return item

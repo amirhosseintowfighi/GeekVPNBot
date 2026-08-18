@@ -99,7 +99,16 @@
       "PowerShell(Get-Command ssh,scp,rsync -ErrorAction SilentlyContinue)",
       "Bash(bash -n scripts/deploy.sh)",
       "Bash(grep -ohE '\\\\$\\\\{[A-Za-z_][A-Za-z0-9_]*:\\\\?[^}]*\\\\}' docker-compose.yml docker-compose.prod.yml docker-compose.monitoring.yml)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_install_contract.py)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_install_contract.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=short tests/unit/bot/test_shop_funnel.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/bot/test_shop_funnel.py)",
+      "Bash(cp src/geekvpn/presentation/bot/handlers/shop.py /tmp/shop.bak)",
+      "Bash(sed -i 's/match_ref\\(list\\(view.categories\\), callback_data.ref, \"id\"\\)/match_ref\\(list\\(view.categories\\), callback_data.ref, \"category_id\"\\)/' src/geekvpn/presentation/bot/handlers/shop.py)",
+      "Bash(sed -i 's/match_ref\\(list\\(category.products\\), callback_data.ref, \"id\"\\)/match_ref\\(list\\(category.products\\), callback_data.ref, \"product_id\"\\)/' src/geekvpn/presentation/bot/handlers/shop.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=no tests/unit/bot/test_shop_funnel.py)",
+      "Bash(cp /tmp/shop.bak src/geekvpn/presentation/bot/handlers/shop.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_bot_error_handling.py)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_bot_webhook.py tests/integration/test_bot_error_handling.py)"
     ]
   }
 }

@@ -149,7 +149,7 @@ async def on_select_plan(
     found = None
     for category in view.categories:
         for product in category.products:
-            candidate = match_ref(list(product.plans), callback_data.ref, "plan_id")
+            candidate = match_ref(list(product.plans), callback_data.ref, "id")
             if candidate is not None:
                 found = candidate
                 break
@@ -158,7 +158,7 @@ async def on_select_plan(
     if found is None:
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
-    await state.update_data(plan_id=str(found.plan_id), coupon=None)
+    await state.update_data(plan_id=str(found.id), coupon=None)
     await _render_review(query=query, state=state, user=user, scope=scope, services=services)
 
 

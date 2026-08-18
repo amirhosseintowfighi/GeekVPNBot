@@ -26,6 +26,7 @@ from geekvpn.infrastructure.security.refresh_tokens import Sha256RefreshTokenFac
 from geekvpn.infrastructure.security.telegram import TelegramSignatureVerifier
 from geekvpn.infrastructure.security.totp import Rfc6238TotpService
 from geekvpn.presentation.api.app import create_app
+from geekvpn.presentation.bot.app import create_bot_app
 from tests.fakes import (
     AllowingRateLimiter,
     FakeAsyncSession,
@@ -186,3 +187,33 @@ def app(container: Container) -> FastAPI:
 def client(app: FastAPI) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+#: Set by the shared bot app so webhook tests can sign their requests.
+BOT_WEBHOOK_SECRET = "w" * 32
+
+
+@pytest.fixture(scope="session")
+def bot_client() -> Iterator[TestClient]:
+    """The one bot application a process is allowed to run.
+
+    Handler routers are module-level singletons and aiogram refuses to attach a
+    router to a second dispatcher. The dispatcher is built by the lifespan, so
+    the limit is one *entered* client per process, not merely one app - which
+    is why this owns the TestClient rather than handing out the app.
+    Session-scoped for that reason, not for speed.
+    """
+    patch = pytest.MonkeyPatch()
+    patch.setenv("APP__ENV", "local")
+    patch.setenv("AUTH__JWT_SECRET_KEY", TEST_SECRET)
+    patch.setenv("TELEGRAM__BOT_TOKEN", TEST_BOT_TOKEN)
+    patch.setenv("TELEGRAM__WEBHOOK_SECRET", BOT_WEBHOOK_SECRET)
+    get_settings.cache_clear()
+    settings = get_settings()
+
+    app = create_bot_app(settings, container=build_test_container(settings))
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
+    patch.undo()
+    get_settings.cache_clear()

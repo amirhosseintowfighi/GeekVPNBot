@@ -120,10 +120,14 @@ def create_bot_app(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
         update = Update.model_validate(await request.json(), context={"bot": request.app.state.bot})
-        # Telegram retries on any non-2xx. Feed the update and always ack, so a
-        # handler bug cannot turn into an infinite redelivery loop; the error is
-        # logged by LoggingMiddleware instead.
-        await request.app.state.dispatcher.feed_update(bot=request.app.state.bot, update=update)
+        # Telegram retries any non-2xx forever, so an exception escaping here
+        # turns one handler bug into a redelivery loop hammering every worker.
+        # handlers/errors.py catches what handlers raise; this catches what the
+        # dispatcher itself raises, which no router can see.
+        try:
+            await request.app.state.dispatcher.feed_update(bot=request.app.state.bot, update=update)
+        except Exception:
+            logger.exception("bot.update_failed", update_id=update.update_id)
         return {"ok": True}
 
     @app.get("/health/live", response_model=LivenessResponse)
