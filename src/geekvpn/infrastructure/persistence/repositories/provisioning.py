@@ -39,7 +39,17 @@ from geekvpn.infrastructure.persistence.models.provisioning import (
 )
 
 #: States whose rows the provisioning worker is allowed to pick up.
-_RETRYABLE = (OrderState.PAID.value, OrderState.FAILED.value)
+#:
+#: PROVISIONING is included because `start_provisioning` commits before the
+#: panel call. A worker killed between the two leaves an order in that state
+#: forever: paid for, no service, and invisible to the only thing that could
+#: have recovered it. The grace period is what keeps the sweep from racing a
+#: provision that is merely still in flight.
+_RETRYABLE = (
+    OrderState.PAID.value,
+    OrderState.FAILED.value,
+    OrderState.PROVISIONING.value,
+)
 
 
 class SqlAlchemyOrderRepository:
@@ -48,6 +58,19 @@ class SqlAlchemyOrderRepository:
 
     async def get(self, order_id: str) -> Order | None:
         row = await self._session.get(OrderModel, order_id)
+        return order_to_domain(row) if row else None
+
+    async def get_for_update(self, order_id: str) -> Order | None:
+        """Load an order and hold its row until the transaction ends.
+
+        `provision` checks for an existing subscription and inserts one if
+        there is none. Two callers doing that concurrently - the retry sweep
+        and an operator's retry-provision button - both see none and both
+        insert. uq_subscriptions_order makes the second fail; this makes it
+        wait instead, so the second caller sees the first one's result.
+        """
+        stmt = select(OrderModel).where(OrderModel.id == order_id).with_for_update()
+        row = (await self._session.execute(stmt)).scalar_one_or_none()
         return order_to_domain(row) if row else None
 
     async def get_by_number(self, number: str) -> Order | None:

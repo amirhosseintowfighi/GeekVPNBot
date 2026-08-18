@@ -24,6 +24,7 @@ looking.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -39,6 +40,7 @@ from geekvpn.application.provisioning.ports import (
     PanelProvider,
     SubscriptionRepository,
 )
+from geekvpn.domain.panels.enums import Capability
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.panels.values import AccountSpec, PanelAccountRef, TrafficQuota
 from geekvpn.domain.provisioning.enums import OrderState
@@ -50,6 +52,8 @@ from geekvpn.domain.provisioning.errors import (
 )
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
+
+_log = logging.getLogger(__name__)
 
 BYTES_PER_MIB = 1024 * 1024
 
@@ -118,7 +122,10 @@ class ProvisioningService:
             order is left in FAILED for the retry queue.
         :raises NoCapacityAvailable: nothing to provision onto right now.
         """
-        order = await self._orders.get(order_id)
+        # Locked, not merely read: the existence check below and the insert
+        # that follows it are only safe against a concurrent provision of the
+        # same order if the row is held for the whole transaction.
+        order = await self._orders.get_for_update(order_id)
         if order is None:
             raise OrderNotFound("The order was not found.", order_id=order_id)
 
@@ -136,8 +143,12 @@ class ProvisioningService:
         if order.is_renewal:
             return await self._renew(order)
 
-        order.start_provisioning()
-        await self._orders.update(order)
+        if order.state is not OrderState.PROVISIONING:
+            # Already provisioning means a previous attempt died after this
+            # point. Re-entering the state would be an illegal transition,
+            # and refusing the retry is what made those orders permanent.
+            order.start_provisioning()
+            await self._orders.update(order)
 
         now = self._clock.now()
         try:
@@ -207,8 +218,12 @@ class ProvisioningService:
                 subscription_id=order.renews_subscription_id,
             )
 
-        order.start_provisioning()
-        await self._orders.update(order)
+        if order.state is not OrderState.PROVISIONING:
+            # Already provisioning means a previous attempt died after this
+            # point. Re-entering the state would be an illegal transition,
+            # and refusing the retry is what made those orders permanent.
+            order.start_provisioning()
+            await self._orders.update(order)
 
         now = self._clock.now()
         node = await self._nodes.get(subscription.node_id or "")
@@ -218,17 +233,24 @@ class ProvisioningService:
 
         try:
             adapter = await self._panels.for_node(node)
+            ref = _ref_for(subscription, node)
             await adapter.renew(
-                _ref_for(subscription, node),
+                ref,
                 extend_by=timedelta(days=order.duration_days),
                 new_quota=_quota_for(order.traffic_mib),
                 idempotency_key=order.id,
             )
+            # The new quota is absolute, so the counter it is measured against
+            # has to start from zero too. Panels that cannot reset simply keep
+            # counting, and the sync will carry their figure across - which is
+            # wrong but visible, rather than wrong and silent.
+            if order.traffic_mib is not None and Capability.RESET_TRAFFIC in adapter.capabilities:
+                await adapter.reset_traffic(ref, idempotency_key=f"{order.id}:reset")
         except PanelError as error:
             await self._fail(order, reason=error.code)
             raise ProvisioningFailed(error.code, retryable=error.retryable) from error
 
-        subscription.renew(days=order.duration_days, now=now, extra_mib=order.traffic_mib)
+        subscription.renew(days=order.duration_days, now=now, quota_mib=order.traffic_mib)
         await self._subscriptions.update(subscription)
 
         order.mark_active(subscription_id=subscription.id, at=now)
@@ -251,10 +273,40 @@ class ProvisioningService:
         for order in await self._orders.list_stuck(older_than=cutoff, limit=limit):
             try:
                 await self.provision(order.id)
-            except (ProvisioningFailed, NoCapacityAvailable, SubscriptionNotFound):
+            except Exception:
+                # Deliberately broad. The sweep exists to fix orders one panel
+                # at a time; a listed exception type is a promise that nothing
+                # else can be raised, and an IllegalOrderTransition from a
+                # single bad row used to abort the whole batch.
+                _log.warning("provisioning.retry_failed: %s", order.id, exc_info=True)
                 continue
             provisioned.append(order.id)
         return tuple(provisioned)
+
+    async def expire_lapsed(self, *, limit: int = 500) -> int:
+        """Move subscriptions past their date into EXPIRED. Returns the count.
+
+        `list_lapsed` and `Subscription.expire` both existed with no callers,
+        so nothing ever ran this: a service stayed ACTIVE forever once its date
+        passed. The panel account keeps working, the dashboard keeps saying
+        active, and the renewal prompt never fires - the customer gets free
+        service and we never ask them to pay again.
+
+        One subscription that refuses the transition must not stop the rest, so
+        failures are logged per row rather than aborting the sweep.
+        """
+        now = self._clock.now()
+        expired = 0
+        for subscription in await self._subscriptions.list_lapsed(now=now, limit=limit):
+            try:
+                subscription.expire(now=now)
+            except Exception:
+                _log.warning("provisioning.expire_failed: %s", subscription.id, exc_info=True)
+                continue
+            await self._subscriptions.update(subscription)
+            self._publish(subscription)
+            expired += 1
+        return expired
 
     # -- helpers -----------------------------------------------------------
 

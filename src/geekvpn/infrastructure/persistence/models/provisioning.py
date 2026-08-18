@@ -161,6 +161,11 @@ class SubscriptionModel(TimestampMixin, Base):
         CheckConstraint(f"state IN ({_quoted(SUBSCRIPTION_STATES)})", name="subscriptions_state"),
         CheckConstraint("traffic_used_mib >= 0", name="subscriptions_used_non_negative"),
         CheckConstraint("expires_at > started_at", name="subscriptions_dates_ordered"),
+        # One order buys one service. Without this, two concurrent
+        # provisions of the same order both insert, and the customer gets
+        # two accounts on two nodes for one payment - with only one of them
+        # reachable through get_by_order afterwards.
+        UniqueConstraint("order_id", name="uq_subscriptions_order"),
         # Expiry reminders, churn, and the "expiring soon" audience.
         Index("ix_subscriptions_state_expires", "state", "expires_at"),
         Index("ix_subscriptions_user_state", "user_id", "state"),

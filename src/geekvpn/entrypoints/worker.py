@@ -66,6 +66,11 @@ PROVISIONING_GRACE_SECONDS = 60
 #: asking more often costs traffic without producing fresher numbers.
 USAGE_SYNC_INTERVAL_SECONDS = 600
 
+#: Expiry is a date comparison, not a network call, so it can run often.
+#: A service that lapsed at midnight should not still read as active at
+#: nine, which is when the customer notices before we do.
+EXPIRY_SWEEP_INTERVAL_SECONDS = 300
+
 #: Guards a tick across processes. Comfortably longer than a tick should take,
 #: short enough that a killed worker does not block the next one for long.
 LOCK_TTL_SECONDS = 300
@@ -88,10 +93,12 @@ class Worker:
         logger.info("worker.started", tick_seconds=TICK_SECONDS)
         provisioning_due = 0.0
         usage_due = 0.0
+        expiry_due = 0.0
         while not self._stopping.is_set():
             await self._guarded_tick(
                 run_provisioning=provisioning_due <= 0,
                 run_usage_sync=usage_due <= 0,
+                run_expiry_sweep=expiry_due <= 0,
             )
             provisioning_due = (
                 PROVISIONING_INTERVAL_SECONDS
@@ -103,7 +110,9 @@ class Worker:
                 await asyncio.wait_for(self._stopping.wait(), timeout=TICK_SECONDS)
         logger.info("worker.stopped")
 
-    async def _guarded_tick(self, *, run_provisioning: bool, run_usage_sync: bool) -> None:
+    async def _guarded_tick(
+        self, *, run_provisioning: bool, run_usage_sync: bool, run_expiry_sweep: bool
+    ) -> None:
         """Take the cross-process lock, then tick. Skip quietly if held."""
         redis = self._container.redis
         acquired = await redis.set(LOCK_KEY, "1", nx=True, ex=LOCK_TTL_SECONDS)
@@ -115,6 +124,8 @@ class Worker:
                 await self._drain_provisioning()
             if run_usage_sync:
                 await self._sync_usage()
+            if run_expiry_sweep:
+                await self._expire_lapsed()
             await self._run_scheduled_jobs()
         except Exception:
             # Never let one bad tick kill the process; the next one may succeed.
@@ -163,6 +174,26 @@ class Worker:
             nodes=len(report.nodes),
             failed_nodes=report.failed_nodes,
         )
+
+    async def _expire_lapsed(self) -> None:
+        """Move subscriptions past their date into EXPIRED.
+
+        Nothing ran this before, so a service stayed ACTIVE forever once its
+        date passed: the dashboard kept saying active and the renewal prompt
+        never fired.
+        """
+        async with self._container.session_factory() as session:
+            scope = build_scope(self._container, session)
+            try:
+                expired = await scope.provisioning.expire_lapsed()
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await scope.aclose()
+        if expired:
+            logger.info("worker.subscriptions_expired", count=expired)
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.

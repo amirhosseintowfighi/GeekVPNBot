@@ -141,7 +141,11 @@ class MarzneshinAdapter(HttpPanelAdapter):
         )
         if response.status_code == 409:
             existing = await self.get_account(self.ref(spec.username))
-            if existing.usage.quota.total_bytes == (spec.quota.total_bytes or 0):
+            # Both sides normalised. Unlimited is None here and 0 on the
+            # right, so `None == 0` made the 409 retry fail for every
+            # unlimited plan - the one case where retrying is guaranteed
+            # correct, because the account already matches what we wanted.
+            if (existing.usage.quota.total_bytes or 0) == (spec.quota.total_bytes or 0):
                 return existing
             raise AccountAlreadyExists(panel=self.kind.value, username=spec.username)
         return self._to_account(self._http.json(response))

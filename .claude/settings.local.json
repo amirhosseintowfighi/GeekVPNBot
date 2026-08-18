@@ -117,7 +117,9 @@
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_checkout_service.py)",
       "Bash(./.venv/Scripts/lint-imports.exe)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_audit_wiring_fixes.py)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_audit_wiring_fixes.py)",
+      "Bash(./.venv/Scripts/python.exe -c \"import ast,pathlib;ast.parse\\(pathlib.Path\\('migrations/versions/0007_subscription_order_unique.py'\\).read_text\\(encoding='utf-8'\\)\\);print\\('parses'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/provisioning/)"
     ]
   }
 }

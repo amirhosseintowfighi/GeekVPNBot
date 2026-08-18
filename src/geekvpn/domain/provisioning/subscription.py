@@ -261,22 +261,33 @@ class Subscription(AggregateRoot[str]):
 
     # ---- Lifecycle ------------------------------------------------------
 
-    def renew(self, *, days: int, now: datetime, extra_mib: int | None = None) -> None:
-        """Extend the term.
+    def renew(self, *, days: int, now: datetime, quota_mib: int | None = None) -> None:
+        """Extend the term and start a fresh allowance.
 
         An expired subscription is extended from *now*; a live one from its
         current expiry, so renewing early never costs the customer the days
         they already paid for.
+
+        ``quota_mib`` is the new term's allowance in full, not an increment,
+        and usage resets with it. The two readings must agree: the panel is
+        given an absolute figure, so a domain that accumulated instead drifted
+        one term further from it on every renewal - after two renewals of a
+        50GB plan the panel said 50 and the database said 150.
+
+        Resetting rather than rolling over is the deliberate half. Unused
+        traffic does not carry forward, which is what "monthly allowance"
+        means everywhere else the customer has seen one.
         """
         self._guard_changeable()
         if days <= 0:
             raise OrderValidationError("A renewal must add at least one day.", days=days)
         base = self.expires_at if self.expires_at > now else now
         self.expires_at = base + timedelta(days=days)
-        if extra_mib is not None and self.traffic_limit_mib is not None:
-            self.traffic_limit_mib += extra_mib
+        if quota_mib is not None:
+            self.traffic_limit_mib = quota_mib
+            self.traffic_used_mib = 0
         self._notified_expiry_days.clear()
-        if extra_mib is not None:
+        if quota_mib is not None:
             self._notified_traffic_percents.clear()
         if (
             self._state in (SubscriptionState.EXPIRED, SubscriptionState.EXHAUSTED)

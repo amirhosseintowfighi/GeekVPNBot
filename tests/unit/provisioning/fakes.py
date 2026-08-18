@@ -73,6 +73,15 @@ class InMemoryOrders:
         self.rows: dict[str, Order] = {order.id: order for order in orders}
 
     # async port
+    async def get_for_update(self, order_id: str) -> Order | None:
+        """No locking to simulate; in-memory access is already serialised.
+
+        Present because the port declares it, and a fake that is a weaker
+        contract than the real repository is how the double-provision went
+        unnoticed in the first place.
+        """
+        return await self.get(order_id)
+
     async def get(self, order_id: str) -> Order | None:
         return self.rows.get(order_id)
 
