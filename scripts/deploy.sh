@@ -172,6 +172,12 @@ $COMPOSE run --rm migrate || die "migrations failed; nothing was deployed"
 
 log "starting ${IDLE}"
 $COMPOSE up -d --no-deps "$IDLE" || die "could not start ${IDLE}"
+
+# Idempotent, and required on a first install: switch_to reloads nginx with
+# `compose exec`, which fails outright if the container has never been
+# started. On an upgrade this is a no-op because nginx is already up.
+log "ensuring the edge is up"
+$COMPOSE up -d nginx || die "could not start nginx"
 wait_ready "$IDLE"
 smoke_test "$IDLE"
 

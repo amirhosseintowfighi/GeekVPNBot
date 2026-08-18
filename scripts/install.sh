@@ -238,6 +238,26 @@ ok "services started"
 
 # -------------------------------------------------------------------- check
 
+step "Requesting a TLS certificate"
+# The certbot service only ever runs `certbot renew`, which is a no-op until a
+# certificate exists. Nothing else issues the first one, so without this step
+# the site would serve the entrypoint's self-signed placeholder forever.
+#
+# This deliberately does not abort the install when it fails: the usual reason
+# is that DNS does not point here yet, which is not something the installer can
+# fix, and everything else is already working by this point.
+if $COMPOSE run --rm --entrypoint certbot certbot      certonly --webroot --webroot-path=/var/www/certbot      -d "$DOMAIN" --email "$CERTBOT_EMAIL"      --agree-tos --no-eff-email --non-interactive 2>&1 | tail -5
+then
+  $COMPOSE exec -T nginx nginx -s reload >/dev/null 2>&1 || true
+  ok "certificate issued for ${DOMAIN}"
+  TLS_READY=1
+else
+  warn "Let's Encrypt could not issue a certificate yet."
+  note "Almost always this means ${DOMAIN} does not resolve to this server."
+  note "nginx is serving a self-signed placeholder until it does."
+  TLS_READY=0
+fi
+
 step "Verifying"
 sleep 3
 if curl -fsS --max-time 10 "http://localhost/health/ready" >/dev/null 2>&1 \
@@ -246,6 +266,16 @@ if curl -fsS --max-time 10 "http://localhost/health/ready" >/dev/null 2>&1 \
 else
   warn "readiness check did not pass yet. It is often just TLS still being issued."
   note "check with: $COMPOSE logs --tail=50 nginx api_blue"
+fi
+
+if [[ "${TLS_READY:-0}" == "1" ]]; then
+  TLS_NOTE="TLS is live for ${DOMAIN}, and certbot will keep it renewed."
+else
+  TLS_NOTE="Point ${DOMAIN} at this server, then issue the certificate:
+       ${DIM}$COMPOSE run --rm --entrypoint certbot certbot certonly \
+         --webroot --webroot-path=/var/www/certbot -d ${DOMAIN} \
+         --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --non-interactive${OFF}
+     Until then nginx serves the self-signed placeholder it generated."
 fi
 
 cat <<EOF
@@ -261,9 +291,7 @@ ${BOLD}Do these three things now:${OFF}
   1. Back up ${ENV_FILE} somewhere off this machine. It holds the encryption
      master key, and every stored card number is unreadable without it.
 
-  2. Point ${DOMAIN} at this server if you have not already. Let's Encrypt
-     cannot issue a real certificate until the DNS record resolves here, and
-     until then nginx is serving the self-signed placeholder it generated.
+  2. ${TLS_NOTE}
 
   3. Add your first VPN node in the admin panel, then press
      ${DIM}Test connection${OFF} on it. Nothing can be sold until a node exists and

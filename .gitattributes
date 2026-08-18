@@ -1,0 +1,25 @@
+# Default: let git decide, and normalise to LF in the repository.
+* text=auto eol=lf
+
+# Anything a Linux shell or container executes must keep LF whatever platform
+# it was authored or copied from. A single CR turns `set -Eeuo pipefail` into
+# `pipefail\r`, which bash reports as "invalid option name" - and the CR then
+# overwrites the start of the error message, so the reason is not even legible.
+*.sh        text eol=lf
+*.bash      text eol=lf
+Dockerfile  text eol=lf
+*.Dockerfile text eol=lf
+docker/**   text eol=lf
+migrations/** text eol=lf
+Makefile    text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.conf      text eol=lf
+.env.example text eol=lf
+
+# Binary, never touched.
+*.png binary
+*.jpg binary
+*.ico binary
+*.gz  binary
