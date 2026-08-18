@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from geekvpn.infrastructure.config.settings import PostgresSettings
 
+#: SQLAlchemy resolves a dialect from "<backend>+<driver>". A bare
+#: "psycopg://" is not a registered plugin name and raises NoSuchModuleError
+#: the moment an engine is built, which is at container construction - so
+#: the API could not boot at all with a synchronous engine configured.
+SYNC_DRIVER = "postgresql+psycopg"
+
 
 def create_engine(settings: PostgresSettings) -> AsyncEngine:
     return create_async_engine(
@@ -46,7 +52,7 @@ def create_reporting_engine(settings: PostgresSettings) -> Engine:
     async pool that the bot and the Mini App share.
     """
     return _create_sync_engine(
-        settings.dsn(driver="psycopg") if _accepts_driver(settings) else settings.dsn(),
+        settings.dsn(driver=SYNC_DRIVER) if _accepts_driver(settings) else settings.dsn(),
         echo=settings.echo,
         # Deliberately small. Reports are rare and expensive; queueing behind a
         # couple of connections is better than starving the write path.
@@ -61,7 +67,7 @@ def create_reporting_engine(settings: PostgresSettings) -> Engine:
 def _accepts_driver(settings: PostgresSettings) -> bool:
     """True when ``dsn()`` can build a synchronous URL for us."""
     try:
-        settings.dsn(driver="psycopg")
+        settings.dsn(driver=SYNC_DRIVER)
     except TypeError:
         return False
     return True
@@ -76,7 +82,7 @@ def create_write_sync_engine(settings: PostgresSettings) -> Engine:
     revenue report. Two pools with two jobs, each sized for its job.
     """
     return _create_sync_engine(
-        settings.dsn(driver="psycopg") if _accepts_driver(settings) else settings.dsn(),
+        settings.dsn(driver=SYNC_DRIVER) if _accepts_driver(settings) else settings.dsn(),
         echo=settings.echo,
         pool_size=settings.pool_size,
         max_overflow=settings.max_overflow,

@@ -109,16 +109,16 @@ def upgrade() -> None:
         postgresql_where=sa.text("gateway_reference IS NOT NULL"),
     )
     op.create_index(
-        "ix_billing_payments_user_state",
-        "billing_payments",
-        ["user_id", "state"],
-    )
-    op.create_index(
         "ix_billing_payments_expiry_sweep",
         "billing_payments",
         ["expires_at"],
         postgresql_where=sa.text(f"state IN {REVIEWABLE_PAYMENT_STATES}"),
     )
+
+    # ix_billing_payments_user_state, ix_billing_invoices_user_state and
+    # ix_subscriptions_user_state are deliberately absent: 0003 already
+    # creates all three, and recreating them raises DuplicateTable on every
+    # fresh upgrade. They are dropped by 0003's downgrade, not this one.
 
     # --- wallet statements --------------------------------------------------
     op.create_index(
@@ -128,11 +128,6 @@ def upgrade() -> None:
     )
 
     # --- invoices ----------------------------------------------------------
-    op.create_index(
-        "ix_billing_invoices_user_state",
-        "billing_invoices",
-        ["user_id", "state"],
-    )
 
     # --- the support queue --------------------------------------------------
     op.create_index(
@@ -206,11 +201,6 @@ def upgrade() -> None:
         postgresql_where=sa.text("state = 'active'"),
     )
     op.create_index(
-        "ix_subscriptions_user_state",
-        "subscriptions",
-        ["user_id", "state"],
-    )
-    op.create_index(
         "ix_orders_user_time",
         "orders",
         ["user_id", sa.text("placed_at DESC")],
@@ -242,7 +232,6 @@ def downgrade() -> None:
         ("ix_audit_logs_action_time", "audit_logs"),
         ("ix_audit_logs_actor_time", "audit_logs"),
         ("ix_orders_user_time", "orders"),
-        ("ix_subscriptions_user_state", "subscriptions"),
         ("ix_subscriptions_expiry_sweep", "subscriptions"),
         ("ix_notify_broadcasts_due", "notify_broadcasts"),
         ("ix_notify_notifications_broadcast", "notify_notifications"),
@@ -253,10 +242,8 @@ def downgrade() -> None:
         ("ix_support_messages_ticket_time", "support_messages"),
         ("ix_support_tickets_assignee_open", "support_tickets"),
         ("ix_support_tickets_queue", "support_tickets"),
-        ("ix_billing_invoices_user_state", "billing_invoices"),
         ("ix_billing_wallet_entries_user_time", "billing_wallet_entries"),
         ("ix_billing_payments_expiry_sweep", "billing_payments"),
-        ("ix_billing_payments_user_state", "billing_payments"),
         ("ix_billing_payments_gateway_lookup", "billing_payments"),
         ("ix_billing_payments_review_queue", "billing_payments"),
         ("ix_billing_card_accounts_card_blind_index", "billing_card_accounts"),

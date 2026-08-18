@@ -108,7 +108,10 @@
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=no tests/unit/bot/test_shop_funnel.py)",
       "Bash(cp /tmp/shop.bak src/geekvpn/presentation/bot/handlers/shop.py)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_bot_error_handling.py)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_bot_webhook.py tests/integration/test_bot_error_handling.py)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_bot_webhook.py tests/integration/test_bot_error_handling.py)",
+      "Bash(./.venv/Scripts/python.exe -c \"import ast,pathlib; ast.parse\\(pathlib.Path\\('migrations/versions/0004_security_and_performance_indexes.py'\\).read_text\\(encoding='utf-8'\\)\\); print\\('0004 parses'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/integration/test_migrations.py -rs)",
+      "Bash(./.venv/Scripts/python.exe -c \"import psycopg; print\\('yes', psycopg.__version__\\)\")"
     ]
   }
 }

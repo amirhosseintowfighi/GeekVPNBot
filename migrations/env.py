@@ -47,6 +47,12 @@ def _configure(connection: Connection) -> None:
         compare_server_default=True,
         include_schemas=False,
         render_as_batch=False,
+        # Alembic defaults alembic_version.version_num to VARCHAR(32) and two
+        # revision ids in this tree are longer than that, so `upgrade head`
+        # failed on an empty database with a value-too-long error naming a
+        # column nobody wrote. Set on both configure calls: offline mode
+        # generates the CREATE TABLE, online mode inserts into it.
+        version_table_column_length=64,
     )
 
 
@@ -57,6 +63,12 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        # Alembic defaults alembic_version.version_num to VARCHAR(32) and two
+        # revision ids in this tree are longer than that, so `upgrade head`
+        # failed on an empty database with a value-too-long error naming a
+        # column nobody wrote. Set on both configure calls: offline mode
+        # generates the CREATE TABLE, online mode inserts into it.
+        version_table_column_length=64,
     )
     with context.begin_transaction():
         context.run_migrations()
