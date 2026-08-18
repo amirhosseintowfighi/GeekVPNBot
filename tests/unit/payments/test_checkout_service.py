@@ -152,6 +152,32 @@ def test_paying_from_the_wallet_settles_immediately():
     assert world.wallets.get_or_create(1001).balance.amount == 320_000
 
 
+def test_a_wallet_purchase_locks_the_wallet_before_reading_it():
+    """The guard against a double-spend.
+
+    Two concurrent purchases could otherwise both read the same balance, both
+    pass the affordability check, and both debit it - leaving a negative
+    balance for the CHECK constraint to reject later, against a customer who
+    has already been given two services.
+    """
+    world = World()
+    world.fund(1_000_000)
+
+    world.buy(gateway_key="wallet")
+
+    assert world.wallets.locked == [1001]
+
+
+def test_a_purchase_paid_another_way_does_not_lock_the_wallet():
+    """The lock is only warranted where the balance is actually spent."""
+    world = World()
+    world.fund(1_000_000)
+
+    world.buy(gateway_key="card")
+
+    assert world.wallets.locked == []
+
+
 def test_a_wallet_purchase_appears_in_the_ledger():
     world = World()
     world.fund(1_000_000)

@@ -75,7 +75,17 @@ class FakeAudit:
 
 class FakeWallets:
     def __init__(self) -> None:
+        self.locked: list[int] = []
         self.wallets: dict[int, object] = {}
+
+    def lock(self, user_id: int) -> None:
+        """Records the call so the ordering can be asserted.
+
+        The real one takes a transaction-scoped advisory lock; here the only
+        property worth pinning is that checkout takes it before reading the
+        balance, which is what makes the double-spend impossible.
+        """
+        self.locked.append(user_id)
 
     def get_or_create(self, user_id: int):
         from geekvpn.domain.payments.wallet import Wallet

@@ -43,6 +43,7 @@ from geekvpn.domain.payments.enums import (
 from geekvpn.domain.payments.errors import (
     DuplicateReceipt,
     PaymentExpired,
+    PaymentNotFound,
     PaymentValidationError,
 )
 from geekvpn.domain.payments.events import DuplicateReceiptDetected
@@ -237,7 +238,9 @@ class CheckoutService:
 
     # -- proof -------------------------------------------------------------
 
-    def submit_proof(self, *, payment_id: str, proof: PaymentProof) -> Payment:
+    def submit_proof(
+        self, *, payment_id: str, proof: PaymentProof, user_id: int | None = None
+    ) -> Payment:
         """Accept a receipt image or a transaction hash.
 
         Order of checks matters and is deliberate:
@@ -248,6 +251,11 @@ class CheckoutService:
            queue and waste an operator's attention.
         """
         payment = require_payment(self._payments, payment_id)
+        if user_id is not None and payment.user_id != user_id:
+            # Answered as "no such payment" on purpose. A distinct error would
+            # let anyone holding an id confirm that it belongs to someone else,
+            # and payment ids travel through Telegram messages.
+            raise PaymentNotFound("The payment was not found.", payment_id=payment_id)
         now = self._clock.now()
 
         if payment.is_expired_at(now):
@@ -310,6 +318,10 @@ class CheckoutService:
         accident.
         """
         now = self._clock.now()
+        # Before the read, not after: two concurrent purchases can otherwise
+        # both see the same balance, both pass the affordability check, and
+        # both debit it. `lock` existed for exactly this and had no callers.
+        self._wallets.lock(payment.user_id)
         wallet = self._wallets.get_or_create(payment.user_id)
         wallet.debit(
             amount,

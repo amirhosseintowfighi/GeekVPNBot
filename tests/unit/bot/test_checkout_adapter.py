@@ -48,6 +48,13 @@ def test_the_adapter_satisfies_the_checkout_port() -> None:
 # -- the receipt fingerprint ----------------------------------------------
 
 
+class KnownUser(NoUserBridge):
+    """A bridge whose customer exists, so ownership resolves."""
+
+    async def telegram_id(self, user_id: uuid.UUID) -> int:
+        return 555
+
+
 async def test_a_receipt_is_refused_when_it_cannot_be_fingerprinted() -> None:
     """Never fall back to hashing the file id.
 
@@ -55,7 +62,7 @@ async def test_a_receipt_is_refused_when_it_cannot_be_fingerprinted() -> None:
     digest would make a resubmitted receipt look new and silently defeat the
     duplicate-receipt control that docs/security.md calls the primary defence.
     """
-    adapter = build(fetch_receipt=None)
+    adapter = build(bridge=KnownUser(), fetch_receipt=None)
 
     with pytest.raises(RuntimeError, match="fingerprinted"):
         await adapter.attach_receipt(uuid.uuid4(), payment_id=uuid.uuid4(), file_id="AgAC")
@@ -75,17 +82,14 @@ async def test_the_fingerprint_is_taken_from_the_bytes_not_the_file_id() -> None
 
             return datetime(2026, 8, 7, tzinfo=UTC)
 
-    class Bridge(NoUserBridge):
-        async def telegram_id(self, user_id: uuid.UUID) -> int:
-            return 555
-
+    class Bridge(KnownUser):
         async def run(self, work):
             return work(_ScopeStub())
 
     class _Checkout:
         submitted: PaymentProof | None = None
 
-        def submit_proof(self, *, payment_id: str, proof: PaymentProof):
+        def submit_proof(self, *, payment_id: str, proof: PaymentProof, user_id=None):
             _Checkout.submitted = proof
             return _Payment()
 

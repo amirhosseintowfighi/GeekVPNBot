@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session
 
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.payments.enums import PaymentState
-from geekvpn.domain.payments.invoice import Invoice
+from geekvpn.domain.payments.invoice import INVOICE_PREFIX, Invoice
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.wallet import Wallet
 from geekvpn.infrastructure.persistence.mappers.payments import (
@@ -102,22 +102,28 @@ class SyncInvoiceRepository:
         return int(self._session.execute(stmt).scalar_one())
 
     def next_sequence(self, *, year: int) -> int:
-        """How many invoice numbers already carry this Jalali year.
+        """The next invoice number for this Jalali year, starting at 1.
 
-        Matching on the year as a substring rather than on a hard-coded prefix
-        is intentional: the number format is the checkout service's business,
-        and a repository that also knew the format would have to be edited
-        every time the format changed.
+        One-based because `format_invoice_number` refuses a sequence of zero,
+        so returning a bare count meant the first invoice of every Jalali year
+        raised instead of being issued.
 
-        This is a count, not a Postgres sequence, because invoice numbers
-        restart each Jalali year and a sequence has no idea when Nowruz is.
+        The pattern is anchored to the real number format. A bare ``%1405%``
+        also matches an id or an amount containing those digits, which would
+        silently skip numbers.
+
+        FOR UPDATE on the matching rows makes allocation atomic: two checkouts
+        in the same second would otherwise read the same count and claim the
+        same number, and `invoices.number` is unique.
         """
-        stmt = (
-            select(func.count())
-            .select_from(InvoiceModel)
-            .where(InvoiceModel.number.like(f"%{year}%"))
+        pattern = f"{INVOICE_PREFIX}-{year:04d}-%"
+        self._session.execute(
+            select(InvoiceModel.id).where(InvoiceModel.number.like(pattern)).with_for_update()
         )
-        return int(self._session.execute(stmt).scalar_one())
+        stmt = (
+            select(func.count()).select_from(InvoiceModel).where(InvoiceModel.number.like(pattern))
+        )
+        return int(self._session.execute(stmt).scalar_one()) + 1
 
 
 class SyncPaymentRepository:

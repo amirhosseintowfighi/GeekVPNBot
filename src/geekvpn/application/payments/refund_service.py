@@ -139,7 +139,11 @@ class RefundService:
                 kind=TransactionKind.REFUND,
                 occurred_at=now,
                 description_fa=("\u0628\u0627\u0632\u06af\u0634\u062a \u0648\u062c\u0647"),
-                reference=payment.invoice_id,
+                # The refund entry's own id, not the invoice's:
+                # uq_wallet_user_kind_reference makes a second partial refund
+                # against the same invoice a constraint violation when the two
+                # credits share a reference.
+                reference=entry.refund_id,
                 actor_id=request.actor_id,
             )
             self._wallets.save(wallet)

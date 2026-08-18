@@ -211,6 +211,7 @@ class BotCheckoutAdapter:
         new and quietly defeat `uq_receipt_digest`, which docs/security.md names
         as the primary defence against the same receipt being approved twice.
         """
+        owner_id = await self._require_telegram_id(user_id)
         if self._fetch_receipt is None:
             raise RuntimeError(
                 "No receipt fetcher is configured, so the image cannot be "
@@ -222,7 +223,7 @@ class BotCheckoutAdapter:
             image_digest=hashlib.sha256(image).hexdigest(),
             submitted_at=self._clock.now(),
         )
-        return await self._submit_proof(proof, payment_id)
+        return await self._submit_proof(proof, payment_id, owner_id)
 
     async def attach_txid(
         self, user_id: uuid.UUID, *, payment_id: uuid.UUID, txid: str
@@ -232,7 +233,7 @@ class BotCheckoutAdapter:
             network=self._crypto_network,
             submitted_at=self._clock.now(),
         )
-        return await self._submit_proof(proof, payment_id)
+        return await self._submit_proof(proof, payment_id, await self._require_telegram_id(user_id))
 
     # -- internals ---------------------------------------------------------
 
@@ -290,9 +291,15 @@ class BotCheckoutAdapter:
         await self._order_repository.update(order)
         return result, order
 
-    async def _submit_proof(self, proof: PaymentProof, payment_id: uuid.UUID) -> PendingPayment:
+    async def _submit_proof(
+        self, proof: PaymentProof, payment_id: uuid.UUID, owner_id: int
+    ) -> PendingPayment:
         def work(scope: SyncScope) -> PendingPayment:
-            payment = scope.checkout.submit_proof(payment_id=str(payment_id), proof=proof)
+            # The owner is passed so a customer cannot attach proof to
+            # somebody else's payment; ids travel through Telegram messages.
+            payment = scope.checkout.submit_proof(
+                payment_id=str(payment_id), proof=proof, user_id=owner_id
+            )
             return PendingPayment(
                 payment_id=_as_uuid(payment.id),
                 reference=payment.id,
