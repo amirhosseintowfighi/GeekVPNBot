@@ -121,12 +121,28 @@ ask ADMIN_IPS "Admin panel IP allowlist, comma separated (blank = allow any)" "n
 [[ "$ADMIN_IPS" == "none" ]] && ADMIN_IPS=""
 ask MINIAPP_ORIGIN "Mini App / admin panel origin for CORS" "https://${DOMAIN}"
 
+echo
+note "Monitoring (Prometheus + Grafana + Alertmanager) needs a Telegram chat"
+note "to send infrastructure alerts to. Leave blank to install without it."
+ask ALERT_CHAT "Telegram chat id for alerts (blank = skip monitoring)" "none"
+if [[ "$ALERT_CHAT" == "none" ]]; then
+  ALERT_CHAT=""
+  WITH_MONITORING=0
+  note "monitoring will be skipped"
+else
+  WITH_MONITORING=1
+fi
+
 step "Generating secrets"
 SECRET_KEY=$(gen_secret)
 ENCRYPTION_KEY=$(gen_secret)
 WEBHOOK_SECRET=$(gen_secret)
 PG_PASSWORD=$(gen_secret)
-ok "4 secrets generated (48 chars each, distinct)"
+# Production compose starts Redis with --requirepass and refuses an empty
+# value, so this is required rather than optional.
+REDIS_PASSWORD=$(gen_secret)
+GRAFANA_PASSWORD=$(gen_secret)
+ok "6 secrets generated (48 chars each, distinct)"
 note "They are written to .env only. Back that file up somewhere safe."
 
 # The production guardrail refuses to boot if these two match, because sharing
@@ -161,7 +177,7 @@ POSTGRES__MAX_OVERFLOW=20
 REDIS__HOST=redis
 REDIS__PORT=6379
 REDIS__DB=0
-REDIS__PASSWORD=
+REDIS__PASSWORD=${REDIS_PASSWORD}
 
 TELEGRAM__BOT_TOKEN=${BOT_TOKEN}
 TELEGRAM__WEBHOOK_SECRET=${WEBHOOK_SECRET}
@@ -184,6 +200,8 @@ AUTH__ADMIN_IP_ALLOWLIST=${ADMIN_IPS}
 
 PRIMARY_DOMAIN=${DOMAIN}
 CERTBOT_EMAIL=${CERTBOT_EMAIL}
+GRAFANA_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+ALERT_TELEGRAM_CHAT_ID=${ALERT_CHAT}
 ADMIN_ALLOW_CIDRS=${ADMIN_IPS}
 POSTGRES_PASSWORD=${PG_PASSWORD}
 EOF
@@ -233,7 +251,7 @@ ok "administrator '$ADMIN_USER' created"
 # ------------------------------------------------------------------- launch
 
 step "Starting the platform"
-WITH_MONITORING="${WITH_MONITORING:-1}" bash scripts/deploy.sh
+WITH_MONITORING="$WITH_MONITORING" bash scripts/deploy.sh
 ok "services started"
 
 # -------------------------------------------------------------------- check

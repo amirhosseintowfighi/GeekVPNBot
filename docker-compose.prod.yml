@@ -103,6 +103,22 @@ services:
       - ${REDIS_MAXMEMORY:-512mb}
       - --requirepass
       - ${REDIS__PASSWORD:?REDIS__PASSWORD is required in production}
+    # The base healthcheck runs `redis-cli ping` unauthenticated, which
+    # answers NOAUTH once requirepass is set - so the container would never
+    # become healthy and anything waiting on it would block forever.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS__PASSWORD}",
+          "--no-auth-warning",
+          "ping",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   migrate:
     image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
