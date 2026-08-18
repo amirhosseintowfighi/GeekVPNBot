@@ -32,10 +32,12 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.payments.enums import PaymentState
+from geekvpn.domain.payments.errors import DuplicateReceipt
 from geekvpn.domain.payments.invoice import INVOICE_PREFIX, Invoice
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.wallet import Wallet
@@ -251,6 +253,51 @@ class SyncPaymentRepository:
             .limit(limit)
         )
         return [self._hydrate(row) for row in self._session.execute(stmt).scalars().all()]
+
+
+class SyncReceiptDigestRepository:
+    """Writes the duplicate-receipt guard.
+
+    `SyncPaymentRepository.find_by_digest` has always *read* this table and
+    nothing ever wrote a row, so the lookup could only ever miss and the same
+    receipt could be submitted against as many payments as a customer liked.
+
+    Claiming is an INSERT and the primary key is what makes it atomic. A
+    select-then-insert would let two submissions of the same photo, in the same
+    second, both pass the check.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def claim(
+        self,
+        digest: str,
+        *,
+        payment_id: str,
+        user_id: int,
+        reference: str,
+        method: str,
+        seen_at: datetime,
+    ) -> None:
+        """Record the digest. Raises ``IntegrityError`` if already claimed."""
+        self._session.add(
+            ReceiptDigestModel(
+                digest=digest,
+                payment_id=payment_id,
+                user_id=user_id,
+                reference=reference,
+                method=method,
+                seen_at=seen_at,
+            )
+        )
+        try:
+            # Flushed here so the violation surfaces as a failure of *this*
+            # call, inside the same transaction as attach_proof, rather than at
+            # an unrelated commit later.
+            self._session.flush()
+        except IntegrityError as exc:
+            raise DuplicateReceipt(reference=reference, existing_payment=payment_id) from exc
 
 
 class SyncWalletRepository:

@@ -55,7 +55,10 @@ from geekvpn.domain.provisioning.order import Order
 from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
 from geekvpn.infrastructure.di.sync_scope import SyncScope
-from geekvpn.infrastructure.persistence.repositories.catalog import SqlAlchemyPlanRepository
+from geekvpn.infrastructure.persistence.repositories.catalog import (
+    SqlAlchemyCouponRepository,
+    SqlAlchemyPlanRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SqlAlchemyOrderRepository,
 )
@@ -95,6 +98,7 @@ class BotCheckoutAdapter:
         provisioning: ProvisioningService,
         session: AsyncSession,
         plans: SqlAlchemyPlanRepository,
+        coupons: SqlAlchemyCouponRepository,
         clock: Clock,
         jalali_year: int,
         crypto_network: str = "TRC20",
@@ -110,6 +114,7 @@ class BotCheckoutAdapter:
         self._provisioning = provisioning
         self._session = session
         self._plans = plans
+        self._coupons = coupons
         self._clock = clock
         self._jalali_year = jalali_year
         self._crypto_network = crypto_network
@@ -249,7 +254,16 @@ class BotCheckoutAdapter:
         plan = await self._plans.get(plan_id)
         if plan is None:
             raise LookupError(f"No plan {plan_id}.")
-        quote = await self._quoting.quote(plan_id=plan_id, user_id=user_id, coupon_code=coupon_code)
+        # Read from order history rather than defaulted. Left False, a
+        # first-purchase-only coupon is redeemable forever and every
+        # returning customer is priced as a new one.
+        is_first = not await self._order_repository.has_completed_order(telegram_id)
+        quote = await self._quoting.quote(
+            plan_id=plan_id,
+            user_id=user_id,
+            coupon_code=coupon_code,
+            is_first_purchase=is_first,
+        )
 
         # The plan's terms are copied onto the order, not referenced, so a price
         # change next month cannot rewrite what was sold today.
@@ -267,6 +281,8 @@ class BotCheckoutAdapter:
             discount=quote.base_price - quote.total,
             coupon_code=coupon_code,
         )
+
+        await self._record_coupon_use(quote, user_id=user_id, order_id=order.id)
 
         year = self._jalali_year
         lines = _lines_for(plan.name_fa, quote)
@@ -310,6 +326,36 @@ class BotCheckoutAdapter:
             )
 
         return await self._bridge.run(work)
+
+    async def _record_coupon_use(
+        self, quote: PriceQuote, *, user_id: uuid.UUID, order_id: str
+    ) -> None:
+        """Count the redemption against the coupon.
+
+        `Coupon.redeem` and `record_redemption` both existed and neither had a
+        caller, so max_redemptions and max_per_user were decorative: a code
+        capped at one use worked for everyone, forever.
+
+        Same transaction as the order. A redemption recorded outside it would
+        either be lost when the order rolls back, or survive an order that
+        never existed.
+        """
+        if quote.coupon_code is None:
+            return
+        coupon = await self._coupons.get_by_code(quote.coupon_code)
+        if coupon is None:
+            return
+
+        discount = quote.base_price - quote.total
+        coupon.redeem(user_id=user_id, discount=discount)
+        await self._coupons.update(coupon)
+        await self._coupons.record_redemption(
+            coupon_id=coupon.id,
+            user_id=user_id,
+            order_id=None,
+            discount=discount.amount,
+            redeemed_at=self._clock.now(),
+        )
 
     async def _require_telegram_id(self, user_id: uuid.UUID) -> int:
         telegram_id = await self._bridge.telegram_id(user_id)

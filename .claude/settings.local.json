@@ -115,7 +115,9 @@
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/bot/)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/bot/test_checkout_adapter.py)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_checkout_service.py)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_checkout_service.py)",
+      "Bash(./.venv/Scripts/lint-imports.exe)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --no-header --tb=line tests/unit/payments/test_audit_wiring_fixes.py)"
     ]
   }
 }

@@ -34,6 +34,7 @@ def build(**overrides: object) -> BotCheckoutAdapter:
         "provisioning": object(),
         "session": object(),
         "plans": object(),
+        "coupons": object(),
         "clock": object(),
         "jalali_year": 1405,
     }

@@ -74,6 +74,7 @@ from geekvpn.infrastructure.persistence.repositories.sync_notifications import (
 from geekvpn.infrastructure.persistence.repositories.sync_payments import (
     SyncInvoiceRepository,
     SyncPaymentRepository,
+    SyncReceiptDigestRepository,
     SyncWalletRepository,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_support import (
@@ -371,6 +372,10 @@ class SyncScope:
     # -- billing -----------------------------------------------------------
 
     @cached_property
+    def receipt_digests(self) -> SyncReceiptDigestRepository:
+        return SyncReceiptDigestRepository(self.session)
+
+    @cached_property
     def checkout(self) -> CheckoutService:
         return CheckoutService(
             invoices=self.invoices,
@@ -381,6 +386,9 @@ class SyncScope:
             ids=self.ids,
             events=self.events,
             audit=self.audit,
+            # Without this the digest table is read and never written, so
+            # the duplicate-receipt guard can only ever miss.
+            digests=self.receipt_digests,
         )
 
     @cached_property

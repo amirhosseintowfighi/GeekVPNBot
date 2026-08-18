@@ -32,6 +32,7 @@ from geekvpn.application.payments.ports import (
     InvoiceRepository,
     PaymentAuditLog,
     PaymentRepository,
+    ReceiptDigestRepository,
     WalletRepository,
 )
 from geekvpn.domain.catalog.money import Money
@@ -92,6 +93,7 @@ class CheckoutService:
     __slots__ = (
         "_audit",
         "_clock",
+        "_digests",
         "_events",
         "_gateways",
         "_ids",
@@ -111,6 +113,7 @@ class CheckoutService:
         ids: IdGenerator,
         events: EventPublisher,
         audit: PaymentAuditLog,
+        digests: ReceiptDigestRepository | None = None,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
@@ -120,6 +123,7 @@ class CheckoutService:
         self._ids = ids
         self._events = events
         self._audit = audit
+        self._digests = digests
 
     # -- starting ----------------------------------------------------------
 
@@ -290,6 +294,24 @@ class CheckoutService:
             raise DuplicateReceipt(reference=proof.reference, existing_payment=existing.id)
 
         payment.attach_proof(proof)
+
+        # Claimed in the same transaction as the proof it belongs to. The read
+        # above closes the common case; this closes the race between two
+        # submissions of the same photo, and it is the write that makes the
+        # read able to find anything at all.
+        if self._digests is not None:
+            # Raises DuplicateReceipt if the digest is already claimed. The
+            # translation happens in the repository, because the constraint
+            # violation is a driver concern and this layer may not import one.
+            self._digests.claim(
+                proof.digest,
+                payment_id=payment.id,
+                user_id=payment.user_id,
+                reference=proof.reference,
+                method=payment.method.value,
+                seen_at=now,
+            )
+
         self._payments.save(payment)
         self._publish(payment)
         return payment

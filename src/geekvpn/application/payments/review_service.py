@@ -27,6 +27,7 @@ from geekvpn.application.payments.ports import (
     PaymentRepository,
     WalletRepository,
 )
+from geekvpn.application.payments.topups import credit_topup
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.payments.enums import PaymentState, TransactionKind
 from geekvpn.domain.payments.errors import (
@@ -96,10 +97,23 @@ class PaymentReviewService:
         payment.approve(at=now, approved_by=request.actor_id, captured=actual)
         invoice.mark_paid(payment_id=payment.id, at=now)
 
-        wallet = None
+        # A settled top-up buys nothing; its whole purpose is the credit, and
+        # until now nothing performed it.
+        wallet = credit_topup(
+            invoice,
+            wallets=self._wallets,
+            amount=expected,
+            entry_id=self._ids.new_id(),
+            now=now,
+        )
+
         if surplus.amount > 0:
             # Overpayment is the customer's money. It is credited, not kept.
-            wallet = self._wallets.get_or_create(payment.user_id)
+            # Reuse the aggregate credit_topup already loaded. Re-reading
+            # here would discard the top-up entry it just added, so an
+            # overpaid top-up would credit the surplus and lose the
+            # principal.
+            wallet = wallet or self._wallets.get_or_create(payment.user_id)
             wallet.credit(
                 surplus,
                 entry_id=self._ids.new_id(),

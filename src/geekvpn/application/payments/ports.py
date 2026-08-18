@@ -82,6 +82,33 @@ class PaymentAuditLog(Protocol):
 
 
 @runtime_checkable
+class ReceiptDigestRepository(Protocol):
+    """Writes the duplicate-receipt guard.
+
+    Separate from `PaymentRepository` because the read side already lives
+    there; this is only the claim, and it is the half that was missing.
+    """
+
+    def claim(
+        self,
+        digest: str,
+        *,
+        payment_id: str,
+        user_id: int,
+        reference: str,
+        method: str,
+        seen_at: datetime,
+    ) -> None:
+        """Record the digest.
+
+        :raises DuplicateReceipt: the digest has already been claimed. The
+            implementation translates its own constraint violation, so this
+            layer never sees a driver exception.
+        """
+        ...
+
+
+@runtime_checkable
 class WalletRepository(Protocol):
     def get_or_create(self, user_id: int) -> Wallet:
         """Load a wallet, inventing an empty one for a user who never paid.
