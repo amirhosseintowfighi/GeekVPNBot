@@ -301,6 +301,63 @@ def test_scripts_only_ask_the_edge_for_paths_it_answers_directly() -> None:
                 )
 
 
+#: Services no script starts, each for a stated reason. Anything not here and
+#: not named by deploy.sh is a service nothing runs - which is the failure this
+#: whole audit is about, in compose form.
+NEVER_STARTED: dict[str, str] = {
+    "api": "profile-disabled in production; api_blue/api_green replace it",
+    "migrate": "run to completion with `run --rm`, not brought up",
+    "api_blue": "started through the colour variable, not by name",
+    "api_green": "started through the colour variable, not by name",
+}
+
+
+def all_compose_services() -> dict[str, str]:
+    """Every service across every compose file, mapped to the file defining it."""
+    found: dict[str, str] = {}
+    for path in compose_files():
+        text = path.read_text(encoding="utf-8")
+        start = text.index("\nservices:")
+        ends = [text.find(f"\n{key}:", start) for key in ("volumes", "networks")]
+        end = min([e for e in ends if e > 0], default=len(text))
+        for name in re.findall(r"^  ([a-z][a-z0-9_-]*):$", text[start:end], re.MULTILINE):
+            found.setdefault(name, path.name)
+    return found
+
+
+def test_every_compose_service_is_started_by_something() -> None:
+    """CLAUDE.md's first rule, in compose form: anything defined has to be
+    reachable from a real entry point.
+
+    `worker` runs every scheduled behaviour the platform promises - expiry,
+    renewal reminders, the notification queue - and no script started it, so
+    none of that ran. `certbot`'s renewal loop was never started either, which
+    would have taken TLS down on day ninety. The whole monitoring stack was
+    prompted for, given a generated Grafana password, written into .env, and
+    never launched.
+    """
+    deploy = (ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    # Join continuation lines first: a service named after a trailing backslash
+    # is still started, and reading the file line by line would miss it.
+    logical = deploy.replace("\\\n", " ")
+    started = {
+        name
+        for line in logical.splitlines()
+        if not line.lstrip().startswith("#") and "$COMPOSE up -d" in line
+        for name in re.findall(r"[a-z][a-z0-9_-]*", line.split("$COMPOSE up -d", 1)[1])
+    }
+
+    orphans = {
+        name: source
+        for name, source in all_compose_services().items()
+        if name not in started and name not in NEVER_STARTED
+    }
+
+    assert not orphans, "these compose services exist and nothing starts them:\n  " + "\n  ".join(
+        f"{name} (in {source})" for name, source in sorted(orphans.items())
+    )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""

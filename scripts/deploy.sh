@@ -256,5 +256,25 @@ log "restarting the bot onto the new image"
 # acceptable because Telegram retries undelivered webhook updates.
 $COMPOSE up -d --no-deps bot || warn "the bot did not restart; check it manually"
 
+log "starting the background services"
+# Neither of these had ever been started by anything. They were defined,
+# configured, wired into compose - and no script ever brought them up.
+#
+#   worker   every scheduled behaviour the platform promises: subscription
+#            expiry, renewal reminders, the notification queue. Without it
+#            subscriptions never expire and nobody is ever reminded to renew.
+#   certbot  the renewal loop. The first certificate is issued by install.sh;
+#            this is what stops TLS going down on day ninety.
+$COMPOSE up -d --no-deps worker || warn "the worker did not start; no scheduled job will run"
+$COMPOSE up -d --no-deps certbot || warn "certbot did not start; TLS will not auto-renew"
+
+if [[ "${WITH_MONITORING:-1}" == "1" && -f docker-compose.monitoring.yml ]]; then
+  # Same again: the installer asks for an alert chat id, generates a Grafana
+  # password and writes both, and until now started none of it.
+  log "starting monitoring"
+  $COMPOSE up -d prometheus alertmanager grafana node-exporter \
+    postgres-exporter redis-exporter || warn "monitoring did not start; the platform is unaffected"
+fi
+
 log "deployed ${IDLE} successfully."
 log "rollback if needed:  scripts/deploy.sh rollback"
