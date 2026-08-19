@@ -44,13 +44,27 @@ require_active_file() {
   # Docker creates a *directory* at the host path of a bind mount when that
   # path does not exist, and this file is bind-mounted into nginx. So one
   # checkout missing it - a partial copy, a stale working tree - permanently
-  # replaces it with a directory, and every later run fails somewhere further
-  # in with `grep: ...: Is a directory`. Named here instead.
+  # replaces it with a directory, and every run after that failed somewhere
+  # further in with `grep: ...: Is a directory`.
+  #
+  # Repaired rather than reported: this script knows what the file should
+  # contain, and api_blue is what the repository ships. Asking an operator to
+  # restore a one-line file the tool can write itself is a step that exists
+  # only to be forgotten. A non-empty directory is left alone - that is
+  # somebody's data, not Docker's leftover.
   [[ -f "$ACTIVE_FILE" ]] && return 0
+
   if [[ -d "$ACTIVE_FILE" ]]; then
-    die "${ACTIVE_FILE} is a directory. Docker created it when the file was missing from this checkout. Remove it and restore the file: rmdir '${ACTIVE_FILE}' && git checkout -- '${ACTIVE_FILE}'"
+    rmdir "$ACTIVE_FILE" 2>/dev/null \
+      || die "${ACTIVE_FILE} is a non-empty directory. Nothing here created that; inspect it and remove it by hand."
+    warn "${ACTIVE_FILE} was a directory left by a bind mount with no file behind it; recreating it"
+  else
+    warn "${ACTIVE_FILE} was missing; recreating it"
   fi
-  die "${ACTIVE_FILE} is missing. Restore it before deploying: git checkout -- '${ACTIVE_FILE}'"
+
+  printf '%s\n' \
+    '# Which colour currently serves traffic. Rewritten by scripts/deploy.sh.' \
+    'set $active_api api_blue;' > "$ACTIVE_FILE"
 }
 
 current_colour() {
