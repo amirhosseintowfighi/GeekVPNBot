@@ -189,6 +189,16 @@ services:
       - certbot-conf:/etc/letsencrypt
       - certbot-www:/var/www/certbot
       - nginx-tls:/etc/nginx/tls
+    # !override, not a merge: Compose merges depends_on across files, so the
+    # base file's `api: healthy` and `bot: healthy` were inherited here and
+    # `up -d nginx` started the very services this file's header says are not
+    # started in production. It also meant the edge waited on the health of a
+    # container that has no part in a blue/green deploy.
+    #
+    # Nothing is named in its place. Which colour is live is decided by
+    # active-api.conf, and requiring either one to be up would defeat the point
+    # of running two.
+    depends_on: !override []
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
       interval: 30s
