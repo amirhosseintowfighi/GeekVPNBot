@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.application.support.search_service import SearchQuery
 from geekvpn.application.support.ticket_service import NoteRequest, ReplyRequest
@@ -39,6 +39,7 @@ from geekvpn.presentation.api.admin_common import (
     mutate_scope,
     read_scope,
 )
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.security import CurrentAdmin, requires
 
@@ -49,7 +50,7 @@ templates_router = APIRouter(prefix="/admin/reply-templates", tags=["support"])
 # -- request bodies ---------------------------------------------------------
 
 
-class ReplyBody(BaseModel):
+class ReplyBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     bodyFa: str = Field(min_length=1, max_length=4_000)
@@ -59,25 +60,25 @@ class ReplyBody(BaseModel):
     )
 
 
-class NoteBody(BaseModel):
+class NoteBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     bodyFa: str = Field(min_length=1, max_length=4_000)
 
 
-class PriorityBody(BaseModel):
+class PriorityBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     priority: TicketPriority
 
 
-class CategoryBody(BaseModel):
+class CategoryBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     category: TicketCategory
 
 
-class AssignBody(BaseModel):
+class AssignBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     assigneeId: int | None = Field(
@@ -85,7 +86,7 @@ class AssignBody(BaseModel):
     )
 
 
-class TemplateCreateBody(BaseModel):
+class TemplateCreateBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     titleFa: str = Field(min_length=2, max_length=120)
@@ -93,7 +94,7 @@ class TemplateCreateBody(BaseModel):
     categories: list[TicketCategory] = Field(default_factory=list)
 
 
-class TemplateUpdateBody(BaseModel):
+class TemplateUpdateBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     titleFa: str | None = Field(default=None, min_length=2, max_length=120)

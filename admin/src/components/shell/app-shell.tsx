@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isBareRoute) return <>{children}</>
 
-  const queue = data?.queue ?? null
+  const queue = data?.actions ?? null
 
   return (
     <div className="flex h-dvh overflow-hidden">

@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faNumber, faRelative, percent } from '@/lib/fa'
+import { faNumber, faRelative } from '@/lib/fa'
 import { SERVER_HEALTH } from '@/lib/labels'
 import type { ServerRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
@@ -67,24 +67,27 @@ export default function ServersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{'\u0633\u0631\u0648\u0631'}</TableHead>
-                <TableHead>{'\u0645\u0648\u0642\u0639\u06cc\u062a'}</TableHead>
+                <TableHead>{'\u06a9\u0634\u0648\u0631'}</TableHead>
                 <TableHead>{'\u0648\u0636\u0639\u06cc\u062a'}</TableHead>
-                <TableHead>{'\u0628\u0627\u0631'}</TableHead>
-                <TableHead>{'\u062a\u0623\u062e\u06cc\u0631'}</TableHead>
+                <TableHead>{'\u0638\u0631\u0641\u06cc\u062a'}</TableHead>
                 <TableHead>{'\u0622\u062e\u0631\u06cc\u0646 \u0628\u0631\u0631\u0633\u06cc'}</TableHead>
-                <TableHead>{'\u0646\u0645\u0627\u06cc\u0634 \u0639\u0645\u0648\u0645\u06cc'}</TableHead>
+                <TableHead>{'\u067e\u0630\u06cc\u0631\u0634 \u06a9\u0627\u0631\u0628\u0631 \u062c\u062f\u06cc\u062f'}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.map((server) => {
-                const health = SERVER_HEALTH[server.health]
-                const fraction = Math.min(1, server.loadPercent / 100)
+                // A node reports capacity and a live account count, not a load
+                // percentage or a latency: those were read off a shape this API
+                // has never returned, so every cell rendered undefined.
+                const health = SERVER_HEALTH[server.state]
+                const fraction =
+                  server.capacity > 0 ? Math.min(1, server.accountCount / server.capacity) : 0
                 return (
                   <TableRow key={server.id}>
-                    <TableCell>
-                      {server.flag} {server.nameFa}
+                    <TableCell>{server.nameFa}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {server.countryCode ?? '\u2014'}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{server.locationFa}</TableCell>
                     <TableCell>
                       <Badge variant={health.tone} dot>
                         {health.fa}
@@ -95,29 +98,23 @@ export default function ServersPage() {
                         {/* Same 75/90 percent thresholds the customer app uses
                             for quota, so "amber means getting full" reads the
                             same everywhere. */}
-                        <Progress value={server.loadPercent} tone={usageTone(fraction)} />
+                        <Progress value={fraction * 100} tone={usageTone(fraction)} />
                         <span className="nums text-2xs text-muted-foreground">
-                          {percent(server.loadPercent) +
-                            ' \u00b7 ' +
-                            faNumber(server.userCount) +
-                            ' \u06a9\u0627\u0631\u0628\u0631'}
+                          {faNumber(server.accountCount) +
+                            ' / ' +
+                            faNumber(server.capacity)}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell numeric>
-                      {server.latencyMs === null
-                        ? '\u2014'
-                        : faNumber(server.latencyMs) + ' \u0645\u06cc\u0644\u06cc\u200c\u062b\u0627\u0646\u06cc\u0647'}
-                    </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {server.lastCheckedAt ? faRelative(server.lastCheckedAt) : '\u2014'}
+                      {server.lastCheckAt ? faRelative(server.lastCheckAt) : '\u2014'}
                     </TableCell>
                     <TableCell>
                       <Switch
-                        checked={server.isVisible}
+                        checked={server.acceptingNew}
                         disabled={!can('servers.edit')}
                         onCheckedChange={async (checked) => {
-                          await api.saveServer({ ...server, isVisible: checked })
+                          await api.saveServer(server.id, { acceptingNew: checked })
                           mutate()
                         }}
                       />

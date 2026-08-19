@@ -168,11 +168,10 @@ def test_every_bind_mount_source_exists_in_the_repository() -> None:
     )
 
 
-#: Hosts nginx proxies to that this stack does not start. `miniapp` came off
-#: this list when it got a service that builds; `admin` stays until its panel
-#: compiles, so admin.<domain> answers 502 by design rather than by omission.
-#: An entry here is a known gap; anything not here and not a service is a typo.
-UNPROVISIONED_BACKENDS: frozenset[str] = frozenset({"admin"})
+#: Hosts nginx proxies to that this stack does not start. Empty: both
+#: front-ends have services now, and both compile. An entry here is a known
+#: gap; anything not here and not a compose service is a typo.
+UNPROVISIONED_BACKENDS: frozenset[str] = frozenset()
 
 NGINX_DIR = ROOT / "docker" / "nginx"
 
@@ -301,7 +300,6 @@ def test_scripts_only_ask_the_edge_for_paths_it_answers_directly() -> None:
 #: whole audit is about, in compose form.
 NEVER_STARTED: dict[str, str] = {
     "api": "profile-disabled in production; api_blue/api_green replace it",
-    "admin": "profile-disabled until the panel type-checks; see its service comment",
     "migrate": "run to completion with `run --rm`, not brought up",
     "api_blue": "started through the colour variable, not by name",
     "api_green": "started through the colour variable, not by name",

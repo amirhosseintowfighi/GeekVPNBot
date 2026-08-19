@@ -33,6 +33,7 @@ import type {
   UserRow,
   WalletTransactionRow,
 } from './types'
+import type { CouponCreateBody, NodeUpdateBody, PagedWithCursor } from './types'
 import type { Role } from './rbac'
 
 export const BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? ''
@@ -157,51 +158,93 @@ export const api = {
     fetcher<DashboardSummary>(`${ROOT}/analytics/dashboard${qs({ days })}`),
 
   // --------------------------------------------------------------- users
-  users: (params: {
-    page: number
-    pageSize?: number
-    query?: string
-    state?: string
-    tier?: string
-  }) => fetcher<Paged<UserRow>>(`${ROOT}/customers${qs({ page_size: 25, ...params })}`),
+  // limit/offset, because that is what the endpoint takes. It was being sent
+  // page/page_size/tier/sort/direction, none of which it has ever accepted;
+  // FastAPI ignores unknown query parameters, so every request quietly
+  // returned the unfiltered, unsorted first page.
+  users: (params: { page: number; pageSize?: number; query?: string; status?: string }) => {
+    const limit = params.pageSize ?? 25
+    return fetcher<Paged<UserRow>>(
+      `${ROOT}/customers${qs({
+        limit,
+        offset: (params.page - 1) * limit,
+        query: params.query,
+        status: params.status,
+      })}`,
+    )
+  },
 
   user: (userId: string) => fetcher<UserDetail>(`${ROOT}/customers/${userId}`),
 
-  updateUser: (userId: string, patch: { displayName?: string; noteFa?: string }) =>
-    mutate<UserDetail>('PATCH', `${ROOT}/customers/${userId}`, patch),
-
-  suspendUser: (userId: string, reasonFa: string) =>
-    mutate<UserDetail>('POST', `${ROOT}/customers/${userId}/suspend`, { reason: reasonFa }),
+  // Both return the customer alone, not the detail envelope.
+  suspendUser: (userId: string, reason: string) =>
+    mutate<UserRow>('POST', `${ROOT}/customers/${userId}/suspend`, { reason }),
   reinstateUser: (userId: string) =>
-    mutate<UserDetail>('POST', `${ROOT}/customers/${userId}/reinstate`),
+    mutate<UserRow>('POST', `${ROOT}/customers/${userId}/reinstate`),
 
   // -------------------------------------------------------- subscriptions
-  subscriptions: (params: { page: number; query?: string; state?: string }) =>
-    fetcher<Paged<AdminSubscriptionRow>>(`${ROOT}/subscriptions${qs(params)}`),
+  subscriptions: (params: {
+    page: number
+    pageSize?: number
+    state?: string
+    userId?: number
+    nodeId?: string
+  }) => {
+    const limit = params.pageSize ?? 25
+    return fetcher<Paged<AdminSubscriptionRow>>(
+      `${ROOT}/subscriptions${qs({
+        limit,
+        offset: (params.page - 1) * limit,
+        state: params.state,
+        user_id: params.userId,
+        node_id: params.nodeId,
+      })}`,
+    )
+  },
 
   rotateSubscription: (subscriptionId: string) =>
     mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${subscriptionId}/rotate`),
 
   // -------------------------------------------------------------- orders
-  orders: (params: {
-    page: number
-    query?: string
-    state?: string
-    method?: string
-    from?: string
-    to?: string
-  }) => fetcher<Paged<OrderRow>>(`${ROOT}/orders${qs(params)}`),
+  // state, number, limit, offset. The method/from/to filters it used to send
+  // do not exist on the endpoint and were silently ignored.
+  orders: (params: { page: number; pageSize?: number; state?: string; number?: string }) => {
+    const limit = params.pageSize ?? 25
+    return fetcher<Paged<OrderRow>>(
+      `${ROOT}/orders${qs({
+        limit,
+        offset: (params.page - 1) * limit,
+        state: params.state,
+        number: params.number,
+      })}`,
+    )
+  },
 
   order: (orderId: string) => fetcher<OrderDetail>(`${ROOT}/orders/${orderId}`),
 
-  approveOrder: (orderId: string, noteFa?: string) =>
-    mutate<OrderDetail>('POST', `${ROOT}/orders/${orderId}/approve`, { noteFa }),
+  // The only action an order has. Approving, rejecting and refunding are
+  // payment operations and live under /payments/{paymentId}; the three
+  // methods that used to be here posted to /orders/{id}/approve|reject|refund,
+  // which have never existed.
+  retryProvision: (orderId: string) =>
+    mutate<{ ok: boolean; subscriptionId: string | null; message: string | null }>(
+      'POST',
+      `${ROOT}/orders/${orderId}/retry-provision`,
+    ),
 
-  rejectOrder: (orderId: string, reasonFa: string) =>
-    mutate<OrderDetail>('POST', `${ROOT}/orders/${orderId}/reject`, { reasonFa }),
+  approvePayment: (paymentId: string, actualAmount?: number) =>
+    mutate<Record<string, unknown>>('POST', `${ROOT}/payments/${paymentId}/approve`, {
+      actualAmount: actualAmount ?? null,
+    }),
 
-  refundOrder: (orderId: string, amount: number, reasonFa: string) =>
-    mutate<OrderDetail>('POST', `${ROOT}/orders/${orderId}/refund`, { amount, reasonFa }),
+  rejectPayment: (paymentId: string, reasonFa: string) =>
+    mutate<Record<string, unknown>>('POST', `${ROOT}/payments/${paymentId}/reject`, { reasonFa }),
+
+  refundPayment: (paymentId: string, amount: number, reasonFa: string) =>
+    mutate<Record<string, unknown>>('POST', `${ROOT}/payments/${paymentId}/refund`, {
+      amount,
+      reasonFa,
+    }),
 
   // ------------------------------------------------------------ catalog
   categories: () => fetcher<CategoryRow[]>(`${ROOT}/catalog/categories`),
@@ -239,35 +282,40 @@ export const api = {
 
   // ------------------------------------------------------ panels/servers
   panels: () => fetcher<PanelRow[]>(`${ROOT}/panels`),
-  savePanel: (body: Partial<PanelRow> & { password?: string }) =>
+  savePanel: (body: NodeUpdateBody & { password?: string }) =>
     mutate<PanelRow>('POST', `${ROOT}/panels`, body),
+  // PATCH, and only the fields being changed. Posting a whole row back to
+  // /panels created a second node instead of editing the one in front of you.
+  updatePanel: (nodeId: string, patch: NodeUpdateBody) =>
+    mutate<PanelRow>('PATCH', `${ROOT}/panels/${nodeId}`, patch),
   testPanel: (panelId: string) =>
-    mutate<{ ok: boolean; messageFa: string; latencyMs: number | null }>(
+    mutate<{ ok: boolean; latencyMs: number | null; version: string | null; message: string | null }>(
       'POST',
       `${ROOT}/panels/${panelId}/test-connection`,
     ),
-  syncPanel: (panelId: string) =>
-    mutate<PanelRow>('POST', `${ROOT}/panels/${panelId}/sync`),
 
+  // A server *is* a node; there is one resource, not two.
   servers: () => fetcher<ServerRow[]>(`${ROOT}/panels`),
-  saveServer: (body: Partial<ServerRow>) =>
-    mutate<ServerRow>('POST', `${ROOT}/panels`, body),
+  saveServer: (nodeId: string, patch: NodeUpdateBody) =>
+    mutate<ServerRow>('PATCH', `${ROOT}/panels/${nodeId}`, patch),
 
   // --------------------------------------------------------- promotions
-  coupons: (params: { page: number; query?: string; state?: string }) =>
-    fetcher<Paged<CouponRow>>(`${ROOT}/catalog/coupons${qs(params)}`),
-  saveCoupon: (body: Partial<CouponRow>) =>
+  // A plain list, not a page: GET /catalog/coupons returns an array.
+  coupons: (params: { state?: string }) =>
+    fetcher<CouponRow[]>(`${ROOT}/catalog/coupons${qs(params)}`),
+  saveCoupon: (body: CouponCreateBody) =>
     mutate<CouponRow>('POST', `${ROOT}/catalog/coupons`, body),
-  bulkCreateCoupons: (body: { count: number; prefix: string; template: Partial<CouponRow> }) =>
+  bulkCreateCoupons: (body: { count: number; prefix: string; template: CouponCreateBody }) =>
     mutate<CouponRow[]>('POST', `${ROOT}/catalog/coupons/bulk`, body),
+  // DELETE, which is what archives it. POST to the same path is not a route.
   archiveCoupon: (couponId: string) =>
-    mutate<CouponRow>('POST', `${ROOT}/catalog/coupons/${couponId}`),
+    mutate<CouponRow>('DELETE', `${ROOT}/catalog/coupons/${couponId}`),
 
   campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/catalog/campaigns`),
   saveCampaign: (body: Partial<CampaignRow>) =>
     mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns`, body),
   setCampaignState: (campaignId: string, state: string) =>
-    mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),
+    mutate<CampaignRow>('PUT', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),
 
   // ---------------------------------------------------------- analytics
   // A window in days, matching GET /api/v1/admin/analytics, which takes
@@ -280,49 +328,76 @@ export const api = {
   broadcasts: () => fetcher<BroadcastRow[]>(`${ROOT}/broadcasts`),
   estimateAudience: (audience: BroadcastAudience) =>
     mutate<{ count: number }>('POST', `${ROOT}/broadcasts/estimate`, audience),
-  saveBroadcast: (body: {
-    titleFa: string
+  // Compose and send in one call, matching what the screen does: an operator
+  // writes the message, sees the audience count, and sends. There is no draft
+  // to save separately. Still unbuilt server-side - see KNOWN_GAPS.
+  sendBroadcast: (body: {
+    segment: BroadcastAudience['segment']
     bodyFa: string
-    audience: BroadcastAudience
-    scheduledAt: string | null
+    category: 'promos' | 'news' | 'critical'
+    respectQuietHours: boolean
   }) => mutate<BroadcastRow>('POST', `${ROOT}/broadcasts`, body),
-  sendBroadcast: (broadcastId: string) =>
-    mutate<BroadcastRow>('POST', `${ROOT}/broadcasts/${broadcastId}/send`),
   cancelBroadcast: (broadcastId: string) =>
     mutate<BroadcastRow>('POST', `${ROOT}/broadcasts/${broadcastId}/cancel`),
 
   // ------------------------------------------------------------ tickets
-  tickets: (params: { page: number; state?: string; query?: string }) =>
-    fetcher<Paged<AdminTicketRow>>(`${ROOT}/tickets${qs(params)}`),
+  // category, priority, assigneeId and a page number. There is no free-text
+  // query and no sort on this endpoint.
+  tickets: (params: { page: number; category?: string; priority?: string; assigneeId?: number }) =>
+    fetcher<PagedWithCursor<AdminTicketRow>>(`${ROOT}/tickets${qs(params)}`),
+  ticket: (ticketId: string) => fetcher<AdminTicketRow>(`${ROOT}/tickets/${ticketId}`),
+  // Wrapped in {items}, and a separate call from the ticket itself.
   ticketMessages: (ticketId: string) =>
-    fetcher<AdminTicketMessage[]>(`${ROOT}/tickets/${ticketId}/messages`),
-  replyToTicket: (ticketId: string, bodyFa: string) =>
-    mutate<AdminTicketMessage>('POST', `${ROOT}/tickets/${ticketId}/messages`, { bodyFa }),
+    fetcher<{ items: AdminTicketMessage[] }>(`${ROOT}/tickets/${ticketId}/messages`),
+  replyToTicket: (ticketId: string, message: string) =>
+    mutate<AdminTicketMessage>('POST', `${ROOT}/tickets/${ticketId}/reply`, { message }),
   closeTicket: (ticketId: string) =>
     mutate<AdminTicketRow>('POST', `${ROOT}/tickets/${ticketId}/close`),
 
   // ------------------------------------------------------------- wallet
-  walletTransactions: (params: {
-    page: number
-    query?: string
-    kind?: string
-    from?: string
-    to?: string
-  }) => fetcher<Paged<WalletTransactionRow>>(`${ROOT}/wallet/transactions${qs(params)}`),
+  // Per user, because that is the only wallet the API exposes: every route is
+  // /wallet/{userId}/... There is no global ledger endpoint.
+  walletStatement: (userId: string, params: { page: number; kind?: string }) =>
+    fetcher<PagedWithCursor<WalletTransactionRow>>(
+      `${ROOT}/wallets/${userId}/statement${qs(params)}`,
+    ),
 
-  adjustWallet: (body: { userId: string; amount: number; descriptionFa: string }) =>
-    mutate<WalletTransactionRow>('POST', `${ROOT}/wallet/adjust`, body),
+  // The user id is in the path and the body is {signedAmount, reasonFa} - not
+  // a flat {userId, amount, descriptionFa} posted to /wallet/adjust, which is
+  // not a route.
+  walletBalance: (userId: string) =>
+    fetcher<{ userId: number; balance: number }>(`${ROOT}/wallets/${userId}`),
+
+  adjustWallet: (userId: string, signedAmount: number, reasonFa: string) =>
+    mutate<{ entry: WalletTransactionRow; balance: number }>(
+      'POST',
+      `${ROOT}/wallets/${userId}/adjust`,
+      { signedAmount, reasonFa },
+    ),
 
   // --------------------------------------------------------------- logs
+  // A plain list, and the only filters the endpoint has: actor, action, a
+  // time window and limit/offset. level/entityType/query were invented.
   logs: (params: {
     page: number
-    level?: string
-    actor?: string
-    entityType?: string
-    query?: string
-    from?: string
-    to?: string
-  }) => fetcher<Paged<AuditLogRow>>(`${ROOT}/audit-logs${qs(params)}`),
+    pageSize?: number
+    actorId?: string
+    action?: string
+    since?: string
+    until?: string
+  }) => {
+    const limit = params.pageSize ?? 50
+    return fetcher<AuditLogRow[]>(
+      `${ROOT}/audit-logs${qs({
+        limit,
+        offset: (params.page - 1) * limit,
+        actor_id: params.actorId,
+        action: params.action,
+        since: params.since,
+        until: params.until,
+      })}`,
+    )
+  },
 
   // ----------------------------------------------------------- settings
   settings: () => fetcher<PolicySetting[]>(`${ROOT}/settings`),
@@ -331,8 +406,18 @@ export const api = {
 
   // -------------------------------------------------------- permissions
   operators: () => fetcher<OperatorRow[]>(`${ROOT}/admins`),
-  saveOperator: (body: { operatorId?: string; telegramUsername: string; displayName: string; role: Role }) =>
-    mutate<OperatorRow>('POST', `${ROOT}/admins`, body),
+  // Username and password, which is how an operator signs in. There is no
+  // display name or Telegram handle on this account.
+  createOperator: (body: {
+    username: string
+    password: string
+    role: Role
+    email?: string | null
+    telegramId?: number | null
+  }) => mutate<OperatorRow>('POST', `${ROOT}/admins`, body),
+
+  setOperatorRole: (operatorId: string, role: Role) =>
+    mutate<OperatorRow>('PUT', `${ROOT}/admins/${operatorId}/role`, { role }),
   // The backend models disabling as deleting the operator, which also ends
   // every session they hold. There is no re-enable; create a new operator.
   disableOperator: (operatorId: string) =>

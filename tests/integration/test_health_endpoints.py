@@ -50,7 +50,14 @@ def test_readiness_returns_503_when_a_dependency_is_down(
 
 
 def test_service_info_endpoint(client: TestClient) -> None:
+    """camelCase, like every other field this API returns.
+
+    Response models used to serialise their field names as written, so half
+    the API answered in snake_case and the half built through `as_dict()`
+    answered in camelCase. `ApiModel` settled that on camelCase; this is the
+    one assertion in the suite that had pinned the old spelling.
+    """
     response = client.get("/api/v1/info")
 
     assert response.status_code == 200
-    assert response.json()["api_version"] == "v1"
+    assert response.json()["apiVersion"] == "v1"

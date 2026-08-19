@@ -15,17 +15,18 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.enums import UserStatus
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.identity.user import User
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
 
 router = APIRouter(prefix="/admin/customers", tags=["administration"])
 
 
-class CustomerResponse(BaseModel):
+class CustomerResponse(ApiModel):
     id: uuid.UUID
     telegram_id: int
     username: str | None
@@ -55,18 +56,18 @@ class CustomerResponse(BaseModel):
         )
 
 
-class CustomerPage(BaseModel):
+class CustomerPage(ApiModel):
     items: list[CustomerResponse]
     total: int
 
 
-class CustomerDetail(BaseModel):
+class CustomerDetail(ApiModel):
     customer: CustomerResponse
     subscriptions: int
     orders: int
 
 
-class SuspendRequest(BaseModel):
+class SuspendRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str = Field(min_length=3, max_length=512)

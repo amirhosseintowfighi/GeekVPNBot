@@ -11,7 +11,7 @@ import { formatValue } from '@/components/charts/chart'
 /**
  * One KPI.
  *
- * The delta is the subtle part. `deltaPercent` is nullable and null means
+ * The delta is the subtle part. `changePercent` is nullable and null means
  * "unknown", usually because there is no comparable prior period. Null renders
  * as nothing at all - never as a grey 0%, which is a claim of stability the
  * data does not support.
@@ -20,7 +20,7 @@ import { formatValue } from '@/components/charts/chart'
  * revenue rising is green, so the caller passes `invert`.
  */
 export function MetricCardView({ metric, invert = false }: { metric: MetricCardModel; invert?: boolean }) {
-  const delta = metric.deltaPercent
+  const delta = metric.changePercent
   const hasDelta = delta !== null && delta !== undefined
   const up = hasDelta && delta > 0
   const flat = hasDelta && delta === 0
@@ -40,7 +40,7 @@ export function MetricCardView({ metric, invert = false }: { metric: MetricCardM
             )}
           >
             {up ? <TrendingUp className="size-3" aria-hidden /> : <TrendingDown className="size-3" aria-hidden />}
-            {percent(Math.abs(delta), 1)}
+            {percent(Math.abs(delta))}
           </span>
         ) : null}
 

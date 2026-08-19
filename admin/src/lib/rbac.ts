@@ -169,6 +169,9 @@ const MATRIX: Record<Exclude<Role, 'owner'>, Permission[]> = {
     'analytics.export',
     'wallet.view',
     'wallet.adjust',
+    // Read-only on tickets: finance reconciles a refund against the
+    // conversation that caused it, but support owns the voice of the brand.
+    'tickets.view',
     'logs.view',
   ],
 
@@ -248,6 +251,12 @@ export const ROLE_RANK: Record<Role, number> = {
   support: 2,
   viewer: 1,
 }
+
+/**
+ * `finance` and `support` deliberately share a rank: neither may promote the
+ * other, and neither may promote itself. Only a strictly higher rank assigns,
+ * which is what `canAssignRole` enforces.
+ */
 
 /**
  * An operator may only assign a role strictly below their own rank.

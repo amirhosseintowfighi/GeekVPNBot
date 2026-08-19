@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { Search } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber, normalizeInput, toman, truncate } from '@/lib/fa'
+import { faDate, faNumber, normalizeInput, truncate } from '@/lib/fa'
 import { USER_STATE } from '@/lib/labels'
 import type { Paged, UserRow, UserState } from '@/lib/types'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -18,7 +18,6 @@ import { FilterSelect } from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import {
   Pagination,
-  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -34,12 +33,6 @@ const STATE_OPTIONS = (Object.keys(USER_STATE) as UserState[]).map((key) => ({
   label: USER_STATE[key].fa,
 }))
 
-const TIER_OPTIONS = [
-  { value: 'bronze', label: '\u0628\u0631\u0646\u0632\u06cc' },
-  { value: 'silver', label: '\u0646\u0642\u0631\u0647\u200c\u0627\u06cc' },
-  { value: 'gold', label: '\u0637\u0644\u0627\u06cc\u06cc' },
-  { value: 'diamond', label: '\u0627\u0644\u0645\u0627\u0633\u06cc' },
-]
 
 /**
  * Users.
@@ -50,13 +43,11 @@ const TIER_OPTIONS = [
  */
 export default function UsersPage() {
   const [page, setPage] = React.useState(1)
-  const [state, setState] = React.useState<string | null>(null)
-  const [tier, setTier] = React.useState<string | null>(null)
+  // No tier filter and no sort state: GET /customers takes status, query,
+  // limit and offset, and nothing else. Both were being sent and silently
+  // dropped, so the screen offered controls that changed nothing.
+  const [status, setStatus] = React.useState<string | undefined>(undefined)
   const [search, setSearch] = React.useState('')
-  const [sort, setSort] = React.useState<{ key: string; direction: 'asc' | 'desc' }>({
-    key: 'createdAt',
-    direction: 'desc',
-  })
 
   const [debounced, setDebounced] = React.useState('')
   React.useEffect(() => {
@@ -67,26 +58,9 @@ export default function UsersPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const params = {
-    page,
-    pageSize: PAGE_SIZE,
-    state,
-    tier,
-    q: debounced,
-    sort: sort.key,
-    direction: sort.direction,
-  }
+  const params = { page, pageSize: PAGE_SIZE, status, query: debounced }
 
   const { data, error, isLoading } = useSWR<Paged<UserRow>>(['users', params], () => api.users(params))
-
-  const onSort = (key: string) => {
-    setSort((current) =>
-      current.key === key
-        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
-        : { key, direction: 'desc' },
-    )
-    setPage(1)
-  }
 
   return (
     <>
@@ -108,23 +82,13 @@ export default function UsersPage() {
           </div>
 
           <FilterSelect
-            value={state}
+            value={status}
             onChange={(next) => {
-              setState(next)
+              setStatus(next)
               setPage(1)
             }}
             options={STATE_OPTIONS}
             allLabel={'\u0647\u0645\u0647\u0654 \u0648\u0636\u0639\u06cc\u062a\u200c\u0647\u0627'}
-          />
-
-          <FilterSelect
-            value={tier}
-            onChange={(next) => {
-              setTier(next)
-              setPage(1)
-            }}
-            options={TIER_OPTIONS}
-            allLabel={'\u0647\u0645\u0647\u0654 \u0633\u0637\u062d\u200c\u0647\u0627'}
           />
         </Toolbar>
 
@@ -149,49 +113,20 @@ export default function UsersPage() {
                   <TableHead>{'\u06a9\u0627\u0631\u0628\u0631'}</TableHead>
                   <TableHead>{'\u0634\u0646\u0627\u0633\u0647\u0654 \u062a\u0644\u06af\u0631\u0627\u0645'}</TableHead>
                   <TableHead>{'\u0648\u0636\u0639\u06cc\u062a'}</TableHead>
-                  <TableHead>{'\u0633\u0637\u062d'}</TableHead>
-                  <SortableHead
-                    label={'\u0627\u0634\u062a\u0631\u0627\u06a9 \u0641\u0639\u0627\u0644'}
-                    sortKey="activeSubscriptions"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                    numeric
-                  />
-                  <SortableHead
-                    label={'\u0645\u062c\u0645\u0648\u0639 \u062e\u0631\u06cc\u062f'}
-                    sortKey="lifetimeSpend"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                    numeric
-                  />
-                  <SortableHead
-                    label={'\u0645\u0648\u062c\u0648\u062f\u06cc'}
-                    sortKey="walletBalance"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                    numeric
-                  />
-                  <SortableHead
-                    label={'\u0639\u0636\u0648\u06cc\u062a'}
-                    sortKey="createdAt"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                  />
+                  <TableHead>{'\u0645\u0639\u0631\u0641'}</TableHead>
+                  <TableHead>{'\u0622\u062e\u0631\u06cc\u0646 \u0628\u0627\u0632\u062f\u06cc\u062f'}</TableHead>
+                  <TableHead>{'\u0639\u0636\u0648\u06cc\u062a'}</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
                 {data.items.map((user) => {
-                  const stateMeta = USER_STATE[user.state]
+                  const stateMeta = USER_STATE[user.status]
                   return (
                     <TableRow key={user.id}>
                       <TableCell>
                         <Link href={'/users/' + user.id} className="text-primary hover:underline">
-                          {truncate(user.displayNameFa, 26)}
+                          {truncate(user.displayName, 26)}
                         </Link>
                         {user.username ? (
                           <span dir="ltr" className="ms-1 font-mono text-2xs text-muted-foreground">
@@ -213,14 +148,14 @@ export default function UsersPage() {
                       </TableCell>
 
                       <TableCell>
-                        <span className="text-2xs">
-                          {user.tierEmoji} {user.tierLabelFa}
+                        <span dir="ltr" className="font-mono text-2xs text-muted-foreground">
+                          {user.referredByCode ?? '\u2014'}
                         </span>
                       </TableCell>
 
-                      <TableCell numeric>{faNumber(user.activeSubscriptions)}</TableCell>
-                      <TableCell numeric>{toman(user.lifetimeSpend, false)}</TableCell>
-                      <TableCell numeric>{toman(user.walletBalance, false)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {user.lastSeenAt ? faDate(user.lastSeenAt) : '\u2014'}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {faDate(user.createdAt)}
                       </TableCell>
@@ -230,7 +165,7 @@ export default function UsersPage() {
               </TableBody>
             </Table>
 
-            <Pagination page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} />
+            <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onPageChange={setPage} />
           </>
         )}
       </Card>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,6 +73,17 @@ class SqlAlchemyAdminRepository:
         model.last_login_at = admin.last_login_at
         model.password_changed_at = admin.password_changed_at
         await self._session.flush()
+
+    async def list_all(self) -> Sequence[Admin]:
+        """Every operator, oldest first.
+
+        Unpaginated on purpose: the number of people who can suspend an account
+        or move money is small by definition, and a permissions screen that
+        pages is a permissions screen where somebody is missed.
+        """
+        stmt = select(AdminModel).order_by(AdminModel.created_at)
+        models = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(model) for model in models]
 
     async def count(self) -> int:
         stmt = select(func.count()).select_from(AdminModel)

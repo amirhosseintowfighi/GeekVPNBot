@@ -6,9 +6,9 @@ import useSWR from 'swr'
 import { Search } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDateTime, faNumber, normalizeInput, toman, truncate } from '@/lib/fa'
-import { PAYMENT_METHOD, PAYMENT_STATE, waitTone } from '@/lib/labels'
-import type { OrderRow, Paged, PaymentMethod, PaymentState } from '@/lib/types'
+import { faDateTime, normalizeInput, toman, truncate } from '@/lib/fa'
+import { ORDER_STATE } from '@/lib/labels'
+import type { OrderRow, OrderState, Paged } from '@/lib/types'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +18,6 @@ import { FilterSelect } from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import {
   Pagination,
-  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -29,14 +28,9 @@ import {
 
 const PAGE_SIZE = 25
 
-const STATE_OPTIONS = (Object.keys(PAYMENT_STATE) as PaymentState[]).map((key) => ({
+const STATE_OPTIONS = (Object.keys(ORDER_STATE) as OrderState[]).map((key) => ({
   value: key,
-  label: PAYMENT_STATE[key].fa,
-}))
-
-const METHOD_OPTIONS = (Object.keys(PAYMENT_METHOD) as PaymentMethod[]).map((key) => ({
-  value: key,
-  label: PAYMENT_METHOD[key].fa,
+  label: ORDER_STATE[key].fa,
 }))
 
 /**
@@ -61,13 +55,11 @@ const METHOD_OPTIONS = (Object.keys(PAYMENT_METHOD) as PaymentMethod[]).map((key
  */
 export default function OrdersPage() {
   const [page, setPage] = React.useState(1)
-  const [state, setState] = React.useState<string | null>('pending_review')
-  const [method, setMethod] = React.useState<string | null>(null)
+  // `paid` is the queue that needs a human: money is in, service is not out.
+  // The default used to be 'pending_review', which is a *payment* state and
+  // matches no order.
+  const [state, setState] = React.useState<string | undefined>('paid')
   const [search, setSearch] = React.useState('')
-  const [sort, setSort] = React.useState<{ key: string; direction: 'asc' | 'desc' }>({
-    key: 'createdAt',
-    direction: 'desc',
-  })
 
   // Debounced so a typed reference does not fire a request per keystroke.
   const [debounced, setDebounced] = React.useState('')
@@ -79,29 +71,15 @@ export default function OrdersPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const params = {
-    page,
-    pageSize: PAGE_SIZE,
-    state,
-    method,
-    q: debounced,
-    sort: sort.key,
-    direction: sort.direction,
-  }
+  // state, number, limit and offset - the whole of what GET /orders accepts.
+  // No method filter and no sorting: neither exists on the endpoint.
+  const params = { page, pageSize: PAGE_SIZE, state, number: debounced }
 
   const { data, error, isLoading } = useSWR<Paged<OrderRow>>(
     ['orders', params],
     () => api.orders(params),
   )
 
-  const onSort = (key: string) => {
-    setSort((current) =>
-      current.key === key
-        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
-        : { key, direction: 'desc' },
-    )
-    setPage(1)
-  }
 
   return (
     <>
@@ -134,15 +112,6 @@ export default function OrdersPage() {
             allLabel={'\u0647\u0645\u0647\u0654 \u0648\u0636\u0639\u06cc\u062a\u200c\u0647\u0627'}
           />
 
-          <FilterSelect
-            value={method}
-            onChange={(next) => {
-              setMethod(next)
-              setPage(1)
-            }}
-            options={METHOD_OPTIONS}
-            allLabel={'\u0647\u0645\u0647\u0654 \u0631\u0648\u0634\u200c\u0647\u0627'}
-          />
         </Toolbar>
 
         {error ? (
@@ -165,45 +134,19 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{'\u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc'}</TableHead>
+                  <TableHead>{'\u0634\u0645\u0627\u0631\u0647'}</TableHead>
                   <TableHead>{'\u06a9\u0627\u0631\u0628\u0631'}</TableHead>
                   <TableHead>{'\u067e\u0644\u0646'}</TableHead>
-                  <SortableHead
-                    label={'\u0645\u0628\u0644\u063a'}
-                    sortKey="amount"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                    numeric
-                  />
-                  <TableHead>{'\u0631\u0648\u0634'}</TableHead>
+                  <TableHead numeric>{'\u0645\u0628\u0644\u063a'}</TableHead>
+                  <TableHead>{'\u062a\u062e\u0641\u06cc\u0641'}</TableHead>
                   <TableHead>{'\u0648\u0636\u0639\u06cc\u062a'}</TableHead>
-                  <SortableHead
-                    label={'\u0632\u0645\u0627\u0646 \u0627\u0646\u062a\u0638\u0627\u0631'}
-                    sortKey="waitingMinutes"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                    numeric
-                  />
-                  <SortableHead
-                    label={'\u062a\u0627\u0631\u06cc\u062e'}
-                    sortKey="createdAt"
-                    activeKey={sort.key}
-                    direction={sort.direction}
-                    onSort={onSort}
-                  />
+                  <TableHead>{'\u062b\u0628\u062a'}</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
                 {data.items.map((order) => {
-                  const stateMeta = PAYMENT_STATE[order.state]
-                  const methodMeta = PAYMENT_METHOD[order.method]
-                  // Waiting time only means something while someone is still
-                  // waiting. On a settled order it is history, so it is shown
-                  // without colour.
-                  const pending = order.state === 'pending_review'
+                  const stateMeta = ORDER_STATE[order.state]
 
                   return (
                     <TableRow key={order.id}>
@@ -213,24 +156,24 @@ export default function OrdersPage() {
                           dir="ltr"
                           className="font-mono text-2xs text-primary hover:underline"
                         >
-                          {order.reference}
+                          {order.number}
                         </Link>
                       </TableCell>
 
                       <TableCell>
                         <Link href={'/users/' + order.userId} className="hover:underline">
-                          {truncate(order.userFa, 24)}
+                          {order.userId}
                         </Link>
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
-                        {order.planNameFa ? truncate(order.planNameFa, 28) : '\u2014'}
+                        {truncate(order.planNameFa, 28)}
                       </TableCell>
 
-                      <TableCell numeric>{toman(order.amount, false)}</TableCell>
+                      <TableCell numeric>{toman(order.total, false)}</TableCell>
 
-                      <TableCell>
-                        <Badge variant={methodMeta.tone}>{methodMeta.fa}</Badge>
+                      <TableCell numeric className="text-muted-foreground">
+                        {order.discount > 0 ? toman(order.discount, false) : '\u2014'}
                       </TableCell>
 
                       <TableCell>
@@ -239,20 +182,8 @@ export default function OrdersPage() {
                         </Badge>
                       </TableCell>
 
-                      <TableCell numeric>
-                        {pending ? (
-                          <Badge variant={waitTone(order.waitingMinutes)}>
-                            {faNumber(order.waitingMinutes) + ' \u062f\u0642\u06cc\u0642\u0647'}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            {faNumber(order.waitingMinutes) + ' \u062f\u0642\u06cc\u0642\u0647'}
-                          </span>
-                        )}
-                      </TableCell>
-
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {faDateTime(order.createdAt)}
+                        {faDateTime(order.placedAt)}
                       </TableCell>
                     </TableRow>
                   )
@@ -261,8 +192,8 @@ export default function OrdersPage() {
             </Table>
 
             <Pagination
-              page={data.page}
-              pageSize={data.pageSize}
+              page={page}
+              pageSize={PAGE_SIZE}
               total={data.total}
               onPageChange={setPage}
             />

@@ -9,10 +9,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from geekvpn.presentation.api.base_schema import ApiModel
 
 
-class MiniAppLoginRequest(BaseModel):
+class MiniAppLoginRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     init_data: str = Field(
@@ -22,7 +24,7 @@ class MiniAppLoginRequest(BaseModel):
     )
 
 
-class WidgetLoginRequest(BaseModel):
+class WidgetLoginRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
@@ -34,7 +36,7 @@ class WidgetLoginRequest(BaseModel):
     photo_url: str | None = None
 
 
-class AdminLoginRequest(BaseModel):
+class AdminLoginRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=3, max_length=64)
@@ -42,13 +44,13 @@ class AdminLoginRequest(BaseModel):
     totp_code: str | None = Field(default=None, max_length=8)
 
 
-class RefreshRequest(BaseModel):
+class RefreshRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     refresh_token: str = Field(min_length=16, max_length=512)
 
 
-class TokenResponse(BaseModel):
+class TokenResponse(ApiModel):
     access_token: str
     refresh_token: str
     token_type: str = "Bearer"  # noqa: S105 - scheme name
@@ -57,7 +59,7 @@ class TokenResponse(BaseModel):
     session_id: uuid.UUID
 
 
-class UserResponse(BaseModel):
+class UserResponse(ApiModel):
     id: uuid.UUID
     telegram_id: int
     display_name: str
@@ -70,7 +72,7 @@ class UserResponse(BaseModel):
     created_at: datetime | None
 
 
-class AdminResponse(BaseModel):
+class AdminResponse(ApiModel):
     id: uuid.UUID
     username: str
     role: str
@@ -79,18 +81,18 @@ class AdminResponse(BaseModel):
     last_login_at: datetime | None
 
 
-class UserLoginResponse(BaseModel):
+class UserLoginResponse(ApiModel):
     tokens: TokenResponse
     user: UserResponse
     is_new_user: bool
 
 
-class AdminLoginResponse(BaseModel):
+class AdminLoginResponse(ApiModel):
     tokens: TokenResponse
     admin: AdminResponse
 
 
-class SessionResponse(BaseModel):
+class SessionResponse(ApiModel):
     id: uuid.UUID
     created_at: datetime
     last_used_at: datetime
@@ -100,11 +102,11 @@ class SessionResponse(BaseModel):
     is_current: bool
 
 
-class MessageResponse(BaseModel):
+class MessageResponse(ApiModel):
     message: str
 
 
-class AuditEntryResponse(BaseModel):
+class AuditEntryResponse(ApiModel):
     id: uuid.UUID
     action: str
     outcome: str
@@ -119,7 +121,7 @@ class AuditEntryResponse(BaseModel):
     metadata: dict[str, object]
 
 
-class SettingResponse(BaseModel):
+class SettingResponse(ApiModel):
     key: str
     value: object
     description: str | None
@@ -127,7 +129,7 @@ class SettingResponse(BaseModel):
     updated_at: datetime | None
 
 
-class SettingUpdateRequest(BaseModel):
+class SettingUpdateRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     value: object

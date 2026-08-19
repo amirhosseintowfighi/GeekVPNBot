@@ -17,7 +17,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.application.bot.read_models import NotificationPreferences
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
@@ -25,6 +25,7 @@ from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 from geekvpn.presentation.api.miniapp_security import CurrentMiniAppUser, ServicesDep
 from geekvpn.presentation.api.security import ScopeDep
@@ -79,40 +80,40 @@ def _payment_view(payment: Payment) -> dict[str, Any]:
 # -- request bodies --------------------------------------------------------
 
 
-class PlanRequest(BaseModel):
+class PlanRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     plan_id: uuid.UUID
     coupon_code: str | None = Field(default=None, max_length=64)
 
 
-class CouponPreviewRequest(BaseModel):
+class CouponPreviewRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     plan_id: uuid.UUID
     code: str = Field(min_length=1, max_length=64)
 
 
-class TopupRequest(BaseModel):
+class TopupRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     amount: int = Field(gt=0)
     method: str = Field(pattern="^(card|crypto)$")
 
 
-class ReceiptRequest(BaseModel):
+class ReceiptRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     file_id: str = Field(min_length=1, max_length=512)
 
 
-class TxidRequest(BaseModel):
+class TxidRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     txid: str = Field(min_length=8, max_length=256)
 
 
-class OpenTicketRequest(BaseModel):
+class OpenTicketRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     topic: str = Field(min_length=1, max_length=128)
@@ -120,19 +121,19 @@ class OpenTicketRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
-class TicketReplyRequest(BaseModel):
+class TicketReplyRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1, max_length=4000)
 
 
-class ProfileRequest(BaseModel):
+class ProfileRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     display_name: str = Field(min_length=1, max_length=64)
 
 
-class PreferencesRequest(BaseModel):
+class PreferencesRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     expiry: bool = True

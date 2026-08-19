@@ -19,19 +19,20 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.application.provisioning.ports import NodeAdminRecord
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.panels.enums import PanelKind
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.provisioning.enums import NodeState
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
 
 router = APIRouter(prefix="/admin/panels", tags=["administration"])
 
 
-class NodeResponse(BaseModel):
+class NodeResponse(ApiModel):
     """What an operator is allowed to see. Note the absent password."""
 
     id: str
@@ -73,7 +74,7 @@ class NodeResponse(BaseModel):
         )
 
 
-class CreateNodeRequest(BaseModel):
+class CreateNodeRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]*$")
@@ -91,7 +92,7 @@ class CreateNodeRequest(BaseModel):
     config: dict[str, object] = Field(default_factory=dict)
 
 
-class UpdateNodeRequest(BaseModel):
+class UpdateNodeRequest(ApiModel):
     """Every field optional; omitted fields are left untouched.
 
     ``password`` omitted means "keep the stored one", which is what lets the
@@ -113,7 +114,7 @@ class UpdateNodeRequest(BaseModel):
     accepting_new: bool | None = None
 
 
-class TestConnectionResponse(BaseModel):
+class TestConnectionResponse(ApiModel):
     ok: bool
     latency_ms: float | None = None
     version: str | None = None

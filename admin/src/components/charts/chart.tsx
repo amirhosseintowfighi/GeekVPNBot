@@ -16,7 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { faDate, faNumber, percent, toman } from '@/lib/fa'
+import { faDate, faNumber, percent } from '@/lib/fa'
 import type { BreakdownSlice, MetricCard, TimeSeries } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -53,9 +53,13 @@ type Format = MetricCard['format']
 export function formatValue(value: number, format: Format): string {
   switch (format) {
     case 'toman':
-      return toman(value)
+      // Compacted, like the axis ticks. `compact` existed and did exactly this,
+      // and nothing called it from here: a headline card printed the full eight
+      // digits while the axis beside it printed a magnitude, so the same figure
+      // read two different ways on one screen.
+      return compact(value, 'toman') + ' تومان'
     case 'percent':
-      return percent(value, 1)
+      return percent(value)
     case 'gib':
       return faNumber(value) + ' \u06af\u06cc\u06af\u0627\u0628\u0627\u06cc\u062a'
     default:

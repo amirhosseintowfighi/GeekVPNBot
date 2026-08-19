@@ -99,11 +99,25 @@ describe('canAssignRole', () => {
     expect(canAssignRole('finance', 'support')).toBe(false)
   })
 
-  it('allows assigning strictly lower ranks', () => {
+  it('lets the owner assign every role below their own', () => {
     expect(canAssignRole('owner', 'admin')).toBe(true)
-    expect(canAssignRole('admin', 'finance')).toBe(true)
-    expect(canAssignRole('admin', 'viewer')).toBe(true)
-    expect(canAssignRole('finance', 'viewer')).toBe(true)
+    expect(canAssignRole('owner', 'finance')).toBe(true)
+    expect(canAssignRole('owner', 'viewer')).toBe(true)
+  })
+
+  it('needs permissions.edit as well as the rank, which only the owner has', () => {
+    // Outranking someone is not authority over their role. admin outranks
+    // finance and still may not assign it: `permissions.edit` is the gate, and
+    // the owner is the only role holding it - which is exactly what the owner's
+    // own description promises ("full access, including changing others'").
+    //
+    // This test used to assert that admin and finance could both assign
+    // downwards. It had never been run, and asserting it would have meant
+    // widening who can hand out authority.
+    expect(ROLE_RANK.admin).toBeGreaterThan(ROLE_RANK.finance)
+    expect(can('admin', 'permissions.edit')).toBe(false)
+    expect(canAssignRole('admin', 'finance')).toBe(false)
+    expect(canAssignRole('finance', 'viewer')).toBe(false)
   })
 
   it('gives the viewer no assignment powers at all', () => {

@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Copy, Layers, Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber, normalizeInput, percent, toman } from '@/lib/fa'
+import { faDate, faNumber, normalizeInput } from '@/lib/fa'
 import type { CouponRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -42,7 +42,7 @@ import { Progress } from '@/components/ui/primitives'
  */
 export default function CouponsPage() {
   const { can } = useSession()
-  const [state, setState] = React.useState<string | null>('active')
+  const [state, setState] = React.useState<string | undefined>('active')
   const [bulkOpen, setBulkOpen] = React.useState(false)
 
   const { data, error, isLoading, mutate } = useSWR<CouponRow[]>(
@@ -114,45 +114,49 @@ export default function CouponsPage() {
             </TableHeader>
             <TableBody>
               {data.map((coupon) => {
-                const limited = coupon.maxUses !== null
-                const fraction = limited ? Math.min(1, coupon.uses / Math.max(1, coupon.maxUses ?? 1)) : 0
+                // The API already formats the discount - "\u06f2\u06f0\u066a" or
+                // "\u06f5\u06f0\u066c\u06f0\u06f0\u06f0 \u062a\u0648\u0645\u0627\u0646" - because whether a coupon is a percentage
+                // or a fixed amount is a domain detail the panel should not be
+                // re-deriving from a bps field that is not in the payload.
+                const limited = coupon.maxRedemptions !== null
+                const fraction = limited
+                  ? Math.min(1, coupon.redemptionCount / Math.max(1, coupon.maxRedemptions ?? 1))
+                  : 0
                 return (
                   <TableRow key={coupon.id}>
                     <TableCell>
                       <span dir="ltr" className="font-mono text-2xs">{coupon.code}</span>
                     </TableCell>
-                    <TableCell numeric>
-                      {coupon.discountBps !== null
-                        ? percent(coupon.discountBps / 100)
-                        : toman(coupon.discountAmount ?? 0, false)}
-                    </TableCell>
+                    <TableCell numeric>{coupon.discountLabel}</TableCell>
                     <TableCell>
                       {limited ? (
                         <div className="min-w-24 space-y-1">
                           <Progress value={fraction * 100} />
                           <span className="nums text-2xs text-muted-foreground">
-                            {faNumber(coupon.uses) + ' / ' + faNumber(coupon.maxUses ?? 0)}
+                            {faNumber(coupon.redemptionCount) +
+                              ' / ' +
+                              faNumber(coupon.maxRedemptions ?? 0)}
                           </span>
                         </div>
                       ) : (
-                        <span className="nums text-muted-foreground">{faNumber(coupon.uses)}</span>
+                        <span className="nums text-muted-foreground">
+                          {faNumber(coupon.redemptionCount)}
+                        </span>
                       )}
                     </TableCell>
-                    <TableCell numeric>
-                      {coupon.maxPerUser === null ? '\u0646\u0627\u0645\u062d\u062f\u0648\u062f' : faNumber(coupon.maxPerUser)}
-                    </TableCell>
+                    <TableCell numeric>{faNumber(coupon.maxPerUser)}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {coupon.expiresAt ? faDate(coupon.expiresAt) : '\u0628\u062f\u0648\u0646 \u0627\u0646\u0642\u0636\u0627'}
+                      {coupon.endsAt ? faDate(coupon.endsAt) : '\u0628\u062f\u0648\u0646 \u0627\u0646\u0642\u0636\u0627'}
                     </TableCell>
                     <TableCell>
                       {/* Stacking is a money decision, so it is stated plainly
                           rather than hidden behind a settings page. */}
-                      <Badge variant={coupon.stackable ? 'warning' : 'muted'}>
-                        {coupon.stackable ? '\u0628\u0644\u0647' : '\u062e\u06cc\u0631'}
+                      <Badge variant={coupon.stacksWithCampaign ? 'warning' : 'muted'}>
+                        {coupon.stacksWithCampaign ? '\u0628\u0644\u0647' : '\u062e\u06cc\u0631'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {can('coupons.edit') && !coupon.archived ? (
+                      {can('coupons.edit') && coupon.state !== 'archived' ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -204,12 +208,21 @@ function BulkDialog({
     setBusy(true)
     setFailure(null)
     try {
+      // The endpoint takes a whole coupon template, not a loose discount:
+      // it is creating real coupons, and each needs a kind and a value.
       const response = await api.bulkCreateCoupons({
         prefix: cleanPrefix,
         count: parsedCount,
-        discountBps: parsedDiscount * 100,
+        template: {
+          code: cleanPrefix,
+          kind: 'promotional',
+          discountKind: 'percentage',
+          discountValue: parsedDiscount,
+          maxPerUser: 1,
+          maxRedemptions: 1,
+        },
       })
-      setCreated(response.codes)
+      setCreated(response.map((coupon) => coupon.code))
       onDone()
     } catch (thrown) {
       setFailure(thrown instanceof ApiError ? thrown.messageFa : '')

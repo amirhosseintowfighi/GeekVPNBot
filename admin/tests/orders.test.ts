@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { can } from '@/lib/rbac'
-import type { PaymentState, Role } from '@/lib/types'
+import type { Role } from '@/lib/rbac'
+import type { PaymentState } from '@/lib/types'
 
 /**
  * Order action gating.
@@ -19,12 +20,16 @@ import type { PaymentState, Role } from '@/lib/types'
 type Action = 'approve' | 'reject' | 'refund'
 
 const STATE_ALLOWS: Record<PaymentState, Action[]> = {
-  awaiting_receipt: [],
+  draft: [],
+  awaiting_proof: [],
+  pending_gateway: [],
   pending_review: ['approve', 'reject'],
   approved: ['refund'],
   rejected: [],
   refunded: [],
+  partially_refunded: ['refund'],
   expired: [],
+  failed: [],
 }
 
 const PERMISSION_FOR: Record<Action, 'orders.approve' | 'orders.reject' | 'orders.refund'> = {
@@ -44,7 +49,7 @@ describe('state gating', () => {
 
   it('offers nothing on an order whose receipt has not arrived yet', () => {
     // There is nothing to approve: the customer has not paid.
-    expect(visibleActions('awaiting_receipt')).toEqual([])
+    expect(visibleActions('awaiting_proof')).toEqual([])
   })
 
   it('offers refund only after money has actually been taken', () => {

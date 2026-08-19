@@ -71,9 +71,9 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2">
               <span className="grid size-6 place-items-center rounded-full bg-primary/15 text-2xs font-semibold text-primary">
-                {session.displayName.trim().charAt(0) || '?'}
+                {session.username.trim().charAt(0) || '?'}
               </span>
-              <span className="hidden max-w-32 truncate sm:inline">{session.displayName}</span>
+              <span className="hidden max-w-32 truncate sm:inline">{session.username}</span>
               <Badge variant="outline" className="hidden md:inline-flex">
                 {ROLE_LABEL_FA[session.role]}
               </Badge>
@@ -82,12 +82,9 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
           <DropdownMenuContent align="end" className="min-w-56">
             <DropdownMenuLabel>
-              <span className="block text-xs font-medium text-foreground">{session.displayName}</span>
-              {session.telegramUsername ? (
-                <span dir="ltr" className="block font-mono text-2xs text-muted-foreground">
-                  {'@' + session.telegramUsername}
-                </span>
-              ) : null}
+              <span className="block text-xs font-medium text-foreground">{session.username}</span>
+              {/* An operator signs in with a username and a password; there is
+                  no Telegram identity on this account at all. */}
             </DropdownMenuLabel>
 
             <DropdownMenuSeparator />

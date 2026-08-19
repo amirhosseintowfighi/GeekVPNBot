@@ -60,7 +60,7 @@ describe('label maps', () => {
     // Expiry is the normal end of a lifecycle, not a fault. Painting it red
     // trains operators to ignore red.
     expect(SUBSCRIPTION_STATE.expired.tone).not.toBe('destructive')
-    expect(SERVER_HEALTH.down.tone).toBe('destructive')
+    expect(SERVER_HEALTH.offline.tone).toBe('destructive')
   })
 })
 

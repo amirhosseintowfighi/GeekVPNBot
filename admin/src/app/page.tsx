@@ -4,14 +4,14 @@ import * as React from 'react'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
-import { faRelative } from '@/lib/fa'
+import { faNumber } from '@/lib/fa'
 import type { DashboardSummary } from '@/lib/types'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState } from '@/components/shell/states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SkeletonCards, SkeletonChart } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BreakdownChart, CHART_COLORS, SeriesChart } from '@/components/charts/chart'
+import { CHART_COLORS, SeriesChart } from '@/components/charts/chart'
 import { MetricCardView, QueueTile } from '@/components/feature/metric-card'
 
 const RANGES = [
@@ -42,8 +42,7 @@ export default function DashboardPage() {
         title={'\u062f\u0627\u0634\u0628\u0648\u0631\u062f'}
         description={
           data
-            ? '\u0622\u062e\u0631\u06cc\u0646 \u0628\u0647\u200c\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06cc: ' +
-              faRelative(data.generatedAt)
+            ? '\u06a9\u0627\u0631 \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631: ' + faNumber(data.pendingWork)
             : undefined
         }
         actions={
@@ -82,36 +81,24 @@ export default function DashboardPage() {
               <CardTitle>{'\u0646\u06cc\u0627\u0632\u0645\u0646\u062f \u0631\u0633\u06cc\u062f\u06af\u06cc'}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              <QueueTile
-                labelFa={'\u067e\u0631\u062f\u0627\u062e\u062a \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u062a\u0623\u06cc\u06cc\u062f'}
-                count={data.queue.pendingPayments}
-                href="/orders?state=pending_review"
-                tone="warning"
-              />
-              <QueueTile
-                labelFa={'\u062a\u06cc\u06a9\u062a \u0628\u0627\u0632'}
-                count={data.queue.openTickets}
-                href="/tickets?state=open"
-                tone="info"
-              />
-              <QueueTile
-                labelFa={'\u062a\u062d\u0648\u06cc\u0644 \u0646\u0627\u0645\u0648\u0641\u0642'}
-                count={data.queue.failedProvisions}
-                href="/logs?level=error"
-                tone="destructive"
-              />
-              <QueueTile
-                labelFa={'\u067e\u0646\u0644 \u0645\u0639\u06cc\u0648\u0628'}
-                count={data.queue.unhealthyPanels}
-                href="/panels"
-                tone="destructive"
-              />
-              <QueueTile
-                labelFa={'\u0627\u0646\u0642\u0636\u0627\u06cc \u0627\u0645\u0631\u0648\u0632'}
-                count={data.queue.expiringToday}
-                href="/users?filter=expiring"
-                tone="info"
-              />
+              {/* Driven by the payload, not by five hardcoded tiles. The API
+                  returns only the rows that have work on them, already sorted
+                  urgent-first, and each one carries its own label and link. */}
+              {data.quiet ? (
+                <p className="text-2xs text-muted-foreground sm:col-span-2 xl:col-span-5">
+                  {'چیزی در انتظار رسیدگی نیست.'}
+                </p>
+              ) : (
+                data.actions.map((action) => (
+                  <QueueTile
+                    key={action.key}
+                    labelFa={action.labelFa}
+                    count={action.count}
+                    href={action.href}
+                    tone={action.urgent ? 'destructive' : 'info'}
+                  />
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -128,7 +115,11 @@ export default function DashboardPage() {
           </div>
 
           {/* --- trends --- */}
-          <div className="grid gap-3 xl:grid-cols-2">
+          {/* One series, and it is nullable: a window with no orders in it
+              yields null rather than a flat line at zero. The dashboard used
+              to also render a signup series and a plan mix; this endpoint has
+              never returned either. */}
+          {data.revenueSeries ? (
             <Card>
               <CardHeader>
                 <CardTitle>{data.revenueSeries.labelFa}</CardTitle>
@@ -137,27 +128,10 @@ export default function DashboardPage() {
                 <SeriesChart series={data.revenueSeries} color={CHART_COLORS[0]} />
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{data.signupSeries.labelFa}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <SeriesChart series={data.signupSeries} color={CHART_COLORS[1]} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{'\u062a\u0631\u06a9\u06cc\u0628 \u0641\u0631\u0648\u0634 \u067e\u0644\u0646\u200c\u0647\u0627'}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <BreakdownChart slices={data.planMix} format="count" />
-            </CardContent>
-          </Card>
+          ) : null}
         </div>
       ) : null}
+
     </>
   )
 }

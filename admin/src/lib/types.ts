@@ -26,13 +26,18 @@ export type SubscriptionState =
 export type PlanType = 'traffic' | 'unlimited' | 'duration'
 export type PublicationState = 'draft' | 'published' | 'archived'
 export type PaymentMethod = 'wallet' | 'card' | 'crypto'
+/** domain/payments/enums.py PaymentState, all ten of them. */
 export type PaymentState =
   | 'draft'
   | 'awaiting_proof'
   | 'pending_review'
+  | 'pending_gateway'
   | 'approved'
   | 'rejected'
+  | 'refunded'
+  | 'partially_refunded'
   | 'expired'
+  | 'failed'
 export type TransactionKind =
   | 'topup'
   | 'purchase'
@@ -40,18 +45,23 @@ export type TransactionKind =
   | 'referral'
   | 'refund'
   | 'adjustment'
-export type ServerHealth = 'healthy' | 'degraded' | 'down' | 'maintenance'
-export type TicketState = 'open' | 'answered' | 'closed'
+/** domain/provisioning/enums.py NodeState. A node's health *is* its state. */
+export type ServerHealth = 'online' | 'degraded' | 'offline' | 'maintenance' | 'retired'
+export type TicketState = 'open' | 'waiting_user' | 'answered' | 'closed'
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 export type PanelKind = 'xui' | 'marzban' | 'marzneshin' | 'hiddify'
 export type UserState = 'active' | 'suspended' | 'banned'
+/** domain/provisioning/enums.py OrderState. */
+export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'
+export type NodeState = ServerHealth
 
-/** The signed-in operator. `role` drives every guard in the interface. */
+/** GET /api/v1/admin/auth/me - AdminResponse. `role` drives every guard. */
 export interface AdminSession {
-  operatorId: string
-  displayName: string
-  telegramUsername: string | null
+  id: string
+  username: string
   role: Role
+  permissions: string[]
+  isTotpEnabled: boolean
   lastLoginAt: string | null
 }
 
@@ -139,126 +149,140 @@ export interface DashboardSummary {
 
 // -------------------------------------------------------------------- users
 
+/** GET /api/v1/admin/customers - CustomerResponse. */
 export interface UserRow {
-  userId: string
+  id: string
   telegramId: number
+  username: string | null
   displayName: string
-  telegramUsername: string | null
-  state: UserState
-  tier: LoyaltyTier
-  walletBalance: number
-  lifetimeSpend: number
-  activeSubscriptions: number
-  joinedAt: string
-  lastSeenAt: string | null
-}
-
-export interface UserDetail extends UserRow {
-  phone: string | null
-  email: string | null
+  status: UserState
+  isPremium: boolean
   referralCode: string
   referredByCode: string | null
-  orderCount: number
-  noteFa: string | null
-  subscriptions: AdminSubscriptionRow[]
-  recentTransactions: WalletTransactionRow[]
+  suspendedReason: string | null
+  lastSeenAt: string | null
+  createdAt: string
 }
 
+/** GET /api/v1/admin/customers/{id} - CustomerDetail. Counts, not lists. */
+export interface UserDetail {
+  customer: UserRow
+  subscriptions: number
+  orders: number
+}
+
+/** GET /api/v1/admin/subscriptions - SubscriptionResponse. */
 export interface AdminSubscriptionRow {
-  subscriptionId: string
-  userId: string
-  displayName: string
-  productNameFa: string
-  planNameFa: string
+  id: string
+  userId: number
+  orderId: string
+  planId: string
   state: SubscriptionState
-  panelNameFa: string | null
-  quotaGib: number | null
-  usedGib: number
-  deviceLimit: number
+  nodeId: string | null
+  remoteUsername: string | null
+  subscriptionUrl: string | null
   startedAt: string
-  expiresAt: string | null
+  expiresAt: string
+  trafficLimitMib: number | null
+  trafficUsedMib: number
+  deviceLimit: number
+  lastSyncedAt: string | null
+  revokedAt: string | null
 }
 
 // ------------------------------------------------------------------- orders
 
+/** GET /api/v1/admin/orders - OrderResponse. */
 export interface OrderRow {
-  orderId: string
-  reference: string
-  userId: string
-  displayName: string
-  telegramUsername: string | null
-  productNameFa: string
+  id: string
+  number: string
+  userId: number
+  state: OrderState
+  planId: string
   planNameFa: string
-  amount: number
-  discountAmount: number
-  method: PaymentMethod
-  state: PaymentState
+  durationDays: number
+  trafficMib: number | null
+  deviceLimit: number
+  listPrice: number
+  discount: number
+  total: number
   couponCode: string | null
-  campaignNameFa: string | null
-  createdAt: string
-  reviewedAt: string | null
-  reviewedByFa: string | null
+  isRenewal: boolean
+  placedAt: string
+  paidAt: string | null
+  provisionedAt: string | null
+  failureReason: string | null
 }
 
-export interface OrderDetail extends OrderRow {
-  subtotal: number
-  cashbackAmount: number
-  lines: Array<{ kind: string; labelFa: string; amount: number }>
-  receiptUrl: string | null
-  txid: string | null
-  cryptoNetwork: string | null
-  cryptoAddress: string | null
-  rejectionReasonFa: string | null
-  subscriptionId: string | null
-}
+/** The single-order endpoint returns the same model. */
+export type OrderDetail = OrderRow
 
 // ----------------------------------------------------------------- catalog
 
-export interface CategoryRow {
-  categoryId: string
-  slug: string
-  nameFa: string
-  icon: string
-  state: PublicationState
-  productCount: number
-  sortOrder: number
+/** PATCH /api/v1/admin/panels/{id} - UpdateNodeRequest. Every field optional. */
+export interface NodeUpdateBody {
+  nameFa?: string
+  baseUrl?: string
+  username?: string
+  password?: string
+  countryCode?: string | null
+  capacity?: number
+  verifyTls?: boolean
+  timeoutSeconds?: number
+  sortOrder?: number
+  state?: NodeState
+  acceptingNew?: boolean
 }
 
+/** GET /api/v1/admin/catalog/categories - CategoryAdminResponse. */
+export interface CategoryRow {
+  id: string
+  slug: string
+  nameFa: string
+  nameEn: string | null
+  descriptionFa: string | null
+  icon: string | null
+  sortOrder: number
+  state: PublicationState
+}
+
+/** GET /api/v1/admin/catalog/products - ProductAdminResponse. */
 export interface ProductRow {
-  productId: string
+  id: string
   categoryId: string
   slug: string
+  tier: string
   nameFa: string
   taglineFa: string | null
-  icon: string
-  state: PublicationState
-  panelId: string | null
-  panelNameFa: string | null
-  planCount: number
-  isFeatured: boolean
+  descriptionFa: string | null
+  featuresFa: string[]
+  icon: string | null
+  nodeId: string | null
   sortOrder: number
+  state: PublicationState
 }
 
+/** GET /api/v1/admin/catalog/plans - PlanAdminResponse. */
 export interface PlanRow {
-  planId: string
+  id: string
   productId: string
   slug: string
-  nameFa: string
   planType: PlanType
-  state: PublicationState
+  nameFa: string
+  descriptionFa: string | null
+  badgeFa: string | null
   durationDays: number
-  basePrice: number
-  compareAtPrice: number | null
-  minPrice: number | null
   quotaGib: number | null
   dailyQuotaGib: number | null
   deviceLimit: number
+  basePrice: number
+  compareAtPrice: number | null
+  minPrice: number
   cashbackBps: number
   maxPerUser: number | null
-  badgeFa: string | null
-  isFeatured: boolean
   sortOrder: number
-  activeSubscriptions: number
+  isFeatured: boolean
+  state: PublicationState
 }
 
 /** One rung of the duration ladder, mirroring domain/catalog/durations.py. */
@@ -273,106 +297,146 @@ export interface DurationRung {
 
 // ------------------------------------------------------------------ panels
 
+/**
+ * GET /api/v1/admin/panels - NodeResponse.
+ *
+ * One model, not two. `PanelRow` and `ServerRow` described a panel and the
+ * servers under it as separate resources; the API has a single Node, which is
+ * both. Kept as an alias rather than renamed everywhere, because the screens
+ * are already split that way.
+ */
 export interface PanelRow {
-  panelId: string
+  id: string
   nameFa: string
-  kind: PanelKind
+  panelKind: PanelKind
+  state: NodeState
   baseUrl: string
-  health: ServerHealth
-  inboundCount: number
-  subscriptionCount: number
-  lastCheckedAt: string | null
-  lastErrorFa: string | null
-  isEnabled: boolean
+  username: string
+  hasPassword: boolean
+  verifyTls: boolean
+  timeoutSeconds: number
+  capacity: number
+  accountCount: number
+  acceptingNew: boolean
+  countryCode: string | null
+  sortOrder: number
+  lastCheckAt: string | null
+  lastError: string | null
 }
 
-export interface ServerRow {
-  serverId: string
-  nameFa: string
-  panelId: string
-  panelNameFa: string
-  hostname: string
-  countryFa: string
-  flag: string
-  health: ServerHealth
-  loadPercent: number | null
-  latencyMs: number | null
-  capacity: number | null
-  activeUsers: number
-  isVisible: boolean
-}
+export type ServerRow = PanelRow
 
 // -------------------------------------------------------------- promotions
 
+/** GET /api/v1/admin/catalog/coupons - CouponAdminResponse. */
 export interface CouponRow {
-  couponId: string
+  id: string
   code: string
-  discountKindFa: string
-  /** Percentage coupons carry bps; fixed coupons carry an amount. */
-  discountBps: number | null
-  discountAmount: number | null
-  state: PublicationState
-  usedCount: number
-  maxUses: number | null
-  maxUsesPerUser: number | null
-  minOrderAmount: number | null
-  stacksWithCampaign: boolean
+  kind: string
+  descriptionFa: string | null
+  /** Already formatted by the API - "۲۰٪" or "۵۰٬۰۰۰ تومان". */
+  discountLabel: string
   startsAt: string | null
   endsAt: string | null
-  createdAt: string
+  maxRedemptions: number | null
+  maxPerUser: number
+  redemptionCount: number
+  remainingRedemptions: number | null
+  minOrderAmount: number
+  targetUserId: string | null
+  stacksWithCampaign: boolean
+  firstPurchaseOnly: boolean
+  state: PublicationState
 }
 
+/**
+ * POST /api/v1/admin/catalog/coupons - CouponCreateRequest.
+ *
+ * A create body is not a partial row: the row carries a formatted
+ * `discountLabel` and a redemption count, and the endpoint wants a
+ * discountKind and a discountValue. Sending `Partial<CouponRow>` produced a
+ * 422 on every field.
+ */
+export interface CouponCreateBody {
+  code: string
+  kind: string
+  discountKind: 'percentage' | 'fixed_amount'
+  discountValue: number
+  maxDiscount?: number | null
+  startsAt?: string | null
+  endsAt?: string | null
+  scope?: { planIds: string[]; productIds: string[]; tiers: string[] }
+  descriptionFa?: string | null
+  maxRedemptions?: number | null
+  maxPerUser?: number
+  minOrderAmount?: number
+  targetUserId?: string | null
+  stacksWithCampaign?: boolean
+}
+
+/** GET /api/v1/admin/catalog/campaigns - CampaignAdminResponse. */
 export interface CampaignRow {
-  campaignId: string
+  id: string
+  slug: string
+  kind: string
   nameFa: string
-  discountBps: number
-  state: PublicationState
-  scopeFa: string
-  isFlashSale: boolean
-  startsAt: string
+  descriptionFa: string | null
+  bannerUrl: string | null
+  discountLabel: string
+  startsAt: string | null
   endsAt: string | null
-  orderCount: number
-  revenue: number
-  discountGiven: number
+  maxRedemptions: number | null
+  redemptionCount: number
+  remainingStock: number | null
+  priority: number
+  state: PublicationState
 }
 
 // ------------------------------------------------------------------ wallet
 
+/** GET /api/v1/admin/wallet/{userId}/ledger - routers/admin_wallet.py. */
 export interface WalletTransactionRow {
-  transactionId: string
-  userId: string
-  displayName: string
+  entryId: string
   kind: TransactionKind
   amount: number
   balanceAfter: number
-  descriptionFa: string
-  actorFa: string | null
-  createdAt: string
+  occurredAt: string
+  descriptionFa: string | null
+  reference: string | null
+  actorId: string | null
+  isCredit: boolean
 }
 
 // ----------------------------------------------------------------- tickets
 
+/** GET /api/v1/admin/tickets - routers/admin_support.py. */
 export interface AdminTicketRow {
   ticketId: string
+  userId: number
   reference: string
-  userId: string
-  displayName: string
-  topicFa: string
-  subjectFa: string
+  category: string
+  priority: string
   state: TicketState
-  assigneeFa: string | null
-  messageCount: number
+  subjectFa: string
+  assigneeId: number | null
   createdAt: string
-  lastReplyAt: string | null
+  updatedAt: string
+  messageCount: number
+  unreadForAgent: number
+  unreadForCustomer: number
   waitingMinutes: number | null
 }
 
 export interface AdminTicketMessage {
   messageId: string
-  fromSupport: boolean
-  authorFa: string
+  ticketId: string
+  kind: string
   bodyFa: string
+  authorId: number | null
   createdAt: string
+  attachmentCount: number
+  templateId: string | null
+  isRead: boolean
 }
 
 // --------------------------------------------------------------- broadcast
@@ -385,18 +449,25 @@ export type BroadcastState =
   | 'cancelled'
   | 'failed'
 
+/**
+ * Broadcasts have no backend.
+ *
+ * BroadcastService exists but has no SQL AudienceResolver, so no router is
+ * built on it - see KNOWN_GAPS in tests/integration/test_admin_api_contract.py,
+ * which is what keeps this honest. These fields therefore describe what this
+ * screen renders rather than what any endpoint returns, and both halves have
+ * to change together when the routes land.
+ */
 export interface BroadcastRow {
-  broadcastId: string
-  titleFa: string
+  id: string
   bodyFa: string
-  audienceFa: string
+  segmentLabelFa: string
   state: BroadcastState
-  recipientCount: number
-  sentCount: number
+  audienceSize: number
+  deliveredCount: number
   failedCount: number
   scheduledAt: string | null
   createdAt: string
-  createdByFa: string
 }
 
 /** Audience filter for a new broadcast, resolved to a count before sending. */
@@ -408,25 +479,34 @@ export interface BroadcastAudience {
     | 'expired'
     | 'never_purchased'
     | 'tier'
-  tier: LoyaltyTier | null
+  tier?: LoyaltyTier | null
 }
 
 // -------------------------------------------------------------------- logs
 
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error' | 'critical'
 
+/**
+ * GET /api/v1/admin/audit-logs - AuditEntryResponse.
+ *
+ * No severity level, no Persian summary and no before/after diff: the trail
+ * records who did what to which target and whether it worked, plus a free-form
+ * `metadata` object. The screen was built on a richer record that has never
+ * existed, so every row rendered blank.
+ */
 export interface AuditLogRow {
-  entryId: string
-  at: string
-  level: LogLevel
-  actorFa: string
+  id: string
   action: string
-  entityType: string
-  entityId: string | null
-  summaryFa: string
+  outcome: string
+  occurredAt: string
+  actorType: string
+  actorId: string | null
+  actorLabel: string | null
+  targetType: string | null
+  targetId: string | null
+  ip: string | null
   correlationId: string | null
-  /** Before/after pairs for a mutation, already redacted server-side. */
-  changes: Array<{ field: string; before: string | null; after: string | null }>
+  metadata: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------- settings
@@ -447,22 +527,41 @@ export interface PolicySetting {
   groupFa: string
 }
 
-export interface OperatorRow {
-  operatorId: string
-  displayName: string
-  telegramUsername: string | null
-  role: Role
-  isEnabled: boolean
-  lastLoginAt: string | null
-  createdAt: string
-}
+/**
+ * GET /api/v1/admin/admins - AdminResponse, the same model /auth/me returns.
+ *
+ * An operator signs in with a username and a password: there is no display
+ * name, no email and no Telegram handle on this account, and no enabled flag -
+ * disabling is a delete, which is also what ends their sessions.
+ */
+export type OperatorRow = AdminSession
 
 // --------------------------------------------------------------- envelopes
 
 /** Every list endpoint returns this shape. */
+/**
+ * What every paged admin endpoint returns: the rows and how many there are.
+ *
+ * No `page` or `pageSize` - the API pages with `limit`/`offset` and does not
+ * echo them back, so the caller already knows both and the server never sent
+ * them. Reading `data.page` returned undefined, which `Pagination` then
+ * rendered as page NaN of NaN.
+ */
 export interface Paged<T> {
   items: T[]
   total: number
+}
+
+/**
+ * The other half of the API, which does echo the page back.
+ *
+ * Endpoints built on a Pydantic response model page with limit/offset and
+ * return `{items, total}`; the ones that hand-build their payload - tickets,
+ * payments, the wallet statement - take a `page` and return it alongside
+ * `pageSize`. Two shapes, so two types, rather than one type that is wrong
+ * half the time.
+ */
+export interface PagedWithCursor<T> extends Paged<T> {
   page: number
   pageSize: number
 }

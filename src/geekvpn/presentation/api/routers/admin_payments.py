@@ -32,7 +32,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.application.payments.refund_service import RefundRequest
 from geekvpn.application.payments.review_service import ApprovalRequest
@@ -49,6 +49,7 @@ from geekvpn.presentation.api.admin_common import (
     mutate_scope,
     read_scope,
 )
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.security import CurrentAdmin, requires
 
@@ -57,7 +58,7 @@ router = APIRouter(prefix="/admin/payments", tags=["payments"])
 # -- request bodies ---------------------------------------------------------
 
 
-class ApproveRequestBody(BaseModel):
+class ApproveRequestBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     actualAmount: int | None = Field(
@@ -70,7 +71,7 @@ class ApproveRequestBody(BaseModel):
     )
 
 
-class RejectRequestBody(BaseModel):
+class RejectRequestBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     reasonFa: str = Field(
@@ -80,7 +81,7 @@ class RejectRequestBody(BaseModel):
     )
 
 
-class RefundRequestBody(BaseModel):
+class RefundRequestBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: RefundReason

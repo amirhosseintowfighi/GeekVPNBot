@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.domain.catalog.enums import (
     CampaignKind,
@@ -22,9 +22,10 @@ from geekvpn.domain.catalog.enums import (
     PlanType,
     ProductTier,
 )
+from geekvpn.presentation.api.base_schema import ApiModel
 
 
-class _Schema(BaseModel):
+class _Schema(ApiModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 

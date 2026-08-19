@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.payments.enums import TransactionKind
@@ -34,13 +34,14 @@ from geekvpn.presentation.api.admin_common import (
     mutate_scope,
     read_scope,
 )
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.security import CurrentAdmin, requires
 
 router = APIRouter(prefix="/admin/wallets", tags=["wallet"])
 
 
-class AdjustBody(BaseModel):
+class AdjustBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     signedAmount: int = Field(

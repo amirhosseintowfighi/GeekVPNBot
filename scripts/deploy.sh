@@ -199,7 +199,7 @@ IDLE=$(idle_colour)
 log "active: ${ACTIVE}  ->  deploying to: ${IDLE}"
 
 log "building images"
-$COMPOSE build --pull "$IDLE" nginx miniapp || die "build failed"
+$COMPOSE build --pull "$IDLE" nginx miniapp admin || die "build failed"
 
 log "ensuring infrastructure is up"
 $COMPOSE up -d postgres redis || die "could not start postgres/redis"
@@ -268,12 +268,10 @@ log "starting the background services"
 $COMPOSE up -d --no-deps worker || warn "the worker did not start; no scheduled job will run"
 $COMPOSE up -d --no-deps certbot || warn "certbot did not start; TLS will not auto-renew"
 
-log "starting the Mini App"
-# It holds no secrets: the browser calls the API same-origin through nginx.
-# The admin panel is profiled out of this stack until it compiles - see the
-# comment on its service in docker-compose.prod.yml.
-$COMPOSE up -d --no-deps miniapp \
-  || warn "the Mini App did not start; the API and the bot are unaffected"
+log "starting the front-ends"
+# Neither holds a secret: both call the API same-origin through nginx.
+$COMPOSE up -d --no-deps miniapp admin \
+  || warn "a front-end did not start; the API and the bot are unaffected"
 
 if [[ "${WITH_MONITORING:-1}" == "1" && -f docker-compose.monitoring.yml ]]; then
   # Same again: the installer asks for an alert chat id, generates a Grafana

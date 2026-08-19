@@ -12,9 +12,10 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.permissions import AdminRole, Permission
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.schemas_auth import (
     AdminResponse,
     AuditEntryResponse,
@@ -25,7 +26,7 @@ from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
 router = APIRouter(prefix="/admin", tags=["administration"])
 
 
-class CreateAdminRequest(BaseModel):
+class CreateAdminRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
@@ -35,17 +36,44 @@ class CreateAdminRequest(BaseModel):
     telegram_id: int | None = None
 
 
-class ChangeRoleRequest(BaseModel):
+class ChangeRoleRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     role: AdminRole
 
 
-class PermissionOverridesRequest(BaseModel):
+class PermissionOverridesRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     granted: list[Permission] = Field(default_factory=list)
     denied: list[Permission] = Field(default_factory=list)
+
+
+@router.get(
+    "/admins",
+    response_model=list[AdminResponse],
+    summary="Every administrator",
+    dependencies=[Depends(requires(Permission.ADMINS_READ))],
+)
+async def list_admins(scope: ScopeDep, actor: CurrentAdmin) -> list[AdminResponse]:
+    """The permissions screen needs to show who has what.
+
+    There was no way to read this: an operator could be created, given a role
+    and deleted, but never listed, so the panel's permissions page had nothing
+    to render and asked for a route that did not exist.
+    """
+    admins = await scope.admins.list_all()
+    return [
+        AdminResponse(
+            id=admin.id,
+            username=admin.username,
+            role=admin.role,
+            permissions=sorted(str(permission) for permission in admin.permissions),
+            is_totp_enabled=admin.is_totp_enabled,
+            last_login_at=admin.last_login_at,
+        )
+        for admin in admins
+    ]
 
 
 @router.post(

@@ -11,7 +11,7 @@ import { faNumber } from '@/lib/fa'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useSession } from './session'
-import type { ActionQueue } from '@/lib/types'
+import type { ActionItem } from '@/lib/types'
 
 /**
  * Navigation.
@@ -34,7 +34,7 @@ function NavList({
   queue,
   onNavigate,
 }: {
-  queue: ActionQueue | null
+  queue: ActionItem[] | null
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
@@ -55,7 +55,10 @@ function NavList({
 
             {visible.map((item) => {
               const active = isActivePath(pathname, item.href)
-              const count = item.queueKey && queue ? queue[item.queueKey] : 0
+              // The dashboard returns only the rows with work on them, so a missing
+              // key means zero rather than an error.
+              const count =
+                (item.queueKey && queue?.find((action) => action.key === item.queueKey)?.count) || 0
               const Icon = item.icon
 
               return (
@@ -110,7 +113,7 @@ function Brand() {
   )
 }
 
-export function Sidebar({ queue }: { queue: ActionQueue | null }) {
+export function Sidebar({ queue }: { queue: ActionItem[] | null }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-e border-border bg-sidebar lg:flex">
       <Brand />
@@ -133,7 +136,7 @@ export function SidebarDrawer({
 }: {
   open: boolean
   onClose: () => void
-  queue: ActionQueue | null
+  queue: ActionItem[] | null
 }) {
   const pathname = usePathname()
 

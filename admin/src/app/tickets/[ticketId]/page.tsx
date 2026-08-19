@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 
@@ -38,8 +37,11 @@ export default function TicketDetailPage() {
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
-  const thread = useSWR<{ ticket: AdminTicketRow; messages: AdminTicketMessage[] }>(
-    ['ticket', ticketId],
+  // Two calls: the ticket and its thread are separate endpoints. This asked
+  // for {ticket, messages} from the messages endpoint, which returns neither.
+  const ticketQuery = useSWR<AdminTicketRow>(['ticket', ticketId], () => api.ticket(ticketId))
+  const thread = useSWR<{ items: AdminTicketMessage[] }>(
+    ['ticket-messages', ticketId],
     () => api.ticketMessages(ticketId),
   )
 
@@ -59,19 +61,21 @@ export default function TicketDetailPage() {
     }
   }
 
-  if (thread.error) {
+  if ((thread.error ?? ticketQuery.error)) {
     return (
       <ErrorState
-        messageFa={thread.error instanceof ApiError ? thread.error.messageFa : ''}
-        offline={thread.error instanceof ApiError && thread.error.status === 0}
+        messageFa={(thread.error ?? ticketQuery.error) instanceof ApiError ? (thread.error ?? ticketQuery.error).messageFa : ''}
+        offline={(thread.error ?? ticketQuery.error) instanceof ApiError && (thread.error ?? ticketQuery.error).status === 0}
         onRetry={() => thread.mutate()}
       />
     )
   }
 
-  if (thread.isLoading || !thread.data) return <SkeletonCards count={3} />
+  if (thread.isLoading || ticketQuery.isLoading || !thread.data || !ticketQuery.data)
+    return <SkeletonCards count={3} />
 
-  const { ticket, messages } = thread.data
+  const ticket = ticketQuery.data
+  const messages = thread.data.items
   const meta = TICKET_STATE[ticket.state]
   const closed = ticket.state === 'closed'
   const replyValid = reply.trim().length >= 2
@@ -79,13 +83,9 @@ export default function TicketDetailPage() {
   return (
     <>
       <PageHeader
-        breadcrumb={[{ href: '/tickets', labelFa: '\u062a\u06cc\u06a9\u062a\u200c\u0647\u0627' }]}
+        breadcrumb={{ href: '/tickets', labelFa: '\u062a\u06cc\u06a9\u062a\u200c\u0647\u0627' }}
         title={ticket.subjectFa}
-        description={
-          <Link href={'/users/' + ticket.userId} className="text-primary hover:underline">
-            {ticket.userFa}
-          </Link>
-        }
+        description={'\u06a9\u0627\u0631\u0628\u0631 ' + ticket.userId + ' \u00b7 ' + ticket.reference}
         actions={
           <div className="flex items-center gap-2">
             <Badge variant={meta.tone} dot>
@@ -109,10 +109,11 @@ export default function TicketDetailPage() {
       <Card>
         <CardContent className="space-y-3">
           {messages.map((message) => {
-            const fromOperator = message.author === 'operator'
+            // `kind` is the side of the conversation - see domain/support/enums.py.
+            const fromOperator = message.kind === 'support' || message.kind === 'note'
             return (
               <div
-                key={message.id}
+                key={message.messageId}
                 className={'flex ' + (fromOperator ? 'justify-start' : 'justify-end')}
               >
                 <div
@@ -124,7 +125,7 @@ export default function TicketDetailPage() {
                   }
                 >
                   <p className="mb-1 text-muted-foreground">
-                    {(fromOperator ? message.authorNameFa : ticket.userFa) +
+                    {(fromOperator ? '\u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc' : '\u06a9\u0627\u0631\u0628\u0631') +
                       ' \u00b7 ' +
                       faDateTime(message.createdAt)}
                   </p>

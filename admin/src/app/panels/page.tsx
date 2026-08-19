@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import useSWR from 'swr'
-import { Plus, RefreshCw, Wifi } from 'lucide-react'
+import { Plus, Wifi } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
 import { faNumber, faRelative } from '@/lib/fa'
@@ -47,12 +47,20 @@ export default function PanelsPage() {
 
   if (!can('panels.view')) return <ForbiddenState permission="panels.view" />
 
-  const run = async (panel: PanelRow, kind: 'test' | 'sync') => {
+  // Only one action: test the connection. There is no POST /panels/{id}/sync,
+  // so the "sync" button posted to a route that answered 404 and then reported
+  // success anyway - `ok` was hardcoded true for that branch.
+  const run = async (panel: PanelRow) => {
     setBusyId(panel.id)
     setResult(null)
     try {
-      const response = kind === 'test' ? await api.testPanel(panel.id) : await api.syncPanel(panel.id)
-      setResult({ ok: kind === 'sync' ? true : Boolean(response.ok), messageFa: response.messageFa })
+      const response = await api.testPanel(panel.id)
+      setResult({
+        ok: response.ok,
+        messageFa:
+          response.message ??
+          (response.ok ? '\u0627\u062a\u0635\u0627\u0644 \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062f.' : '\u0627\u062a\u0635\u0627\u0644 \u0628\u0631\u0642\u0631\u0627\u0631 \u0646\u0634\u062f.'),
+      })
     } catch (thrown) {
       setResult({ ok: false, messageFa: thrown instanceof ApiError ? thrown.messageFa : '' })
     } finally {
@@ -120,12 +128,12 @@ export default function PanelsPage() {
             </TableHeader>
             <TableBody>
               {data.map((panel) => {
-                const health = SERVER_HEALTH[panel.health]
+                const health = SERVER_HEALTH[panel.state]
                 return (
                   <TableRow key={panel.id}>
                     <TableCell>{panel.nameFa}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      <span dir="ltr">{PANEL_KIND_LABEL[panel.kind]}</span>
+                      <span dir="ltr">{PANEL_KIND_LABEL[panel.panelKind]}</span>
                     </TableCell>
                     <TableCell>
                       <span dir="ltr" className="font-mono text-2xs text-muted-foreground">
@@ -137,9 +145,11 @@ export default function PanelsPage() {
                         {health.fa}
                       </Badge>
                     </TableCell>
-                    <TableCell numeric>{faNumber(panel.userCount)}</TableCell>
+                    <TableCell numeric>
+                      {faNumber(panel.accountCount) + ' / ' + faNumber(panel.capacity)}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {panel.lastSyncAt ? faRelative(panel.lastSyncAt) : '\u0647\u0631\u06af\u0632'}
+                      {panel.lastCheckAt ? faRelative(panel.lastCheckAt) : '\u0647\u0631\u06af\u0632'}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -148,24 +158,13 @@ export default function PanelsPage() {
                             variant="ghost"
                             size="sm"
                             loading={busyId === panel.id}
-                            onClick={() => run(panel, 'test')}
+                            onClick={() => run(panel)}
                           >
                             <Wifi className="size-3.5" aria-hidden />
                             {'\u062a\u0633\u062a'}
                           </Button>
                         ) : null}
 
-                        {can('panels.edit') ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            loading={busyId === panel.id}
-                            onClick={() => run(panel, 'sync')}
-                          >
-                            <RefreshCw className="size-3.5" aria-hidden />
-                            {'\u0647\u0645\u06af\u0627\u0645\u200c\u0633\u0627\u0632\u06cc'}
-                          </Button>
-                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>

@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber, percent, toman } from '@/lib/fa'
+import { faDate, faNumber } from '@/lib/fa'
 import type { CampaignRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
@@ -89,14 +89,19 @@ export default function CampaignsPage() {
             </TableHeader>
             <TableBody>
               {data.map((campaign) => {
-                const startsAt = new Date(campaign.startsAt).getTime()
+                // The row carries a publication state and a formatted discount
+                // label. It does not carry an `enabled` flag, a `discountBps`,
+                // or per-campaign revenue - those live on
+                // /catalog/campaigns/{id}/performance, which is a second call.
+                const startsAt = campaign.startsAt ? new Date(campaign.startsAt).getTime() : null
                 const endsAt = campaign.endsAt ? new Date(campaign.endsAt).getTime() : null
 
-                // "Enabled" and "currently discounting" are different things.
+                // "Published" and "currently discounting" are different things.
                 // The badge reports the second one.
-                const upcoming = startsAt > now
+                const published = campaign.state === 'published'
+                const upcoming = startsAt !== null && startsAt > now
                 const finished = endsAt !== null && endsAt < now
-                const live = campaign.enabled && !upcoming && !finished
+                const live = published && !upcoming && !finished
 
                 const stateFa = live
                   ? '\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627'
@@ -110,19 +115,12 @@ export default function CampaignsPage() {
 
                 return (
                   <TableRow key={campaign.id}>
-                    <TableCell>
-                      {campaign.nameFa}
-                      {campaign.isFlashSale ? (
-                        <Badge variant="warning" className="ms-1.5">
-                          {'\u0641\u0631\u0648\u0634 \u0644\u062d\u0638\u0647\u200c\u0627\u06cc'}
-                        </Badge>
-                      ) : null}
-                    </TableCell>
+                    <TableCell>{campaign.nameFa}</TableCell>
 
-                    <TableCell numeric>{percent(campaign.discountBps / 100)}</TableCell>
+                    <TableCell numeric>{campaign.discountLabel}</TableCell>
 
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {faDate(campaign.startsAt) +
+                      {(campaign.startsAt ? faDate(campaign.startsAt) : '\u2014') +
                         ' \u2014 ' +
                         (campaign.endsAt ? faDate(campaign.endsAt) : '\u0628\u062f\u0648\u0646 \u067e\u0627\u06cc\u0627\u0646')}
                     </TableCell>
@@ -133,18 +131,19 @@ export default function CampaignsPage() {
                       </Badge>
                     </TableCell>
 
-                    <TableCell numeric>{faNumber(campaign.orderCount)}</TableCell>
-                    <TableCell numeric className="text-warning">
-                      {toman(campaign.discountGiven, false)}
+                    <TableCell numeric>{faNumber(campaign.redemptionCount)}</TableCell>
+                    <TableCell numeric className="text-muted-foreground">
+                      {campaign.remainingStock === null
+                        ? '\u0646\u0627\u0645\u062d\u062f\u0648\u062f'
+                        : faNumber(campaign.remainingStock)}
                     </TableCell>
-                    <TableCell numeric>{toman(campaign.revenue, false)}</TableCell>
 
                     <TableCell>
                       <Switch
-                        checked={campaign.enabled}
+                        checked={published}
                         disabled={!can('campaigns.edit')}
                         onCheckedChange={async (checked) => {
-                          await api.setCampaignState(campaign.id, checked)
+                          await api.setCampaignState(campaign.id, checked ? 'published' : 'draft')
                           mutate()
                         }}
                       />

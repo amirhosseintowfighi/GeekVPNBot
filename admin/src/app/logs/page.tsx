@@ -5,24 +5,18 @@ import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
 import { faDateTime, normalizeInput, truncate } from '@/lib/fa'
-import { LOG_LEVEL } from '@/lib/labels'
-import type { AuditLogRow, LogLevel, Paged } from '@/lib/types'
+import type { AuditLogRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { FilterSelect } from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Pagination, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const PAGE_SIZE = 25
 
-const LEVEL_OPTIONS = (Object.keys(LOG_LEVEL) as LogLevel[]).map((key) => ({
-  value: key,
-  label: LOG_LEVEL[key].fa,
-}))
 
 /**
  * Audit log.
@@ -43,7 +37,6 @@ const LEVEL_OPTIONS = (Object.keys(LOG_LEVEL) as LogLevel[]).map((key) => ({
 export default function LogsPage() {
   const { can } = useSession()
   const [page, setPage] = React.useState(1)
-  const [level, setLevel] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState('')
   const [expanded, setExpanded] = React.useState<string | null>(null)
 
@@ -56,8 +49,9 @@ export default function LogsPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const params = { page, pageSize: PAGE_SIZE, level, q: debounced }
-  const { data, error, isLoading } = useSWR<Paged<AuditLogRow>>(['logs', params], () => api.logs(params))
+  const { data, error, isLoading } = useSWR<AuditLogRow[]>(['logs', page, debounced], () =>
+    api.logs({ page, pageSize: PAGE_SIZE, action: debounced || undefined }),
+  )
 
   if (!can('logs.view')) return <ForbiddenState permission="logs.view" />
 
@@ -79,15 +73,6 @@ export default function LogsPage() {
             />
           </div>
 
-          <FilterSelect
-            value={level}
-            onChange={(next) => {
-              setLevel(next)
-              setPage(1)
-            }}
-            options={LEVEL_OPTIONS}
-            allLabel={'\u0647\u0645\u0647\u0654 \u0633\u0637\u0648\u062d'}
-          />
         </Toolbar>
 
         {error ? (
@@ -98,14 +83,14 @@ export default function LogsPage() {
           />
         ) : isLoading && !data ? (
           <SkeletonTable rows={12} cols={5} />
-        ) : !data || data.items.length === 0 ? (
+        ) : !data || data.length === 0 ? (
           <EmptyState title={'\u0644\u0627\u06af\u06cc \u06cc\u0627\u0641\u062a \u0646\u0634\u062f'} />
         ) : (
           <>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{'\u0633\u0637\u062d'}</TableHead>
+                  <TableHead>{'\u0646\u062a\u06cc\u062c\u0647'}</TableHead>
                   <TableHead>{'\u0627\u0642\u062f\u0627\u0645'}</TableHead>
                   <TableHead>{'\u0627\u067e\u0631\u0627\u062a\u0648\u0631'}</TableHead>
                   <TableHead>{'\u0645\u0648\u0636\u0648\u0639'}</TableHead>
@@ -113,15 +98,17 @@ export default function LogsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((row) => {
-                  const meta = LOG_LEVEL[row.level]
+                {data.map((row) => {
+                  // The trail records an outcome, not a severity, and carries
+                  // a free-form metadata object rather than a field-level diff.
                   const open = expanded === row.id
+                  const failed = row.outcome !== 'success'
                   return (
                     <React.Fragment key={row.id}>
                       <TableRow selected={open}>
                         <TableCell>
-                          <Badge variant={meta.tone} dot>
-                            {meta.fa}
+                          <Badge variant={failed ? 'destructive' : 'success'} dot>
+                            {row.outcome}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -130,15 +117,22 @@ export default function LogsPage() {
                             onClick={() => setExpanded(open ? null : row.id)}
                             className="text-start hover:underline"
                           >
-                            {row.actionFa}
+                            <span dir="ltr" className="font-mono text-2xs">
+                              {row.action}
+                            </span>
                           </button>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{row.actorFa}</TableCell>
                         <TableCell className="text-muted-foreground">
-                          {truncate(row.targetFa ?? '\u2014', 30)}
+                          {row.actorLabel ?? row.actorType}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {truncate(
+                            row.targetType ? row.targetType + ' ' + (row.targetId ?? '') : '\u2014',
+                            30,
+                          )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {faDateTime(row.createdAt)}
+                          {faDateTime(row.occurredAt)}
                         </TableCell>
                       </TableRow>
 
@@ -148,23 +142,27 @@ export default function LogsPage() {
                             <div className="space-y-2 py-1">
                               <p className="text-2xs text-muted-foreground">
                                 {'\u0634\u0646\u0627\u0633\u0647\u0654 \u0647\u0645\u0628\u0633\u062a\u06af\u06cc: '}
-                                <span dir="ltr" className="font-mono">{row.correlationId}</span>
+                                <span dir="ltr" className="font-mono">{row.correlationId ?? '\u2014'}</span>
+                                {row.ip ? (
+                                  <>
+                                    {' \u00b7 IP: '}
+                                    <span dir="ltr" className="font-mono">{row.ip}</span>
+                                  </>
+                                ) : null}
                               </p>
 
-                              {row.changes.length === 0 ? (
+                              {Object.keys(row.metadata).length === 0 ? (
                                 <p className="text-2xs text-muted-foreground">
-                                  {'\u0627\u06cc\u0646 \u0627\u0642\u062f\u0627\u0645 \u062a\u063a\u06cc\u06cc\u0631 \u0645\u06cc\u062f\u0627\u0646\u06cc \u062b\u0628\u062a \u0646\u06a9\u0631\u062f\u0647 \u0627\u0633\u062a.'}
+                                  {'\u0627\u06cc\u0646 \u0627\u0642\u062f\u0627\u0645 \u062c\u0632\u0626\u06cc\u0627\u062a \u0628\u06cc\u0634\u062a\u0631\u06cc \u062b\u0628\u062a \u0646\u06a9\u0631\u062f\u0647 \u0627\u0633\u062a.'}
                                 </p>
                               ) : (
                                 <ul className="space-y-1">
-                                  {row.changes.map((change, index) => (
-                                    <li key={index} className="flex flex-wrap items-center gap-2 text-2xs">
-                                      <span className="text-muted-foreground">{change.fieldFa}</span>
-                                      <span className="nums text-destructive line-through">
-                                        {change.beforeFa ?? '\u2014'}
+                                  {Object.entries(row.metadata).map(([key, value]) => (
+                                    <li key={key} className="flex flex-wrap items-center gap-2 text-2xs">
+                                      <span className="text-muted-foreground">{key}</span>
+                                      <span dir="ltr" className="nums font-mono">
+                                        {String(value)}
                                       </span>
-                                      <span aria-hidden>{'\u2190'}</span>
-                                      <span className="nums text-success">{change.afterFa ?? '\u2014'}</span>
                                     </li>
                                   ))}
                                 </ul>
@@ -179,7 +177,14 @@ export default function LogsPage() {
               </TableBody>
             </Table>
 
-            <Pagination page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} />
+            {/* The endpoint returns a list, not a count, so paging is
+                "is this page full" rather than a total. */}
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={(page - 1) * PAGE_SIZE + data.length + (data.length === PAGE_SIZE ? 1 : 0)}
+              onPageChange={setPage}
+            />
           </>
         )}
       </Card>

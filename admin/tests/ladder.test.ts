@@ -28,7 +28,9 @@ describe('ladder shape', () => {
   it('omits the sixty-day rung on purpose', () => {
     // Two months is a decision nobody makes; offering it only dilutes the
     // quarterly step that actually converts.
-    expect(LADDER.some((rung) => rung.days === 60)).toBe(false)
+    // Widened from the literal union so the assertion still means something:
+    // comparing against a type that cannot be 60 is a tautology, not a test.
+    expect(LADDER.some((rung) => (rung.days as number) === 60)).toBe(false)
   })
 
   it('prices the weekly rung ABOVE the monthly rate', () => {
@@ -36,6 +38,7 @@ describe('ladder shape', () => {
     // this is the single most misread row in the whole catalogue, so it is
     // asserted rather than assumed.
     const weekly = LADDER[0]
+    if (!weekly) throw new Error('the ladder is empty')
     expect(weekly.discountBps).toBeLessThan(0)
 
     const monthly = 300_000
@@ -47,7 +50,10 @@ describe('ladder shape', () => {
   it('increases the discount monotonically with commitment', () => {
     const paid = LADDER.filter((rung) => rung.days >= 30)
     for (let index = 1; index < paid.length; index += 1) {
-      expect(paid[index].discountBps).toBeGreaterThan(paid[index - 1].discountBps)
+      const current = paid[index]
+      const previous = paid[index - 1]
+      if (!current || !previous) throw new Error('the ladder shrank mid-loop')
+      expect(current.discountBps).toBeGreaterThan(previous.discountBps)
     }
   })
 
@@ -55,7 +61,7 @@ describe('ladder shape', () => {
     // Concavity is what stops the annual plan from cannibalising margin.
     const deltas = [1_000 - 0, 1_800 - 1_000, 2_500 - 1_800]
     for (let index = 1; index < deltas.length; index += 1) {
-      expect(deltas[index]).toBeLessThanOrEqual(deltas[index - 1])
+      expect(deltas[index] as number).toBeLessThanOrEqual(deltas[index - 1] as number)
     }
   })
 

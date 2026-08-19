@@ -38,7 +38,8 @@ export interface NavItem {
   icon: LucideIcon
   permission: Permission
   /** Key into the dashboard ActionQueue, rendered as a count badge. */
-  queueKey?: 'pendingPayments' | 'openTickets' | 'unhealthyPanels'
+  /** Matches ActionItem.key from GET /api/v1/admin/analytics/dashboard. */
+  queueKey?: 'pending_payments' | 'open_tickets' | 'offline_nodes'
 }
 
 export interface NavSection {
@@ -72,14 +73,14 @@ export const NAV: NavSection[] = [
         labelFa: '\u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627',
         icon: Receipt,
         permission: 'orders.view',
-        queueKey: 'pendingPayments',
+        queueKey: 'pending_payments',
       },
       {
         href: '/tickets',
         labelFa: '\u062a\u06cc\u06a9\u062a\u200c\u0647\u0627',
         icon: LifeBuoy,
         permission: 'tickets.view',
-        queueKey: 'openTickets',
+        queueKey: 'open_tickets',
       },
       {
         href: '/users',
@@ -132,7 +133,7 @@ export const NAV: NavSection[] = [
         labelFa: '\u067e\u0646\u0644\u200c\u0647\u0627',
         icon: ServerCog,
         permission: 'panels.view',
-        queueKey: 'unhealthyPanels',
+        queueKey: 'offline_nodes',
       },
       {
         href: '/servers',

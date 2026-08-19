@@ -45,7 +45,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  */
 export default function ProductsPage() {
   const { can } = useSession()
-  const [categoryId, setCategoryId] = React.useState<string | null>(null)
+  const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined)
   const [selectedProduct, setSelectedProduct] = React.useState<string | null>(null)
   const [ladderFor, setLadderFor] = React.useState<ProductRow | null>(null)
 
@@ -53,7 +53,7 @@ export default function ProductsPage() {
   const products = useSWR<ProductRow[]>(['products', categoryId], () => api.products({ categoryId }))
   const plans = useSWR<PlanRow[]>(
     selectedProduct ? ['plans', selectedProduct] : null,
-    () => api.plans({ productId: selectedProduct as string }),
+    () => api.plans(selectedProduct as string),
   )
 
   if (!can('products.view')) return <ForbiddenState permission="products.view" />
@@ -126,19 +126,22 @@ export default function ProductsPage() {
                         onClick={() => setSelectedProduct(product.id)}
                         className="text-start hover:underline"
                       >
-                        {product.emoji} {product.nameFa}
+                        {product.icon} {product.nameFa}
                       </button>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{product.categoryNameFa}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {categories.data?.find((category) => category.id === product.categoryId)
+                        ?.nameFa ?? '\u2014'}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={stateMeta.tone} dot>
                         {stateMeta.fa}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {product.panelNameFa ?? '\u0645\u062a\u0635\u0644 \u0646\u0634\u062f\u0647'}
+                      {product.nodeId ?? '\u0645\u062a\u0635\u0644 \u0646\u0634\u062f\u0647'}
                     </TableCell>
-                    <TableCell numeric>{faNumber(product.planCount)}</TableCell>
+                    <TableCell className="text-muted-foreground">{product.tier}</TableCell>
                     <TableCell>
                       {can('products.edit') ? (
                         <Button variant="ghost" size="sm" onClick={() => setLadderFor(product)}>
@@ -273,7 +276,15 @@ function LadderDialog({
     setBusy(true)
     setFailure(null)
     try {
-      await api.generateLadder({ productId: product.id, monthlyPrice })
+      // The endpoint builds real plans, so it needs what a plan is made of.
+      // Sending only a price produced a 422 every time.
+      await api.generateLadder({
+        productId: product.id,
+        monthlyPrice,
+        planType: 'unlimited',
+        slugPrefix: product.slug,
+        namePrefixFa: product.nameFa,
+      })
       onGenerated()
       onClose()
       setMonthly('')

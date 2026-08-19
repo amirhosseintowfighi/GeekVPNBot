@@ -6,12 +6,12 @@ import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faDateTime, faNumber, gib, normalizeInput, toman } from '@/lib/fa'
+import { faDate, faDateTime, faNumber, normalizeInput, toman } from '@/lib/fa'
 import { SUBSCRIPTION_STATE, USER_STATE } from '@/lib/labels'
-import type { UserDetail, UserState } from '@/lib/types'
+import type { AdminSubscriptionRow, Paged, UserDetail } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
-import { ErrorState, ForbiddenState } from '@/components/shell/states'
+import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,22 +27,18 @@ import {
 import { Field, Input, Textarea } from '@/components/ui/input'
 import { SkeletonCards } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Progress, usageTone } from '@/components/ui/primitives'
 
 type DialogKind = 'state' | 'wallet' | null
 
 /**
- * User detail.
+ * One customer.
  *
- * Both mutating actions here are ones a customer feels immediately, so both
- * demand a written reason:
- *
- * - Changing state to suspended or banned cuts off a paying customer. The
- *   reason is stored on the audit trail and is what support quotes back when
- *   the customer asks why.
- * - A wallet adjustment is money created or destroyed by hand. It is the most
- *   abusable action in the panel, so the reason is mandatory, the amount is
- *   signed, and the resulting balance is previewed before confirming.
+ * Assembled from three endpoints, because that is how the API is shaped:
+ * `/customers/{id}` returns the customer plus two counts - not, as this screen
+ * assumed, a nested list of subscriptions and orders and a wallet balance.
+ * The balance comes from `/wallet/{id}` and the subscriptions from
+ * `/subscriptions?user_id=`, which is also what makes them paginated and
+ * filterable instead of silently capped at whatever the detail call chose.
  */
 export default function UserDetailPage() {
   const params = useParams<{ userId: string }>()
@@ -50,13 +46,25 @@ export default function UserDetailPage() {
   const userId = params.userId
 
   const [dialog, setDialog] = React.useState<DialogKind>(null)
-  const [nextState, setNextState] = React.useState<UserState>('suspended')
   const [reason, setReason] = React.useState('')
   const [amount, setAmount] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState<string | null>(null)
 
-  const { data, error, isLoading, mutate } = useSWR<UserDetail>(['user', userId], () => api.user(userId))
+  const { data, error, isLoading, mutate } = useSWR<UserDetail>(
+    ['user', userId],
+    () => api.user(userId),
+  )
+
+  const { data: wallet, mutate: mutateWallet } = useSWR(
+    can('wallet.view') ? ['wallet', userId] : null,
+    () => api.walletBalance(userId),
+  )
+
+  const { data: subscriptions } = useSWR<Paged<AdminSubscriptionRow>>(
+    data ? ['user-subscriptions', userId] : null,
+    () => api.subscriptions({ page: 1, userId: data ? data.customer.telegramId : undefined }),
+  )
 
   if (!can('users.view')) return <ForbiddenState permission="users.view" />
 
@@ -67,8 +75,7 @@ export default function UserDetailPage() {
     setActionError(null)
   }
 
-  // Persian digits in, integer tomans out. An empty or malformed amount is 0,
-  // which the confirm button treats as invalid rather than silently posting.
+  // Persian digits in, integer tomans out. A signed amount: negative debits.
   const parsedAmount = Number(normalizeInput(amount).replace(/[^\d-]/g, '')) || 0
   const reasonTooShort = reason.trim().length < 5
 
@@ -78,12 +85,14 @@ export default function UserDetailPage() {
     setActionError(null)
     try {
       if (dialog === 'state') {
-        // Reinstating carries no reason; suspending always does.
-        await (nextState === 'active'
-          ? api.reinstateUser(userId)
-          : api.suspendUser(userId, reason.trim()))
+        await (data.customer.status === 'active'
+          ? api.suspendUser(userId, reason.trim())
+          : api.reinstateUser(userId))
       }
-      if (dialog === 'wallet') await api.adjustWallet(userId, parsedAmount, reason.trim())
+      if (dialog === 'wallet') {
+        await api.adjustWallet(userId, parsedAmount, reason.trim())
+        await mutateWallet()
+      }
       await mutate()
       close()
     } catch (thrown) {
@@ -105,35 +114,30 @@ export default function UserDetailPage() {
 
   if (isLoading || !data) return <SkeletonCards count={3} />
 
-  const stateMeta = USER_STATE[data.state]
+  const customer = data.customer
+  const stateMeta = USER_STATE[customer.status]
+  const suspended = customer.status !== 'active'
 
   return (
     <>
       <PageHeader
-        breadcrumb={[{ href: '/users', labelFa: '\u06a9\u0627\u0631\u0628\u0631\u0627\u0646' }]}
-        title={data.displayNameFa}
-        description={
-          '\u0639\u0636\u0648 \u0627\u0632 ' + faDate(data.createdAt)
-        }
+        breadcrumb={{ href: '/users', labelFa: 'کاربران' }}
+        title={customer.displayName}
+        description={'عضویت ' + faDate(customer.createdAt)}
         actions={
           <div className="flex flex-wrap gap-2">
-            {can('wallet.adjust') ? (
-              <Button variant="outline" onClick={() => setDialog('wallet')}>
-                {'\u062a\u0639\u062f\u06cc\u0644 \u06a9\u06cc\u0641 \u067e\u0648\u0644'}
-              </Button>
-            ) : null}
-
             {can('users.suspend') ? (
               <Button
-                variant={data.state === 'active' ? 'destructive' : 'success'}
-                onClick={() => {
-                  setNextState(data.state === 'active' ? 'suspended' : 'active')
-                  setDialog('state')
-                }}
+                size="sm"
+                variant={suspended ? 'outline' : 'destructive'}
+                onClick={() => setDialog('state')}
               >
-                {data.state === 'active'
-                  ? '\u062a\u0639\u0644\u06cc\u0642 \u06a9\u0627\u0631\u0628\u0631'
-                  : '\u0631\u0641\u0639 \u0645\u062d\u062f\u0648\u062f\u06cc\u062a'}
+                {suspended ? 'رفع مسدودی' : 'مسدودسازی'}
+              </Button>
+            ) : null}
+            {can('wallet.adjust') ? (
+              <Button size="sm" variant="outline" onClick={() => setDialog('wallet')}>
+                {'اصلاح کیف پول'}
               </Button>
             ) : null}
           </div>
@@ -143,143 +147,110 @@ export default function UserDetailPage() {
       <div className="grid gap-3 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>{'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'}</CardTitle>
+            <CardTitle>{'هویت'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-2xs">
-            <Row label={'\u0648\u0636\u0639\u06cc\u062a'}>
+            <Row labelFa={'وضعیت'}>
               <Badge variant={stateMeta.tone} dot>
                 {stateMeta.fa}
               </Badge>
             </Row>
-            <Row label={'\u0634\u0646\u0627\u0633\u0647\u0654 \u062a\u0644\u06af\u0631\u0627\u0645'}>
-              <span dir="ltr" className="font-mono">{data.telegramId}</span>
-            </Row>
-            <Row label={'\u0646\u0627\u0645 \u06a9\u0627\u0631\u0628\u0631\u06cc'}>
-              <span dir="ltr" className="font-mono">{data.username ? '@' + data.username : '\u2014'}</span>
-            </Row>
-            <Row label={'\u0633\u0637\u062d \u0648\u0641\u0627\u062f\u0627\u0631\u06cc'}>
-              <span>
-                {data.tierEmoji} {data.tierLabelFa}
+            <Row labelFa={'شناسهٔ تلگرام'}>
+              <span dir="ltr" className="font-mono">
+                {customer.telegramId}
               </span>
             </Row>
-            <Row label={'\u0645\u062c\u0645\u0648\u0639 \u062e\u0631\u06cc\u062f'}>
-              <span className="nums">{toman(data.lifetimeSpend)}</span>
+            <Row labelFa={'نام کاربری'}>
+              <span dir="ltr" className="font-mono">
+                {customer.username ? '@' + customer.username : '—'}
+              </span>
             </Row>
-            <Row label={'\u0645\u0648\u062c\u0648\u062f\u06cc \u06a9\u06cc\u0641 \u067e\u0648\u0644'}>
-              <span className="nums font-semibold">{toman(data.walletBalance)}</span>
+            <Row labelFa={'کد معرف'}>
+              <span dir="ltr" className="font-mono">
+                {customer.referralCode}
+              </span>
             </Row>
-            <Row label={'\u0645\u0639\u0631\u0641\u06cc\u200c\u0634\u062f\u06af\u0627\u0646'}>
-              <span className="nums">{faNumber(data.referralCount)}</span>
+            <Row labelFa={'معرفی‌شده توسط'}>
+              <span dir="ltr" className="font-mono">
+                {customer.referredByCode ?? '—'}
+              </span>
             </Row>
-            {data.referredByFa ? (
-              <Row label={'\u0645\u0639\u0631\u0641'}>
-                <span>{data.referredByFa}</span>
+            <Row labelFa={'آخرین بازدید'}>
+              {customer.lastSeenAt ? faDateTime(customer.lastSeenAt) : '—'}
+            </Row>
+            {customer.suspendedReason ? (
+              <Row labelFa={'علت مسدودی'}>
+                <span className="text-destructive">{customer.suspendedReason}</span>
               </Row>
-            ) : null}
-            {data.stateReasonFa ? (
-              <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-warning">
-                {data.stateReasonFa}
-              </p>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card>
           <CardHeader>
-            <CardTitle>{'\u0627\u0634\u062a\u0631\u0627\u06a9\u200c\u0647\u0627'}</CardTitle>
+            <CardTitle>{'خلاصه'}</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            {data.subscriptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-2xs text-muted-foreground">
-                {'\u0627\u06cc\u0646 \u06a9\u0627\u0631\u0628\u0631 \u0647\u0646\u0648\u0632 \u0627\u0634\u062a\u0631\u0627\u06a9\u06cc \u0646\u062f\u0627\u0631\u062f.'}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{'\u067e\u0644\u0646'}</TableHead>
-                    <TableHead>{'\u0648\u0636\u0639\u06cc\u062a'}</TableHead>
-                    <TableHead>{'\u0645\u0635\u0631\u0641'}</TableHead>
-                    <TableHead>{'\u0627\u0646\u0642\u0636\u0627'}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.subscriptions.map((subscription) => {
-                    const meta = SUBSCRIPTION_STATE[subscription.state]
-                    // Unlimited plans have no quota; a progress bar there would
-                    // imply a ceiling that does not exist.
-                    const unlimited = subscription.quotaGib === null
-                    const fraction = unlimited
-                      ? 0
-                      : Math.min(1, subscription.usedGib / Math.max(1, subscription.quotaGib ?? 1))
-
-                    return (
-                      <TableRow key={subscription.id}>
-                        <TableCell>{subscription.planNameFa}</TableCell>
-                        <TableCell>
-                          <Badge variant={meta.tone} dot>
-                            {meta.fa}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {unlimited ? (
-                            <span className="text-muted-foreground">{gib(null)}</span>
-                          ) : (
-                            <div className="min-w-28 space-y-1">
-                              <Progress value={fraction * 100} tone={usageTone(fraction)} />
-                              <span className="nums text-2xs text-muted-foreground">
-                                {gib(subscription.usedGib) + ' / ' + gib(subscription.quotaGib)}
-                              </span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {subscription.expiresAt ? faDate(subscription.expiresAt) : '\u2014'}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
+          <CardContent className="space-y-2 text-2xs">
+            <Row labelFa={'اشتراک‌ها'}>{faNumber(data.subscriptions)}</Row>
+            <Row labelFa={'سفارش‌ها'}>{faNumber(data.orders)}</Row>
+            <Row labelFa={'موجودی کیف پول'}>
+              {wallet ? toman(wallet.balance, false) : '—'}
+            </Row>
+            <Row labelFa={'مشتری ویژه'}>{customer.isPremium ? 'بله' : 'خیر'}</Row>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{'\u0622\u062e\u0631\u06cc\u0646 \u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627'}</CardTitle>
+          <CardTitle>{'اشتراک‌ها'}</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        {!subscriptions || subscriptions.items.length === 0 ? (
+          <EmptyState title={'اشتراکی ندارد'} />
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{'\u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc'}</TableHead>
-                <TableHead>{'\u0645\u0628\u0644\u063a'}</TableHead>
-                <TableHead>{'\u062a\u0627\u0631\u06cc\u062e'}</TableHead>
+                <TableHead>{'پلن'}</TableHead>
+                <TableHead>{'وضعیت'}</TableHead>
+                <TableHead>{'شروع'}</TableHead>
+                <TableHead>{'انقضا'}</TableHead>
+                <TableHead numeric>{'مصرف'}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.recentOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>
-                    <Link
-                      href={'/orders/' + order.id}
-                      dir="ltr"
-                      className="font-mono text-2xs text-primary hover:underline"
-                    >
-                      {order.reference}
-                    </Link>
-                  </TableCell>
-                  <TableCell numeric>{toman(order.amount, false)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {faDateTime(order.createdAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {subscriptions.items.map((subscription) => {
+                const meta = SUBSCRIPTION_STATE[subscription.state]
+                return (
+                  <TableRow key={subscription.id}>
+                    <TableCell>
+                      <Link
+                        href={'/subscriptions/' + subscription.id}
+                        className="text-primary hover:underline"
+                      >
+                        {subscription.planId}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={meta.tone} dot>
+                        {meta.fa}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {faDate(subscription.startedAt)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {faDate(subscription.expiresAt)}
+                    </TableCell>
+                    <TableCell numeric>
+                      {faNumber(Math.round(subscription.trafficUsedMib / 1024)) + ' گیگابایت'}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
-        </CardContent>
+        )}
       </Card>
 
       <Dialog open={dialog !== null} onOpenChange={(open) => (open ? null : close())}>
@@ -287,66 +258,61 @@ export default function UserDetailPage() {
           <DialogHeader>
             <DialogTitle>
               {dialog === 'wallet'
-                ? '\u062a\u0639\u062f\u06cc\u0644 \u062f\u0633\u062a\u06cc \u06a9\u06cc\u0641 \u067e\u0648\u0644'
-                : '\u062a\u063a\u06cc\u06cc\u0631 \u0648\u0636\u0639\u06cc\u062a \u06a9\u0627\u0631\u0628\u0631'}
+                ? 'اصلاح کیف پول'
+                : suspended
+                  ? 'رفع مسدودی'
+                  : 'مسدودسازی کاربر'}
             </DialogTitle>
             <DialogDescription>
               {dialog === 'wallet'
-                ? '\u0645\u0628\u0644\u063a \u0645\u062b\u0628\u062a \u0628\u0631\u0627\u06cc \u0648\u0627\u0631\u06cc\u0632 \u0648 \u0645\u0646\u0641\u06cc \u0628\u0631\u0627\u06cc \u0628\u0631\u062f\u0627\u0634\u062a. \u0627\u06cc\u0646 \u062a\u0631\u0627\u06a9\u0646\u0634 \u062f\u0631 \u0644\u0627\u06af \u062b\u0628\u062a \u0645\u06cc\u200c\u0634\u0648\u062f.'
-                : '\u062f\u0644\u06cc\u0644 \u0628\u0631\u0627\u06cc \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u0642\u0627\u0628\u0644 \u0645\u0634\u0627\u0647\u062f\u0647 \u062e\u0648\u0627\u0647\u062f \u0628\u0648\u062f.'}
+                ? 'مبلغ مثبت اعتبار می‌افزاید و مبلغ منفی کم می‌کند. هر دو در دفتر ثبت می‌شوند.'
+                : suspended
+                  ? 'کاربر دوباره می‌تواند خرید کند.'
+                  : 'کاربر تا رفع مسدودی نمی‌تواند خرید کند.'}
             </DialogDescription>
           </DialogHeader>
 
           <DialogBody className="space-y-3">
             {dialog === 'wallet' ? (
-              <>
-                <Field label={'\u0645\u0628\u0644\u063a (\u062a\u0648\u0645\u0627\u0646)'}>
-                  <Input
-                    ltr
-                    inputMode="numeric"
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    autoFocus
-                  />
-                </Field>
-
-                {/* Preview the resulting balance. Signed adjustments are easy
-                    to get backwards, and this is the last chance to notice. */}
-                <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-2xs">
-                  <span className="text-muted-foreground">
-                    {'\u0645\u0648\u062c\u0648\u062f\u06cc \u067e\u0633 \u0627\u0632 \u062a\u0639\u062f\u06cc\u0644'}
-                  </span>
-                  <span className="nums font-semibold">{toman(data.walletBalance + parsedAmount)}</span>
-                </div>
-              </>
+              <Field label={'مبلغ (تومان)'}>
+                <Input
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  dir="ltr"
+                  inputMode="numeric"
+                  placeholder="50000"
+                />
+              </Field>
             ) : null}
 
-            <Field
-              label={'\u0639\u0644\u062a'}
-              hint={'\u062f\u0633\u062a\u200c\u06a9\u0645 \u06f5 \u062d\u0631\u0641'}
-              error={reason.length > 0 && reasonTooShort ? '\u0639\u0644\u062a \u062e\u06cc\u0644\u06cc \u06a9\u0648\u062a\u0627\u0647 \u0627\u0633\u062a' : undefined}
-            >
-              <Textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} />
-            </Field>
-
-            {actionError ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
-                {actionError}
-              </p>
+            {/* Reinstating needs no reason; every other action here does. */}
+            {dialog === 'wallet' || !suspended ? (
+              <Field label={'دلیل'}>
+                <Textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  rows={3}
+                />
+              </Field>
             ) : null}
+
+            {actionError ? <p className="text-2xs text-destructive">{actionError}</p> : null}
           </DialogBody>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={close} disabled={busy}>
-              {'\u0627\u0646\u0635\u0631\u0627\u0641'}
+            <Button variant="ghost" size="sm" onClick={close} disabled={busy}>
+              {'انصراف'}
             </Button>
             <Button
-              variant="destructive"
-              loading={busy}
-              disabled={reasonTooShort || (dialog === 'wallet' && parsedAmount === 0)}
+              size="sm"
               onClick={submit}
+              disabled={
+                busy ||
+                (dialog === 'wallet' && (parsedAmount === 0 || reasonTooShort)) ||
+                (dialog === 'state' && !suspended && reasonTooShort)
+              }
             >
-              {'\u062a\u0623\u06cc\u06cc\u062f'}
+              {'تأیید'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -355,11 +321,11 @@ export default function UserDetailPage() {
   )
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ labelFa, children }: { labelFa: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      {children}
+      <span className="text-muted-foreground">{labelFa}</span>
+      <span className="nums">{children}</span>
     </div>
   )
 }

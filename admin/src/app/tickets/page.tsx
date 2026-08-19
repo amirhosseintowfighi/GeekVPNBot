@@ -7,7 +7,7 @@ import useSWR from 'swr'
 import { api, ApiError } from '@/lib/api'
 import { faNumber, faRelative, truncate } from '@/lib/fa'
 import { TICKET_STATE, waitTone } from '@/lib/labels'
-import type { AdminTicketRow, Paged, TicketState } from '@/lib/types'
+import type { AdminTicketRow, PagedWithCursor } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -17,12 +17,16 @@ import { FilterSelect } from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Pagination, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-const PAGE_SIZE = 25
-
-const STATE_OPTIONS = (Object.keys(TICKET_STATE) as TicketState[]).map((key) => ({
-  value: key,
-  label: TICKET_STATE[key].fa,
-}))
+// The queue filters by category, not by state: it is the *open* queue, and
+// every ticket in it is open by definition.
+const CATEGORY_OPTIONS = [
+  { value: 'connection', label: 'اتصال' },
+  { value: 'payment', label: 'پرداخت' },
+  { value: 'account', label: 'حساب' },
+  { value: 'speed', label: 'سرعت' },
+  { value: 'technical', label: 'فنی' },
+  { value: 'other', label: 'سایر' },
+]
 
 /**
  * Tickets.
@@ -35,10 +39,12 @@ const STATE_OPTIONS = (Object.keys(TICKET_STATE) as TicketState[]).map((key) => 
 export default function TicketsPage() {
   const { can } = useSession()
   const [page, setPage] = React.useState(1)
-  const [state, setState] = React.useState<string | null>('open')
+  const [category, setCategory] = React.useState<string | undefined>(undefined)
 
-  const params = { page, pageSize: PAGE_SIZE, state, sort: 'waitingMinutes', direction: 'desc' as const }
-  const { data, error, isLoading } = useSWR<Paged<AdminTicketRow>>(['tickets', params], () => api.tickets(params))
+  const { data, error, isLoading } = useSWR<PagedWithCursor<AdminTicketRow>>(
+    ['tickets', page, category],
+    () => api.tickets({ page, category }),
+  )
 
   if (!can('tickets.view')) return <ForbiddenState permission="tickets.view" />
 
@@ -52,12 +58,12 @@ export default function TicketsPage() {
       <Card>
         <Toolbar>
           <FilterSelect
-            value={state}
+            value={category}
             onChange={(next) => {
-              setState(next)
+              setCategory(next)
               setPage(1)
             }}
-            options={STATE_OPTIONS}
+            options={CATEGORY_OPTIONS}
             allLabel={'\u0647\u0645\u0647\u0654 \u0648\u0636\u0639\u06cc\u062a\u200c\u0647\u0627'}
           />
         </Toolbar>
@@ -91,18 +97,23 @@ export default function TicketsPage() {
               <TableBody>
                 {data.items.map((ticket) => {
                   const meta = TICKET_STATE[ticket.state]
-                  // Only colour the wait while the ball is in our court.
+                  // Only colour the wait while the ball is in our court, and
+                  // only when there is a wait: an answered ticket has none.
                   const ours = ticket.state === 'open'
+                  const waiting = ticket.waitingMinutes
                   return (
-                    <TableRow key={ticket.id}>
+                    <TableRow key={ticket.ticketId}>
                       <TableCell>
-                        <Link href={'/tickets/' + ticket.id} className="text-primary hover:underline">
+                        <Link
+                          href={'/tickets/' + ticket.ticketId}
+                          className="text-primary hover:underline"
+                        >
                           {truncate(ticket.subjectFa, 40)}
                         </Link>
                       </TableCell>
                       <TableCell>
                         <Link href={'/users/' + ticket.userId} className="hover:underline">
-                          {truncate(ticket.userFa, 22)}
+                          {faNumber(ticket.userId)}
                         </Link>
                       </TableCell>
                       <TableCell>
@@ -112,18 +123,20 @@ export default function TicketsPage() {
                       </TableCell>
                       <TableCell numeric>{faNumber(ticket.messageCount)}</TableCell>
                       <TableCell numeric>
-                        {ours ? (
-                          <Badge variant={waitTone(ticket.waitingMinutes)}>
-                            {faNumber(ticket.waitingMinutes) + ' \u062f\u0642\u06cc\u0642\u0647'}
+                        {waiting === null ? (
+                          <span className="text-muted-foreground">{'\u2014'}</span>
+                        ) : ours ? (
+                          <Badge variant={waitTone(waiting)}>
+                            {faNumber(waiting) + ' \u062f\u0642\u06cc\u0642\u0647'}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">
-                            {faNumber(ticket.waitingMinutes) + ' \u062f\u0642\u06cc\u0642\u0647'}
+                            {faNumber(waiting) + ' \u062f\u0642\u06cc\u0642\u0647'}
                           </span>
                         )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {faRelative(ticket.lastMessageAt)}
+                        {faRelative(ticket.updatedAt)}
                       </TableCell>
                     </TableRow>
                   )

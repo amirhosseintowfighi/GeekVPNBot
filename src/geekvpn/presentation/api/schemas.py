@@ -4,28 +4,30 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from geekvpn.presentation.api.base_schema import ApiModel
 
 
-class LivenessResponse(BaseModel):
+class LivenessResponse(ApiModel):
     status: Literal["alive"] = "alive"
     service: str
     version: str
 
 
-class DependencyStatus(BaseModel):
+class DependencyStatus(ApiModel):
     name: str
     healthy: bool
     latency_ms: float
     error: str | None = None
 
 
-class ReadinessResponse(BaseModel):
+class ReadinessResponse(ApiModel):
     status: Literal["ready", "degraded"]
     dependencies: list[DependencyStatus] = Field(default_factory=list)
 
 
-class ServiceInfoResponse(BaseModel):
+class ServiceInfoResponse(ApiModel):
     name: str
     version: str
     environment: str

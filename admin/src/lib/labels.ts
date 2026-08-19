@@ -2,6 +2,7 @@ import type { BadgeTone } from '@/components/ui/badge'
 import type {
   BroadcastState,
   LogLevel,
+  OrderState,
   PaymentMethod,
   PaymentState,
   PlanType,
@@ -29,12 +30,34 @@ export interface LabelMeta {
 }
 
 export const PAYMENT_STATE: Record<PaymentState, LabelMeta> = {
-  awaiting_receipt: { fa: '\u0645\u0646\u062a\u0638\u0631 \u0631\u0633\u06cc\u062f', tone: 'muted' },
+  draft: { fa: '\u067e\u06cc\u0634\u200c\u0646\u0648\u06cc\u0633', tone: 'muted' },
+  awaiting_proof: { fa: '\u0645\u0646\u062a\u0638\u0631 \u0631\u0633\u06cc\u062f', tone: 'muted' },
+  pending_gateway: { fa: '\u0645\u0646\u062a\u0638\u0631 \u062f\u0631\u06af\u0627\u0647', tone: 'warning' },
   pending_review: { fa: '\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc', tone: 'warning' },
   approved: { fa: '\u062a\u0623\u06cc\u06cc\u062f \u0634\u062f\u0647', tone: 'success' },
   rejected: { fa: '\u0631\u062f \u0634\u062f\u0647', tone: 'destructive' },
   refunded: { fa: '\u0645\u0633\u062a\u0631\u062f \u0634\u062f\u0647', tone: 'info' },
+  partially_refunded: { fa: '\u0645\u0633\u062a\u0631\u062f \u062c\u0632\u0626\u06cc', tone: 'info' },
   expired: { fa: '\u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647', tone: 'muted' },
+  failed: { fa: '\u0646\u0627\u0645\u0648\u0641\u0642', tone: 'destructive' },
+}
+
+/**
+ * An order's lifecycle, which is not a payment's.
+ *
+ * The orders screen was rendering order states through PAYMENT_STATE, so
+ * `paid`, `provisioning` and `active` all looked up to undefined and the badge
+ * rendered blank. Money arriving and a working account are separate events -
+ * see domain/provisioning/enums.py - and the operator needs to see which one
+ * has happened.
+ */
+export const ORDER_STATE: Record<OrderState, LabelMeta> = {
+  pending: { fa: 'در انتظار پرداخت', tone: 'muted' },
+  paid: { fa: 'پرداخت شده', tone: 'warning' },
+  provisioning: { fa: 'در حال تحویل', tone: 'info' },
+  active: { fa: 'تحویل شده', tone: 'success' },
+  failed: { fa: 'ناموفق', tone: 'destructive' },
+  refunded: { fa: 'مسترد شده', tone: 'info' },
 }
 
 export const PAYMENT_METHOD: Record<PaymentMethod, LabelMeta> = {
@@ -47,7 +70,10 @@ export const SUBSCRIPTION_STATE: Record<SubscriptionState, LabelMeta> = {
   pending: { fa: '\u062f\u0631 \u062d\u0627\u0644 \u0622\u0645\u0627\u062f\u0647\u200c\u0633\u0627\u0632\u06cc', tone: 'muted' },
   active: { fa: '\u0641\u0639\u0627\u0644', tone: 'success' },
   expiring: { fa: '\u0631\u0648 \u0628\u0647 \u0627\u062a\u0645\u0627\u0645', tone: 'warning' },
-  expired: { fa: '\u0645\u0646\u0642\u0636\u06cc', tone: 'destructive' },
+  // Expiry is the normal end of a lifecycle, not a fault. Painting it red
+  // trains operators to ignore red, and a subscription that ran its full term
+  // is a success, not an incident.
+  expired: { fa: '\u0645\u0646\u0642\u0636\u06cc', tone: 'muted' },
   exhausted: { fa: '\u062d\u062c\u0645 \u062a\u0645\u0627\u0645 \u0634\u062f\u0647', tone: 'destructive' },
   suspended: { fa: '\u062a\u0639\u0644\u06cc\u0642 \u0634\u062f\u0647', tone: 'muted' },
 }
@@ -71,10 +97,11 @@ export const USER_STATE: Record<UserState, LabelMeta> = {
 }
 
 export const SERVER_HEALTH: Record<ServerHealth, LabelMeta> = {
-  healthy: { fa: '\u0633\u0627\u0644\u0645', tone: 'success' },
+  online: { fa: '\u0633\u0627\u0644\u0645', tone: 'success' },
   degraded: { fa: '\u06a9\u0646\u062f', tone: 'warning' },
-  down: { fa: '\u0642\u0637\u0639', tone: 'destructive' },
-  unknown: { fa: '\u0646\u0627\u0645\u0634\u062e\u0635', tone: 'muted' },
+  offline: { fa: '\u0642\u0637\u0639', tone: 'destructive' },
+  maintenance: { fa: '\u062a\u0639\u0645\u06cc\u0631', tone: 'info' },
+  retired: { fa: '\u0628\u0627\u0632\u0646\u0634\u0633\u062a\u0647', tone: 'muted' },
 }
 
 export const TICKET_STATE: Record<TicketState, LabelMeta> = {

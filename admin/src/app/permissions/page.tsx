@@ -20,7 +20,6 @@ import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SkeletonCards } from '@/components/ui/skeleton'
@@ -160,9 +159,9 @@ export default function PermissionsPage() {
                     return (
                       <TableRow key={operator.id}>
                         <TableCell>
-                          <p>{operator.nameFa}</p>
-                          <p dir="ltr" className="text-2xs text-muted-foreground">
-                            {operator.email}
+                          <p dir="ltr" className="font-mono">{operator.username}</p>
+                          <p className="text-2xs text-muted-foreground">
+                            {operator.isTotpEnabled ? 'دوعاملی فعال' : 'بدون دوعاملی'}
                           </p>
                         </TableCell>
                         <TableCell>
@@ -170,7 +169,7 @@ export default function PermissionsPage() {
                             <Select
                               value={operator.role}
                               onValueChange={async (next) => {
-                                await api.saveOperator({ id: operator.id, role: next as Role })
+                                await api.setOperatorRole(operator.id, next as Role)
                                 mutate()
                               }}
                             >
@@ -194,16 +193,17 @@ export default function PermissionsPage() {
                           )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {operator.lastSeenAt
-                            ? faDateTime(operator.lastSeenAt)
+                          {operator.lastLoginAt
+                            ? faDateTime(operator.lastLoginAt)
                             : '\u0647\u0631\u06af\u0632'}
                         </TableCell>
                         <TableCell>
                           <Switch
-                            checked={operator.enabled}
+                            checked
                             // Disabling is one-way server-side: it deletes the
-                            // operator and ends their sessions.
-                            disabled={!mayManage || !operator.enabled}
+                            // operator and ends their sessions, so a listed
+                            // operator is by definition still enabled.
+                            disabled={!mayManage}
                             onCheckedChange={async () => {
                               await api.disableOperator(operator.id)
                               mutate()

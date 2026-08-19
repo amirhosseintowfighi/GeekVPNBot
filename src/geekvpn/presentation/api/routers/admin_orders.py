@@ -17,18 +17,18 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
 
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.provisioning.enums import OrderState
 from geekvpn.domain.provisioning.order import Order
+from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
 
 router = APIRouter(prefix="/admin/orders", tags=["administration"])
 
 
-class OrderResponse(BaseModel):
+class OrderResponse(ApiModel):
     id: str
     number: str
     user_id: int
@@ -72,12 +72,12 @@ class OrderResponse(BaseModel):
         )
 
 
-class OrderPage(BaseModel):
+class OrderPage(ApiModel):
     items: list[OrderResponse]
     total: int
 
 
-class RetryProvisionResponse(BaseModel):
+class RetryProvisionResponse(ApiModel):
     ok: bool
     subscription_id: str | None = None
     message: str | None = None
