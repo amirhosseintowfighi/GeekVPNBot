@@ -358,6 +358,48 @@ def test_every_compose_service_is_started_by_something() -> None:
     )
 
 
+def test_the_tls_placeholder_is_not_written_into_certbots_own_directory() -> None:
+    """certbot refuses to issue for a name whose live directory already exists.
+
+    The nginx entrypoint generated its self-signed bootstrap certificate into
+    /etc/letsencrypt/live/<domain>/ - certbot's lineage directory, on a volume
+    they share. certbot then answered every request with "live directory exists
+    for <domain>" and issued nothing. So the placeholder that exists to break
+    the chicken-and-egg deadlock created a permanent one: the first real
+    certificate could not be obtained on any install, however correct DNS was,
+    and Telegram will not register a webhook against a self-signed certificate,
+    so the bot never worked either.
+    """
+    entrypoint = (NGINX_DIR / "entrypoint.sh").read_text(encoding="utf-8")
+
+    writing = [
+        line.strip()
+        for line in entrypoint.splitlines()
+        if not line.lstrip().startswith("#")
+        and re.search(r"\b(mkdir|cp|openssl)\b", line)
+        and ("LIVE_DIR" in line or "/etc/letsencrypt" in line)
+    ]
+    assert not writing, (
+        "the entrypoint writes into certbot's own directory, which makes certbot "
+        "refuse to issue the first certificate:\n  " + "\n  ".join(writing)
+    )
+
+
+def test_issuing_a_certificate_recreates_nginx_rather_than_reloading_it() -> None:
+    """Which directory nginx reads its certificate from is chosen by the
+    entrypoint, and `nginx -s reload` does not re-run the entrypoint. Reloading
+    after issuance would leave nginx serving the self-signed placeholder with a
+    real certificate sitting on disk beside it."""
+    text = INSTALL.read_text(encoding="utf-8")
+    issued = text.index("certificate issued for")
+    window = text[max(0, issued - 600) : issued]
+
+    assert "--force-recreate nginx" in window, (
+        "install.sh does not recreate nginx after issuing the certificate, so the "
+        "entrypoint never re-runs and the placeholder stays in use"
+    )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""

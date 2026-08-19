@@ -324,7 +324,11 @@ step "Requesting a TLS certificate"
 # fix, and everything else is already working by this point.
 if $COMPOSE run --rm --entrypoint certbot certbot      certonly --webroot --webroot-path=/var/www/certbot      -d "$DOMAIN" --email "$CERTBOT_EMAIL"      --agree-tos --no-eff-email --non-interactive 2>&1 | tail -5
 then
-  $COMPOSE exec -T nginx nginx -s reload >/dev/null 2>&1 || true
+  # Recreated, not reloaded. Which directory nginx reads its certificate from is
+  # decided by the entrypoint, and a reload does not re-run it - so a reload
+  # here would leave nginx serving the self-signed placeholder with a valid
+  # certificate sitting on disk beside it.
+  $COMPOSE up -d --force-recreate nginx >/dev/null 2>&1 || true
   ok "certificate issued for ${DOMAIN}"
   # The bot started before this certificate existed, so Telegram refused its
   # webhook registration - which is logged and survived, not fatal. This is the
@@ -355,6 +359,11 @@ else
   note "check with: $COMPOSE logs --tail=50 nginx api_green"
 fi
 
+# Whichever colour deploy.sh left serving. Printing a hardcoded api_blue sent
+# every operator to the logs of the container it had just stopped.
+LIVE_COLOUR=$(grep -oE 'api_(blue|green)' docker/nginx/conf.d/active-api.conf | head -1)
+LIVE_COLOUR=${LIVE_COLOUR:-api_green}
+
 if [[ "${TLS_READY:-0}" == "1" ]]; then
   TLS_NOTE="TLS is live for ${DOMAIN}, and certbot will keep it renewed."
 else
@@ -369,9 +378,13 @@ cat <<EOF
 
 ${GREEN}${BOLD}Installation complete.${OFF}
 
-  Admin panel   https://${DOMAIN}/api/v1/admin
+  Admin API     https://${DOMAIN}/api/v1/admin/auth/login  ${DIM}(POST, not a web page)${OFF}
   Health        https://${DOMAIN}/health/ready
   Username      ${ADMIN_USER}
+
+  ${YELLOW}The admin panel and Mini App are Next.js applications in admin/ and
+  miniapp/. This stack has no service for either, so nothing serves them
+  yet and their hostnames answer 502. Only the API and the bot are running.${OFF}
 
 ${BOLD}Do these three things now:${OFF}
 
@@ -380,14 +393,13 @@ ${BOLD}Do these three things now:${OFF}
 
   2. ${TLS_NOTE}
 
-  3. Add your first VPN node in the admin panel, then press
-     ${DIM}Test connection${OFF} on it. Nothing can be sold until a node exists and
-     that button reports success - provisioning picks a node from the
-     database, and an empty list means every paid order fails.
+  3. Add your first VPN node, through the admin API, and confirm it
+     connects. Nothing can be sold until a node exists - provisioning picks
+     one from the database, and an empty list means every paid order fails.
 
 ${BOLD}Useful:${OFF}
 
-  logs      $COMPOSE logs -f api_blue
+  logs      $COMPOSE logs -f ${LIVE_COLOUR}
   status    $COMPOSE ps
   deploy    bash scripts/deploy.sh
   backup    bash scripts/backup.sh

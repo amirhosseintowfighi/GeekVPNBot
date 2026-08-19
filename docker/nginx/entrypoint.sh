@@ -17,13 +17,45 @@ MINIAPP_DOMAIN="${MINIAPP_DOMAIN:-app.${PRIMARY_DOMAIN}}"
 ADMIN_ALLOW_CIDRS="${ADMIN_ALLOW_CIDRS:-}"
 export PRIMARY_DOMAIN ADMIN_DOMAIN MINIAPP_DOMAIN
 
+# A self-signed stand-in, used only until certbot has issued the real thing.
+# Without it nginx refuses to start, and without nginx running the ACME HTTP-01
+# challenge cannot be answered - a deadlock on every fresh install.
+#
+# It must NOT be written into /etc/letsencrypt/live/. That is certbot's own
+# lineage directory, on a volume certbot shares, and certbot refuses to issue a
+# certificate for a name whose live directory already exists without a matching
+# renewal config: "live directory exists for <domain>". So the placeholder that
+# exists to break the deadlock created a permanent one instead - the first
+# certificate could never be issued, on any install, no matter how correct DNS
+# was. TLS then stayed self-signed, and Telegram will not register a webhook
+# against that, so the bot never came up either.
+LIVE_DIR="/etc/letsencrypt/live/${PRIMARY_DOMAIN}"
+FALLBACK_DIR="/etc/nginx/tls/selfsigned"
+
+if [ -f "${LIVE_DIR}/fullchain.pem" ]; then
+  SSL_DIR="$LIVE_DIR"
+else
+  echo "nginx-entrypoint: no certificate for ${PRIMARY_DOMAIN}; serving a temporary self-signed one" >&2
+  mkdir -p "$FALLBACK_DIR"
+  if [ ! -f "${FALLBACK_DIR}/fullchain.pem" ]; then
+    openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+      -keyout "${FALLBACK_DIR}/privkey.pem" \
+      -out "${FALLBACK_DIR}/fullchain.pem" \
+      -subj "/CN=${PRIMARY_DOMAIN}" >/dev/null 2>&1
+    cp "${FALLBACK_DIR}/fullchain.pem" "${FALLBACK_DIR}/chain.pem"
+  fi
+  SSL_DIR="$FALLBACK_DIR"
+fi
+export SSL_DIR
+echo "nginx-entrypoint: serving TLS from ${SSL_DIR}" >&2
+
 TEMPLATE=/etc/nginx/templates/geekvpn.conf
 TARGET=/etc/nginx/conf.d/geekvpn.conf
 
-# Substitute only our three names. A bare `envsubst` with no variable list would
+# Substitute only our own names. A bare `envsubst` with no variable list would
 # also eat every nginx variable - $host, $request_uri, $active_api - and replace
 # them with empty strings, producing a config that is valid and completely wrong.
-envsubst '${PRIMARY_DOMAIN} ${ADMIN_DOMAIN} ${MINIAPP_DOMAIN}' < "$TEMPLATE" > "$TARGET"
+envsubst '${PRIMARY_DOMAIN} ${ADMIN_DOMAIN} ${MINIAPP_DOMAIN} ${SSL_DIR}' < "$TEMPLATE" > "$TARGET"
 
 # Render the admin allowlist.
 ALLOW_FILE=/etc/nginx/conf.d/admin-allow.conf
@@ -42,19 +74,6 @@ ALLOW_FILE=/etc/nginx/conf.d/admin-allow.conf
   fi
 } > "$ALLOW_FILE"
 
-# A self-signed stand-in, used only until certbot has issued the real thing.
-# Without it nginx refuses to start, and without nginx running the ACME HTTP-01
-# challenge cannot be answered - a deadlock on every fresh install.
-LIVE_DIR="/etc/letsencrypt/live/${PRIMARY_DOMAIN}"
-if [ ! -f "${LIVE_DIR}/fullchain.pem" ]; then
-  echo "nginx-entrypoint: no certificate for ${PRIMARY_DOMAIN}; generating a temporary self-signed one" >&2
-  mkdir -p "$LIVE_DIR"
-  openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-    -keyout "${LIVE_DIR}/privkey.pem" \
-    -out "${LIVE_DIR}/fullchain.pem" \
-    -subj "/CN=${PRIMARY_DOMAIN}" >/dev/null 2>&1
-  cp "${LIVE_DIR}/fullchain.pem" "${LIVE_DIR}/chain.pem"
-fi
 
 if [ ! -f /etc/nginx/tls/dhparam.pem ]; then
   # 2048 bits, not 4096: generation is slow and this only affects the legacy
