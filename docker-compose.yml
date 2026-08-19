@@ -73,7 +73,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    networks: [backend]
+    networks: [backend, egress]
 
   bot:
     <<: [*backend-build, *backend-env, *restart]
@@ -93,7 +93,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    networks: [backend]
+    networks: [backend, egress]
 
   nginx:
     image: nginx:1.27-alpine
@@ -122,4 +122,18 @@ volumes:
 networks:
   backend:
     internal: true
+  # Outbound only. `backend` is deliberately internal - Postgres and Redis must
+  # not be reachable from anywhere but this stack - and `internal: true` also
+  # removes the default route and DNS, so a container attached to nothing else
+  # cannot resolve or reach a single host on the internet.
+  #
+  # That is fine for a database and fatal for everything that talks to a third
+  # party: the bot could not reach api.telegram.org (its webhook registration
+  # failed with "Temporary failure in name resolution", so the bot never
+  # received an update), and the API and worker could not have reached a single
+  # VPN panel - which means the first paid order would have failed to provision.
+  #
+  # Nothing is published here. Being on a bridge network grants outbound NAT;
+  # only a `ports:` entry makes a container reachable from outside.
+  egress:
   edge:

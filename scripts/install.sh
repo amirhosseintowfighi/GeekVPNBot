@@ -325,8 +325,15 @@ step "Requesting a TLS certificate"
 issue_certificate() {
   # `$@` is the -d list. Let's Encrypt fails the whole order if any one name
   # does not validate, which is why this is called twice below.
+  #
+  # --cert-name pins the lineage. Without it, asking for a different set of
+  # names creates a *second* lineage - live/<domain>-0001 - and nginx keeps
+  # serving the first one, so a certificate that now covers the subdomains sits
+  # on disk while the browser is still handed the one that does not.
+  # --expand for the same reason: change the names in place.
   $COMPOSE run --rm --entrypoint certbot certbot \
     certonly --webroot --webroot-path=/var/www/certbot \
+    --cert-name "$DOMAIN" --expand \
     "$@" --email "$CERTBOT_EMAIL" \
     --agree-tos --no-eff-email --non-interactive 2>&1 | tail -5
 }
