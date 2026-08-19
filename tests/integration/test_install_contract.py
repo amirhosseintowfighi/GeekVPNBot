@@ -167,6 +167,69 @@ def test_every_bind_mount_source_exists_in_the_repository() -> None:
     )
 
 
+#: Hosts nginx proxies to that this stack does not run. Both front-ends exist
+#: as source trees but have no compose service, so those two routes answer 502
+#: until they get one. Listed rather than silently tolerated: an entry here is
+#: a known gap, and anything not here is a typo.
+UNPROVISIONED_BACKENDS: frozenset[str] = frozenset({"admin", "miniapp"})
+
+NGINX_DIR = ROOT / "docker" / "nginx"
+
+
+def compose_services() -> set[str]:
+    """Service names, read from the base file's top-level `services:` block."""
+    text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    block = text[text.index("\nservices:") :]
+    return set(re.findall(r"^  ([a-z][a-z0-9_]*):$", block, re.MULTILINE))
+
+
+def test_nginx_only_proxies_to_hosts_this_stack_runs() -> None:
+    """A hostname nginx cannot resolve is not a bad route, it is a dead edge.
+
+    Nginx resolves the host in an `upstream` block when it loads the config and
+    refuses to start if any one of them is unknown, so `admin` and `miniapp` -
+    which are not services anywhere in this stack - made the config unloadable
+    on every host, and blue/green guaranteed one of api_blue/api_green was
+    stopped and therefore unresolvable too. The targets are variables now, so
+    resolution happens per request, but a name still has to be one we actually
+    run or it is a 502 nobody meant to ship.
+    """
+    hosts: dict[str, str] = {}
+    for path in sorted(NGINX_DIR.rglob("*.conf")):
+        text = path.read_text(encoding="utf-8")
+        for host in re.findall(r"^\s*server\s+([a-z][a-z0-9_-]*):\d+", text, re.MULTILINE):
+            hosts[host] = path.name
+        for host in re.findall(r"^\s*set\s+\$\w+\s+([a-z][a-z0-9_-]*):\d+;", text, re.MULTILINE):
+            hosts[host] = path.name
+
+    assert hosts, "no proxy targets found; this test has stopped reading the nginx config"
+
+    known = compose_services() | {"api_blue", "api_green"} | UNPROVISIONED_BACKENDS
+    unknown = {host: source for host, source in hosts.items() if host not in known}
+
+    assert not unknown, "nginx proxies to hosts no compose service provides:\n  " + "\n  ".join(
+        f"{host} (in {source})" for host, source in sorted(unknown.items())
+    )
+
+
+def test_no_nginx_upstream_block_names_a_host_that_can_be_stopped() -> None:
+    """The load-time resolution half of the same bug.
+
+    Variables defer resolution; an `upstream` block does not. Re-introducing
+    one for a blue/green colour, or for a front-end that may not be deployed,
+    brings back an edge that refuses to start because something it was not
+    being asked to serve is absent.
+    """
+    fragile = sorted(UNPROVISIONED_BACKENDS | {"api_blue", "api_green"})
+    for path in sorted(NGINX_DIR.rglob("*.conf")):
+        text = path.read_text(encoding="utf-8")
+        for host in fragile:
+            assert not re.search(rf"^\s*server\s+{re.escape(host)}:\d+", text, re.MULTILINE), (
+                f"{path.name} declares an upstream for {host}, which is not always running; "
+                "nginx resolves that at config load and will refuse to start without it"
+            )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""
