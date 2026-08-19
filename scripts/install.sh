@@ -227,6 +227,16 @@ ok "$ENV_FILE written (mode 600)"
 
 # ------------------------------------------------------------------ database
 
+step "Building the application image"
+# docker-compose.prod.yml pins these services to an image tag, and Compose only
+# builds implicitly when that tag is missing. So the very first run built the
+# image and every run after it silently reused the first one - source,
+# migrations and all - which made a re-run after a code change look like the
+# change had not worked. deploy.sh has always built explicitly; this did not.
+note "The first build compiles dependencies and takes a few minutes."
+$COMPOSE build migrate || die "image build failed"
+ok "image built from the current checkout"
+
 step "Starting Postgres and Redis"
 $COMPOSE up -d postgres redis
 ok "containers started"

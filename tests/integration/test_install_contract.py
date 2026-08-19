@@ -88,6 +88,26 @@ def test_no_required_variable_is_written_empty() -> None:
     )
 
 
+def test_the_image_is_built_before_anything_runs_from_it() -> None:
+    """docker-compose.prod.yml pins the backend services to an image tag, and
+    Compose builds implicitly only when that tag is absent. So the first run
+    built the image and every later run reused it, source and migrations
+    frozen at whatever the first run checked out - which made a fix pulled
+    from git look like it had not been applied.
+
+    This is a claim about the order of two lines in a shell script, so
+    checking the text of the script is checking the thing itself. It is not a
+    substitute for running the installer, which needs a Docker daemon.
+    """
+    text = INSTALL.read_text(encoding="utf-8")
+
+    build = text.find("$COMPOSE build")
+    assert build != -1, "install.sh never builds the image it then runs migrations from"
+
+    for consumer in ("$COMPOSE run --rm migrate", "$COMPOSE up -d postgres redis"):
+        assert text.find(consumer) > build, f"{consumer} runs before the image is built"
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""
