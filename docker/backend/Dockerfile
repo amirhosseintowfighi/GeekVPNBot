@@ -20,7 +20,7 @@ FROM base AS deps
 RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential curl \
  && rm -rf /var/lib/apt/lists/*
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 # Hatchling needs the package dir to exist to resolve the project metadata.
 RUN mkdir -p src/geekvpn && touch src/geekvpn/__init__.py
 RUN pip install --upgrade pip && pip install "."
@@ -33,7 +33,7 @@ FROM base AS runtime
 RUN groupadd --system --gid 1001 app \
  && useradd --system --uid 1001 --gid app --create-home app
 COPY --from=deps ${VIRTUAL_ENV} ${VIRTUAL_ENV}
-COPY --chown=app:app pyproject.toml alembic.ini README.md ./
+COPY --chown=app:app pyproject.toml alembic.ini ./
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app src ./src
 ENV PYTHONPATH=/app/src
@@ -47,7 +47,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git curl \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=deps-dev ${VIRTUAL_ENV} ${VIRTUAL_ENV}
-COPY pyproject.toml alembic.ini README.md ./
+COPY pyproject.toml alembic.ini ./
 COPY migrations ./migrations
 COPY src ./src
 ENV PYTHONPATH=/app/src
