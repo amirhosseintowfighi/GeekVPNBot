@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -227,6 +228,37 @@ def test_no_nginx_upstream_block_names_a_host_that_can_be_stopped() -> None:
             assert not re.search(rf"^\s*server\s+{re.escape(host)}:\d+", text, re.MULTILINE), (
                 f"{path.name} declares an upstream for {host}, which is not always running; "
                 "nginx resolves that at config load and will refuse to start without it"
+            )
+
+
+#: conf.d files the template includes itself, inside a server or location
+#: block. They must never also be pulled in at http level.
+NGINX_FRAGMENTS: frozenset[str] = frozenset({"active-api.conf", "admin-allow.conf"})
+
+
+def test_nginx_does_not_include_server_scoped_fragments_at_http_level() -> None:
+    """`include /etc/nginx/conf.d/*.conf;` matched both fragments.
+
+    active-api.conf holds a `set`, which is not allowed in http context, so
+    nginx refused to start - and that only surfaced after the upstream blocks
+    that used to fail earlier in the same parse were removed. admin-allow.conf
+    is worse: `allow`/`deny` *are* valid at http level, so once
+    ADMIN_ALLOW_CIDRS was configured its `deny all` would have applied to every
+    server block and locked the whole edge to the admin networks, quietly.
+    """
+    includes = re.findall(
+        r"^\s*include\s+(\S+);",
+        (NGINX_DIR / "nginx.conf").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert includes, "nginx.conf includes nothing; this test has stopped reading it"
+
+    for fragment in sorted(NGINX_FRAGMENTS):
+        assert (NGINX_DIR / "conf.d" / fragment).is_file(), f"{fragment} is no longer there"
+        for pattern in includes:
+            assert not fnmatch(f"/etc/nginx/conf.d/{fragment}", pattern), (
+                f"nginx.conf's `include {pattern};` pulls in {fragment} at http level, "
+                "where it belongs to a server or location block"
             )
 
 
