@@ -396,16 +396,16 @@ cat <<EOF
 
 ${GREEN}${BOLD}Installation complete.${OFF}
 
+  Admin panel   https://admin.${DOMAIN}
   Mini App      https://app.${DOMAIN}
   API health    https://${DOMAIN}/health/ready
   Username      ${ADMIN_USER}
 
-  ${YELLOW}Point app.${DOMAIN} at this server too and include it when you issue
-  the certificate, or the Mini App serves the self-signed placeholder.
-
-  The admin panel does not run yet: it has 192 type errors and does not
-  build. The admin API works - admin.${DOMAIN} answers 502 until the
-  panel compiles.${OFF}
+  ${YELLOW}Both panels are served on their own hostnames, so admin.${DOMAIN}
+  and app.${DOMAIN} each need a DNS record pointing here - and both must
+  be on the certificate, or the browser refuses them before any page
+  loads. The wizard asks for all three; the two subdomains are the ones
+  people forget.${OFF}
 
 ${BOLD}Do these three things now:${OFF}
 

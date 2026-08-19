@@ -36,6 +36,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import signal
+import time
+from pathlib import Path
 from types import FrameType
 
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
@@ -51,6 +53,9 @@ logger = get_logger(__name__)
 #: How often the loop wakes. The scheduler decides what is actually due, so this
 #: is a resolution, not a job interval.
 TICK_SECONDS = 30
+
+#: Touched after every tick; the container healthcheck reads its age.
+HEARTBEAT_PATH = Path("/tmp/worker-heartbeat")  # noqa: S108 - a container-local path
 
 #: The provisioning retry queue runs on its own cadence. An order stuck because
 #: a panel blipped should recover in under a minute, not at the next reminder
@@ -106,9 +111,31 @@ class Worker:
                 else provisioning_due - TICK_SECONDS
             )
             usage_due = USAGE_SYNC_INTERVAL_SECONDS if usage_due <= 0 else usage_due - TICK_SECONDS
+            # expiry_due was read every tick and never written, so the sweep ran
+            # on every tick instead of every EXPIRY_SWEEP_INTERVAL_SECONDS - ten
+            # times more often than intended, against the whole subscription
+            # table.
+            expiry_due = (
+                EXPIRY_SWEEP_INTERVAL_SECONDS if expiry_due <= 0 else expiry_due - TICK_SECONDS
+            )
+            self._beat()
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._stopping.wait(), timeout=TICK_SECONDS)
         logger.info("worker.stopped")
+
+    def _beat(self) -> None:
+        """Record that a tick just finished, for the container healthcheck.
+
+        The healthcheck used to be `pgrep -f geekvpn.entrypoints.worker`, and
+        `pgrep` is in procps, which the runtime image does not install - so the
+        check errored on every run and the worker was permanently unhealthy
+        while doing its job perfectly.
+
+        A file's mtime is a better signal anyway: "a tick completed recently"
+        rather than "a process exists", which stays true through a hang.
+        """
+        with contextlib.suppress(OSError):
+            HEARTBEAT_PATH.write_text(str(time.time()), encoding="utf-8")
 
     async def _guarded_tick(
         self, *, run_provisioning: bool, run_usage_sync: bool, run_expiry_sweep: bool

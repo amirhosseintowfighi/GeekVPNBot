@@ -92,7 +92,10 @@ export function ErrorState({
       {onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RefreshCw className="size-4" aria-hidden />
-          \u062a\u0644\u0627\u0634 \u062f\u0648\u0628\u0627\u0631\u0647
+          {/* In braces. JSX text is not a string literal, so an escape
+              sequence written bare here renders as its own characters -
+              which is exactly what this button showed a customer. */}
+          {'\u062a\u0644\u0627\u0634 \u062f\u0648\u0628\u0627\u0631\u0647'}
         </Button>
       ) : null}
     </div>

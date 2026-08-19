@@ -72,7 +72,7 @@ const SheetContent = React.forwardRef<
           )}
         >
           <X className="size-4" aria-hidden />
-          <span className="sr-only">\u0628\u0633\u062a\u0646</span>
+          <span className="sr-only">{'\u0628\u0633\u062a\u0646'}</span>
         </DialogPrimitive.Close>
       )}
     </DialogPrimitive.Content>

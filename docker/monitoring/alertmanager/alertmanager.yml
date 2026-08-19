@@ -6,6 +6,13 @@
 #
 # The chat id must be a group the customers are not in. Alert annotations contain
 # internal path names and counts.
+#
+# __BOT_TOKEN__ and __ALERT_CHAT_ID__ are substituted into a copy of this file
+# at container start - see the entrypoint in docker-compose.monitoring.yml.
+# They are NOT ${...}: Alertmanager does not expand environment variables in
+# its configuration, so the previous ${TELEGRAM__BOT_TOKEN} was read as a
+# literal token, the config failed to parse, and the container sat in a
+# restart loop with alerting silently off.
 
 global:
   resolve_timeout: 5m
@@ -42,8 +49,8 @@ route:
 receivers:
   - name: telegram-warning
     telegram_configs:
-      - bot_token: ${TELEGRAM__BOT_TOKEN}
-        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+      - bot_token: __BOT_TOKEN__
+        chat_id: __ALERT_CHAT_ID__
         parse_mode: HTML
         send_resolved: true
         message: |-
@@ -55,8 +62,8 @@ receivers:
 
   - name: telegram-critical
     telegram_configs:
-      - bot_token: ${TELEGRAM__BOT_TOKEN}
-        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+      - bot_token: __BOT_TOKEN__
+        chat_id: __ALERT_CHAT_ID__
         parse_mode: HTML
         send_resolved: true
         message: |-

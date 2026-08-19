@@ -41,9 +41,15 @@ services:
     image: prom/alertmanager:v0.28.0
     restart: unless-stopped
     user: "65534:65534"
-    command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/alertmanager
+    # Rendered at start, because Alertmanager reads its config as-is: there is
+    # no variable expansion, and a secret cannot be committed. The mount stays
+    # read-only and the rendered copy lives in /tmp, which `nobody` can write.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sed -e "s|__BOT_TOKEN__|$$TELEGRAM__BOT_TOKEN|g"             -e "s|__ALERT_CHAT_ID__|$$ALERT_TELEGRAM_CHAT_ID|g"             /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
     environment:
       # Alerts are delivered to a private Telegram group through the same bot the
       # product already uses. No new dependency, and the operator already has the

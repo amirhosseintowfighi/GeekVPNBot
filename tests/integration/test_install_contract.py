@@ -394,6 +394,38 @@ def test_issuing_a_certificate_recreates_nginx_rather_than_reloading_it() -> Non
     )
 
 
+def test_no_service_config_expects_shell_variable_expansion() -> None:
+    """`${VAR}` in a config file is expanded by whoever reads the file.
+
+    Compose expands it in compose files; nginx's entrypoint expands it with
+    envsubst. Alertmanager, Prometheus and Grafana do not expand anything: they
+    read the file as written. `bot_token: ${TELEGRAM__BOT_TOKEN}` was therefore
+    a literal token, the config failed to parse, and the container sat in a
+    restart loop - with alerting silently off, which is the failure mode that
+    matters, because monitoring that is down looks exactly like nothing being
+    wrong.
+
+    Anything needing a secret substitutes a sentinel at container start
+    instead; see the alertmanager entrypoint.
+    """
+    monitoring = ROOT / "docker" / "monitoring"
+    if not monitoring.is_dir():  # pragma: no cover - the stack is optional
+        pytest.skip("no monitoring configuration in this checkout")
+
+    offenders: list[str] = []
+    for path in sorted(monitoring.rglob("*.yml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.lstrip().startswith("#"):
+                continue
+            if re.search(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}", line):
+                offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+
+    assert not offenders, (
+        "these read as literal text, because the service reading them does no "
+        "variable expansion:\n  " + "\n  ".join(offenders)
+    )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""

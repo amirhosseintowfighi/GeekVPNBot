@@ -170,12 +170,28 @@ services:
     networks: [backend]
     ports: []
     healthcheck:
-      # The worker has no socket to probe, so liveness is "the interpreter is
-      # still running the module". A hung tick is caught by the lock TTL, not here.
-      test: ["CMD", "pgrep", "-f", "geekvpn.entrypoints.worker"]
+      # The worker has no socket to probe, so liveness is "a tick finished
+      # recently" - the worker touches a heartbeat file at the end of each one.
+      #
+      # This was `pgrep -f geekvpn.entrypoints.worker`, and pgrep lives in
+      # procps, which the runtime image does not install: the check errored
+      # every time and the worker sat permanently unhealthy while running
+      # perfectly. Python is in the image by definition, and "a tick completed"
+      # is a truer signal than "a process exists", which stays true through a
+      # hang.
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import pathlib, sys, time
+          beat = pathlib.Path("/tmp/worker-heartbeat")
+          sys.exit(0 if beat.exists() and time.time() - beat.stat().st_mtime < 180 else 1)
       interval: 60s
       timeout: 5s
       retries: 3
+      # Three tick intervals, so a slow first tick does not read as a failure.
+      start_period: 120s
 
   # The two Next.js front-ends. Both existed as source trees with no service of
   # any kind, so nginx proxied their hostnames to containers that were never
