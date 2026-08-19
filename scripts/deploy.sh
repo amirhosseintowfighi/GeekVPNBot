@@ -134,15 +134,26 @@ switch_to() {
 
 verify_through_edge() {
   log "verifying through nginx"
+  # /edge-check, not /health/ready. The latter was requested over HTTP with a
+  # Host of `localhost`, matched no server_name, fell through to the catch-all
+  # `location /` and came back a 301 to HTTPS - where a fresh install has only
+  # the self-signed bootstrap certificate. So this never once returned 0 on a
+  # first install, and every one of them rolled itself back.
+  #
+  # -T, not --timeout=: busybox wget is what the alpine image ships.
   local deadline=$(( $(date +%s) + SMOKE_TIMEOUT ))
   while (( $(date +%s) < deadline )); do
-    if $COMPOSE exec -T nginx wget -qO- --timeout=5 http://localhost/health/ready >/dev/null 2>&1; then
+    if $COMPOSE exec -T nginx wget -qO- -T 5 http://127.0.0.1/edge-check >/dev/null 2>&1; then
       log "the edge is serving the new colour"
       return 0
     fi
     sleep 2
   done
   return 1
+}
+
+colour_is_running() {
+  [[ "$($COMPOSE ps --format '{{.State}}' "$1" 2>/dev/null | head -1)" == "running" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -161,7 +172,7 @@ case "${1:-deploy}" in
     # new one has served real traffic. If it is still running, rollback is one
     # config flip. If it is not, it has to be started first - slower, but still
     # the previous image.
-    if [[ "$($COMPOSE ps --format '{{.State}}' "$PREVIOUS" 2>/dev/null | head -1)" != "running" ]]; then
+    if ! colour_is_running "$PREVIOUS"; then
       warn "${PREVIOUS} is not running; starting it"
       $COMPOSE up -d --no-deps "$PREVIOUS"
       wait_ready "$PREVIOUS"
@@ -212,9 +223,20 @@ smoke_test "$IDLE"
 switch_to "$IDLE"
 
 if ! verify_through_edge; then
-  warn "the edge did not verify; rolling back to ${ACTIVE}"
-  switch_to "$ACTIVE"
-  die "deploy rolled back automatically. ${IDLE} is still running for inspection."
+  # Only roll back to something that exists. On a first install the "active"
+  # colour has never been started, and flipping the edge to it pointed every
+  # request at a container that was not there - a rollback strictly worse than
+  # the state it was rescuing. The rollback subcommand already checked this;
+  # this branch did not.
+  if colour_is_running "$ACTIVE"; then
+    warn "the edge did not verify; rolling back to ${ACTIVE}"
+    switch_to "$ACTIVE"
+    die "deploy rolled back automatically. ${IDLE} is still running for inspection."
+  fi
+
+  warn "the edge did not verify, and ${ACTIVE} is not running to roll back to."
+  warn "traffic is left pointing at ${IDLE}, which is the only colour there is."
+  die "edge verification failed on a first install. ${IDLE} is up; check: $COMPOSE logs --tail=50 nginx ${IDLE}"
 fi
 
 log "draining ${ACTIVE} for ${DRAIN_SECONDS}s"

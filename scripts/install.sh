@@ -336,12 +336,16 @@ fi
 
 step "Verifying"
 sleep 3
-if curl -fsS --max-time 10 "http://localhost/health/ready" >/dev/null 2>&1 \
-   || curl -fsSk --max-time 10 "https://localhost/health/ready" >/dev/null 2>&1; then
-  ok "the API reports ready"
+# Through nginx's internal check, the same one deploy.sh uses. The previous
+# version curled http://localhost/health/ready without -L: that request is
+# answered with a 301 to HTTPS, and `curl -f` only fails from 400 upwards, so
+# it reported "the API reports ready" on a redirect it never followed. It
+# passed whether or not anything behind nginx was alive.
+if $COMPOSE exec -T nginx wget -qO- -T 10 http://127.0.0.1/edge-check >/dev/null 2>&1; then
+  ok "the API answers through nginx"
 else
-  warn "readiness check did not pass yet. It is often just TLS still being issued."
-  note "check with: $COMPOSE logs --tail=50 nginx api_blue"
+  warn "the API did not answer through nginx."
+  note "check with: $COMPOSE logs --tail=50 nginx api_green"
 fi
 
 if [[ "${TLS_READY:-0}" == "1" ]]; then

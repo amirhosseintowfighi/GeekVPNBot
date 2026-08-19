@@ -262,6 +262,45 @@ def test_nginx_does_not_include_server_scoped_fragments_at_http_level() -> None:
             )
 
 
+def plain_http_server_block() -> str:
+    """The port-80 server block from the nginx template."""
+    text = (NGINX_DIR / "templates" / "geekvpn.conf").read_text(encoding="utf-8")
+    blocks = [f"server {{{part}" for part in text.split("\nserver {")[1:]]
+    listening = [block for block in blocks if re.search(r"^\s*listen\s+80;", block, re.MULTILINE)]
+    assert len(listening) == 1, f"expected exactly one port-80 server block, found {len(listening)}"
+    return listening[0]
+
+
+def test_scripts_only_ask_the_edge_for_paths_it_answers_directly() -> None:
+    """The deploy verified itself against a URL nginx is configured to redirect.
+
+    `wget http://localhost/health/ready` carries a Host of `localhost`, which
+    matches no server_name, so it fell through to the catch-all `location /`
+    and came back a 301 to HTTPS - where a fresh install has only the
+    self-signed bootstrap certificate. The check could not pass, so every first
+    install "failed to verify" and rolled itself back to a colour that had
+    never been started.
+
+    Anything these scripts request over plain HTTP has to be an exact location
+    in that server block, which is the only way it is answered rather than
+    redirected.
+    """
+    block = plain_http_server_block()
+    answered = set(re.findall(r"^\s*location\s+=\s+(/\S*)\s*\{", block, re.MULTILINE))
+    assert answered, "the port-80 server block answers nothing directly"
+
+    for script in (INSTALL, ROOT / "scripts" / "deploy.sh"):
+        text = script.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            for path in re.findall(r"http://(?:127\.0\.0\.1|localhost)(/\S*?)['\"\s]", line):
+                assert path in answered, (
+                    f"{script.name} asks the edge for {path}, which the port-80 server block "
+                    f"does not answer directly - it redirects to HTTPS. Answered: {sorted(answered)}"
+                )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""
