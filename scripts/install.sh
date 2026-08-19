@@ -104,6 +104,23 @@ if [[ -f "$ENV_FILE" ]]; then
   ok "backed up to .env.backup"
 fi
 
+# Postgres reads POSTGRES_PASSWORD only while its data directory is empty. A
+# volume left behind by an earlier run therefore keeps that run's password
+# forever, while this wizard generates a fresh one - so every later attempt
+# fails authentication, and it fails inside alembic, long after the operator
+# has answered every question. Checked here, before the first prompt.
+STALE_VOLUMES=$(docker volume ls -q --filter "name=postgres-data" || true)
+if [[ -n "$STALE_VOLUMES" ]]; then
+  warn "A Postgres data volume already exists:"
+  printf '    %s\n' $STALE_VOLUMES
+  note "It still holds the password from the run that created it, which this"
+  note "wizard has no way of knowing. A fresh install needs an empty volume."
+  confirm "Delete it, and everything in it, and install fresh?" \
+    || die "Nothing was changed. To upgrade an existing deployment use scripts/deploy.sh, or remove the volume yourself: $COMPOSE down -v"
+  $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true
+  ok "volumes removed"
+fi
+
 # --------------------------------------------------------------- questions
 
 step "Configuration"
@@ -223,6 +240,14 @@ for _ in $(seq 1 60); do
 done
 $COMPOSE exec -T postgres pg_isready -U geekvpn -d geekvpn >/dev/null 2>&1 \
   || { echo; die "Postgres did not become ready. Check: $COMPOSE logs postgres"; }
+
+# pg_isready does not authenticate - it only asks whether the server answers,
+# so it reports success against a volume whose password we do not have. One
+# real query, so a mismatch is one line here instead of a sixty-frame asyncpg
+# traceback out of alembic.
+$COMPOSE exec -T -e PGPASSWORD="$PG_PASSWORD" postgres \
+  psql -U geekvpn -d geekvpn -tAc 'SELECT 1' >/dev/null 2>&1 \
+  || die "Postgres rejected the generated password. Its data volume was created by an earlier run and kept that run's password. Start from an empty volume: $COMPOSE down -v"
 
 step "Creating the database schema"
 EXISTING=$($COMPOSE exec -T postgres psql -U geekvpn -d geekvpn -tAc \
