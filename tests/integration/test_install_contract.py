@@ -88,6 +88,32 @@ def test_no_required_variable_is_written_empty() -> None:
     )
 
 
+def test_no_compose_command_runs_before_env_is_written() -> None:
+    """Compose interpolates the file on every invocation, `down` included, and
+    `${POSTGRES__PASSWORD:?...}` makes that a hard error when .env is absent.
+
+    The stale-volume guard was written with `$COMPOSE down -v` and sat before
+    the wizard writes .env, so it failed on exactly the fresh checkout it
+    exists to rescue - and its `|| true` swallowed the failure, leaving the
+    volume in place and the install to die later on a password mismatch.
+    """
+    text = INSTALL.read_text(encoding="utf-8")
+    writes_env = text.index('cat > "$ENV_FILE"')
+
+    # Line starts only: `$COMPOSE` also appears inside prose, including the
+    # comment explaining why the guard below must not use it.
+    early = [
+        line.strip()
+        for line in text[:writes_env].splitlines()
+        if line.lstrip().startswith("$COMPOSE")
+    ]
+
+    assert not early, (
+        "these run before .env exists, and every compose invocation "
+        "interpolates it:\n  " + "\n  ".join(early)
+    )
+
+
 def test_the_image_is_built_before_anything_runs_from_it() -> None:
     """docker-compose.prod.yml pins the backend services to an image tag, and
     Compose builds implicitly only when that tag is absent. So the first run

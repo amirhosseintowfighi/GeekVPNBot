@@ -109,15 +109,24 @@ fi
 # forever, while this wizard generates a fresh one - so every later attempt
 # fails authentication, and it fails inside alembic, long after the operator
 # has answered every question. Checked here, before the first prompt.
-STALE_VOLUMES=$(docker volume ls -q --filter "name=postgres-data" || true)
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+STALE_VOLUMES=$(docker volume ls -q --filter "name=postgres-data" --filter "name=redis-data" || true)
 if [[ -n "$STALE_VOLUMES" ]]; then
-  warn "A Postgres data volume already exists:"
+  warn "Data volumes from an earlier run already exist:"
   printf '    %s\n' $STALE_VOLUMES
-  note "It still holds the password from the run that created it, which this"
-  note "wizard has no way of knowing. A fresh install needs an empty volume."
+  note "Postgres still holds the password from the run that created its volume,"
+  note "which this wizard has no way of knowing. A fresh install needs empty ones."
   confirm "Delete it, and everything in it, and install fresh?" \
-    || die "Nothing was changed. To upgrade an existing deployment use scripts/deploy.sh, or remove the volume yourself: $COMPOSE down -v"
-  $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true
+    || die "Nothing was changed. To upgrade an existing deployment use scripts/deploy.sh, or remove the volumes yourself: docker volume rm $(printf '%s ' $STALE_VOLUMES)"
+  # Plain docker, not $COMPOSE. Every compose invocation - `down` included -
+  # interpolates the file first, and `${POSTGRES__PASSWORD:?...}` makes that
+  # fail whenever .env is absent, which is precisely the state this runs in:
+  # before the wizard has written one. Containers first; a volume in use
+  # cannot be removed.
+  docker ps -aq --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    | xargs -r docker rm -f >/dev/null 2>&1 || true
+  docker volume rm $STALE_VOLUMES >/dev/null \
+    || die "Could not remove the volumes. Stop whatever is using them and run again."
   ok "volumes removed"
 fi
 
