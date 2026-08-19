@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, Textarea } from '@/components/ui/input'
+import { Field, Input, Textarea } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -35,8 +35,8 @@ import { Progress } from '@/components/ui/primitives'
  *  actually resolve. */
 const SEGMENTS: Array<{ value: BroadcastAudience['segment']; labelFa: string }> = [
   { value: 'all', labelFa: '\u0647\u0645\u0647\u0654 \u06a9\u0627\u0631\u0628\u0631\u0627\u0646' },
-  { value: 'active', labelFa: '\u062f\u0627\u0631\u0627\u06cc \u0627\u0634\u062a\u0631\u0627\u06a9 \u0641\u0639\u0627\u0644' },
-  { value: 'expiring', labelFa: '\u0631\u0648 \u0628\u0647 \u0627\u062a\u0645\u0627\u0645' },
+  { value: 'active_subscribers', labelFa: '\u062f\u0627\u0631\u0627\u06cc \u0627\u0634\u062a\u0631\u0627\u06a9 \u0641\u0639\u0627\u0644' },
+  { value: 'expiring_soon', labelFa: '\u0631\u0648 \u0628\u0647 \u0627\u062a\u0645\u0627\u0645' },
   { value: 'expired', labelFa: '\u0645\u0646\u0642\u0636\u06cc\u200c\u0634\u062f\u0647' },
   { value: 'never_purchased', labelFa: '\u0628\u062f\u0648\u0646 \u062e\u0631\u06cc\u062f' },
 ]
@@ -181,10 +181,10 @@ function ComposeDialog({
   onClose: () => void
   onSent: () => void
 }) {
-  const [segment, setSegment] = React.useState<BroadcastAudience['segment']>('active')
+  const [segment, setSegment] = React.useState<BroadcastAudience['segment']>('active_subscribers')
+  const [title, setTitle] = React.useState('')
   const [body, setBody] = React.useState('')
   const [category, setCategory] = React.useState<'promos' | 'news' | 'critical'>('news')
-  const [respectQuiet, setRespectQuiet] = React.useState(true)
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
@@ -194,7 +194,8 @@ function ComposeDialog({
     () => api.estimateAudience({ segment }),
   )
 
-  const bodyValid = body.trim().length >= 10
+  // Mirrors MIN_TITLE and MIN_BODY in domain/notifications/broadcast.py.
+  const bodyValid = body.trim().length >= 10 && title.trim().length >= 3
   // CRITICAL is the only category allowed to wake people up, and the switch
   // is disabled rather than hidden so the rule is visible.
   const canBypassQuiet = category === 'critical'
@@ -203,13 +204,18 @@ function ComposeDialog({
     setBusy(true)
     setFailure(null)
     try {
+      // Quiet hours are not a per-send flag: the engine decides from the
+      // category and each recipient's own preferences, which is why only a
+      // critical notice can wake somebody. Sending `respectQuietHours` here
+      // would have been a setting the backend has no field for.
       await api.sendBroadcast({
         segment,
+        titleFa: title.trim(),
         bodyFa: body.trim(),
         category,
-        respectQuietHours: canBypassQuiet ? respectQuiet : true,
       })
       onSent()
+      setTitle('')
       setBody('')
       setConfirming(false)
       onClose()
@@ -284,12 +290,15 @@ function ComposeDialog({
                 {'\u06f2\u06f3 \u062a\u0627 \u06f8 \u0628\u0647 \u0648\u0642\u062a \u062a\u0647\u0631\u0627\u0646. \u0641\u0642\u0637 \u0627\u0637\u0644\u0627\u0639\u06cc\u0647\u0654 \u0628\u062d\u0631\u0627\u0646\u06cc \u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u062f \u0627\u0632 \u0622\u0646 \u0639\u0628\u0648\u0631 \u06a9\u0646\u062f.'}
               </p>
             </div>
-            <Switch
-              checked={canBypassQuiet ? respectQuiet : true}
-              disabled={!canBypassQuiet}
-              onCheckedChange={setRespectQuiet}
-            />
+            <Switch checked={!canBypassQuiet} disabled />
           </div>
+
+          <Field
+            label={'\u0639\u0646\u0648\u0627\u0646'}
+            hint={'\u062f\u0633\u062a\u200c\u06a9\u0645 \u06f3 \u062d\u0631\u0641'}
+          >
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+          </Field>
 
           <Field
             label={'\u0645\u062a\u0646 \u067e\u06cc\u0627\u0645'}

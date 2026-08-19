@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from geekvpn.application.notifications.broadcast_service import BroadcastService
 from geekvpn.application.notifications.channels import InboxChannel
 from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
@@ -58,6 +59,7 @@ from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.notifications.audiences import SqlAudienceResolver
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
@@ -334,6 +336,28 @@ class SyncScope:
             notifications=self.notifications,
             preferences=self.preferences,
             channels=self.channels,
+            clock=self.container.clock,
+            ids=self.ids,
+            events=self.events,
+        )
+
+    @cached_property
+    def audiences(self) -> SqlAudienceResolver:
+        return SqlAudienceResolver(self.session)
+
+    @cached_property
+    def broadcast_service(self) -> BroadcastService:
+        """Composing and sending admin broadcasts.
+
+        The last piece of Phase 10 to be wired: BroadcastService has existed
+        since it was written, with nothing implementing its AudienceResolver
+        and nothing constructing it, so every broadcast route in the admin
+        panel answered 404.
+        """
+        return BroadcastService(
+            engine=self.engine,
+            broadcasts=self.broadcasts,
+            audiences=self.audiences,
             clock=self.container.clock,
             ids=self.ids,
             events=self.events,

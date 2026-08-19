@@ -25,6 +25,7 @@ from geekvpn.presentation.api.middleware import AccessLogMiddleware, Correlation
 from geekvpn.presentation.api.routers import (
     admin_analytics,
     admin_auth,
+    admin_broadcasts,
     admin_catalog,
     admin_customers,
     admin_orders,
@@ -208,6 +209,7 @@ def create_app(
     app.include_router(admin_orders.router, prefix=API_V1_PREFIX)
     app.include_router(admin_subscriptions.router, prefix=API_V1_PREFIX)
     app.include_router(admin_customers.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_broadcasts.router, prefix=API_V1_PREFIX)
     # No API_V1_PREFIX: the Mini App calls /api/miniapp/* and its own router
     # already carries that prefix.
     app.include_router(miniapp.router)

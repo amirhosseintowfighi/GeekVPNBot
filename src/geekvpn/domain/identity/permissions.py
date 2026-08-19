@@ -63,6 +63,9 @@ class Permission(enum.StrEnum):
     TICKETS_ASSIGN = "tickets.assign"
 
     # Growth
+    # `.read`, so VIEWER picks it up through the suffix rule below rather than
+    # needing another explicit entry in the matrix.
+    BROADCAST_READ = "broadcast.read"
     BROADCAST_SEND = "broadcast.send"
     CAMPAIGNS_WRITE = "campaigns.write"
 

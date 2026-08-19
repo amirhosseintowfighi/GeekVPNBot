@@ -29,12 +29,6 @@ ADMIN_SRC = Path(__file__).resolve().parents[2] / "admin" / "src"
 #: were fixed. Remove an entry the moment its route is registered.
 KNOWN_GAPS: frozenset[str] = frozenset(
     {
-        # Broadcast composition and dispatch. BroadcastService exists but has no
-        # SQL AudienceResolver, so no router can be built on it yet.
-        f"{API_V1_PREFIX}/admin/broadcasts",
-        f"{API_V1_PREFIX}/admin/broadcasts/{{id}}/cancel",
-        f"{API_V1_PREFIX}/admin/broadcasts/{{id}}/send",
-        f"{API_V1_PREFIX}/admin/broadcasts/estimate",
         # Bulk plan generation across a duration ladder.
         f"{API_V1_PREFIX}/admin/duration-ladder",
         f"{API_V1_PREFIX}/admin/catalog/plans/generate-ladder",

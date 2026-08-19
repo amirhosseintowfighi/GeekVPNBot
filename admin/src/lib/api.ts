@@ -329,13 +329,15 @@ export const api = {
   estimateAudience: (audience: BroadcastAudience) =>
     mutate<{ count: number }>('POST', `${ROOT}/broadcasts/estimate`, audience),
   // Compose and send in one call, matching what the screen does: an operator
-  // writes the message, sees the audience count, and sends. There is no draft
-  // to save separately. Still unbuilt server-side - see KNOWN_GAPS.
+  // writes the message, sees the audience count, and sends. `sendNow: false`
+  // leaves a draft that /broadcasts/{id}/send picks up later.
   sendBroadcast: (body: {
     segment: BroadcastAudience['segment']
+    reference?: string | null
+    titleFa: string
     bodyFa: string
     category: 'promos' | 'news' | 'critical'
-    respectQuietHours: boolean
+    sendNow?: boolean
   }) => mutate<BroadcastRow>('POST', `${ROOT}/broadcasts`, body),
   cancelBroadcast: (broadcastId: string) =>
     mutate<BroadcastRow>('POST', `${ROOT}/broadcasts/${broadcastId}/cancel`),

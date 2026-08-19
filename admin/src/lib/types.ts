@@ -449,37 +449,44 @@ export type BroadcastState =
   | 'cancelled'
   | 'failed'
 
-/**
- * Broadcasts have no backend.
- *
- * BroadcastService exists but has no SQL AudienceResolver, so no router is
- * built on it - see KNOWN_GAPS in tests/integration/test_admin_api_contract.py,
- * which is what keeps this honest. These fields therefore describe what this
- * screen renders rather than what any endpoint returns, and both halves have
- * to change together when the routes land.
- */
+/** GET /api/v1/admin/broadcasts - routers/admin_broadcasts.py `_view`. */
 export interface BroadcastRow {
   id: string
+  titleFa: string
   bodyFa: string
+  segment: string
   segmentLabelFa: string
+  category: string
   state: BroadcastState
   audienceSize: number
   deliveredCount: number
+  suppressedCount: number
   failedCount: number
   scheduledAt: string | null
   createdAt: string
+  startedAt: string | null
+  finishedAt: string | null
+  error: string | null
 }
 
-/** Audience filter for a new broadcast, resolved to a count before sending. */
+/**
+ * Audience filter, resolved to a count before sending.
+ *
+ * These are `AudienceKind` from domain/notifications/enums.py, not a parallel
+ * vocabulary: `active` and `never_purchased` were the panel's own words and
+ * matched no rule the resolver has.
+ */
 export interface BroadcastAudience {
   segment:
     | 'all'
-    | 'active'
-    | 'expiring'
+    | 'active_subscribers'
     | 'expired'
+    | 'expiring_soon'
     | 'never_purchased'
     | 'tier'
-  tier?: LoyaltyTier | null
+    | 'explicit'
+  /** Only read for `tier` (a loyalty tier) and `explicit` (ids, comma-separated). */
+  reference?: string | null
 }
 
 // -------------------------------------------------------------------- logs

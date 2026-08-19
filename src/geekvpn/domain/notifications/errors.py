@@ -108,6 +108,13 @@ class EmptyAudience(NotificationError):
     message = "\u0645\u062e\u0627\u0637\u0628\u06cc \u0628\u0631\u0627\u06cc \u0627\u06cc\u0646 \u067e\u06cc\u0627\u0645 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f."
 
 
+class UnknownAudience(NotificationError):
+    """The audience names a rule, or a tier, that does not exist."""
+
+    code = "unknown_audience"
+    message = "این مخاطب شناخته نشد."
+
+
 __all__ = [
     "BroadcastNotEditable",
     "BroadcastNotFound",
@@ -117,4 +124,5 @@ __all__ = [
     "NotificationError",
     "NotificationNotFound",
     "TemplateNotFound",
+    "UnknownAudience",
 ]
