@@ -6,10 +6,11 @@
 #   2. builds nginx from docker/nginx so TLS and templating are baked in;
 #   3. adds the monitoring stack, on a network reachable from nowhere else.
 #
-# The base `api` service is disabled here by giving it zero replicas would not
-# work in plain compose, so instead the base file's `api` is simply not started
-# in production: `make deploy` names the services explicitly. That is documented
-# in docs/deployment.md and enforced by scripts/deploy.sh.
+# The base `api` service is disabled here with a Compose profile, so no `up`
+# can start it by accident. It previously relied on callers naming services
+# explicitly, which held for `make deploy` and failed the moment anything
+# depended on it - nginx did, through a depends_on inherited from the base
+# file, and started a redundant api container on every install.
 
 name: geekvpn
 
@@ -131,6 +132,14 @@ services:
   api_green:
     <<: *api-common
     container_name: geekvpn-api-green
+
+  # The base file's single `api`. In production the two coloured services above
+  # replace it, and a profile is how Compose is actually told not to start
+  # something: without one, any plain `up` starts it alongside them, listening
+  # on the same port with the base file's wildcard --forwarded-allow-ips. The
+  # header of this file claimed no such mechanism existed. It does.
+  api:
+    profiles: ["never"]
 
   bot:
     restart: unless-stopped
