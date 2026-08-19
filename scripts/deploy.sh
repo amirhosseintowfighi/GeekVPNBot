@@ -40,10 +40,24 @@ log()  { printf '\033[0;36m[deploy]\033[0m %s %s\n' "$(date -u +%H:%M:%S)" "$*" 
 warn() { printf '\033[0;33m[deploy]\033[0m %s WARNING: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die()  { printf '\033[0;31m[deploy]\033[0m %s FAILED: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
 
+require_active_file() {
+  # Docker creates a *directory* at the host path of a bind mount when that
+  # path does not exist, and this file is bind-mounted into nginx. So one
+  # checkout missing it - a partial copy, a stale working tree - permanently
+  # replaces it with a directory, and every later run fails somewhere further
+  # in with `grep: ...: Is a directory`. Named here instead.
+  [[ -f "$ACTIVE_FILE" ]] && return 0
+  if [[ -d "$ACTIVE_FILE" ]]; then
+    die "${ACTIVE_FILE} is a directory. Docker created it when the file was missing from this checkout. Remove it and restore the file: rmdir '${ACTIVE_FILE}' && git checkout -- '${ACTIVE_FILE}'"
+  fi
+  die "${ACTIVE_FILE} is missing. Restore it before deploying: git checkout -- '${ACTIVE_FILE}'"
+}
+
 current_colour() {
   # Parsed from the file nginx actually reads, not from a separate state file.
   # Two sources of truth for "which colour is live" is how a deploy ends up
   # switching to the colour that is already serving.
+  require_active_file
   grep -oE 'api_(blue|green)' "$ACTIVE_FILE" | head -1
 }
 

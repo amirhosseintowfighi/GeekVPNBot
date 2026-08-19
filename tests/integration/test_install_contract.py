@@ -134,6 +134,39 @@ def test_the_image_is_built_before_anything_runs_from_it() -> None:
         assert text.find(consumer) > build, f"{consumer} runs before the image is built"
 
 
+#: Bind mounts that are meant to be created empty at run time. Docker making a
+#: directory here is the intended behaviour, not the bug below.
+RUNTIME_DIRECTORIES: frozenset[str] = frozenset({"./backups", "./backups/metrics"})
+
+
+def test_every_bind_mount_source_exists_in_the_repository() -> None:
+    """Docker creates a *directory* at a bind mount's host path when that path
+    does not exist. So a compose file naming a file this repository does not
+    ship does not fail: it silently produces a directory where the file should
+    be, in the working tree, permanently. On this server that turned
+    `docker/nginx/conf.d/active-api.conf` into a directory and every later
+    deploy died on `grep: ...: Is a directory`.
+    """
+    sources = set()
+    for path in compose_files():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = re.match(r"\s*-\s+(\./[^:\s]+):", line)
+            if match:
+                sources.add(match.group(1))
+
+    assert sources, "no bind mounts found; this test is no longer reading the compose files"
+
+    missing = sorted(
+        source
+        for source in sources
+        if source not in RUNTIME_DIRECTORIES and not (ROOT / source).exists()
+    )
+    assert not missing, (
+        "these are bind-mounted but do not exist here, so Docker will create a "
+        "directory in their place:\n  " + "\n  ".join(missing)
+    )
+
+
 def test_the_installer_is_valid_bash() -> None:
     """Guards against the CRLF class of failure too: a stray carriage return
     makes `set -Eeuo pipefail` an invalid option name."""
