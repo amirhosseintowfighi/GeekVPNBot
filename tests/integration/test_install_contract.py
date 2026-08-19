@@ -168,20 +168,13 @@ def test_every_bind_mount_source_exists_in_the_repository() -> None:
     )
 
 
-#: Hosts nginx proxies to that this stack does not run. Both front-ends exist
-#: as source trees but have no compose service, so those two routes answer 502
-#: until they get one. Listed rather than silently tolerated: an entry here is
-#: a known gap, and anything not here is a typo.
-UNPROVISIONED_BACKENDS: frozenset[str] = frozenset({"admin", "miniapp"})
+#: Hosts nginx proxies to that this stack does not start. `miniapp` came off
+#: this list when it got a service that builds; `admin` stays until its panel
+#: compiles, so admin.<domain> answers 502 by design rather than by omission.
+#: An entry here is a known gap; anything not here and not a service is a typo.
+UNPROVISIONED_BACKENDS: frozenset[str] = frozenset({"admin"})
 
 NGINX_DIR = ROOT / "docker" / "nginx"
-
-
-def compose_services() -> set[str]:
-    """Service names, read from the base file's top-level `services:` block."""
-    text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    block = text[text.index("\nservices:") :]
-    return set(re.findall(r"^  ([a-z][a-z0-9_]*):$", block, re.MULTILINE))
 
 
 def test_nginx_only_proxies_to_hosts_this_stack_runs() -> None:
@@ -205,7 +198,9 @@ def test_nginx_only_proxies_to_hosts_this_stack_runs() -> None:
 
     assert hosts, "no proxy targets found; this test has stopped reading the nginx config"
 
-    known = compose_services() | {"api_blue", "api_green"} | UNPROVISIONED_BACKENDS
+    # Every compose file, not only the base one: the front-end services that
+    # answer two of these hostnames are defined in the production overlay.
+    known = set(all_compose_services()) | {"api_blue", "api_green"} | UNPROVISIONED_BACKENDS
     unknown = {host: source for host, source in hosts.items() if host not in known}
 
     assert not unknown, "nginx proxies to hosts no compose service provides:\n  " + "\n  ".join(
@@ -306,6 +301,7 @@ def test_scripts_only_ask_the_edge_for_paths_it_answers_directly() -> None:
 #: whole audit is about, in compose form.
 NEVER_STARTED: dict[str, str] = {
     "api": "profile-disabled in production; api_blue/api_green replace it",
+    "admin": "profile-disabled until the panel type-checks; see its service comment",
     "migrate": "run to completion with `run --rm`, not brought up",
     "api_blue": "started through the colour variable, not by name",
     "api_green": "started through the colour variable, not by name",

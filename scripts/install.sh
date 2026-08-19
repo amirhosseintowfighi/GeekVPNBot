@@ -322,7 +322,22 @@ step "Requesting a TLS certificate"
 # This deliberately does not abort the install when it fails: the usual reason
 # is that DNS does not point here yet, which is not something the installer can
 # fix, and everything else is already working by this point.
-if $COMPOSE run --rm --entrypoint certbot certbot      certonly --webroot --webroot-path=/var/www/certbot      -d "$DOMAIN" --email "$CERTBOT_EMAIL"      --agree-tos --no-eff-email --non-interactive 2>&1 | tail -5
+issue_certificate() {
+  # `$@` is the -d list. Let's Encrypt fails the whole order if any one name
+  # does not validate, which is why this is called twice below.
+  $COMPOSE run --rm --entrypoint certbot certbot \
+    certonly --webroot --webroot-path=/var/www/certbot \
+    "$@" --email "$CERTBOT_EMAIL" \
+    --agree-tos --no-eff-email --non-interactive 2>&1 | tail -5
+}
+
+# All three hostnames first: nginx serves the panels on admin.* and app.*, and
+# a certificate covering only the apex leaves both of them on the self-signed
+# placeholder. Falling back to the apex alone, because an operator who has
+# pointed one record here should still get TLS on the API.
+if issue_certificate -d "$DOMAIN" -d "admin.${DOMAIN}" -d "app.${DOMAIN}" \
+  || { warn "could not cover admin.${DOMAIN} and app.${DOMAIN}; trying ${DOMAIN} alone"
+       issue_certificate -d "$DOMAIN"; }
 then
   # Recreated, not reloaded. Which directory nginx reads its certificate from is
   # decided by the entrypoint, and a reload does not re-run it - so a reload
@@ -367,10 +382,13 @@ LIVE_COLOUR=${LIVE_COLOUR:-api_green}
 if [[ "${TLS_READY:-0}" == "1" ]]; then
   TLS_NOTE="TLS is live for ${DOMAIN}, and certbot will keep it renewed."
 else
-  TLS_NOTE="Point ${DOMAIN} at this server, then issue the certificate:
+  TLS_NOTE="Point ${DOMAIN}, admin.${DOMAIN} and app.${DOMAIN} at this server,
+     then issue the certificate:
        ${DIM}$COMPOSE run --rm --entrypoint certbot certbot certonly \
-         --webroot --webroot-path=/var/www/certbot -d ${DOMAIN} \
-         --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --non-interactive${OFF}
+         --webroot --webroot-path=/var/www/certbot \
+         -d ${DOMAIN} -d admin.${DOMAIN} -d app.${DOMAIN} \
+         --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --non-interactive
+       $COMPOSE up -d --force-recreate nginx bot${OFF}
      Until then nginx serves the self-signed placeholder it generated."
 fi
 
@@ -378,13 +396,16 @@ cat <<EOF
 
 ${GREEN}${BOLD}Installation complete.${OFF}
 
-  Admin API     https://${DOMAIN}/api/v1/admin/auth/login  ${DIM}(POST, not a web page)${OFF}
-  Health        https://${DOMAIN}/health/ready
+  Mini App      https://app.${DOMAIN}
+  API health    https://${DOMAIN}/health/ready
   Username      ${ADMIN_USER}
 
-  ${YELLOW}The admin panel and Mini App are Next.js applications in admin/ and
-  miniapp/. This stack has no service for either, so nothing serves them
-  yet and their hostnames answer 502. Only the API and the bot are running.${OFF}
+  ${YELLOW}Point app.${DOMAIN} at this server too and include it when you issue
+  the certificate, or the Mini App serves the self-signed placeholder.
+
+  The admin panel does not run yet: it has 192 type errors and does not
+  build. The admin API works - admin.${DOMAIN} answers 502 until the
+  panel compiles.${OFF}
 
 ${BOLD}Do these three things now:${OFF}
 

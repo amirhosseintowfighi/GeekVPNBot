@@ -8,83 +8,57 @@
  * port of the algorithm in presentation/bot/ui/fa.py.
  */
 
-const BREAKS = [
-  -61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097,
-  2192, 2262, 2324, 2394, 2456, 3178,
-]
+const GREGORIAN_MONTH_STARTS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
 
-function jalaliCalendar(jalaliYear: number) {
-  const gy = jalaliYear + 621
-  let leapJ = -14
-  let jp = BREAKS[0] as number
-  let jump = 0
-
-  for (let i = 1; i < BREAKS.length; i += 1) {
-    const jm = BREAKS[i] as number
-    jump = jm - jp
-    if (jalaliYear < jm) break
-    leapJ += Math.floor(jump / 33) * 8 + Math.floor((jump % 33) / 4)
-    jp = jm
-  }
-
-  let n = jalaliYear - jp
-  leapJ += Math.floor(n / 33) * 8 + Math.floor(((n % 33) + 3) / 4)
-  if (jump % 33 === 4 && jump - n === 4) leapJ += 1
-
-  const leapG =
-    Math.floor(gy / 4) - Math.floor(((Math.floor(gy / 100) + 1) * 3) / 4) - 150
-  const march = 20 + leapJ - leapG
-
-  if (jump - n < 6) n = n - jump + Math.floor((jump + 4) / 33) * 33
-  let leap = (((n + 1) % 33) - 1) % 4
-  if (leap === -1) leap = 4
-
-  return { leap, gy, march }
+function isGregorianLeap(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 
-function toJulianDay(gy: number, gm: number, gd: number): number {
-  let d =
-    Math.floor(((gy + Math.floor((gm - 8) / 6) + 100100) * 1461) / 4) +
-    Math.floor((153 * ((gm + 9) % 12) + 2) / 5) +
-    gd -
-    34840408
-  d = d - Math.floor((Math.floor((gy + 100100 + Math.floor((gm - 8) / 6)) / 100) * 3) / 4) + 752
-  return d
-}
-
-function fromJulianDay(jdn: number): [number, number, number] {
-  let j = 4 * jdn + 139361631
-  j += Math.floor((Math.floor((4 * jdn + 183187720) / 146097) * 3) / 4) * 4 - 3908
-  const i = Math.floor((j % 1461) / 4) * 5 + 308
-  const gd = Math.floor((i % 153) / 5) + 1
-  const gm = (Math.floor(i / 153) % 12) + 1
-  const gy = Math.floor(j / 1461) - 100100 + Math.floor((8 - gm) / 6)
-  return [gy, gm, gd]
-}
-
-/** Returns `[year, month, day]` in the Jalali calendar. */
+/**
+ * Returns `[year, month, day]` in the Jalali calendar.
+ *
+ * Line for line the algorithm in `presentation/bot/ui/fa.py`. What was here
+ * before said the same thing in its comment and was a different algorithm
+ * entirely - and a wrong one: it put Nowruz 1405 on 1404-12-30, so every date
+ * in the Mini App was a day and sometimes a year out from the same date in the
+ * bot. Its own test suite said so and had never been run.
+ *
+ * UTC getters throughout. The local-time ones made the answer depend on the
+ * reader's timezone, which for anyone east of Tehran moved a subscription's
+ * expiry to the previous day.
+ */
 export function toJalali(date: Date): [number, number, number] {
-  const jdn = toJulianDay(
-    date.getFullYear(),
-    date.getMonth() + 1,
-    date.getDate(),
-  )
-  const gy = (fromJulianDay(jdn) as [number, number, number])[0]
-  let jy = gy - 621
-  const r = jalaliCalendar(jy)
-  const firstDay = toJulianDay(r.gy, 3, r.march)
-  let k = jdn - firstDay
+  const gy = date.getUTCFullYear()
+  const gm = date.getUTCMonth() + 1
+  const gd = date.getUTCDate()
 
-  if (k >= 0) {
-    if (k <= 185) return [jy, 1 + Math.floor(k / 31), (k % 31) + 1]
-    k -= 186
-  } else {
-    jy -= 1
-    k += 179
-    if (r.leap === 1) k += 1
+  const gy2 = gy - 1600
+  let gDayNo =
+    365 * gy2 +
+    Math.floor((gy2 + 3) / 4) -
+    Math.floor((gy2 + 99) / 100) +
+    Math.floor((gy2 + 399) / 400)
+  gDayNo += (GREGORIAN_MONTH_STARTS[gm - 1] as number) + (gd - 1)
+  if (gm > 2 && isGregorianLeap(gy)) gDayNo += 1
+
+  let jDayNo = gDayNo - 79
+  const jNp = Math.floor(jDayNo / 12053)
+  jDayNo %= 12053
+
+  let jy = 979 + 33 * jNp + 4 * Math.floor(jDayNo / 1461)
+  jDayNo %= 1461
+
+  if (jDayNo >= 366) {
+    jy += Math.floor((jDayNo - 1) / 365)
+    jDayNo = (jDayNo - 1) % 365
   }
 
-  return [jy, 7 + Math.floor(k / 30), (k % 30) + 1]
+  for (let i = 0; i < 11; i += 1) {
+    const monthLength = i < 6 ? 31 : 30
+    if (jDayNo < monthLength) return [jy, i + 1, jDayNo + 1]
+    jDayNo -= monthLength
+  }
+  return [jy, 12, jDayNo + 1]
 }
 
 export const JALALI_MONTHS = [

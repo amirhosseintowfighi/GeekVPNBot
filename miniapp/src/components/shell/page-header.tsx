@@ -47,7 +47,8 @@ export function PageHeader({
     router.back()
   }, [onBack, router])
 
-  useTelegramBackButton(back ? handleBack : undefined)
+  // null, not undefined: the hook spells "no handler, hide the button" as null.
+  useTelegramBackButton(back ? handleBack : null)
 
   return (
     <header

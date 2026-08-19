@@ -1,0 +1,11 @@
+# The build installs its own dependencies and compiles inside the image; a
+# host node_modules would be both enormous and wrong (native modules built for
+# a different platform).
+node_modules
+.next
+out
+.git
+tests
+docs
+README.md
+*.log

@@ -17,3 +17,12 @@ build/
 node_modules/
 .DS_Store
 *.log
+
+# Front-end dependencies and build output. Both apps build inside their image.
+admin/node_modules/
+admin/.next/
+miniapp/node_modules/
+miniapp/.next/
+admin/next-env.d.ts
+miniapp/next-env.d.ts
+*.tsbuildinfo

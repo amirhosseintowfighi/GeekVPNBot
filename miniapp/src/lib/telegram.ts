@@ -127,6 +127,20 @@ export const haptic = {
   select(): void {
     getWebApp()?.HapticFeedback?.selectionChanged()
   },
+  /**
+   * The parameterised forms the screens actually call.
+   *
+   * Twenty-three call sites across nine screens were written against these two
+   * signatures and neither existed, so the Mini App did not type-check and had
+   * therefore never been built at all - `next build` stops on the first one.
+   * The named helpers above stay: this module uses them itself.
+   */
+  impact(style: 'light' | 'medium' | 'heavy'): void {
+    getWebApp()?.HapticFeedback?.impactOccurred(style)
+  },
+  notify(kind: 'success' | 'warning' | 'error'): void {
+    getWebApp()?.HapticFeedback?.notificationOccurred(kind)
+  },
 }
 
 /**

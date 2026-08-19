@@ -57,30 +57,50 @@ export interface AdminSession {
 
 // ---------------------------------------------------------------- dashboard
 
+/*
+ * These mirror `as_dict()` on the analytics domain objects, field for field.
+ * They previously described a payload nobody serves - `deltaPercent` for what
+ * the API calls `changePercent`, a `date` on each point that is called `at`, a
+ * `signupSeries` and a `tierMix` that do not exist. Every screen built on them
+ * failed to type-check, which is why this panel had never been built at all.
+ *
+ * The source of truth is domain/analytics/dashboard.py; change these together.
+ */
+
+export type MetricFormat = 'toman' | 'count' | 'percent' | 'gib' | 'days'
+
 /**
- * A headline figure. `deltaPercent` is period-over-period against the same
+ * A headline figure. `changePercent` is period-over-period against the same
  * window length, and is null when there is no comparable prior period - a
  * fake zero would read as "flat" when the truth is "unknown".
  */
 export interface MetricCard {
   key: string
   labelFa: string
+  format: MetricFormat
   value: number
-  format: 'toman' | 'count' | 'percent' | 'gib'
-  deltaPercent: number | null
-  hintFa: string | null
+  previous: number | null
+  valueFa: string
+  changePercent: number | null
+  changeFa: string
+  direction: 'up' | 'down' | 'flat'
+  isImprovement: boolean | null
+  hintFa: string
 }
 
 export interface TimeSeriesPoint {
-  /** ISO date, one point per bucket. */
-  date: string
+  /** ISO timestamp of the bucket start. */
+  at: string
   value: number
+  labelFa: string
 }
 
 export interface TimeSeries {
   key: string
   labelFa: string
-  format: 'toman' | 'count'
+  format: MetricFormat
+  granularity: 'day' | 'week' | 'month'
+  total: number
   points: TimeSeriesPoint[]
 }
 
@@ -88,27 +108,33 @@ export interface BreakdownSlice {
   key: string
   labelFa: string
   value: number
+  share: number
 }
 
-/**
- * Work waiting on a human. This is the reason the dashboard exists: an
- * operator should be able to tell in two seconds whether anything needs them.
- */
-export interface ActionQueue {
-  pendingPayments: number
-  openTickets: number
-  failedProvisions: number
-  unhealthyPanels: number
-  expiringToday: number
+export interface Breakdown {
+  key: string
+  labelFa: string
+  format: MetricFormat
+  total: number
+  slices: BreakdownSlice[]
+}
+
+/** One queue entry on the dashboard: a count, and where to go and clear it. */
+export interface ActionItem {
+  key: string
+  labelFa: string
+  count: number
+  href: string
+  urgent: boolean
 }
 
 export interface DashboardSummary {
   metrics: MetricCard[]
-  revenueSeries: TimeSeries
-  signupSeries: TimeSeries
-  planMix: BreakdownSlice[]
-  queue: ActionQueue
-  generatedAt: string
+  actions: ActionItem[]
+  pendingWork: number
+  quiet: boolean
+  revenueSeries: TimeSeries | null
+  fleet: { nodes: number; healthy: number } | null
 }
 
 // -------------------------------------------------------------------- users
@@ -441,14 +467,44 @@ export interface Paged<T> {
   pageSize: number
 }
 
+/** GET /api/v1/admin/analytics - AnalyticsBundle.as_dict(), field for field. */
 export interface AnalyticsBundle {
-  revenue: TimeSeries
-  orders: TimeSeries
-  signups: TimeSeries
-  churn: TimeSeries
-  planMix: BreakdownSlice[]
-  methodMix: BreakdownSlice[]
-  tierMix: BreakdownSlice[]
-  topProducts: Array<{ nameFa: string; orderCount: number; revenue: number }>
-  couponImpact: Array<{ code: string; uses: number; discountGiven: number }>
+  range: {
+    start: string
+    end: string
+    days: number
+    labelFa: string
+    granularity: 'day' | 'week' | 'month'
+  }
+  metrics: MetricCard[]
+  revenueSeries: TimeSeries | null
+  ordersSeries: TimeSeries | null
+  planBreakdown: Breakdown | null
+  methodBreakdown: Breakdown | null
+  topPlans: Array<{
+    planId: string
+    planName: string
+    orders: number
+    revenue: number
+    trafficGib: number
+    daysSold: number
+    averagePrice: number
+  }>
+  campaigns: Array<{
+    campaignId: string
+    nameFa: string
+    kind: string
+    redemptions: number
+    redemptionRate: number
+    discountGiven: number
+    netRevenue: number
+    grossRevenue: number
+    newCustomerShare: number
+    returnOnDiscount: number
+  }>
+  segments: {
+    totalCustomers: number
+    winBackAudience: number
+    stats: Array<{ segment: string; labelFa: string; customers: number }>
+  }
 }

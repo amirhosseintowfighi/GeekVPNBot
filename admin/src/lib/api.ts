@@ -270,8 +270,11 @@ export const api = {
     mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),
 
   // ---------------------------------------------------------- analytics
-  analytics: (params: { from: string; to: string; granularity: 'day' | 'week' | 'month' }) =>
-    fetcher<AnalyticsBundle>(`${ROOT}/analytics${qs(params)}`),
+  // A window in days, matching GET /api/v1/admin/analytics, which takes
+  // `days` (1..365) and nothing else. This was typed as a from/to/granularity
+  // range that no endpoint has ever accepted, so the one screen calling it did
+  // not compile and the panel could not be built at all.
+  analytics: (days: number) => fetcher<AnalyticsBundle>(`${ROOT}/analytics${qs({ days })}`),
 
   // ---------------------------------------------------------- broadcast
   broadcasts: () => fetcher<BroadcastRow[]>(`${ROOT}/broadcasts`),

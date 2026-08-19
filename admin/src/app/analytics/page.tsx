@@ -4,7 +4,7 @@ import * as React from 'react'
 import useSWR from 'swr'
 import { Download } from 'lucide-react'
 
-import { api, ApiError } from '@/lib/api'
+import { api, ApiError, BASE_URL } from '@/lib/api'
 import { faNumber, percent, toman } from '@/lib/fa'
 import type { AnalyticsBundle } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
@@ -65,7 +65,10 @@ export default function AnalyticsPage() {
 
             {can('analytics.export') ? (
               <Button variant="outline" size="sm" asChild>
-                <a href={'/api/admin/analytics/export?days=' + days} download>
+                {/* A real browser navigation, not an SWR cache key like the
+                    ones elsewhere in this app - so it has to be the registered
+                    path. `/api/admin/...` is not one; nothing serves it. */}
+                <a href={BASE_URL + '/api/v1/admin/analytics/export?days=' + days} download>
                   <Download className="size-3.5" aria-hidden />
                   {'\u062e\u0631\u0648\u062c\u06cc CSV'}
                 </a>
@@ -99,100 +102,98 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="grid gap-3 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>{data.revenueSeries.labelFa}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <SeriesChart series={data.revenueSeries} color={CHART_COLORS[0]} />
-              </CardContent>
-            </Card>
+            {/* Both series are nullable in the payload - a range with no data
+                at all yields null rather than an empty chart. */}
+            {data.revenueSeries ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{data.revenueSeries.labelFa}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <SeriesChart series={data.revenueSeries} color={CHART_COLORS[0]} />
+                </CardContent>
+              </Card>
+            ) : null}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{data.ordersSeries.labelFa}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <SeriesChart series={data.ordersSeries} color={CHART_COLORS[4]} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{data.signupSeries.labelFa}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <SeriesChart series={data.signupSeries} color={CHART_COLORS[1]} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{data.churnSeries.labelFa}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                {/* Churn is the one series drawn in red: on this chart, up is bad. */}
-                <SeriesChart series={data.churnSeries} color={CHART_COLORS[5]} />
-              </CardContent>
-            </Card>
+            {data.ordersSeries ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{data.ordersSeries.labelFa}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <SeriesChart series={data.ordersSeries} color={CHART_COLORS[4]} />
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
 
           <div className="grid gap-3 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>{'\u0633\u0647\u0645 \u0631\u0648\u0634\u200c\u0647\u0627\u06cc \u067e\u0631\u062f\u0627\u062e\u062a'}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DonutChart slices={data.methodMix} format="toman" />
-              </CardContent>
-            </Card>
+            {data.methodBreakdown ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{data.methodBreakdown.labelFa}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DonutChart slices={data.methodBreakdown.slices} format="toman" />
+                </CardContent>
+              </Card>
+            ) : null}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{'\u0633\u0637\u062d \u0648\u0641\u0627\u062f\u0627\u0631\u06cc \u06a9\u0627\u0631\u0628\u0631\u0627\u0646'}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DonutChart slices={data.tierMix} format="count" />
-              </CardContent>
-            </Card>
+            {data.planBreakdown ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{data.planBreakdown.labelFa}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DonutChart slices={data.planBreakdown.slices} format="toman" />
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>{'\u067e\u0631\u0641\u0631\u0648\u0634\u200c\u062a\u0631\u06cc\u0646 \u0645\u062d\u0635\u0648\u0644\u0627\u062a'}</CardTitle>
+              <CardTitle>{'پرفروش‌ترین پلن‌ها'}</CardTitle>
             </CardHeader>
             <CardContent className="p-2">
-              <BreakdownChart slices={data.topProducts} format="toman" height={260} />
+              <BreakdownChart
+                slices={data.topPlans.map((plan) => ({
+                  key: plan.planId,
+                  labelFa: plan.planName,
+                  value: plan.revenue,
+                  share: 0,
+                }))}
+                format="toman"
+                height={260}
+              />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>{'\u0627\u062b\u0631 \u06a9\u062f\u0647\u0627\u06cc \u062a\u062e\u0641\u06cc\u0641'}</CardTitle>
+              <CardTitle>{'اثر کمپین‌ها'}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{'\u06a9\u062f'}</TableHead>
-                    <TableHead>{'\u062f\u0641\u0639\u0627\u062a \u0627\u0633\u062a\u0641\u0627\u062f\u0647'}</TableHead>
-                    <TableHead>{'\u062a\u062e\u0641\u06cc\u0641 \u062f\u0627\u062f\u0647\u200c\u0634\u062f\u0647'}</TableHead>
-                    <TableHead>{'\u062f\u0631\u0622\u0645\u062f \u062d\u0627\u0635\u0644'}</TableHead>
-                    <TableHead>{'\u0646\u0631\u062e \u062a\u0628\u062f\u06cc\u0644'}</TableHead>
+                    <TableHead>{'کمپین'}</TableHead>
+                    <TableHead>{'دفعات استفاده'}</TableHead>
+                    <TableHead>{'تخفیف داده‌شده'}</TableHead>
+                    <TableHead>{'درآمد خالص'}</TableHead>
+                    <TableHead>{'نرخ استفاده'}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.couponImpact.map((row) => (
-                    <TableRow key={row.code}>
-                      <TableCell>
-                        <span dir="ltr" className="font-mono text-2xs">{row.code}</span>
-                      </TableCell>
-                      <TableCell numeric>{faNumber(row.uses)}</TableCell>
+                  {data.campaigns.map((row) => (
+                    <TableRow key={row.campaignId}>
+                      <TableCell>{row.nameFa}</TableCell>
+                      <TableCell numeric>{faNumber(row.redemptions)}</TableCell>
                       {/* Discount given is a cost, shown in amber, not red:
                           it is intended spend, not an incident. */}
                       <TableCell numeric className="text-warning">{toman(row.discountGiven, false)}</TableCell>
-                      <TableCell numeric>{toman(row.revenue, false)}</TableCell>
-                      <TableCell numeric>{percent(row.conversionRate, 1)}</TableCell>
+                      <TableCell numeric>{toman(row.netRevenue, false)}</TableCell>
+                      <TableCell numeric>{percent(row.redemptionRate)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -201,6 +202,7 @@ export default function AnalyticsPage() {
           </Card>
         </div>
       ) : null}
+
     </>
   )
 }

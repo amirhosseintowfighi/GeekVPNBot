@@ -177,6 +177,65 @@ services:
       timeout: 5s
       retries: 3
 
+  # The two Next.js front-ends. Both existed as source trees with no service of
+  # any kind, so nginx proxied their hostnames to containers that were never
+  # going to exist and both domains answered 502 on every install.
+  #
+  # Neither talks to the API from the server side: their clients call the same
+  # origin the page came from and nginx routes /api/ to the backend, so these
+  # containers need no database, no Redis and no secrets. They sit on `backend`
+  # only so nginx can reach them.
+  miniapp:
+    build:
+      context: ./miniapp
+      dockerfile: ../docker/frontend/Dockerfile
+      args:
+        PORT: "3000"
+    image: ${IMAGE_REPOSITORY:-geekvpn}-miniapp:${IMAGE_TAG:-latest}
+    container_name: geekvpn-miniapp
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+    healthcheck:
+      # Next answers the app's own root once it has finished booting.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [backend]
+
+  # Parked, not deleted. `next build` fails: 192 type errors across 21 of its
+  # 21 screens, because the panel's TypeScript types describe payloads the API
+  # does not return - `deltaPercent` for `changePercent`, `row.id` for
+  # `row.couponId`, a from/to/granularity analytics range no endpoint accepts.
+  # It had never been compiled, so none of it had ever been caught.
+  #
+  # Every one of those is a runtime bug too: shipping it with type checking
+  # disabled would render a panel of undefined fields. Fixing them means
+  # checking each screen against its endpoint - real work, and separate from
+  # getting the platform running. The service is defined and correct; remove
+  # this profile when the panel compiles.
+  admin:
+    profiles: ["never"]
+    build:
+      context: ./admin
+      dockerfile: ../docker/frontend/Dockerfile
+      args:
+        PORT: "3001"
+    image: ${IMAGE_REPOSITORY:-geekvpn}-admin:${IMAGE_TAG:-latest}
+    container_name: geekvpn-admin
+    restart: unless-stopped
+    environment:
+      PORT: "3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [backend]
+
   nginx:
     build:
       context: ./docker/nginx

@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Traced standalone server, so the runtime image carries the compiled
+  // app and only the modules it actually imports - not the whole of
+  // node_modules. Produces .next/standalone/server.js, which is what
+  // docker/frontend/Dockerfile runs.
+  output: 'standalone',
+
   // The Mini App runs inside Telegram's in-app webview, served from Telegram's
   // own origin. Framing must therefore be allowed - but only by Telegram. A
   // bare ALLOWALL would make the whole wallet clickjackable from any site.

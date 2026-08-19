@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Traced standalone server, so the runtime image carries the compiled
+  // app and only the modules it actually imports - not the whole of
+  // node_modules. Produces .next/standalone/server.js, which is what
+  // docker/frontend/Dockerfile runs.
+  output: 'standalone',
+
   async headers() {
     return [
       {
