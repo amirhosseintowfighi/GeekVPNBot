@@ -191,7 +191,17 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    volumes:
+    # !override for the same reason as depends_on above: Compose appends volume
+    # lists, keyed on the target path. The base file mounts the whole host
+    # directory at /etc/nginx/conf.d **read-only**, and prod's single-file mount
+    # has a different target, so both applied. The entrypoint's first act is to
+    # render the template into that directory, which failed on a read-only
+    # filesystem, and `set -eu` turned that into a restart loop before nginx
+    # was ever executed.
+    #
+    # The prod image bakes nginx.conf, the snippets and conf.d, so none of the
+    # base file's bind mounts belong here at all.
+    volumes: !override
       # The active-colour file is bind-mounted from the host so scripts/deploy.sh
       # can rewrite it and reload nginx without rebuilding the image.
       - ./docker/nginx/conf.d/active-api.conf:/etc/nginx/conf.d/active-api.conf
