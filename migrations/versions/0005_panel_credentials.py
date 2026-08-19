@@ -1,7 +1,7 @@
 """Panel credentials on nodes.
 
 Revision ID: 0005_panel_credentials
-Revises: 0004_security_and_performance_indexes
+Revises: 0004_security_indexes
 Create Date: Phase 12.5
 
 Why this migration exists
@@ -52,7 +52,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from geekvpn.infrastructure.persistence.types import EncryptedString
 
 revision = "0005_panel_credentials"
-down_revision = "0004_security_and_performance_indexes"
+down_revision = "0004_security_indexes"
 branch_labels = None
 depends_on = None
 
@@ -68,15 +68,11 @@ def upgrade() -> None:
     )
     op.add_column(
         "nodes",
-        sa.Column(
-            "verify_tls", sa.Boolean(), nullable=False, server_default=sa.true()
-        ),
+        sa.Column("verify_tls", sa.Boolean(), nullable=False, server_default=sa.true()),
     )
     op.add_column(
         "nodes",
-        sa.Column(
-            "config_json", JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")
-        ),
+        sa.Column("config_json", JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
     )
     op.add_column(
         "nodes",

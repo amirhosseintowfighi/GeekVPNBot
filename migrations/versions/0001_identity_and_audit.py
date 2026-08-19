@@ -51,9 +51,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.CheckConstraint(
-            "status IN ('active', 'suspended', 'deleted')", name="ck_users_status"
-        ),
+        sa.CheckConstraint("status IN ('active', 'suspended', 'deleted')", name="ck_users_status"),
         sa.CheckConstraint("language IN ('fa', 'en')", name="ck_users_language"),
         sa.PrimaryKeyConstraint("id", name="pk_users"),
         sa.UniqueConstraint("telegram_id", name="uq_users_telegram_id"),
@@ -61,9 +59,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_users_status", "users", ["status"])
     op.create_index("ix_users_created_at", "users", ["created_at"])
-    op.create_index(
-        "ix_users_referred_by_code_status", "users", ["referred_by_code", "status"]
-    )
+    op.create_index("ix_users_referred_by_code_status", "users", ["referred_by_code", "status"])
 
     op.create_table(
         "admins",
@@ -73,12 +69,8 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(length=256), nullable=False),
         sa.Column("role", sa.String(length=32), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
-        sa.Column(
-            "granted_permissions", postgresql.JSONB(astext_type=sa.Text()), nullable=False
-        ),
-        sa.Column(
-            "denied_permissions", postgresql.JSONB(astext_type=sa.Text()), nullable=False
-        ),
+        sa.Column("granted_permissions", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("denied_permissions", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("totp_secret", sa.String(length=64), nullable=True),
         sa.Column("is_totp_enabled", sa.Boolean(), nullable=False),
         sa.Column("telegram_id", sa.BigInteger(), nullable=True),
@@ -136,9 +128,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name="pk_sessions"),
     )
-    op.create_index(
-        "ix_sessions_subject_id_revoked_at", "sessions", ["subject_id", "revoked_at"]
-    )
+    op.create_index("ix_sessions_subject_id_revoked_at", "sessions", ["subject_id", "revoked_at"])
     op.create_index("ix_sessions_absolute_expires_at", "sessions", ["absolute_expires_at"])
 
     op.create_table(
@@ -179,17 +169,13 @@ def upgrade() -> None:
         sa.Column("correlation_id", sa.String(length=64), nullable=True),
         sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.CheckConstraint("outcome IN ('success', 'failure')", name="ck_audit_outcome"),
-        sa.CheckConstraint(
-            "actor_type IN ('user', 'admin', 'system')", name="ck_audit_actor_type"
-        ),
+        sa.CheckConstraint("actor_type IN ('user', 'admin', 'system')", name="ck_audit_actor_type"),
         sa.PrimaryKeyConstraint("id", name="pk_audit_logs"),
     )
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
     op.create_index("ix_audit_logs_occurred_at", "audit_logs", ["occurred_at"])
     op.create_index("ix_audit_logs_correlation_id", "audit_logs", ["correlation_id"])
-    op.create_index(
-        "ix_audit_logs_actor_id_occurred_at", "audit_logs", ["actor_id", "occurred_at"]
-    )
+    op.create_index("ix_audit_logs_actor_id_occurred_at", "audit_logs", ["actor_id", "occurred_at"])
     op.create_index("ix_audit_logs_target", "audit_logs", ["target_type", "target_id"])
 
     # Append-only. Nothing the application can do rewrites the audit trail.

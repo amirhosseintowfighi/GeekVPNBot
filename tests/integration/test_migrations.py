@@ -4,17 +4,23 @@
 Everything green said the code was right; nothing said the schema could be
 created at all. It could not - twice over:
 
-* two revision ids are longer than the ``VARCHAR(32)`` Alembic gives
-  ``alembic_version.version_num`` by default, so stamping them failed;
+* two revision ids were longer than the ``VARCHAR(32)`` Alembic hardcodes for
+  ``alembic_version.version_num``, so stamping them failed;
 * 0004 recreated three indexes 0003 had already made, so the upgrade raised
   DuplicateTable even once stamping worked.
 
 Both were invisible to every other test in this suite, because none of them
-touch Postgres. This one needs a real database and skips without one, so it
-runs in CI and on a server and stays honest about being unproven elsewhere.
+touch Postgres. Most of this file needs a real database and skips without one,
+so it runs in CI and on a server and stays honest about being unproven
+elsewhere - which is exactly why the revision-id check below is written to need
+no database at all. The first attempt at that check asserted the presence of a
+string in env.py rather than the property it stood for, passed, and let the
+same failure reach a real server a second time.
 """
 
 from __future__ import annotations
+
+import re
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -30,8 +36,9 @@ from geekvpn.infrastructure.persistence.base import Base
 
 pytestmark = pytest.mark.integration
 
-#: Longest revision id in the tree. Alembic's default column is 32.
-LONGEST_REVISION = "0003_billing_support_notifications_provisioning"
+#: Longest revision id in the tree. Alembic creates the column as VARCHAR(32)
+#: and provides no way to widen it, so this must stay under that.
+LONGEST_REVISION = "0003_billing_and_support"
 
 
 def sync_dsn() -> str:
@@ -71,20 +78,54 @@ def run_upgrade(engine) -> None:
     command.upgrade(config, "head")
 
 
-def test_the_longest_revision_id_would_not_fit_the_default_column() -> None:
-    """Guards the reason for the fix, without needing a database.
-
-    If someone shortens the ids later this becomes noise and can go; while the
-    long ones exist, `version_table_column_length` must stay set.
-    """
+def revision_ids() -> dict[str, str]:
+    """Every id declared in the tree, mapped to the file that declares it."""
     from pathlib import Path
 
-    env = Path("migrations/env.py").read_text(encoding="utf-8")
+    found: dict[str, str] = {}
+    pattern = re.compile(r"^(?:revision|down_revision)[^=]*=\s*[\"']([^\"']+)[\"']", re.MULTILINE)
+    for path in sorted(Path("migrations/versions").glob("*.py")):
+        for identifier in pattern.findall(path.read_text(encoding="utf-8")):
+            found.setdefault(identifier, path.name)
+    return found
 
-    assert len(LONGEST_REVISION) > 32
-    assert env.count("version_table_column_length=64") == 2, (
-        "both the online and offline configure calls need it: offline writes "
-        "the CREATE TABLE, online inserts into it"
+
+def test_no_revision_id_exceeds_the_column_alembic_actually_creates() -> None:
+    """The replacement for a test that checked the wrong thing.
+
+    The previous fix passed `version_table_column_length=64` to
+    `context.configure`, and a test asserted that string appeared twice in
+    env.py. No such option exists: Alembic hardcodes String(32) in
+    `DefaultImpl.version_table_impl`, and `configure` takes **kw and drops
+    what it does not recognise. So the setting did nothing, the test passed,
+    and `upgrade head` still died at 0003 on a real server.
+
+    This asserts the limit against Alembic's own table definition instead of
+    against the text of our source, and needs no database - which matters,
+    because everything else in this file skips without one.
+    """
+    from alembic.ddl.impl import DefaultImpl
+
+    column = DefaultImpl.version_table_impl(
+        DefaultImpl,  # type: ignore[arg-type]
+        version_table="alembic_version",
+        version_table_schema=None,
+        version_table_pk=True,
+    ).c.version_num
+    limit = column.type.length
+    assert limit, "Alembic's version column is no longer length-bound; this test can go"
+
+    too_long = {
+        identifier: source
+        for identifier, source in revision_ids().items()
+        if len(identifier) > limit
+    }
+    assert not too_long, (
+        f"Alembic creates alembic_version.version_num as VARCHAR({limit}) and cannot be "
+        "told otherwise, so stamping these fails on a fresh database:\n  "
+        + "\n  ".join(
+            f"{name} ({len(name)} chars, in {source})" for name, source in too_long.items()
+        )
     )
 
 

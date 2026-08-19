@@ -66,9 +66,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_catalog_categories"),
         sa.UniqueConstraint("slug", name="uq_catalog_categories_slug"),
     )
-    op.create_index(
-        "ix_catalog_categories_created_at", "catalog_categories", ["created_at"]
-    )
+    op.create_index("ix_catalog_categories_created_at", "catalog_categories", ["created_at"])
     op.create_index("ix_catalog_categories_state", "catalog_categories", ["state"])
 
     # -- products ----------------------------------------------------------
@@ -91,9 +89,7 @@ def upgrade() -> None:
         sa.Column("badge_fa", sa.String(length=64), nullable=True),
         sa.Column("accent_color", sa.String(length=32), nullable=True),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "is_featured", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("is_featured", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("state", sa.String(length=16), nullable=False, server_default="draft"),
         sa.Column("panel_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column(
@@ -125,9 +121,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("slug", name="uq_catalog_products_slug"),
     )
     op.create_index("ix_catalog_products_created_at", "catalog_products", ["created_at"])
-    op.create_index(
-        "ix_catalog_products_category_id", "catalog_products", ["category_id"]
-    )
+    op.create_index("ix_catalog_products_category_id", "catalog_products", ["category_id"])
     op.create_index("ix_catalog_products_tier", "catalog_products", ["tier"])
     op.create_index("ix_catalog_products_state", "catalog_products", ["state"])
     op.create_index("ix_catalog_products_panel_id", "catalog_products", ["panel_id"])
@@ -157,9 +151,7 @@ def upgrade() -> None:
         sa.Column("cashback_bps", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("max_per_user", sa.Integer(), nullable=True),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "is_featured", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("is_featured", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("state", sa.String(length=16), nullable=False, server_default="draft"),
         *_TIMESTAMPS,
         sa.CheckConstraint(
@@ -192,9 +184,7 @@ def upgrade() -> None:
             "cashback_bps >= 0 AND cashback_bps <= 3000",
             name="ck_catalog_plans_catalog_plans_cashback_range",
         ),
-        sa.CheckConstraint(
-            "device_limit > 0", name="ck_catalog_plans_catalog_plans_device_limit"
-        ),
+        sa.CheckConstraint("device_limit > 0", name="ck_catalog_plans_catalog_plans_device_limit"),
         sa.CheckConstraint(
             "(plan_type = 'traffic' AND quota_gib IS NOT NULL AND quota_gib > 0"
             " AND daily_quota_gib IS NULL)"
@@ -217,9 +207,7 @@ def upgrade() -> None:
     op.create_index("ix_catalog_plans_product_id", "catalog_plans", ["product_id"])
     op.create_index("ix_catalog_plans_plan_type", "catalog_plans", ["plan_type"])
     op.create_index("ix_catalog_plans_state", "catalog_plans", ["state"])
-    op.create_index(
-        "ix_catalog_plans_product_state", "catalog_plans", ["product_id", "state"]
-    )
+    op.create_index("ix_catalog_plans_product_state", "catalog_plans", ["product_id", "state"])
 
     # -- coupons -----------------------------------------------------------
     op.create_table(
@@ -242,9 +230,7 @@ def upgrade() -> None:
         sa.Column("max_redemptions", sa.Integer(), nullable=True),
         sa.Column("max_per_user", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("redemption_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "min_order_amount", sa.BigInteger(), nullable=False, server_default="0"
-        ),
+        sa.Column("min_order_amount", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("target_user_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column(
             "stacks_with_campaign",
@@ -258,9 +244,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("false"),
         ),
-        sa.Column(
-            "state", sa.String(length=16), nullable=False, server_default="published"
-        ),
+        sa.Column("state", sa.String(length=16), nullable=False, server_default="published"),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         *_TIMESTAMPS,
         sa.CheckConstraint(
@@ -317,9 +301,7 @@ def upgrade() -> None:
     op.create_index("ix_catalog_coupons_created_at", "catalog_coupons", ["created_at"])
     op.create_index("ix_catalog_coupons_ends_at", "catalog_coupons", ["ends_at"])
     op.create_index("ix_catalog_coupons_state", "catalog_coupons", ["state"])
-    op.create_index(
-        "ix_catalog_coupons_target_user_id", "catalog_coupons", ["target_user_id"]
-    )
+    op.create_index("ix_catalog_coupons_target_user_id", "catalog_coupons", ["target_user_id"])
 
     # -- coupon redemptions ------------------------------------------------
     op.create_table(
@@ -439,9 +421,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_catalog_campaigns"),
         sa.UniqueConstraint("slug", name="uq_catalog_campaigns_slug"),
     )
-    op.create_index(
-        "ix_catalog_campaigns_created_at", "catalog_campaigns", ["created_at"]
-    )
+    op.create_index("ix_catalog_campaigns_created_at", "catalog_campaigns", ["created_at"])
     op.create_index("ix_catalog_campaigns_kind", "catalog_campaigns", ["kind"])
     op.create_index("ix_catalog_campaigns_ends_at", "catalog_campaigns", ["ends_at"])
     op.create_index("ix_catalog_campaigns_priority", "catalog_campaigns", ["priority"])

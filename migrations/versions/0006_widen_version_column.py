@@ -1,17 +1,18 @@
 """Widen alembic_version.version_num to 64 characters.
 
-Alembic creates ``alembic_version.version_num`` as ``VARCHAR(32)`` unless told
-otherwise. Two revision ids in this tree are longer than that -
-``0003_billing_support_notifications_provisioning`` is 47 characters - so
-stamping them failed with a value-too-long error against a column nobody in
-this repository had written.
+Alembic creates ``alembic_version.version_num`` as ``VARCHAR(32)`` and there is
+no option to change it: the length is hardcoded in
+``DefaultImpl.version_table_impl``. Two revision ids here were once longer than
+that, so stamping them failed with a value-too-long error against a column
+nobody in this repository had written.
 
-``migrations/env.py`` now passes ``version_table_column_length=64``, which
-covers every database created from here on. This migration is for one created
-before that: the column already exists at 32 and only an ALTER can widen it.
+The actual fix is that no revision id exceeds 32 characters any more, asserted
+by ``test_no_revision_id_exceeds_the_column_alembic_actually_creates``. This
+migration is kept as headroom for a database that reaches it, and because
+removing it would re-chain 0007 for no gain. It is not what makes a fresh
+install work - nothing can widen the column before Alembic first writes to it.
 
-Deliberately no-ops when the column is already wide enough, so it is safe to
-run against a database that was created after the env.py fix.
+Deliberately no-ops when the column is already wide enough.
 
 Revision ID: 0006_widen_version_column
 Revises: 0005_panel_credentials
@@ -26,7 +27,7 @@ down_revision = "0005_panel_credentials"
 branch_labels = None
 depends_on = None
 
-#: The length env.py configures. Kept in one place so the two cannot drift.
+#: Headroom over Alembic's hardcoded 32, not a value anything else depends on.
 TARGET_LENGTH = 64
 
 

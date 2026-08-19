@@ -10,6 +10,14 @@ Three things worth knowing:
 3. ``models`` is imported for its side effect: it registers every table on
    ``Base.metadata``. A model that is not reachable from that import is a model
    that autogenerate silently ignores.
+
+On revision ids: Alembic hardcodes ``alembic_version.version_num`` as
+``String(32)`` in ``DefaultImpl.version_table_impl`` and offers no option to
+widen it - ``context.configure()`` takes ``**kw`` and silently ignores keys it
+does not recognise, so a plausible-looking ``version_table_column_length=64``
+sat here doing nothing while stamping kept failing. Ids are therefore kept
+under 32 characters, which ``tests/integration/test_migrations.py`` asserts
+without needing a database.
 """
 
 from __future__ import annotations
@@ -47,12 +55,6 @@ def _configure(connection: Connection) -> None:
         compare_server_default=True,
         include_schemas=False,
         render_as_batch=False,
-        # Alembic defaults alembic_version.version_num to VARCHAR(32) and two
-        # revision ids in this tree are longer than that, so `upgrade head`
-        # failed on an empty database with a value-too-long error naming a
-        # column nobody wrote. Set on both configure calls: offline mode
-        # generates the CREATE TABLE, online mode inserts into it.
-        version_table_column_length=64,
     )
 
 
@@ -63,19 +65,15 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        # Alembic defaults alembic_version.version_num to VARCHAR(32) and two
-        # revision ids in this tree are longer than that, so `upgrade head`
-        # failed on an empty database with a value-too-long error naming a
-        # column nobody wrote. Set on both configure calls: offline mode
-        # generates the CREATE TABLE, online mode inserts into it.
-        version_table_column_length=64,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    connection.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": MIGRATION_LOCK_ID})
+    connection.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": MIGRATION_LOCK_ID}
+    )
     _configure(connection)
     with context.begin_transaction():
         context.run_migrations()

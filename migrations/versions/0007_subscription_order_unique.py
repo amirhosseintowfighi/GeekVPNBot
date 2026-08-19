@@ -34,10 +34,7 @@ def upgrade() -> None:
     duplicates = (
         op.get_bind()
         .execute(
-            sa.text(
-                "SELECT order_id FROM subscriptions "
-                "GROUP BY order_id HAVING count(*) > 1"
-            )
+            sa.text("SELECT order_id FROM subscriptions GROUP BY order_id HAVING count(*) > 1")
         )
         .fetchall()
     )

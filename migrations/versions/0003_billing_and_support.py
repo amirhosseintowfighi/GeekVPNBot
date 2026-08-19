@@ -1,6 +1,6 @@
 """Billing, support, notifications and provisioning.
 
-Revision ID: 0003_billing_support_notifications_provisioning
+Revision ID: 0003_billing_and_support
 Revises: 0002_catalog_and_pricing
 Create Date: Phase 12
 
@@ -35,7 +35,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0003_billing_support_notifications_provisioning"
+revision = "0003_billing_and_support"
 down_revision = "0002_catalog_and_pricing"
 branch_labels = None
 depends_on = None
@@ -71,12 +71,9 @@ PAYMENT_STATES = (
     "'rejected', 'refunded', 'partially_refunded', 'expired', 'failed'"
 )
 TRANSACTION_KINDS = (
-    "'topup', 'purchase', 'refund', 'cashback', 'referral_reward', "
-    "'adjustment', 'overpayment'"
+    "'topup', 'purchase', 'refund', 'cashback', 'referral_reward', 'adjustment', 'overpayment'"
 )
-REFUND_REASONS = (
-    "'customer_request', 'service_failure', 'duplicate_payment', 'fraud', 'goodwill'"
-)
+REFUND_REASONS = "'customer_request', 'service_failure', 'duplicate_payment', 'fraud', 'goodwill'"
 REFUND_DESTINATIONS = "'wallet', 'original'"
 TICKET_CATEGORIES = "'connection', 'payment', 'account', 'speed', 'technical', 'other'"
 TICKET_PRIORITIES = "'low', 'normal', 'high', 'urgent'"
@@ -86,16 +83,13 @@ NOTIFICATION_CATEGORIES = "'expiry', 'traffic', 'promos', 'news', 'critical'"
 DELIVERY_STATES = "'pending', 'sent', 'failed', 'suppressed', 'deferred'"
 BROADCAST_STATES = "'draft', 'scheduled', 'sending', 'sent', 'cancelled', 'failed'"
 AUDIENCE_KINDS = (
-    "'all', 'active_subscribers', 'expired', 'expiring_soon', 'never_purchased', "
-    "'tier', 'explicit'"
+    "'all', 'active_subscribers', 'expired', 'expiring_soon', 'never_purchased', 'tier', 'explicit'"
 )
 JOB_KINDS = (
     "'expiration_reminder', 'traffic_reminder', 'broadcast_dispatch', "
     "'campaign_announce', 'deferred_flush'"
 )
-ORDER_STATES = (
-    "'pending', 'paid', 'provisioning', 'active', 'failed', 'cancelled', 'refunded'"
-)
+ORDER_STATES = "'pending', 'paid', 'provisioning', 'active', 'failed', 'cancelled', 'refunded'"
 SUBSCRIPTION_STATES = "'active', 'expired', 'exhausted', 'suspended', 'revoked'"
 NODE_STATES = "'online', 'degraded', 'offline', 'maintenance', 'retired'"
 
@@ -141,12 +135,8 @@ def _upgrade_billing() -> None:
     op.create_index("ix_billing_invoices_issued_at", "billing_invoices", ["issued_at"])
     op.create_index("ix_billing_invoices_paid_at", "billing_invoices", ["paid_at"])
     op.create_index("ix_billing_invoices_created_at", "billing_invoices", ["created_at"])
-    op.create_index(
-        "ix_billing_invoices_user_state", "billing_invoices", ["user_id", "state"]
-    )
-    op.create_index(
-        "ix_billing_invoices_paid_at_state", "billing_invoices", ["paid_at", "state"]
-    )
+    op.create_index("ix_billing_invoices_user_state", "billing_invoices", ["user_id", "state"])
+    op.create_index("ix_billing_invoices_paid_at_state", "billing_invoices", ["paid_at", "state"])
 
     op.create_table(
         "billing_payments",
@@ -204,9 +194,7 @@ def _upgrade_billing() -> None:
     op.create_index(
         "ix_billing_payments_state_created", "billing_payments", ["state", "created_at"]
     )
-    op.create_index(
-        "ix_billing_payments_user_state", "billing_payments", ["user_id", "state"]
-    )
+    op.create_index("ix_billing_payments_user_state", "billing_payments", ["user_id", "state"])
 
     op.create_table(
         "billing_refunds",
@@ -228,9 +216,7 @@ def _upgrade_billing() -> None:
             f"destination IN ({REFUND_DESTINATIONS})",
             name="ck_billing_refunds_billing_refunds_destination",
         ),
-        sa.CheckConstraint(
-            "amount > 0", name="ck_billing_refunds_billing_refunds_amount_positive"
-        ),
+        sa.CheckConstraint("amount > 0", name="ck_billing_refunds_billing_refunds_amount_positive"),
         sa.ForeignKeyConstraint(
             ["payment_id"],
             ["billing_payments.id"],
@@ -252,9 +238,7 @@ def _upgrade_billing() -> None:
         sa.Column("amount", sa.BigInteger(), nullable=False),
         sa.Column("balance_after", sa.BigInteger(), nullable=False),
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "description_fa", sa.String(length=256), nullable=False, server_default=""
-        ),
+        sa.Column("description_fa", sa.String(length=256), nullable=False, server_default=""),
         sa.Column("reference", sa.String(length=128), nullable=True),
         sa.Column("actor_id", sa.BigInteger(), nullable=True),
         *_timestamps(),
@@ -271,13 +255,9 @@ def _upgrade_billing() -> None:
             name="ck_billing_wallet_entries_billing_wallet_amount_non_zero",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_billing_wallet_entries"),
-        sa.UniqueConstraint(
-            "user_id", "kind", "reference", name="uq_wallet_user_kind_reference"
-        ),
+        sa.UniqueConstraint("user_id", "kind", "reference", name="uq_wallet_user_kind_reference"),
     )
-    op.create_index(
-        "ix_billing_wallet_entries_user_id", "billing_wallet_entries", ["user_id"]
-    )
+    op.create_index("ix_billing_wallet_entries_user_id", "billing_wallet_entries", ["user_id"])
     op.create_index("ix_billing_wallet_entries_kind", "billing_wallet_entries", ["kind"])
     op.create_index(
         "ix_billing_wallet_entries_occurred_at", "billing_wallet_entries", ["occurred_at"]
@@ -305,9 +285,7 @@ def _upgrade_billing() -> None:
     op.create_index(
         "ix_billing_receipt_digests_payment_id", "billing_receipt_digests", ["payment_id"]
     )
-    op.create_index(
-        "ix_billing_receipt_digests_user_id", "billing_receipt_digests", ["user_id"]
-    )
+    op.create_index("ix_billing_receipt_digests_user_id", "billing_receipt_digests", ["user_id"])
     op.create_index(
         "ix_billing_receipt_digests_reference", "billing_receipt_digests", ["reference"]
     )
@@ -330,9 +308,7 @@ def _upgrade_billing() -> None:
         sa.UniqueConstraint("card_number", name="uq_billing_card_accounts_card_number"),
     )
     op.create_index("ix_billing_card_accounts_active", "billing_card_accounts", ["active"])
-    op.create_index(
-        "ix_billing_card_accounts_created_at", "billing_card_accounts", ["created_at"]
-    )
+    op.create_index("ix_billing_card_accounts_created_at", "billing_card_accounts", ["created_at"])
 
 
 def _upgrade_support() -> None:
@@ -373,16 +349,12 @@ def _upgrade_support() -> None:
     op.create_index("ix_support_tickets_state", "support_tickets", ["state"])
     op.create_index("ix_support_tickets_assignee_id", "support_tickets", ["assignee_id"])
     op.create_index("ix_support_tickets_opened_at", "support_tickets", ["opened_at"])
-    op.create_index(
-        "ix_support_tickets_waiting_since", "support_tickets", ["waiting_since"]
-    )
+    op.create_index("ix_support_tickets_waiting_since", "support_tickets", ["waiting_since"])
     op.create_index("ix_support_tickets_created_at", "support_tickets", ["created_at"])
     op.create_index(
         "ix_support_tickets_state_waiting", "support_tickets", ["state", "waiting_since"]
     )
-    op.create_index(
-        "ix_support_tickets_user_state", "support_tickets", ["user_id", "state"]
-    )
+    op.create_index("ix_support_tickets_user_state", "support_tickets", ["user_id", "state"])
 
     op.create_table(
         "support_messages",
@@ -414,9 +386,7 @@ def _upgrade_support() -> None:
     op.create_index("ix_support_messages_sent_at", "support_messages", ["sent_at"])
     op.create_index("ix_support_messages_template_id", "support_messages", ["template_id"])
     op.create_index("ix_support_messages_created_at", "support_messages", ["created_at"])
-    op.create_index(
-        "ix_support_messages_ticket_sent", "support_messages", ["ticket_id", "sent_at"]
-    )
+    op.create_index("ix_support_messages_ticket_sent", "support_messages", ["ticket_id", "sent_at"])
 
     op.create_table(
         "support_templates",
@@ -465,32 +435,20 @@ def _upgrade_notifications() -> None:
         sa.UniqueConstraint("user_id", "dedupe_key", name="uq_notify_user_dedupe"),
     )
     op.create_index("ix_notify_notifications_user_id", "notify_notifications", ["user_id"])
-    op.create_index(
-        "ix_notify_notifications_category", "notify_notifications", ["category"]
-    )
+    op.create_index("ix_notify_notifications_category", "notify_notifications", ["category"])
     op.create_index(
         "ix_notify_notifications_template_key", "notify_notifications", ["template_key"]
     )
     op.create_index("ix_notify_notifications_state", "notify_notifications", ["state"])
-    op.create_index(
-        "ix_notify_notifications_queued_at", "notify_notifications", ["queued_at"]
-    )
-    op.create_index(
-        "ix_notify_notifications_send_after", "notify_notifications", ["send_after"]
-    )
+    op.create_index("ix_notify_notifications_queued_at", "notify_notifications", ["queued_at"])
+    op.create_index("ix_notify_notifications_send_after", "notify_notifications", ["send_after"])
     op.create_index(
         "ix_notify_notifications_broadcast_id", "notify_notifications", ["broadcast_id"]
     )
     op.create_index("ix_notify_notifications_source", "notify_notifications", ["source"])
-    op.create_index(
-        "ix_notify_notifications_created_at", "notify_notifications", ["created_at"]
-    )
-    op.create_index(
-        "ix_notify_user_queued", "notify_notifications", ["user_id", "queued_at"]
-    )
-    op.create_index(
-        "ix_notify_state_send_after", "notify_notifications", ["state", "send_after"]
-    )
+    op.create_index("ix_notify_notifications_created_at", "notify_notifications", ["created_at"])
+    op.create_index("ix_notify_user_queued", "notify_notifications", ["user_id", "queued_at"])
+    op.create_index("ix_notify_state_send_after", "notify_notifications", ["state", "send_after"])
 
     op.create_table(
         "notify_preferences",
@@ -511,9 +469,7 @@ def _upgrade_notifications() -> None:
         ),
         sa.PrimaryKeyConstraint("user_id", name="pk_notify_preferences"),
     )
-    op.create_index(
-        "ix_notify_preferences_created_at", "notify_preferences", ["created_at"]
-    )
+    op.create_index("ix_notify_preferences_created_at", "notify_preferences", ["created_at"])
 
     op.create_table(
         "notify_broadcasts",
@@ -524,9 +480,7 @@ def _upgrade_notifications() -> None:
         sa.Column("category", sa.String(length=16), nullable=False, server_default="news"),
         sa.Column("state", sa.String(length=16), nullable=False, server_default="draft"),
         sa.Column("audience_kind", sa.String(length=24), nullable=False),
-        sa.Column(
-            "audience_filter", postgresql.JSONB(), nullable=False, server_default="{}"
-        ),
+        sa.Column("audience_filter", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("scheduled_for", sa.DateTime(timezone=True), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
@@ -553,9 +507,7 @@ def _upgrade_notifications() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_notify_broadcasts"),
     )
     op.create_index("ix_notify_broadcasts_state", "notify_broadcasts", ["state"])
-    op.create_index(
-        "ix_notify_broadcasts_scheduled_for", "notify_broadcasts", ["scheduled_for"]
-    )
+    op.create_index("ix_notify_broadcasts_scheduled_for", "notify_broadcasts", ["scheduled_for"])
     op.create_index("ix_notify_broadcasts_created_at", "notify_broadcasts", ["created_at"])
     op.create_index(
         "ix_notify_broadcasts_state_scheduled",
@@ -643,9 +595,7 @@ def _upgrade_provisioning() -> None:
         sa.CheckConstraint(
             "total >= 0 AND discount >= 0", name="ck_orders_orders_amounts_non_negative"
         ),
-        sa.CheckConstraint(
-            "duration_days > 0", name="ck_orders_orders_duration_positive"
-        ),
+        sa.CheckConstraint("duration_days > 0", name="ck_orders_orders_duration_positive"),
         sa.PrimaryKeyConstraint("id", name="pk_orders"),
         sa.UniqueConstraint("number", name="uq_orders_number"),
     )
@@ -657,9 +607,7 @@ def _upgrade_provisioning() -> None:
     op.create_index("ix_orders_coupon_code", "orders", ["coupon_code"])
     op.create_index("ix_orders_invoice_id", "orders", ["invoice_id"])
     op.create_index("ix_orders_is_renewal", "orders", ["is_renewal"])
-    op.create_index(
-        "ix_orders_renews_subscription_id", "orders", ["renews_subscription_id"]
-    )
+    op.create_index("ix_orders_renews_subscription_id", "orders", ["renews_subscription_id"])
     op.create_index("ix_orders_placed_at", "orders", ["placed_at"])
     op.create_index("ix_orders_paid_at", "orders", ["paid_at"])
     op.create_index("ix_orders_source", "orders", ["source"])
@@ -685,9 +633,7 @@ def _upgrade_provisioning() -> None:
         sa.Column("device_limit", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("last_synced_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "notified_expiry_days", postgresql.JSONB(), nullable=False, server_default="[]"
-        ),
+        sa.Column("notified_expiry_days", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column(
             "notified_traffic_percents",
             postgresql.JSONB(),
@@ -729,12 +675,8 @@ def _upgrade_provisioning() -> None:
     op.create_index("ix_subscriptions_remote_id", "subscriptions", ["remote_id"])
     op.create_index("ix_subscriptions_expires_at", "subscriptions", ["expires_at"])
     op.create_index("ix_subscriptions_created_at", "subscriptions", ["created_at"])
-    op.create_index(
-        "ix_subscriptions_state_expires", "subscriptions", ["state", "expires_at"]
-    )
-    op.create_index(
-        "ix_subscriptions_user_state", "subscriptions", ["user_id", "state"]
-    )
+    op.create_index("ix_subscriptions_state_expires", "subscriptions", ["state", "expires_at"])
+    op.create_index("ix_subscriptions_user_state", "subscriptions", ["user_id", "state"])
 
     op.create_table(
         "referrals",
@@ -746,19 +688,13 @@ def _upgrade_provisioning() -> None:
         sa.Column("converted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("first_order_id", sa.String(length=64), nullable=True),
         sa.Column("reward_paid", sa.BigInteger(), nullable=False, server_default="0"),
-        sa.Column(
-            "invitee_bonus_paid", sa.BigInteger(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "revenue_generated", sa.BigInteger(), nullable=False, server_default="0"
-        ),
+        sa.Column("invitee_bonus_paid", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("revenue_generated", sa.BigInteger(), nullable=False, server_default="0"),
         *_timestamps(),
         sa.CheckConstraint(
             "referrer_id <> invitee_id", name="ck_referrals_referrals_no_self_referral"
         ),
-        sa.CheckConstraint(
-            "reward_paid >= 0", name="ck_referrals_referrals_reward_non_negative"
-        ),
+        sa.CheckConstraint("reward_paid >= 0", name="ck_referrals_referrals_reward_non_negative"),
         sa.PrimaryKeyConstraint("id", name="pk_referrals"),
         sa.UniqueConstraint("invitee_id", name="uq_referrals_invitee"),
     )
@@ -767,9 +703,7 @@ def _upgrade_provisioning() -> None:
     op.create_index("ix_referrals_joined_at", "referrals", ["joined_at"])
     op.create_index("ix_referrals_converted_at", "referrals", ["converted_at"])
     op.create_index("ix_referrals_created_at", "referrals", ["created_at"])
-    op.create_index(
-        "ix_referrals_referrer_converted", "referrals", ["referrer_id", "converted_at"]
-    )
+    op.create_index("ix_referrals_referrer_converted", "referrals", ["referrer_id", "converted_at"])
 
     op.create_table(
         "funnel_events",

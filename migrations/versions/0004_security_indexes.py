@@ -1,7 +1,7 @@
 """Security and performance indexes.
 
-Revision ID: 0004_security_and_performance_indexes
-Revises: 0003_billing_support_notifications_provisioning
+Revision ID: 0004_security_indexes
+Revises: 0003_billing_and_support
 Create Date: Phase 13
 
 No new tables. Every index here answers a query that already exists in the
@@ -65,8 +65,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0004_security_and_performance_indexes"
-down_revision = "0003_billing_support_notifications_provisioning"
+revision = "0004_security_indexes"
+down_revision = "0003_billing_and_support"
 branch_labels = None
 depends_on = None
 
