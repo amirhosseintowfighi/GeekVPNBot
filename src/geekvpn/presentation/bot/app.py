@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from secrets import compare_digest
+from typing import Protocol
 
 from aiogram import Bot
 from aiogram.types import Update
@@ -54,6 +55,59 @@ def _receipt_fetcher(bot: Bot) -> Callable[[str], Awaitable[bytes]]:
     return fetch
 
 
+class SupportsSetWebhook(Protocol):
+    async def set_webhook(
+        self,
+        url: str,
+        *,
+        secret_token: str,
+        drop_pending_updates: bool,
+        allowed_updates: list[str],
+    ) -> bool: ...
+
+
+async def register_webhook(
+    bot: SupportsSetWebhook,
+    settings: Settings,
+    *,
+    allowed_updates: list[str],
+) -> bool:
+    """Point Telegram at this deployment. Returns whether it took.
+
+    Failure is logged, never raised. Telegram refuses the call whenever it
+    cannot reach the URL over valid TLS, which is the ordinary state of a fresh
+    install: the installer starts the bot before certbot has issued anything,
+    so the only certificate is the self-signed placeholder. Raising here put
+    the container in a restart loop over a condition that resolves itself
+    minutes later, and left no bot running to receive the webhook once it did.
+    """
+    try:
+        await bot.set_webhook(
+            url=settings.telegram.webhook_url,
+            secret_token=settings.telegram.webhook_secret.get_secret_value(),
+            drop_pending_updates=False,
+            allowed_updates=allowed_updates,
+        )
+    except Exception as exc:
+        # Broad on purpose: aiogram raises its own error for a rejection and the
+        # HTTP client raises its own for DNS and TLS. Every one of them means
+        # the same thing here - not registered yet, try again later.
+        logger.error(
+            "bot.webhook.registration_failed",
+            url=settings.telegram.webhook_url,
+            error=str(exc),
+            hint=(
+                "Telegram could not reach the webhook URL. Usually DNS does not point "
+                "here yet, or TLS is still the self-signed placeholder. Restart the bot "
+                "once those are in place."
+            ),
+        )
+        return False
+
+    logger.info("bot.webhook.registered", url=settings.telegram.webhook_url)
+    return True
+
+
 def create_bot_app(
     settings: Settings | None = None,
     *,
@@ -80,13 +134,11 @@ def create_bot_app(
         )
 
         if settings.telegram.set_webhook_on_startup:
-            await app.state.bot.set_webhook(
-                url=settings.telegram.webhook_url,
-                secret_token=settings.telegram.webhook_secret.get_secret_value(),
-                drop_pending_updates=False,
+            await register_webhook(
+                app.state.bot,
+                settings,
                 allowed_updates=app.state.dispatcher.resolve_used_update_types(),
             )
-            logger.info("bot.webhook.registered", url=settings.telegram.webhook_url)
 
         logger.info("bot.startup", env=settings.app.env.value)
         try:
