@@ -1,4 +1,4 @@
-"""The installer must satisfy what Compose demands.
+"""The installer must satisfy what Compose demands - and what Settings does.
 
 A fresh install failed twice in a row on this exact mismatch: Compose marks a
 variable required with `${VAR:?...}`, the wizard did not write it, and the
@@ -6,15 +6,22 @@ failure only appeared partway through - after the operator had already typed
 their bot token and admin password, and after `.env` had been written.
 
 Every one of those failures was findable by reading two files side by side, so
-that is what this does.
+that is what this does. The second half does the same against the settings
+model: the wizard wrote `TELEGRAM__WEBHOOK_URL`, which is a computed field and
+therefore rejected as an extra input, so `alembic upgrade` died on the
+generated .env after the operator had typed everything in. Nothing in the suite
+had ever fed the wizard's own output to `Settings`.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
 import pytest
+
+from geekvpn.infrastructure.config.settings import Settings
 
 pytestmark = pytest.mark.integration
 
@@ -111,3 +118,85 @@ def test_shipped_shell_scripts_have_unix_line_endings(script: str) -> None:
     start of its own error message, which is why the cause is unreadable."""
     path = (ROOT / "scripts" / script).resolve()
     assert b"\r" not in path.read_bytes(), f"{script} has CRLF line endings"
+
+
+def env_block() -> str:
+    """The heredoc the wizard writes, verbatim."""
+    text = INSTALL.read_text(encoding="utf-8")
+    start = text.index('cat > "$ENV_FILE"')
+    return text[text.index("\n", start) + 1 : text.index("\nEOF", start)]
+
+
+#: Stand-ins for what the wizard asks the operator, and for what it generates.
+#: The two key secrets differ because a production guardrail refuses to boot
+#: while they match.
+ANSWERS = {
+    "DOMAIN": "vpn.example.ir",
+    "CERTBOT_EMAIL": "ops@example.ir",
+    "BOT_TOKEN": "123456:AAHtesttokenfortestingonly",
+    "MINIAPP_ORIGIN": "https://app.example.ir",
+    "ALERT_CHAT": "-1001234567890",
+    "SECRET_KEY": "S" * 48,
+    "ENCRYPTION_KEY": "E" * 48,
+    "WEBHOOK_SECRET": "W" * 48,
+    "PG_PASSWORD": "P" * 48,
+    "REDIS_PASSWORD": "R" * 48,
+    "GRAFANA_PASSWORD": "G" * 48,
+}
+
+
+def rendered_env(admin_ips: str) -> str:
+    body = re.sub(r"\$\((?:[^()]|\([^()]*\))*\)", "generated-at-install-time", env_block())
+    body = body.replace("${ADMIN_IPS}", admin_ips)
+    for name, value in ANSWERS.items():
+        body = body.replace("${" + name + "}", value)
+    leftover = re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", body)
+    assert not leftover, (
+        "the wizard interpolates shell variables this test does not know about, "
+        f"so it is no longer rendering what ships: {sorted(set(leftover))}"
+    )
+    return body
+
+
+@pytest.mark.parametrize(
+    ("case", "admin_ips"),
+    [("no allowlist", ""), ("a CIDR allowlist", "10.0.0.0/24,203.0.113.9")],
+)
+def test_the_generated_env_file_boots_the_application(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, admin_ips: str
+) -> None:
+    """`APP__ENV=production`, so this asserts the wizard's output satisfies
+    every production guardrail as well as the field definitions."""
+    for name in list(os.environ):
+        # The ambient test environment must not stand in for a line the wizard
+        # forgot to write, nor mask one it wrote wrongly.
+        if "__" in name:
+            monkeypatch.delenv(name, raising=False)
+    written = tmp_path / ".env"
+    written.write_text(rendered_env(admin_ips), encoding="utf-8")
+
+    settings = Settings(_env_file=written)  # type: ignore[call-arg]
+
+    assert settings.telegram.webhook_url == "https://vpn.example.ir/telegram/webhook"
+    assert settings.security.cors_origins == ("https://app.example.ir",)
+    assert settings.jwt_secret == "S" * 48
+
+
+def test_the_generated_env_file_configures_the_admin_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The answer is typed comma-separated at the prompt and has to survive
+    both the .env round trip and CIDR parsing."""
+    from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
+
+    for name in list(os.environ):
+        if "__" in name:
+            monkeypatch.delenv(name, raising=False)
+    written = tmp_path / ".env"
+    written.write_text(rendered_env("10.0.0.0/24,203.0.113.9"), encoding="utf-8")
+
+    settings = Settings(_env_file=written)  # type: ignore[call-arg]
+    allowlist = IpAllowlist.from_entries(settings.auth.admin_ip_allowlist)
+
+    assert allowlist.allows("10.0.0.77")
+    assert not allowlist.allows("198.51.100.4")
