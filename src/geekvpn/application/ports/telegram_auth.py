@@ -25,8 +25,15 @@ class TelegramIdentity:
 
 @runtime_checkable
 class TelegramAuthVerifier(Protocol):
-    def verify_mini_app(self, init_data: str) -> TelegramIdentity:
-        """Verify a Mini App `initData` string."""
+    def verify_mini_app(
+        self, init_data: str, *, max_age_seconds: int | None = None
+    ) -> TelegramIdentity:
+        """Verify a Mini App `initData` string.
+
+        `max_age_seconds` overrides the configured freshness window for this
+        one call. A login may accept day-old initData; a per-request credential
+        replayed on every call must not.
+        """
         ...
 
     def verify_login_widget(self, payload: dict[str, str]) -> TelegramIdentity:

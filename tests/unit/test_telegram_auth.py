@@ -99,6 +99,16 @@ def test_stale_init_data_is_rejected(verifier):
         verifier.verify_mini_app(old)
 
 
+def test_a_caller_can_demand_a_tighter_freshness_window(verifier):
+    """The per-request Mini App path accepts minutes where a login accepts a
+    day, so the same signed string must pass one check and fail the other."""
+    hour_old = build_init_data(auth_date=str(int(time.time()) - 3600))
+
+    assert verifier.verify_mini_app(hour_old).telegram_id == 987654321
+    with pytest.raises(InvalidTelegramAuthError):
+        verifier.verify_mini_app(hour_old, max_age_seconds=900)
+
+
 def test_a_far_future_auth_date_is_rejected(verifier):
     future = build_init_data(auth_date=str(int(time.time()) + 5000))
     with pytest.raises(InvalidTelegramAuthError):

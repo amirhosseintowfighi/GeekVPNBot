@@ -305,7 +305,17 @@ class AdminIpAllowlistMiddleware(BaseHTTPMiddleware):
 #: readability only; the lookup picks the longest matching prefix.
 DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     ("/api/v1/catalog", "catalog.browse"),
-    ("/api/v1/miniapp", "miniapp.read"),
+    # The Mini App router carries its own prefix and is NOT under /api/v1,
+    # so this entry matched nothing and every Mini App route - including
+    # checkout - was exempt from rate limiting entirely.
+    ("/api/miniapp", "miniapp.read"),
+    # The Mini App is where customers actually spend money; the /api/v1
+    # equivalents below were never mounted. Only prefixes whose whole subtree
+    # is a mutation are tightened - /api/miniapp/payments and
+    # /api/miniapp/tickets each mix a read with a write, and a prefix cannot
+    # tell them apart, so they stay on the looser miniapp.read.
+    ("/api/miniapp/checkout", "payments.checkout"),
+    ("/api/miniapp/wallet/topup", "payments.topup"),
     ("/api/v1/auth/refresh", "auth.refresh"),
     ("/api/v1/auth/telegram", "auth.telegram"),
     ("/api/v1/auth/captcha", "auth.captcha"),

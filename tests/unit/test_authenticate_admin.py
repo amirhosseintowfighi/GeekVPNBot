@@ -21,6 +21,7 @@ from geekvpn.domain.identity.errors import (
     TwoFactorRequiredError,
 )
 from geekvpn.domain.identity.permissions import AdminRole, Permission
+from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.jwt import JwtAccessTokenService
 from geekvpn.infrastructure.security.refresh_tokens import Sha256RefreshTokenFactory
 from geekvpn.infrastructure.security.totp import Rfc6238TotpService
@@ -54,7 +55,7 @@ class FakeHasher:
         return self.rehash_requested
 
 
-def build(*, admin: Admin | None = None, allowed_ips=frozenset(), limiter=None):
+def build(*, admin: Admin | None = None, allowed_ips=(), limiter=None):
     clock = FrozenClock()
     admins = InMemoryAdminRepository()
     if admin is not None:
@@ -87,7 +88,7 @@ def build(*, admin: Admin | None = None, allowed_ips=frozenset(), limiter=None):
         clock=clock,
         audit=audit,
         rate_limiter=limiter or AllowingRateLimiter(),
-        allowed_ips=allowed_ips,
+        allowlist=IpAllowlist.from_entries(allowed_ips),
     )
     return use_case, admins, audit, clock, hasher
 
@@ -207,16 +208,40 @@ async def test_a_super_admin_without_an_enrolled_secret_cannot_log_in():
 
 
 async def test_an_ip_outside_the_allowlist_is_refused():
-    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=frozenset({"203.0.113.9"}))
+    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=("203.0.113.9",))
     with pytest.raises(IpNotAllowedError):
         await use_case.execute(username="amir", password=PASSWORD, context=CONTEXT)
 
 
 async def test_an_ip_on_the_allowlist_is_accepted():
-    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=frozenset({"10.0.0.1"}))
+    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=("10.0.0.1",))
     assert (
         await use_case.execute(username="amir", password=PASSWORD, context=CONTEXT)
     ).admin is not None
+
+
+async def test_a_cidr_range_admits_every_address_inside_it():
+    """The allowlist was a `frozenset[str]` compared with `in`, so the CIDR an
+    operator is told to write in .env.example matched literally nothing and
+    locked the whole team out of the admin panel."""
+    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=("10.0.0.0/24",))
+
+    assert (
+        await use_case.execute(username="amir", password=PASSWORD, context=CONTEXT)
+    ).admin is not None
+
+
+async def test_an_unknown_address_is_refused_when_an_allowlist_is_configured():
+    """`client_ip` returns None when it cannot establish who called. That must
+    not read as "allowed" - it is the state a spoofed header now produces."""
+    use_case, _, _, _, _ = build(admin=make_admin(), allowed_ips=("10.0.0.0/24",))
+
+    with pytest.raises(IpNotAllowedError):
+        await use_case.execute(
+            username="amir",
+            password=PASSWORD,
+            context=RequestContext(ip=None, user_agent="admin-panel"),
+        )
 
 
 async def test_the_rate_limiter_blocks_before_the_password_is_checked():

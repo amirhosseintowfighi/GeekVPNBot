@@ -60,7 +60,9 @@ class TelegramSignatureVerifier:
 
     # -- Mini App ----------------------------------------------------------
 
-    def verify_mini_app(self, init_data: str) -> TelegramIdentity:
+    def verify_mini_app(
+        self, init_data: str, *, max_age_seconds: int | None = None
+    ) -> TelegramIdentity:
         if not init_data:
             raise InvalidTelegramAuthError("Empty initData.")
 
@@ -82,7 +84,7 @@ class TelegramSignatureVerifier:
         if not hmac.compare_digest(expected, provided):
             raise InvalidTelegramAuthError()
 
-        self._ensure_fresh(fields.get("auth_date"))
+        self._ensure_fresh(fields.get("auth_date"), max_age_seconds)
 
         raw_user = fields.get("user")
         if not raw_user:
@@ -133,7 +135,7 @@ class TelegramSignatureVerifier:
 
     # -- shared ------------------------------------------------------------
 
-    def _ensure_fresh(self, auth_date: str | None) -> None:
+    def _ensure_fresh(self, auth_date: str | None, max_age_seconds: int | None = None) -> None:
         if auth_date is None:
             raise InvalidTelegramAuthError("Missing auth_date.")
         try:
@@ -143,7 +145,7 @@ class TelegramSignatureVerifier:
 
         age = int(time.time()) - issued_at
         # A negative age beyond small clock skew means a forged future date.
-        if age < -60 or age > self._max_age:
+        if age < -60 or age > (max_age_seconds if max_age_seconds is not None else self._max_age):
             raise InvalidTelegramAuthError("Telegram authentication data has expired.")
 
 

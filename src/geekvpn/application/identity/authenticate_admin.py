@@ -18,6 +18,7 @@ from geekvpn.application.identity.dto import (
 from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.ports.audit import AuditRecorder
 from geekvpn.application.ports.clock import Clock
+from geekvpn.application.ports.ip_allowlist import IpAllowlistPort
 from geekvpn.application.ports.passwords import PasswordHasher, TotpService
 from geekvpn.application.ports.rate_limiter import RateLimiter
 from geekvpn.application.ports.repositories import AdminRepository
@@ -48,7 +49,7 @@ class AuthenticateAdmin:
         clock: Clock,
         audit: AuditRecorder,
         rate_limiter: RateLimiter,
-        allowed_ips: frozenset[str] = frozenset(),
+        allowlist: IpAllowlistPort | None = None,
     ) -> None:
         self._admins = admins
         self._passwords = passwords
@@ -62,7 +63,7 @@ class AuthenticateAdmin:
         self._clock = clock
         self._audit = audit
         self._rate_limiter = rate_limiter
-        self._allowed_ips = allowed_ips
+        self._allowlist = allowlist
 
     async def execute(
         self,
@@ -162,9 +163,15 @@ class AuthenticateAdmin:
         self._passwords.verify(password, self._dummy_hash)
 
     def _enforce_ip_allowlist(self, context: RequestContext) -> None:
-        if not self._allowed_ips:
+        """Refuse addresses outside the configured networks.
+
+        Delegated to the allowlist rather than compared as strings: an operator
+        who writes ``10.0.0.0/8`` means the range, and an address we could not
+        establish (``context.ip is None``) must be refused, not let through.
+        """
+        if self._allowlist is None or self._allowlist.is_empty:
             return
-        if context.ip not in self._allowed_ips:
+        if not self._allowlist.allows(context.ip):
             raise IpNotAllowedError()
 
     async def _enforce_rate_limit(self, *, username: str, context: RequestContext) -> None:

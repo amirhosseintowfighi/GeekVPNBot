@@ -63,6 +63,7 @@ from geekvpn.infrastructure.persistence.repositories.session import (
 )
 from geekvpn.infrastructure.persistence.repositories.settings import DbSettingsStore
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
+from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 
 
 # Deliberately not `slots=True`: `cached_property` needs a real instance
@@ -210,6 +211,9 @@ class RequestScope:
             sessions=self.sessions,
             clock=self.container.clock,
             audit=self.audit,
+            request_max_age_seconds=(
+                self.container.settings.telegram.mini_app_request_max_age_seconds
+            ),
         )
 
     @cached_property
@@ -222,7 +226,7 @@ class RequestScope:
             clock=self.container.clock,
             audit=self.audit,
             rate_limiter=self.container.rate_limiter,
-            allowed_ips=frozenset(self.container.settings.auth.admin_ip_allowlist),
+            allowlist=IpAllowlist.from_entries(self.container.settings.auth.admin_ip_allowlist),
         )
 
     @cached_property

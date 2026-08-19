@@ -3,6 +3,13 @@
 This is the only door customers come through, so it does four things and
 nothing else: prove the identity, find or create the user, check they are
 allowed in, issue tokens.
+
+The last of those is a *login*, and it is separated from
+`verify_mini_app_request`. The Mini App re-sends its signed `initData` on every
+call, so running the full login there minted a session row and wrote an
+AUTH_LOGIN_SUCCEEDED audit entry per page view - thousands of refresh tokens
+that nobody ever redeemed, and an audit log in which a real sign-in was
+invisible. Per-request verification proves the identity and stops there.
 """
 
 from __future__ import annotations
@@ -27,6 +34,12 @@ from geekvpn.domain.identity.user import User
 
 _START_PARAM_REFERRAL_PREFIX = "ref_"
 
+#: Freshness window for initData presented as a per-request credential.
+#: Fifteen minutes, not the 24 hours a login accepts - see
+#: ``verify_mini_app_request``. Configurable via
+#: ``TELEGRAM__MINI_APP_REQUEST_MAX_AGE_SECONDS``.
+DEFAULT_REQUEST_MAX_AGE_SECONDS = 900
+
 
 class AuthenticateTelegramUser:
     def __init__(
@@ -37,17 +50,34 @@ class AuthenticateTelegramUser:
         sessions: SessionService,
         clock: Clock,
         audit: AuditRecorder,
+        request_max_age_seconds: int = DEFAULT_REQUEST_MAX_AGE_SECONDS,
     ) -> None:
         self._users = users
         self._verifier = verifier
         self._sessions = sessions
         self._clock = clock
         self._audit = audit
+        self._request_max_age_seconds = request_max_age_seconds
 
     async def from_mini_app(
         self, init_data: str, *, context: RequestContext
     ) -> AuthenticationResult:
         return await self._authenticate(self._verifier.verify_mini_app(init_data), context)
+
+    async def verify_mini_app_request(self, init_data: str) -> UserProfile:
+        """Prove who is behind a single Mini App call. No tokens, no login row.
+
+        The freshness window is deliberately much shorter than the one a login
+        accepts: a credential presented on every request is one a replayer gets
+        many chances to capture, and Telegram never refreshes `auth_date` for
+        an open Mini App, so a long window turns one captured header into a
+        day-long session.
+        """
+        identity = self._verifier.verify_mini_app(
+            init_data, max_age_seconds=self._request_max_age_seconds
+        )
+        user, _ = await self._resolve(identity, now=self._clock.now())
+        return _to_profile(user)
 
     async def from_login_widget(
         self, payload: dict[str, str], *, context: RequestContext
@@ -65,27 +95,37 @@ class AuthenticateTelegramUser:
         """
         return await self._authenticate(identity, context)
 
-    async def _authenticate(
-        self, identity: TelegramIdentity, context: RequestContext
-    ) -> AuthenticationResult:
-        now = self._clock.now()
+    async def _resolve(self, identity: TelegramIdentity, *, now: datetime) -> tuple[User, bool]:
+        """Find or create the user behind a proven identity, and check they may
+        still come in. Shared by login and by per-request verification so the
+        two cannot disagree about who a banned customer is."""
         user = await self._users.get_by_telegram_id(identity.telegram_id)
         is_new = user is None
 
         if user is None:
-            user = await self._create(identity, now=now)
-        else:
-            changed = user.refresh_profile(
-                username=identity.username,
-                first_name=identity.first_name,
-                last_name=identity.last_name,
-                language=_language_of(identity.language_code),
-                is_premium=identity.is_premium,
-                photo_url=identity.photo_url,
-            )
-            user.ensure_can_authenticate()
-            if changed:
-                await self._users.update(user)
+            # Created here rather than only on the login route because the Mini
+            # App never calls that route: a first-time customer opening it has
+            # no account yet, and refusing them would be a locked front door.
+            return await self._create(identity, now=now), True
+
+        changed = user.refresh_profile(
+            username=identity.username,
+            first_name=identity.first_name,
+            last_name=identity.last_name,
+            language=_language_of(identity.language_code),
+            is_premium=identity.is_premium,
+            photo_url=identity.photo_url,
+        )
+        user.ensure_can_authenticate()
+        if changed:
+            await self._users.update(user)
+        return user, is_new
+
+    async def _authenticate(
+        self, identity: TelegramIdentity, context: RequestContext
+    ) -> AuthenticationResult:
+        now = self._clock.now()
+        user, is_new = await self._resolve(identity, now=now)
 
         user.mark_authenticated(method=identity.method, now=now)
         await self._users.update(user)

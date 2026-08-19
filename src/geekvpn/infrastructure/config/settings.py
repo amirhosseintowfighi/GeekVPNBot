@@ -13,11 +13,19 @@ from __future__ import annotations
 import enum
 from datetime import timedelta
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, SecretStr, computed_field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 #: Any secret that still equals this is a configuration error in production.
+#: pydantic-settings JSON-decodes a complex type straight from the
+#: environment, *before* any `mode="before"` validator runs - so a
+#: comma-separated value raised SettingsError at the source and the
+#: splitter below never saw it. NoDecode hands the raw string over instead,
+#: which is what makes `A,B` in a .env file work.
+CommaSeparated = Annotated[tuple[str, ...], NoDecode]
+
 INSECURE_SECRET_PREFIX = "insecure-development-key"  # noqa: S105 - a constant name, not a credential
 _DEV_SECRET = "insecure-development-key-do-not-use-in-production"  # noqa: S105 - a constant name, not a credential
 
@@ -116,6 +124,11 @@ class TelegramSettings(BaseSettings):
     parse_mode: str = "HTML"
     #: How old signed Telegram auth data may be before it is rejected.
     auth_max_age_seconds: int = 86_400
+    #: The same, for initData presented as a per-request Mini App credential.
+    #: Much shorter on purpose; raise it if operators report Mini App sessions
+    #: expiring mid-use, since Telegram does not refresh `auth_date` for an
+    #: open Mini App.
+    mini_app_request_max_age_seconds: int = 900
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -125,7 +138,7 @@ class TelegramSettings(BaseSettings):
 
 class SecuritySettings(BaseSettings):
     secret_key: SecretStr = SecretStr(_DEV_SECRET)
-    cors_origins: tuple[str, ...] = ()
+    cors_origins: CommaSeparated = ()
 
     #: Master secret for data encrypted at rest. Deliberately separate from
     #: ``secret_key``: sharing one secret would couple the two rotations
@@ -134,7 +147,7 @@ class SecuritySettings(BaseSettings):
     encryption_master_key: SecretStr = SecretStr(_DEV_SECRET)
     encryption_active_key_id: str = "k1"
     #: Keys that must still decrypt but must no longer encrypt, during rotation.
-    encryption_retired_key_ids: tuple[str, ...] = ()
+    encryption_retired_key_ids: CommaSeparated = ()
 
     #: Number of reverse proxies in front of the application. Used to read
     #: ``X-Forwarded-For`` from the right, so a client-supplied leftmost entry
@@ -144,8 +157,8 @@ class SecuritySettings(BaseSettings):
 
     #: Explicit CORS lists rather than a wildcard. A wildcard method list also
     #: permits methods the API does not implement, which is free reconnaissance.
-    cors_allow_methods: tuple[str, ...] = ("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
-    cors_allow_headers: tuple[str, ...] = (
+    cors_allow_methods: CommaSeparated = ("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
+    cors_allow_headers: CommaSeparated = (
         "Authorization",
         "Content-Type",
         "Idempotency-Key",
@@ -204,7 +217,7 @@ class AuthSettings(BaseSettings):
 
     #: Empty means "any IP". Set it and only these addresses may reach the
     #: admin login endpoint.
-    admin_ip_allowlist: tuple[str, ...] = ()
+    admin_ip_allowlist: CommaSeparated = ()
 
     #: One-time bootstrap of the first super admin. Remove after first boot.
     bootstrap_admin_username: str | None = None
@@ -275,6 +288,12 @@ class Settings(BaseSettings):
             problems.append("LOGGING__JSON must be true outside local")
         if self.security.secret_key.get_secret_value().startswith(INSECURE_SECRET_PREFIX):
             problems.append("SECURITY__SECRET_KEY must be set")
+        if self.jwt_secret.startswith(INSECURE_SECRET_PREFIX):
+            # The value shipped in .env.example. Checked separately from
+            # SECURITY__SECRET_KEY because jwt_secret falls back to it, so a
+            # deployment could pass that check and still sign tokens with
+            # the placeholder from the repository.
+            problems.append("AUTH__JWT_SECRET_KEY must be set")
         if len(self.jwt_secret) < 32:
             problems.append("The JWT signing secret must be at least 32 characters")
         if self.postgres.password.get_secret_value() in {"", "geekvpn", "postgres"}:

@@ -24,6 +24,11 @@ from geekvpn.domain.identity.errors import MissingPermissionError, SessionRevoke
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.identity.session import AuthenticatedSubject
 from geekvpn.infrastructure.di.scope import RequestScope, build_scope
+from geekvpn.infrastructure.security.ip_allowlist import (
+    FORWARDED_FOR_HEADER,
+    REAL_IP_HEADER,
+    client_ip,
+)
 from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 
 #: `auto_error=False` so a missing header raises our own problem-details 401
@@ -39,19 +44,22 @@ async def get_scope(container: ContainerDep, uow: UnitOfWorkDep) -> AsyncIterato
 ScopeDep = Annotated[RequestScope, Depends(get_scope)]
 
 
-def request_context(request: Request) -> RequestContext:
+def request_context(request: Request, container: ContainerDep) -> RequestContext:
     """Where this call came from.
 
-    `X-Forwarded-For` is trusted only because Nginx overwrites it at the edge;
-    the leftmost entry is the client. Never trust it if the app is ever exposed
-    directly.
+    The address is resolved by `client_ip`, counting from the *right* of
+    `X-Forwarded-For` by the number of proxies we operate. Reading the leftmost
+    entry - as this used to - meant the caller chose its own address, and that
+    address then decided the admin IP allowlist, the login rate-limit key and
+    what every audit row recorded.
     """
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0].strip() if forwarded else None
-    if not ip and request.client:
-        ip = request.client.host
     return RequestContext(
-        ip=ip,
+        ip=client_ip(
+            remote_addr=request.client.host if request.client else None,
+            forwarded_for=request.headers.get(FORWARDED_FOR_HEADER),
+            real_ip=request.headers.get(REAL_IP_HEADER),
+            trusted_proxy_count=container.settings.security.trusted_proxy_count,
+        ),
         user_agent=request.headers.get("User-Agent"),
         device_label=request.headers.get("X-Device-Label"),
     )

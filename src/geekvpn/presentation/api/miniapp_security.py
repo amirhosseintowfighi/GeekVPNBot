@@ -10,6 +10,10 @@ The signature is re-verified on **every** request. It is an HMAC over a handful
 of fields, so the cost is negligible next to the database work that follows, and
 the alternative - trusting a first verification for the rest of a session -
 means a replayed header outlives the window Telegram set on it.
+
+Verification only. This used to run the full login use case, which minted a
+session and a refresh token and wrote a login audit row on every single call;
+token issuance now lives on ``/api/v1/auth/telegram/mini-app`` alone.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ from typing import Annotated
 from fastapi import Depends, Header
 
 from geekvpn.application.bot.services import BotServices
-from geekvpn.application.identity.dto import RequestContext, UserProfile
+from geekvpn.application.identity.dto import UserProfile
 from geekvpn.domain.base.errors import AuthenticationError
 from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.presentation.api.security import ScopeDep
@@ -48,15 +52,7 @@ async def current_mini_app_user(
     message: telling an attacker which half of the header was wrong is free
     information.
     """
-    result = await scope.authenticate_telegram.from_mini_app(
-        _init_data(authorization),
-        context=RequestContext(device_label="telegram-mini-app"),
-    )
-    if result.user is None:
-        # Only an admin sign-in leaves this empty, and initData never
-        # authenticates an operator.
-        raise AuthenticationError("An Authorization: tma <initData> header is required.")
-    return result.user
+    return await scope.authenticate_telegram.verify_mini_app_request(_init_data(authorization))
 
 
 CurrentMiniAppUser = Annotated[UserProfile, Depends(current_mini_app_user)]
