@@ -326,6 +326,13 @@ if $COMPOSE run --rm --entrypoint certbot certbot      certonly --webroot --webr
 then
   $COMPOSE exec -T nginx nginx -s reload >/dev/null 2>&1 || true
   ok "certificate issued for ${DOMAIN}"
+  # The bot started before this certificate existed, so Telegram refused its
+  # webhook registration - which is logged and survived, not fatal. This is the
+  # first moment the URL is actually reachable over valid TLS, so give it the
+  # one restart that makes the registration stick.
+  $COMPOSE up -d --no-deps --force-recreate bot >/dev/null 2>&1 \
+    && ok "bot restarted; webhook registered against the new certificate" \
+    || warn "the bot did not restart; register the webhook by restarting it manually"
   TLS_READY=1
 else
   warn "Let's Encrypt could not issue a certificate yet."
