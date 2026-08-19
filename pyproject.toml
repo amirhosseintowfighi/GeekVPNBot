@@ -24,6 +24,13 @@ dependencies = [
   "argon2-cffi>=23.1.0",  # admin password hashing (Argon2id)
   # Phase 13 - encryption at rest (AES-256-GCM, HKDF).
   "cryptography>=44.0.0",
+  # Panel adapters talk HTTP. Declared here rather than only under [dev]
+  # because infrastructure/panels/http.py imports it at module scope and
+  # di/scope.py imports that, so the production image could not build its
+  # container at all - the API, the bot, the worker and create_admin each
+  # died on ModuleNotFoundError. It was invisible locally: the dev extra
+  # installs httpx for the test client.
+  "httpx>=0.28.0",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +38,6 @@ dev = [
   "pytest>=8.3.0",
   "pytest-asyncio>=0.24.0",
   "pytest-cov>=6.0.0",
-  "httpx>=0.28.0",
   "ruff>=0.8.0",
   "mypy>=1.13.0",
   "import-linter>=2.1",

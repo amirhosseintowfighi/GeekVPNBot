@@ -268,19 +268,34 @@ $COMPOSE exec -T -e PGPASSWORD="$PG_PASSWORD" postgres \
   psql -U geekvpn -d geekvpn -tAc 'SELECT 1' >/dev/null 2>&1 \
   || die "Postgres rejected the generated password. Its data volume was created by an earlier run and kept that run's password. Start from an empty volume: $COMPOSE down -v"
 
+# One helper, so every count authenticates and none of them can fail quietly.
+# The two that used to be written inline had no PGPASSWORD and swallowed
+# stderr, so a refused connection came back as the empty string: the
+# "already has tables" guard read that as zero and waved every run through,
+# and the count printed afterwards claimed a successful migration had created
+# "0 tables".
+count_tables() {
+  $COMPOSE exec -T -e PGPASSWORD="$PG_PASSWORD" postgres psql -U geekvpn -d geekvpn -tAc \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" \
+    | tr -d '[:space:]'
+}
+
 step "Creating the database schema"
-EXISTING=$($COMPOSE exec -T postgres psql -U geekvpn -d geekvpn -tAc \
-  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null || echo 0)
-if [[ "${EXISTING//[^0-9]/}" -gt 0 ]]; then
+EXISTING=$(count_tables) || die "Could not query the database. Check: $COMPOSE logs postgres"
+[[ "$EXISTING" =~ ^[0-9]+$ ]] \
+  || die "The table count came back as '${EXISTING}', which is not a number. Check: $COMPOSE logs postgres"
+if [[ "$EXISTING" -gt 0 ]]; then
   die "This database already has ${EXISTING} tables. This wizard only installs onto an empty database; use scripts/deploy.sh to upgrade an existing one."
 fi
 
 $COMPOSE run --rm migrate alembic upgrade head
 ok "schema created"
 
-TABLES=$($COMPOSE exec -T postgres psql -U geekvpn -d geekvpn -tAc \
-  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")
-ok "$(printf '%s' "${TABLES//[^0-9]/}") tables present"
+# A migration that reports success and leaves nothing behind is not a success.
+TABLES=$(count_tables)
+[[ "$TABLES" =~ ^[0-9]+$ && "$TABLES" -gt 0 ]] \
+  || die "alembic reported success but the schema has ${TABLES:-no} tables. Check: $COMPOSE logs postgres"
+ok "$TABLES tables present"
 
 # ------------------------------------------------------------------- admin
 
