@@ -71,6 +71,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    # Taking the lock is a query, and SQLAlchemy 2.0 autobegins a transaction
+    # on the first one. `context.configure` therefore records the connection as
+    # already being in a transaction it did not open, and `begin_transaction()`
+    # below hands back a no-op context manager: Alembic assumes whoever owns
+    # that transaction will commit it. Nobody did - see run_migrations_online.
     connection.execute(
         text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": MIGRATION_LOCK_ID}
     )
@@ -87,6 +92,13 @@ async def run_migrations_online() -> None:
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
+        # The commit this file went without. Every migration ran, Alembic
+        # logged each revision and exited 0, and then the connection closed
+        # and Postgres rolled all of it back - thirty tables and the version
+        # stamp with them. `alembic upgrade head` looked perfect and left an
+        # empty database. It also releases the transaction-scoped advisory
+        # lock, which is the point of taking it in this transaction.
+        await connection.commit()
     await connectable.dispose()
 
 

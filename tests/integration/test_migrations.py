@@ -129,6 +129,43 @@ def test_no_revision_id_exceeds_the_column_alembic_actually_creates() -> None:
     )
 
 
+def test_the_migration_transaction_is_committed() -> None:
+    """`alembic upgrade head` logged all seven revisions, exited 0, and left an
+    empty database.
+
+    `do_run_migrations` takes the advisory lock before configuring, and that
+    query autobegins a transaction. Alembic then records the connection as
+    already being inside one it did not open, so `begin_transaction()` returns
+    a no-op and Alembic never commits - it assumes whoever owns the transaction
+    will. Nobody did, so closing the connection rolled back thirty tables and
+    the version stamp.
+
+    `test_upgrade_head_succeeds_on_an_empty_database` below catches this
+    properly, and skips without Postgres, which is how it reached a server.
+    This half needs no database.
+    """
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+
+    engine = create_engine("sqlite://")
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+        assert connection.in_transaction(), "a query no longer autobegins; re-read this test"
+        context = MigrationContext.configure(connection)
+        assert context._in_external_transaction, (
+            "Alembic no longer treats an autobegun transaction as external, so it "
+            "may now commit for us; re-read this test before trusting it"
+        )
+
+    env = Path("migrations/env.py").read_text(encoding="utf-8")
+    online = env[env.index("async def run_migrations_online") :]
+    assert "await connection.commit()" in online, (
+        "nothing commits the transaction the migrations run in, so a successful "
+        "`alembic upgrade head` leaves the database exactly as it found it"
+    )
+
+
 def test_upgrade_head_succeeds_on_an_empty_database(empty_database) -> None:
     run_upgrade(empty_database)
 
