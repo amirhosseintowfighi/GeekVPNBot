@@ -45,7 +45,7 @@ class IdentityMiddleware(BaseMiddleware):
         self._fetch_receipt = fetch_receipt
 
     async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
-        telegram_user = _extract_user(event)
+        telegram_user = _extract_user(event, data)
         if telegram_user is None or telegram_user.is_bot:
             # Channel posts and bot-authored updates have no customer behind
             # them; pass them through unauthenticated.
@@ -87,12 +87,19 @@ class IdentityMiddleware(BaseMiddleware):
             return outcome
 
 
-def _extract_user(event: TelegramObject) -> TelegramUser | None:
+def _extract_user(event: TelegramObject, data: dict[str, Any]) -> TelegramUser | None:
     if not isinstance(event, Update):
         return None
-    # `event_from_user` is resolved dynamically by aiogram, so it is invisible
-    # to the type checker while being present on every real update.
-    sender: TelegramUser | None = getattr(event, "event_from_user", None)
+    # From `data`, not from the event. `Update` has no `event_from_user`
+    # attribute - aiogram's own UserContextMiddleware resolves the sender and
+    # puts it in the handler data, which is where `throttle.py` already reads
+    # it from. Reading it off the event with getattr silently returned None for
+    # *every* update, so this middleware treated every real customer as an
+    # anonymous channel post: no `scope`, no `user`, and no `services` in the
+    # data. Every handler that declares `services` then died with a TypeError
+    # before running, which is the generic "something went wrong" the bot
+    # replied with to every message it ever received.
+    sender: TelegramUser | None = data.get("event_from_user")
     return sender
 
 
