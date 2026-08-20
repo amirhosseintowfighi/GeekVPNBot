@@ -351,7 +351,17 @@ then
   # here would leave nginx serving the self-signed placeholder with a valid
   # certificate sitting on disk beside it.
   $COMPOSE up -d --force-recreate nginx >/dev/null 2>&1 || true
-  ok "certificate issued for ${DOMAIN}"
+  # certbot exits 0 even when a stale renewal config pushes the certificate into
+  # a second lineage - live/<domain>-0001 - which nginx never reads. The
+  # entrypoint's own line is the only honest signal that TLS is really live.
+  if $COMPOSE logs --tail=20 nginx 2>&1 | grep -q "serving TLS from /etc/letsencrypt"; then
+    ok "certificate issued for ${DOMAIN}"
+  else
+    warn "certbot succeeded but nginx is still serving the self-signed placeholder."
+    note "A stale lineage is claiming ${DOMAIN}. Inspect it with:"
+    note "  ${DIM}$COMPOSE run --rm --entrypoint certbot certbot certificates${OFF}"
+    TLS_READY=0
+  fi
   # The bot started before this certificate existed, so Telegram refused its
   # webhook registration - which is logged and survived, not fatal. This is the
   # first moment the URL is actually reachable over valid TLS, so give it the
@@ -359,7 +369,7 @@ then
   $COMPOSE up -d --no-deps --force-recreate bot >/dev/null 2>&1 \
     && ok "bot restarted; webhook registered against the new certificate" \
     || warn "the bot did not restart; register the webhook by restarting it manually"
-  TLS_READY=1
+  TLS_READY=${TLS_READY:-1}
 else
   warn "Let's Encrypt could not issue a certificate yet."
   note "Almost always this means ${DOMAIN} does not resolve to this server."
