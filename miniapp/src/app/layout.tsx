@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Vazirmatn } from 'next/font/google'
+import Script from 'next/script'
 
 import { BottomNav } from '@/components/shell/bottom-nav'
 import { Providers } from './providers'
@@ -47,6 +48,13 @@ export default function RootLayout({
     // can avoid mirrored stylesheets entirely.
     <html lang="fa" dir="rtl" className={`dark ${vazirmatn.variable}`}>
       <body className="min-h-dvh bg-background font-sans">
+        {/* Telegram does not inject its SDK - the page has to ask for it. Without
+            this tag `window.Telegram` is undefined even inside a real Telegram
+            client, so `getInitData()` returns an empty string, every request goes
+            out unauthenticated and the whole Mini App answers 401. It must load
+            before hydration: `initTelegram()` runs in a Providers effect, and an
+            effect that fires before the SDK exists silently does nothing. */}
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <Providers>
           {/* The ambient glow behind the header. Fixed and non-interactive so
               it never intercepts a tap or scrolls out of place. */}

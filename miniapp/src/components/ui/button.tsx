@@ -83,8 +83,21 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         {...props}
       >
-        {loading ? <Spinner /> : null}
-        {children}
+        {/* With `asChild` the wrapper is Radix's Slot, and Slot runs
+            React.Children.only. A spinner slot plus the child is two children
+            even when the spinner is null, so every `<Button asChild>` threw
+            "React.Children.only expected to receive a single React element
+            child" - which is the client-side exception that took down the whole
+            Mini App on first paint. A spinner has nothing to add to a link
+            anyway. */}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading ? <Spinner /> : null}
+            {children}
+          </>
+        )}
       </Comp>
     )
   },

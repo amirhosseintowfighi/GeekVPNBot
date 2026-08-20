@@ -65,3 +65,18 @@ def test_no_known_gap_has_been_quietly_closed() -> None:
         "These are now registered and must be removed from KNOWN_GAPS:\n  "
         + "\n  ".join(sorted(closed))
     )
+
+
+def test_the_root_layout_loads_the_telegram_sdk() -> None:
+    """Telegram does not inject its SDK into a Mini App - the page must load it.
+
+    Without the script `window.Telegram` never exists, so `getInitData()`
+    returns an empty string, every request goes out with no Authorization
+    header and the entire Mini App answers 401 inside a real Telegram client.
+    """
+    layout = (MINIAPP_SRC / "app" / "layout.tsx").read_text(encoding="utf-8")
+
+    assert "telegram.org/js/telegram-web-app.js" in layout
+    assert "beforeInteractive" in layout, (
+        "the SDK must exist before hydration; initTelegram() runs in an effect"
+    )
