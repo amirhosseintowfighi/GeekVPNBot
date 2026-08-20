@@ -24,36 +24,13 @@ pytestmark = pytest.mark.integration
 
 ADMIN_SRC = Path(__file__).resolve().parents[2] / "admin" / "src"
 
-#: Endpoints the admin panel calls that the backend does not serve yet. Each one
-#: is a real missing feature, not a naming difference - the naming differences
-#: were fixed. Remove an entry the moment its route is registered.
-KNOWN_GAPS: frozenset[str] = frozenset(
-    {
-        # Bulk plan generation across a duration ladder.
-        f"{API_V1_PREFIX}/admin/duration-ladder",
-        f"{API_V1_PREFIX}/admin/catalog/plans/generate-ladder",
-        # Nested creation; plans are currently created through /catalog/plans.
-        f"{API_V1_PREFIX}/admin/catalog/products/{{id}}/plans",
-        # Re-reading account counts from a panel on demand.
-        f"{API_V1_PREFIX}/admin/panels/{{id}}/sync",
-        # Issuing a customer a fresh subscription link.
-        f"{API_V1_PREFIX}/admin/subscriptions/{{id}}/rotate",
-        # Admin sign-out. Session revocation lives under /api/v1/auth/logout,
-        # which is not under the /admin prefix this client builds from.
-        f"{API_V1_PREFIX}/admin/auth/sign-out",
-        # Wallet routes are per-customer server-side (/wallets/{user_id}/...)
-        # but the client calls them without an id.
-        f"{API_V1_PREFIX}/admin/wallet/adjust",
-        f"{API_V1_PREFIX}/admin/wallet/transactions",
-        # Not a rename: the backend models approve/reject/refund as actions on a
-        # *payment* (/admin/payments/{payment_id}/...), while the client holds an
-        # order id. Closing this needs the order detail response to carry its
-        # payment id, so it is a contract change rather than a path edit.
-        f"{API_V1_PREFIX}/admin/orders/{{id}}/approve",
-        f"{API_V1_PREFIX}/admin/orders/{{id}}/reject",
-        f"{API_V1_PREFIX}/admin/orders/{{id}}/refund",
-    }
-)
+#: Endpoints the admin panel calls that the backend does not serve yet.
+#:
+#: Empty, and meant to stay that way. Every entry it once held is closed: three
+#: were routes the products screen calls and nobody had registered, and the rest
+#: were stale - listed as missing long after the client had stopped calling them
+#: at all, which is why the list is now checked from both directions.
+KNOWN_GAPS: frozenset[str] = frozenset()
 
 _TEMPLATE = re.compile(r"\$\{[^}]*\}")
 
@@ -106,3 +83,29 @@ def test_no_known_gap_has_been_quietly_closed() -> None:
         "These are now registered and must be removed from KNOWN_GAPS:\n  "
         + "\n  ".join(sorted(closed))
     )
+
+
+def test_no_gap_is_listed_that_the_panel_no_longer_calls() -> None:
+    """A gap list only shrinks if a dead entry cannot hide in it.
+
+    Six entries here outlived the calls that justified them, which made the
+    list read as six missing features when the real number was three.
+    """
+    stale = KNOWN_GAPS - called_paths()
+    assert not stale, "The admin panel no longer calls these, so they are not gaps: " + ", ".join(
+        sorted(stale)
+    )
+
+
+def test_the_ladder_endpoints_are_registered_where_the_panel_calls_them() -> None:
+    """The products screen builds three calls that had no route behind them.
+
+    `DurationLadderService` was a finished service with tests and no caller -
+    nothing outside its own test file ever constructed it - so an operator
+    clicking "generate ladder" got a 404 and no packages.
+    """
+    registered = registered_paths()
+
+    assert f"{API_V1_PREFIX}/admin/duration-ladder" in registered
+    assert f"{API_V1_PREFIX}/admin/catalog/plans/generate-ladder" in registered
+    assert f"{API_V1_PREFIX}/admin/catalog/products/{{id}}/plans" in registered

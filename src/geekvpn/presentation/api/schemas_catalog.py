@@ -393,3 +393,38 @@ class AdminQuoteRequest(_Schema):
     coupon_code: str | None = None
     loyalty_tier: str = "bronze"
     is_first_purchase: bool = False
+
+
+class DurationRungResponse(_Schema):
+    """One rung of the catalogue's duration ladder.
+
+    The panel renders the ladder before generating anything, so an operator can
+    see which terms exist and what discount each carries.
+    """
+
+    days: int
+    slug: str
+    name_fa: str
+    discount_bps: int
+    badge_fa: str | None
+    bonus_devices: int
+
+
+class LadderGenerateRequest(_Schema):
+    """Generate a whole ladder of packages from one monthly price.
+
+    `days` narrows the ladder to the listed terms. Left out, the product gets
+    the catalogue default, which omits the weekly rung - it only makes sense on
+    cheap tiers.
+    """
+
+    product_id: uuid.UUID
+    monthly_price: int = Field(gt=0)
+    plan_type: PlanType
+    slug_prefix: str = Field(min_length=2, max_length=48)
+    name_prefix_fa: str = Field(min_length=1, max_length=96)
+    monthly_quota_gib: int | None = Field(default=None, gt=0)
+    daily_quota_gib: int | None = Field(default=None, gt=0)
+    device_limit: int = Field(default=1, gt=0, le=100)
+    cashback_bps: int = Field(default=0, ge=0, le=3000)
+    days: list[int] | None = Field(default=None, min_length=1, max_length=8)

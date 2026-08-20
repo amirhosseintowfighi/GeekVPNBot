@@ -199,6 +199,7 @@ def create_app(
     app.include_router(admin_users.router, prefix=API_V1_PREFIX)
     app.include_router(catalog.router, prefix=API_V1_PREFIX)
     app.include_router(admin_catalog.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_catalog.ladder_router, prefix=API_V1_PREFIX)
     app.include_router(settings_router.router, prefix=API_V1_PREFIX)
     app.include_router(admin_analytics.router, prefix=API_V1_PREFIX)
     app.include_router(admin_payments.router, prefix=API_V1_PREFIX)

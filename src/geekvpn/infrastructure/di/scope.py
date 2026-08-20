@@ -22,6 +22,7 @@ from functools import cached_property
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.application.catalog.catalog_admin import CatalogAdminService
+from geekvpn.application.catalog.duration_ladder import DurationLadderService
 from geekvpn.application.catalog.policy_provider import PricingPolicyProvider
 from geekvpn.application.catalog.promotion_admin import PromotionAdminService
 from geekvpn.application.catalog.quoting_service import QuotingService
@@ -176,6 +177,16 @@ class RequestScope:
             policies=self.pricing_policies,
             clock=self.container.clock,
         )
+
+    @cached_property
+    def duration_ladder(self) -> DurationLadderService:
+        """Bulk plan generation.
+
+        It existed as a finished service with tests and no caller for the whole
+        of phase 12 - nothing outside its own test file ever constructed it, so
+        the ladder could not be generated from anywhere a person could reach.
+        """
+        return DurationLadderService(self.catalog_admin)
 
     @cached_property
     def catalog_admin(self) -> CatalogAdminService:

@@ -33,10 +33,13 @@ from geekvpn.application.catalog.commands import (
     UpdateProductCommand,
 )
 from geekvpn.application.catalog.dto import QuoteView
+from geekvpn.application.catalog.duration_ladder import LadderRequest
 from geekvpn.domain.catalog.campaign import Campaign
 from geekvpn.domain.catalog.category import Category
 from geekvpn.domain.catalog.coupon import Coupon
+from geekvpn.domain.catalog.durations import DEFAULT_LADDER, LADDER, rung_for_days
 from geekvpn.domain.catalog.enums import PublicationState
+from geekvpn.domain.catalog.errors import CatalogError
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.product import Product
 from geekvpn.domain.catalog.rewards import LoyaltyTier
@@ -53,6 +56,8 @@ from geekvpn.presentation.api.schemas_catalog import (
     CouponAdminResponse,
     CouponBulkCreateRequest,
     CouponCreateRequest,
+    DurationRungResponse,
+    LadderGenerateRequest,
     PlanAdminResponse,
     PlanCreateRequest,
     PlanUpdateRequest,
@@ -67,6 +72,10 @@ from geekvpn.presentation.api.schemas_catalog import (
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
 
 router = APIRouter(prefix="/admin/catalog", tags=["admin-catalog"])
+
+#: The duration ladder is catalogue data but sits outside /catalog, because the
+#: panel asks for it before it has picked a product to apply it to.
+ladder_router = APIRouter(prefix="/admin", tags=["admin-catalog"])
 
 READ = Depends(requires(Permission.PACKAGES_READ))
 WRITE = Depends(requires(Permission.PACKAGES_WRITE))
@@ -350,6 +359,91 @@ async def create_plan(
         CreatePlanCommand(**payload.model_dump()), actor_id=actor.subject_id
     )
     return _plan_view(plan)
+
+
+@router.get(
+    "/products/{product_id}/plans",
+    response_model=list[PlanAdminResponse],
+    dependencies=[READ],
+    summary="Packages belonging to one product",
+)
+async def list_product_plans(product_id: uuid.UUID, scope: ScopeDep) -> list[PlanAdminResponse]:
+    """The same list as `/plans?product_id=`, addressed as a sub-resource.
+
+    The panel opens a product and asks for its packages; it holds the product
+    id, not a filter. Both spellings answer, because the flat one is what the
+    plans table filters with.
+    """
+    return [_plan_view(p) for p in await scope.catalog_admin.list_plans(product_id=product_id)]
+
+
+@ladder_router.get(
+    "/duration-ladder",
+    response_model=list[DurationRungResponse],
+    dependencies=[READ],
+    summary="The catalogue's duration ladder",
+)
+async def duration_ladder() -> list[DurationRungResponse]:
+    """What terms exist, and what each one discounts.
+
+    Static catalogue data, not per-product: these are the rungs a generated
+    ladder can use. The panel shows them so an operator picks terms rather than
+    inventing them.
+    """
+    return [
+        DurationRungResponse(
+            days=rung.days,
+            slug=rung.slug,
+            name_fa=rung.name_fa,
+            discount_bps=rung.discount_bps,
+            badge_fa=rung.badge_fa,
+            bonus_devices=rung.bonus_devices,
+        )
+        for rung in LADDER
+    ]
+
+
+@router.post(
+    "/plans/generate-ladder",
+    response_model=list[PlanAdminResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[WRITE],
+    summary="Generate a whole ladder of packages from one monthly price",
+)
+async def generate_ladder(
+    payload: LadderGenerateRequest, actor: CurrentAdmin, scope: ScopeDep
+) -> list[PlanAdminResponse]:
+    """Every generated package lands in DRAFT.
+
+    Publishing stays a separate, deliberate step: one click must not be able to
+    put four new packages on sale unreviewed.
+    """
+    rungs = DEFAULT_LADDER
+    if payload.days is not None:
+        chosen = []
+        for days in payload.days:
+            rung = rung_for_days(days)
+            if rung is None:
+                raise CatalogError(f"There is no ladder rung of {days} days.")
+            chosen.append(rung)
+        rungs = tuple(chosen)
+
+    plans = await scope.duration_ladder.generate(
+        LadderRequest(
+            product_id=payload.product_id,
+            monthly_price=payload.monthly_price,
+            plan_type=payload.plan_type,
+            slug_prefix=payload.slug_prefix,
+            name_prefix_fa=payload.name_prefix_fa,
+            monthly_quota_gib=payload.monthly_quota_gib,
+            daily_quota_gib=payload.daily_quota_gib,
+            device_limit=payload.device_limit,
+            cashback_bps=payload.cashback_bps,
+        ),
+        rungs=rungs,
+        actor_id=actor.subject_id,
+    )
+    return [_plan_view(plan) for plan in plans]
 
 
 @router.patch(
