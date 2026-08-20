@@ -151,6 +151,12 @@ const ROOT = '/api/v1/admin'
 export const api = {
   // ------------------------------------------------------------- session
   session: () => fetcher<AdminSession>(`${ROOT}/auth/me`),
+  // The response body carries the token pair too, and it is deliberately
+  // ignored: the session that matters is the httpOnly cookie the backend sets
+  // alongside it, which every later request carries without JavaScript ever
+  // touching a credential.
+  signIn: (body: { username: string; password: string; totpCode?: string }) =>
+    mutate<void>('POST', `${ROOT}/auth/login`, body),
   signOut: () => mutate<void>('POST', `${ROOT}/auth/sign-out`),
 
   // ----------------------------------------------------------- dashboard
@@ -201,9 +207,6 @@ export const api = {
       })}`,
     )
   },
-
-  rotateSubscription: (subscriptionId: string) =>
-    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${subscriptionId}/rotate`),
 
   // -------------------------------------------------------------- orders
   // state, number, limit, offset. The method/from/to filters it used to send

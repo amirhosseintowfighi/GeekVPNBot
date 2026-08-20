@@ -35,6 +35,11 @@ from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 #: instead of FastAPI's bare JSON.
 _bearer = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
 
+#: Where the admin panel's session lives. The panel and this API are served
+#: from the same origin, so the token never has to exist in JavaScript.
+ADMIN_ACCESS_COOKIE = "geekvpn_admin_access"
+ADMIN_REFRESH_COOKIE = "geekvpn_admin_refresh"
+
 
 async def get_scope(container: ContainerDep, uow: UnitOfWorkDep) -> AsyncIterator[RequestScope]:
     """Request-scoped service graph, sharing the request's transaction."""
@@ -69,13 +74,21 @@ ContextDep = Annotated[RequestContext, Depends(request_context)]
 
 
 async def get_current_subject(
+    request: Request,
     container: ContainerDep,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> AuthenticatedSubject:
-    if credentials is None or not credentials.credentials:
+    # Header first, cookie second. Scripts, the bot and the Mini App all send a
+    # Bearer header; the admin panel is a browser on the same origin and sends
+    # an httpOnly cookie instead, which is why it could never authenticate
+    # against a header-only check no matter how correctly it signed in.
+    token = credentials.credentials if credentials else None
+    if not token:
+        token = request.cookies.get(ADMIN_ACCESS_COOKIE)
+    if not token:
         raise AuthenticationError("An Authorization: Bearer header is required.")
 
-    claims = container.access_tokens.decode(credentials.credentials)
+    claims = container.access_tokens.decode(token)
 
     if await container.revocations.is_revoked(
         session_id=claims.session_id,

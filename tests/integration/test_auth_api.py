@@ -270,3 +270,62 @@ def test_every_auth_route_is_registered(auth_client):
         "/api/v1/admin/settings",
     ):
         assert expected in paths
+
+
+# -- the admin panel's cookie transport -----------------------------------
+
+
+def test_the_admin_panel_authenticates_with_its_cookie_and_no_bearer_header(
+    auth_container, auth_client
+):
+    """The panel holds no token: it sends `credentials: 'include'` and nothing else.
+
+    A header-only check meant a correctly signed-in operator was still 401 on
+    every request, which is why the panel bounced between the dashboard and a
+    sign-in page forever.
+    """
+    token = issue_access(
+        auth_container,
+        subject_type=SubjectType.ADMIN,
+        role=AdminRole.VIEWER.value,
+        permissions=[Permission.SETTINGS_READ.value],
+    )
+    auth_client.cookies.set("geekvpn_admin_access", token)
+
+    response = auth_client.get("/api/v1/admin/settings")
+
+    assert response.status_code == 200
+
+
+def test_a_customer_cookie_still_cannot_reach_an_admin_endpoint(auth_container, auth_client):
+    """The cookie is a transport, not a promotion: subject type is still checked."""
+    token = issue_access(auth_container, subject_type=SubjectType.USER)
+    auth_client.cookies.set("geekvpn_admin_access", token)
+
+    response = auth_client.get("/api/v1/admin/auth/me")
+
+    assert response.status_code in {401, 403}
+
+
+def test_signing_out_clears_both_session_cookies(auth_container, auth_client):
+    """The panel's sign-out button had no endpoint to call at all.
+
+    Revocation itself is `sessions.revoke`, shared with the customer logout and
+    covered there; what this pins is that the route exists, is admin-only, and
+    does not leave a live cookie in the browser afterwards.
+    """
+    token = issue_access(
+        auth_container,
+        subject_type=SubjectType.ADMIN,
+        role=AdminRole.VIEWER.value,
+        permissions=[Permission.SETTINGS_READ.value],
+    )
+    auth_client.cookies.set("geekvpn_admin_access", token)
+
+    response = auth_client.post("/api/v1/admin/auth/sign-out")
+
+    assert response.status_code == 200
+    cleared = response.headers.get_list("set-cookie")
+    assert any("geekvpn_admin_access=" in header for header in cleared)
+    assert any("geekvpn_admin_refresh=" in header for header in cleared)
+    assert all('Max-Age=0' in header or 'expires=' in header.lower() for header in cleared)

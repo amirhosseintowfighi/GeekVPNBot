@@ -64,13 +64,22 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         {...props}
       >
-        {loading ? (
-          <span
-            className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-            aria-hidden
-          />
-        ) : null}
-        {children}
+        {/* Same reason as the Mini App's Button: `asChild` makes the wrapper
+            Radix's Slot, which demands exactly one child, and a null spinner
+            still counts as one. */}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading ? (
+              <span
+                className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                aria-hidden
+              />
+            ) : null}
+            {children}
+          </>
+        )}
       </Comp>
     )
   },
