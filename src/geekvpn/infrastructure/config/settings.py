@@ -129,6 +129,12 @@ class TelegramSettings(BaseSettings):
     #: expiring mid-use, since Telegram does not refresh `auth_date` for an
     #: open Mini App.
     mini_app_request_max_age_seconds: int = 900
+    #: Where the Mini App is served. The bot publishes this as its menu button
+    #: on startup, which is the only route a customer has into the Mini App -
+    #: nothing in the product renders a WebApp button, so while this was unset
+    #: the Mini App could only be reached by whatever URL happened to be typed
+    #: into BotFather by hand. Empty leaves the menu button alone.
+    mini_app_url: str = ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property

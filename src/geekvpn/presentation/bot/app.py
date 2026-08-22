@@ -16,7 +16,7 @@ from secrets import compare_digest
 from typing import Protocol
 
 from aiogram import Bot
-from aiogram.types import Update
+from aiogram.types import MenuButtonWebApp, Update, WebAppInfo
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
 from geekvpn import __version__
@@ -32,6 +32,7 @@ from geekvpn.presentation.api.schemas import (
     ReadinessResponse,
 )
 from geekvpn.presentation.bot.factory import create_bot, create_dispatcher
+from geekvpn.presentation.bot.ui import text
 
 logger = get_logger(__name__)
 
@@ -108,6 +109,49 @@ async def register_webhook(
     return True
 
 
+class SupportsSetMenuButton(Protocol):
+    async def set_chat_menu_button(self, *, menu_button: MenuButtonWebApp) -> bool: ...
+
+
+async def register_menu_button(bot: SupportsSetMenuButton, settings: Settings) -> bool:
+    """Publish the Mini App as the bot's menu button. Returns whether it took.
+
+    This is the only route a customer has into the Mini App. Nothing in the
+    product renders a WebApp button, so until this ran the Mini App was
+    reachable only through whatever URL had been typed into BotFather by hand -
+    and a wrong one there answers with the API's 404 JSON, which is what
+    happened in production: Telegram opened `<api-host>/app/`.
+
+    Failure is logged rather than raised, for the same reason `register_webhook`
+    swallows its own: a bot that cannot reach Telegram at boot must still come
+    up and serve the updates that arrive once it can.
+    """
+    url = settings.telegram.mini_app_url
+    if not url:
+        logger.warning(
+            "bot.menu_button.skipped",
+            hint=(
+                "TELEGRAM__MINI_APP_URL is unset, so the menu button is left as it is. "
+                "Customers reach the Mini App through this button and nowhere else."
+            ),
+        )
+        return False
+
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text=text.MENU_BUTTON_MINI_APP,
+                web_app=WebAppInfo(url=url),
+            )
+        )
+    except Exception as exc:
+        logger.error("bot.menu_button.failed", url=url, error=str(exc))
+        return False
+
+    logger.info("bot.menu_button.registered", url=url)
+    return True
+
+
 def create_bot_app(
     settings: Settings | None = None,
     *,
@@ -139,6 +183,7 @@ def create_bot_app(
                 settings,
                 allowed_updates=app.state.dispatcher.resolve_used_update_types(),
             )
+            await register_menu_button(app.state.bot, settings)
 
         logger.info("bot.startup", env=settings.app.env.value)
         try:

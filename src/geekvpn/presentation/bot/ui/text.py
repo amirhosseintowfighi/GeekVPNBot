@@ -33,6 +33,8 @@ MENU_SUPPORT: Final = "\u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc"
 MENU_PROFILE: Final = "\u067e\u0631\u0648\u0641\u0627\u06cc\u0644"
 MENU_FAQ: Final = "\u0633\u0648\u0627\u0644\u0627\u062a \u0645\u062a\u062f\u0627\u0648\u0644"
 MENU_SETTINGS: Final = "\u062a\u0646\u0638\u06cc\u0645\u0627\u062a"
+#: The label on Telegram's own menu button, which opens the Mini App.
+MENU_BUTTON_MINI_APP: Final = "\u0628\u0627\u0632 \u06a9\u0631\u062f\u0646 \u0628\u0631\u0646\u0627\u0645\u0647"
 MENU_STATUS: Final = "\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0648\u0631\u0647\u0627"
 
 # -- Generic buttons ---------------------------------------------------------
