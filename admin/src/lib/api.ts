@@ -97,8 +97,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let serverMessage: string | undefined
     try {
-      const body = (await response.json()) as { messageFa?: string }
-      serverMessage = body.messageFa
+      // `message_fa`, not `messageFa`. The API speaks problem details in
+      // snake_case; reading the camelCase spelling meant `serverMessage` was
+      // always undefined and every 401 fell through to "your session expired",
+      // whatever had actually gone wrong.
+      const body = (await response.json()) as { message_fa?: string }
+      serverMessage = body.message_fa
     } catch {
       // A non-JSON error body is a proxy or gateway page. Never render it.
     }

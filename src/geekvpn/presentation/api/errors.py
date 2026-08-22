@@ -37,6 +37,7 @@ from geekvpn.domain.catalog.errors import CatalogError
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.infrastructure.logging.context import get_correlation_id
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.presentation.api.text_fa import persian_for
 
 logger = get_logger(__name__)
 
@@ -77,6 +78,12 @@ def problem_response(
         "title": title,
         "status": status_code,
         "detail": detail,
+        # `detail` is English and written for whoever reads the logs. Both
+        # frontends render this field instead, and until it existed they had
+        # nothing to render but their own generic copy - which on the sign-in
+        # screen told an operator with a wrong password that their session had
+        # expired.
+        "message_fa": persian_for(title),
         "instance": instance,
         "correlation_id": get_correlation_id(),
     }

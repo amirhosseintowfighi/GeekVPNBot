@@ -17,6 +17,7 @@ from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.permissions import AdminRole, Permission
 from geekvpn.infrastructure.security import csrf
 from geekvpn.presentation.api.app import API_V1_PREFIX
+from geekvpn.presentation.api.text_fa import GENERIC, persian_for
 
 PROBLEM = "application/problem+json"
 OPENAPI_URL = f"{API_V1_PREFIX}/openapi.json"
@@ -105,6 +106,15 @@ def test_errors_are_problem_json(auth_client):
     # the top of presentation/api/errors.py.
     assert set(body) >= {"type", "title", "status", "instance", "correlation_id"}
     assert body["status"] == 401
+
+
+def test_an_error_body_carries_the_persian_sentence_the_clients_render(auth_client):
+    """Both frontends render `message_fa` and nothing else. While no handler
+    sent it, a wrong password reached the operator as "your session expired"."""
+    body = auth_client.get("/api/v1/auth/me").json()
+
+    assert body["message_fa"] == persian_for("unauthenticated")
+    assert body["message_fa"] != GENERIC
 
 
 def test_error_bodies_never_leak_internals(auth_client):
