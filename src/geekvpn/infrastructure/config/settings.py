@@ -41,7 +41,30 @@ class Environment(str, enum.Enum):
         return self is not Environment.LOCAL
 
 
-class AppSettings(BaseSettings):
+class Section(BaseSettings):
+    """Base for every settings group, purely to ignore keys it does not know.
+
+    pydantic-settings forbids unknown fields by default, and a nested model
+    receives every `PREFIX__*` variable whether or not it declares one. The
+    root `Settings` below deliberately ignores extras; the sections did not,
+    so the root's decision never applied to anything.
+
+    What that cost: one `.env` is shared by the api, bot, worker and migrate
+    containers, and a blue/green deploy updates their images at different
+    moments. Adding a key for a setting a newer image understands therefore
+    crash-looped every container still running the older one, with a pydantic
+    traceback rather than a message naming the key - the platform taken down by
+    a line of configuration that was correct.
+
+    A typo now goes unnoticed here, which is the trade. It is the cheaper half:
+    a mistyped key means the real one is absent, and anything that must be set
+    is already guarded in `_production_guardrails`.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+
+class AppSettings(Section):
     name: str = "geekvpn"
     env: Environment = Environment.LOCAL
     debug: bool = False
@@ -49,7 +72,7 @@ class AppSettings(BaseSettings):
     request_timeout_seconds: float = 30.0
 
 
-class LoggingSettings(BaseSettings):
+class LoggingSettings(Section):
     level: str = "INFO"
     #: Shadows the deprecated `BaseModel.json` method. Kept because the name
     #: is the documented `LOGGING__JSON` environment variable, and renaming
@@ -79,7 +102,7 @@ class LoggingSettings(BaseSettings):
         return level
 
 
-class PostgresSettings(BaseSettings):
+class PostgresSettings(Section):
     host: str = "postgres"
     port: int = 5432
     user: str = "geekvpn"
@@ -102,7 +125,7 @@ class PostgresSettings(BaseSettings):
         return f"postgresql+asyncpg://{self.user}:***@{self.host}:{self.port}/{self.db}"
 
 
-class RedisSettings(BaseSettings):
+class RedisSettings(Section):
     host: str = "redis"
     port: int = 6379
     db: int = 0
@@ -115,7 +138,7 @@ class RedisSettings(BaseSettings):
         return f"redis://{auth}{self.host}:{self.port}/{self.db}"
 
 
-class TelegramSettings(BaseSettings):
+class TelegramSettings(Section):
     bot_token: SecretStr = SecretStr("")
     webhook_base_url: str = ""
     webhook_path: str = "/telegram/webhook"
@@ -142,7 +165,7 @@ class TelegramSettings(BaseSettings):
         return f"{self.webhook_base_url.rstrip('/')}{self.webhook_path}"
 
 
-class SecuritySettings(BaseSettings):
+class SecuritySettings(Section):
     secret_key: SecretStr = SecretStr(_DEV_SECRET)
     cors_origins: CommaSeparated = ()
 
@@ -193,7 +216,7 @@ class SecuritySettings(BaseSettings):
         return value
 
 
-class AuthSettings(BaseSettings):
+class AuthSettings(Section):
     """Token lifetimes and admin login hardening.
 
     Defaults encode a deliberate position:
