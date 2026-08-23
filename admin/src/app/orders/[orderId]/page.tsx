@@ -46,7 +46,7 @@ export default function OrderDetailPage() {
     () => api.order(orderId),
   )
 
-  if (!can('orders.view')) return <ForbiddenState permission="orders.view" />
+  if (!can('orders.read')) return <ForbiddenState permission="orders.read" />
 
   const retry = async () => {
     setBusy(true)
@@ -79,7 +79,7 @@ export default function OrderDetailPage() {
   // Only a failed provision can be retried. Retrying a live one would hand the
   // customer a second account against a single payment. Gated on
   // orders.approve: retrying is the same authority as releasing the service.
-  const retryable = data.state === 'failed' && can('orders.approve')
+  const retryable = data.state === 'failed' && can('payments.approve')
 
   return (
     <>

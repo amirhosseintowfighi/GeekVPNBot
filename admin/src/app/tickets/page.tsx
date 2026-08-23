@@ -46,7 +46,7 @@ export default function TicketsPage() {
     () => api.tickets({ page, category }),
   )
 
-  if (!can('tickets.view')) return <ForbiddenState permission="tickets.view" />
+  if (!can('tickets.read')) return <ForbiddenState permission="tickets.read" />
 
   return (
     <>

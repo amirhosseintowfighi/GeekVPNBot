@@ -50,7 +50,7 @@ export default function CouponsPage() {
     () => api.coupons({ state }),
   )
 
-  if (!can('coupons.view')) return <ForbiddenState permission="coupons.view" />
+  if (!can('packages.read')) return <ForbiddenState permission="packages.read" />
 
   return (
     <>
@@ -58,7 +58,7 @@ export default function CouponsPage() {
         title={'\u06a9\u062f\u0647\u0627\u06cc \u062a\u062e\u0641\u06cc\u0641'}
         description={'\u0633\u0627\u062e\u062a\u060c \u0645\u062d\u062f\u0648\u062f\u06cc\u062a \u0648 \u0645\u0635\u0631\u0641 \u06a9\u062f\u0647\u0627'}
         actions={
-          can('coupons.edit') ? (
+          can('packages.write') ? (
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setBulkOpen(true)}>
                 <Layers className="size-3.5" aria-hidden />
@@ -156,7 +156,7 @@ export default function CouponsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {can('coupons.edit') && coupon.state !== 'archived' ? (
+                      {can('packages.write') && coupon.state !== 'archived' ? (
                         <Button
                           variant="ghost"
                           size="sm"

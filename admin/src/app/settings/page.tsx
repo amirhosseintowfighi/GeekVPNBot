@@ -74,9 +74,9 @@ export default function SettingsPage() {
 
   const { data, error, isLoading, mutate } = useSWR<PolicySetting[]>('settings', () => api.settings())
 
-  if (!can('settings.view')) return <ForbiddenState permission="settings.view" />
+  if (!can('settings.read')) return <ForbiddenState permission="settings.read" />
 
-  const editable = can('settings.edit')
+  const editable = can('settings.write')
   const dirty = Object.keys(draft).length > 0
 
   const valueOf = (setting: PolicySetting) =>

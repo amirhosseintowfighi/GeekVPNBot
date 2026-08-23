@@ -73,7 +73,7 @@ export default function WalletPage() {
     () => api.walletBalance(userId),
   )
 
-  if (!can('wallet.view')) return <ForbiddenState permission="wallet.view" />
+  if (!can('wallet.read')) return <ForbiddenState permission="wallet.read" />
 
   return (
     <>

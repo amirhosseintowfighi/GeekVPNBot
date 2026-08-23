@@ -53,7 +53,7 @@ export default function LogsPage() {
     api.logs({ page, pageSize: PAGE_SIZE, action: debounced || undefined }),
   )
 
-  if (!can('logs.view')) return <ForbiddenState permission="logs.view" />
+  if (!can('audit.read')) return <ForbiddenState permission="audit.read" />
 
   return (
     <>

@@ -32,7 +32,7 @@ export default function ServersPage() {
   const { can } = useSession()
   const { data, error, isLoading, mutate } = useSWR<ServerRow[]>('servers', () => api.servers())
 
-  if (!can('servers.view')) return <ForbiddenState permission="servers.view" />
+  if (!can('panels.read')) return <ForbiddenState permission="panels.read" />
 
   return (
     <>
@@ -40,7 +40,7 @@ export default function ServersPage() {
         title={'\u0633\u0631\u0648\u0631\u0647\u0627'}
         description={'\u0638\u0631\u0641\u06cc\u062a\u060c \u062a\u0623\u062e\u06cc\u0631 \u0648 \u0646\u0645\u0627\u06cc\u0634 \u062f\u0631 \u0635\u0641\u062d\u0647\u0654 \u0648\u0636\u0639\u06cc\u062a'}
         actions={
-          can('servers.edit') ? (
+          can('panels.write') ? (
             <Button>
               <Plus className="size-3.5" aria-hidden />
               {'\u0633\u0631\u0648\u0631 \u062c\u062f\u06cc\u062f'}
@@ -112,7 +112,7 @@ export default function ServersPage() {
                     <TableCell>
                       <Switch
                         checked={server.acceptingNew}
-                        disabled={!can('servers.edit')}
+                        disabled={!can('panels.write')}
                         onCheckedChange={async (checked) => {
                           await api.saveServer(server.id, { acceptingNew: checked })
                           mutate()

@@ -45,7 +45,7 @@ export default function PanelsPage() {
 
   const { data, error, isLoading, mutate } = useSWR<PanelRow[]>('panels', () => api.panels())
 
-  if (!can('panels.view')) return <ForbiddenState permission="panels.view" />
+  if (!can('panels.read')) return <ForbiddenState permission="panels.read" />
 
   // Only one action: test the connection. There is no POST /panels/{id}/sync,
   // so the "sync" button posted to a route that answered 404 and then reported
@@ -75,7 +75,7 @@ export default function PanelsPage() {
         title={'\u067e\u0646\u0644\u200c\u0647\u0627'}
         description={'\u067e\u0646\u0644\u200c\u0647\u0627\u06cc \u062a\u062d\u0648\u06cc\u0644 \u0627\u0634\u062a\u0631\u0627\u06a9 \u0648 \u0648\u0636\u0639\u06cc\u062a \u0633\u0644\u0627\u0645\u062a \u0622\u0646\u200c\u0647\u0627'}
         actions={
-          can('panels.edit') ? (
+          can('panels.write') ? (
             <Button>
               <Plus className="size-3.5" aria-hidden />
               {'\u067e\u0646\u0644 \u062c\u062f\u06cc\u062f'}
@@ -153,7 +153,7 @@ export default function PanelsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {can('panels.test') ? (
+                        {can('panels.write') ? (
                           <Button
                             variant="ghost"
                             size="sm"

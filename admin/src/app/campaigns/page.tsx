@@ -38,7 +38,7 @@ export default function CampaignsPage() {
   const { can } = useSession()
   const { data, error, isLoading, mutate } = useSWR<CampaignRow[]>('campaigns', () => api.campaigns())
 
-  if (!can('campaigns.view')) return <ForbiddenState permission="campaigns.view" />
+  if (!can('packages.read')) return <ForbiddenState permission="packages.read" />
 
   const now = Date.now()
 
@@ -48,7 +48,7 @@ export default function CampaignsPage() {
         title={'\u06a9\u0645\u067e\u06cc\u0646\u200c\u0647\u0627'}
         description={'\u062a\u062e\u0641\u06cc\u0641\u200c\u0647\u0627\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u0648 \u0641\u0631\u0648\u0634\u200c\u0647\u0627\u06cc \u0644\u062d\u0638\u0647\u200c\u0627\u06cc'}
         actions={
-          can('campaigns.edit') ? (
+          can('campaigns.write') ? (
             <Button>
               <Plus className="size-3.5" aria-hidden />
               {'\u06a9\u0645\u067e\u06cc\u0646 \u062c\u062f\u06cc\u062f'}
@@ -141,7 +141,7 @@ export default function CampaignsPage() {
                     <TableCell>
                       <Switch
                         checked={published}
-                        disabled={!can('campaigns.edit')}
+                        disabled={!can('campaigns.write')}
                         onCheckedChange={async (checked) => {
                           await api.setCampaignState(campaign.id, checked ? 'published' : 'draft')
                           mutate()

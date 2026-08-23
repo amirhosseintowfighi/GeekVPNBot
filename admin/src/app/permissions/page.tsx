@@ -9,7 +9,6 @@ import { faDateTime } from '@/lib/fa'
 import {
   ROLES,
   ROLE_LABEL_FA,
-  can as roleCan,
   canAssignRole,
   permissionsFor,
   type Permission,
@@ -32,61 +31,61 @@ const PERMISSION_GROUPS: Array<{ titleFa: string; permissions: Array<[Permission
   {
     titleFa: '\u0641\u0631\u0648\u0634 \u0648 \u0645\u0627\u0644\u06cc',
     permissions: [
-      ['orders.view', '\u062f\u06cc\u062f\u0646 \u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627'],
-      ['orders.approve', '\u062a\u0627\u06cc\u06cc\u062f \u067e\u0631\u062f\u0627\u062e\u062a'],
-      ['orders.reject', '\u0631\u062f \u067e\u0631\u062f\u0627\u062e\u062a'],
+      ['orders.read', '\u062f\u06cc\u062f\u0646 \u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627'],
+      ['payments.approve', '\u062a\u0627\u06cc\u06cc\u062f \u067e\u0631\u062f\u0627\u062e\u062a'],
+      ['payments.approve', '\u0631\u062f \u067e\u0631\u062f\u0627\u062e\u062a'],
       ['orders.refund', '\u0627\u0633\u062a\u0631\u062f\u0627\u062f \u0648\u062c\u0647'],
-      ['wallet.view', '\u062f\u06cc\u062f\u0646 \u06a9\u06cc\u0641 \u067e\u0648\u0644'],
+      ['wallet.read', '\u062f\u06cc\u062f\u0646 \u06a9\u06cc\u0641 \u067e\u0648\u0644'],
       ['wallet.adjust', '\u062a\u0639\u062f\u06cc\u0644 \u0645\u0648\u062c\u0648\u062f\u06cc'],
     ],
   },
   {
     titleFa: '\u06a9\u0627\u0631\u0628\u0631\u0627\u0646 \u0648 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc',
     permissions: [
-      ['users.view', '\u062f\u06cc\u062f\u0646 \u06a9\u0627\u0631\u0628\u0631\u0627\u0646'],
-      ['users.edit', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u06a9\u0627\u0631\u0628\u0631'],
+      ['users.read', '\u062f\u06cc\u062f\u0646 \u06a9\u0627\u0631\u0628\u0631\u0627\u0646'],
+      ['users.write', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u06a9\u0627\u0631\u0628\u0631'],
       ['users.suspend', '\u062a\u0639\u0644\u06cc\u0642 \u06a9\u0627\u0631\u0628\u0631'],
       ['users.impersonate', '\u0648\u0631\u0648\u062f \u0628\u0647 \u062c\u0627\u06cc \u06a9\u0627\u0631\u0628\u0631'],
-      ['tickets.view', '\u062f\u06cc\u062f\u0646 \u062a\u06cc\u06a9\u062a\u200c\u0647\u0627'],
+      ['tickets.read', '\u062f\u06cc\u062f\u0646 \u062a\u06cc\u06a9\u062a\u200c\u0647\u0627'],
       ['tickets.reply', '\u067e\u0627\u0633\u062e \u0628\u0647 \u062a\u06cc\u06a9\u062a'],
-      ['tickets.close', '\u0628\u0633\u062a\u0646 \u062a\u06cc\u06a9\u062a'],
+      ['tickets.reply', '\u0628\u0633\u062a\u0646 \u062a\u06cc\u06a9\u062a'],
     ],
   },
   {
     titleFa: '\u0645\u062d\u0635\u0648\u0644 \u0648 \u0632\u06cc\u0631\u0633\u0627\u062e\u062a',
     permissions: [
-      ['products.view', '\u062f\u06cc\u062f\u0646 \u0645\u062d\u0635\u0648\u0644\u0627\u062a'],
-      ['products.edit', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0645\u062d\u0635\u0648\u0644'],
-      ['products.publish', '\u0627\u0646\u062a\u0634\u0627\u0631 \u0645\u062d\u0635\u0648\u0644'],
-      ['panels.view', '\u062f\u06cc\u062f\u0646 \u067e\u0646\u0644\u200c\u0647\u0627'],
-      ['panels.edit', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u067e\u0646\u0644'],
-      ['panels.test', '\u062a\u0633\u062a \u0627\u062a\u0635\u0627\u0644 \u067e\u0646\u0644'],
-      ['servers.view', '\u062f\u06cc\u062f\u0646 \u0633\u0631\u0648\u0631\u0647\u0627'],
-      ['servers.edit', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0633\u0631\u0648\u0631'],
+      ['packages.read', '\u062f\u06cc\u062f\u0646 \u0645\u062d\u0635\u0648\u0644\u0627\u062a'],
+      ['packages.write', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0645\u062d\u0635\u0648\u0644'],
+      ['packages.write', '\u0627\u0646\u062a\u0634\u0627\u0631 \u0645\u062d\u0635\u0648\u0644'],
+      ['panels.read', '\u062f\u06cc\u062f\u0646 \u067e\u0646\u0644\u200c\u0647\u0627'],
+      ['panels.write', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u067e\u0646\u0644'],
+      ['panels.write', '\u062a\u0633\u062a \u0627\u062a\u0635\u0627\u0644 \u067e\u0646\u0644'],
+      ['panels.read', '\u062f\u06cc\u062f\u0646 \u0633\u0631\u0648\u0631\u0647\u0627'],
+      ['panels.write', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0633\u0631\u0648\u0631'],
     ],
   },
   {
     titleFa: '\u0628\u0627\u0632\u0627\u0631\u06cc\u0627\u0628\u06cc',
     permissions: [
-      ['coupons.view', '\u062f\u06cc\u062f\u0646 \u06a9\u062f\u0647\u0627\u06cc \u062a\u062e\u0641\u06cc\u0641'],
-      ['coupons.edit', '\u0633\u0627\u062e\u062a \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'],
-      ['campaigns.view', '\u062f\u06cc\u062f\u0646 \u06a9\u0645\u067e\u06cc\u0646\u200c\u0647\u0627'],
-      ['campaigns.edit', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u06a9\u0645\u067e\u06cc\u0646'],
-      ['broadcast.view', '\u062f\u06cc\u062f\u0646 \u067e\u06cc\u0627\u0645 \u0647\u0645\u06af\u0627\u0646\u06cc'],
+      ['packages.read', '\u062f\u06cc\u062f\u0646 \u06a9\u062f\u0647\u0627\u06cc \u062a\u062e\u0641\u06cc\u0641'],
+      ['packages.write', '\u0633\u0627\u062e\u062a \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'],
+      ['packages.read', '\u062f\u06cc\u062f\u0646 \u06a9\u0645\u067e\u06cc\u0646\u200c\u0647\u0627'],
+      ['campaigns.write', '\u0648\u06cc\u0631\u0627\u06cc\u0634 \u06a9\u0645\u067e\u06cc\u0646'],
+      ['broadcast.read', '\u062f\u06cc\u062f\u0646 \u067e\u06cc\u0627\u0645 \u0647\u0645\u06af\u0627\u0646\u06cc'],
       ['broadcast.send', '\u0627\u0631\u0633\u0627\u0644 \u067e\u06cc\u0627\u0645 \u0647\u0645\u06af\u0627\u0646\u06cc'],
     ],
   },
   {
     titleFa: '\u0633\u0627\u0645\u0627\u0646\u0647',
     permissions: [
-      ['dashboard.view', '\u062f\u0627\u0634\u0628\u0648\u0631\u062f'],
+      ['analytics.view', '\u062f\u0627\u0634\u0628\u0648\u0631\u062f'],
       ['analytics.view', '\u062a\u062d\u0644\u06cc\u0644\u200c\u0647\u0627'],
       ['analytics.export', '\u062e\u0631\u0648\u062c\u06cc \u062a\u062d\u0644\u06cc\u0644\u200c\u0647\u0627'],
-      ['logs.view', '\u062f\u06cc\u062f\u0646 \u0644\u0627\u06af\u200c\u0647\u0627'],
-      ['settings.view', '\u062f\u06cc\u062f\u0646 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a'],
-      ['settings.edit', '\u062a\u063a\u06cc\u06cc\u0631 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a'],
-      ['permissions.view', '\u062f\u06cc\u062f\u0646 \u062f\u0633\u062a\u0631\u0633\u06cc\u200c\u0647\u0627'],
-      ['permissions.edit', '\u062a\u063a\u06cc\u06cc\u0631 \u062f\u0633\u062a\u0631\u0633\u06cc\u200c\u0647\u0627'],
+      ['audit.read', '\u062f\u06cc\u062f\u0646 \u0644\u0627\u06af\u200c\u0647\u0627'],
+      ['settings.read', '\u062f\u06cc\u062f\u0646 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a'],
+      ['settings.write', '\u062a\u063a\u06cc\u06cc\u0631 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a'],
+      ['admins.read', '\u062f\u06cc\u062f\u0646 \u062f\u0633\u062a\u0631\u0633\u06cc\u200c\u0647\u0627'],
+      ['admins.write', '\u062a\u063a\u06cc\u06cc\u0631 \u062f\u0633\u062a\u0631\u0633\u06cc\u200c\u0647\u0627'],
     ],
   },
 ]
@@ -104,17 +103,18 @@ const PERMISSION_GROUPS: Array<{ titleFa: string; permissions: Array<[Permission
  * guess why support cannot issue a refund.
  *
  * Assignment is guarded by `canAssignRole`, which forbids granting a role at
- * or above your own rank, and forbids granting `owner` to anyone, ever. That
+ * or above your own rank, and forbids granting `super_admin` to anyone, ever. That
  * single rule is what stops an admin from quietly promoting themselves.
  */
 export default function PermissionsPage() {
-  const { can, role } = useSession()
+  const { can, role, session } = useSession()
+  const held = session?.permissions ?? null
 
   const { data, error, isLoading, mutate } = useSWR<OperatorRow[]>('operators', () => api.operators())
 
-  if (!can('permissions.view')) return <ForbiddenState permission="permissions.view" />
+  if (!can('admins.read')) return <ForbiddenState permission="admins.read" />
 
-  const editable = can('permissions.edit')
+  const editable = can('admins.write')
 
   return (
     <>
@@ -154,7 +154,7 @@ export default function PermissionsPage() {
                     // You may only touch an operator whose role you are
                     // allowed to assign - i.e. strictly below your own rank.
                     const mayManage =
-                      editable && role !== null && canAssignRole(role, operator.role)
+                      editable && role !== null && canAssignRole(role, operator.role, held)
 
                     return (
                       <TableRow key={operator.id}>
@@ -178,7 +178,7 @@ export default function PermissionsPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 {ROLES.filter(
-                                  (candidate) => role !== null && canAssignRole(role, candidate),
+                                  (candidate) => role !== null && canAssignRole(role, candidate, held),
                                 ).map((candidate) => (
                                   <SelectItem key={candidate} value={candidate}>
                                     {ROLE_LABEL_FA[candidate]}
@@ -187,7 +187,7 @@ export default function PermissionsPage() {
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge variant={operator.role === 'owner' ? 'default' : 'muted'}>
+                            <Badge variant={operator.role === 'super_admin' ? 'default' : 'muted'}>
                               {ROLE_LABEL_FA[operator.role]}
                             </Badge>
                           )}
@@ -253,7 +253,7 @@ export default function PermissionsPage() {
                               </code>
                             </TableCell>
                             {ROLES.map((candidate) => {
-                              const allowed = roleCan(candidate, permission)
+                              const allowed = permissionsFor(candidate).includes(permission)
                               return (
                                 <TableCell key={candidate} className="text-center">
                                   {allowed ? (
@@ -278,7 +278,7 @@ export default function PermissionsPage() {
 
             <p className="text-2xs text-muted-foreground">
               {'\u0645\u062c\u0645\u0648\u0639 \u062f\u0633\u062a\u0631\u0633\u06cc \u0645\u0627\u0644\u06a9: \u0647\u0645\u0647\u0654 \u0645\u0648\u0627\u0631\u062f \u0628\u062f\u0648\u0646 \u0627\u0633\u062a\u062b\u0646\u0627 (' +
-                permissionsFor('owner').length +
+                permissionsFor('super_admin').length +
                 ').'}
             </p>
           </div>

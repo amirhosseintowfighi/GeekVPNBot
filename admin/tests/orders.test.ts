@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { can } from '@/lib/rbac'
+import { can, permissionsFor } from '@/lib/rbac'
 import type { Role } from '@/lib/rbac'
 import type { PaymentState } from '@/lib/types'
 
@@ -32,15 +32,18 @@ const STATE_ALLOWS: Record<PaymentState, Action[]> = {
   failed: [],
 }
 
-const PERMISSION_FOR: Record<Action, 'orders.approve' | 'orders.reject' | 'orders.refund'> = {
-  approve: 'orders.approve',
-  reject: 'orders.reject',
+// Approving and rejecting are the same server-side right: both settle a
+// card-to-card receipt. Only the refund is separate, because it moves money
+// back out.
+const PERMISSION_FOR: Record<Action, 'payments.approve' | 'orders.refund'> = {
+  approve: 'payments.approve',
+  reject: 'payments.approve',
   refund: 'orders.refund',
 }
 
 const visibleActions = (state: PaymentState): Action[] => STATE_ALLOWS[state]
 const allowedActions = (state: PaymentState, role: Role): Action[] =>
-  visibleActions(state).filter((action) => can(role, PERMISSION_FOR[action]))
+  visibleActions(state).filter((action) => can(permissionsFor(role), PERMISSION_FOR[action]))
 
 describe('state gating', () => {
   it('offers approve and reject only while a payment is under review', () => {
@@ -94,11 +97,11 @@ describe('role gating on top of state gating', () => {
   it('never lets a role act where the state forbids it, however privileged', () => {
     // Permission can only ever subtract from what the state allows.
     for (const state of Object.keys(STATE_ALLOWS) as PaymentState[]) {
-      expect(allowedActions(state, 'owner').length).toBeLessThanOrEqual(
+      expect(allowedActions(state, 'super_admin').length).toBeLessThanOrEqual(
         visibleActions(state).length,
       )
     }
-    expect(allowedActions('refunded', 'owner')).toEqual([])
+    expect(allowedActions('refunded', 'super_admin')).toEqual([])
   })
 })
 

@@ -52,6 +52,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const value = React.useMemo<SessionValue>(() => {
     const session = data ?? null
     const role = session?.role ?? null
+    // The list the server issued for this operator, which already accounts for
+    // any grant or revocation layered on top of their role. Asking the role
+    // instead would answer a different question, and answer it from a table
+    // this client maintains - the drift that locked every operator out.
+    const held = session?.permissions ?? null
 
     return {
       session,
@@ -60,7 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       error: error instanceof ApiError ? error : null,
       // Deny while loading. Rendering a destructive button optimistically and
       // hiding it a moment later is worse than showing it a moment late.
-      can: (permission: Permission) => (role ? can(role, permission) : false),
+      can: (permission: Permission) => can(held, permission),
       refresh: () => void mutate(),
     }
   }, [data, error, isLoading, mutate])

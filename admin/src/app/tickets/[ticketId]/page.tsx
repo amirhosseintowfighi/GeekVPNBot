@@ -45,7 +45,7 @@ export default function TicketDetailPage() {
     () => api.ticketMessages(ticketId),
   )
 
-  if (!can('tickets.view')) return <ForbiddenState permission="tickets.view" />
+  if (!can('tickets.read')) return <ForbiddenState permission="tickets.read" />
 
   const send = async () => {
     setBusy(true)
@@ -91,7 +91,7 @@ export default function TicketDetailPage() {
             <Badge variant={meta.tone} dot>
               {meta.fa}
             </Badge>
-            {!closed && can('tickets.close') ? (
+            {!closed && can('tickets.reply') ? (
               <Button
                 variant="outline"
                 onClick={async () => {

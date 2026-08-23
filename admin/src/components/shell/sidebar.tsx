@@ -39,12 +39,12 @@ function NavList({
 }) {
   const pathname = usePathname()
   const { session } = useSession()
-  const role = session?.role ?? null
+  const held = session?.permissions ?? null
 
   return (
     <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
       {NAV.map((section) => {
-        const visible = section.items.filter((item) => can(role, item.permission))
+        const visible = section.items.filter((item) => can(held, item.permission))
         if (visible.length === 0) return null
 
         return (

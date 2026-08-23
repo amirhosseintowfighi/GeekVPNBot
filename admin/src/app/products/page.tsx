@@ -56,7 +56,7 @@ export default function ProductsPage() {
     () => api.plans(selectedProduct as string),
   )
 
-  if (!can('products.view')) return <ForbiddenState permission="products.view" />
+  if (!can('packages.read')) return <ForbiddenState permission="packages.read" />
 
   const error = products.error ?? categories.error
 
@@ -66,7 +66,7 @@ export default function ProductsPage() {
         title={'\u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0648 \u067e\u0644\u0646\u200c\u0647\u0627'}
         description={'\u062f\u0633\u062a\u0647\u200c\u0647\u0627\u060c \u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0648 \u0646\u0631\u062f\u0628\u0627\u0646 \u0645\u062f\u062a\u200c\u0632\u0645\u0627\u0646'}
         actions={
-          can('products.edit') ? (
+          can('packages.write') ? (
             <Button>
               <Plus className="size-3.5" aria-hidden />
               {'\u0645\u062d\u0635\u0648\u0644 \u062c\u062f\u06cc\u062f'}
@@ -143,7 +143,7 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{product.tier}</TableCell>
                     <TableCell>
-                      {can('products.edit') ? (
+                      {can('packages.write') ? (
                         <Button variant="ghost" size="sm" onClick={() => setLadderFor(product)}>
                           <Wand2 className="size-3.5" aria-hidden />
                           {'\u062a\u0648\u0644\u06cc\u062f \u0646\u0631\u062f\u0628\u0627\u0646'}
@@ -209,7 +209,7 @@ export default function ProductsPage() {
                         <TableCell>
                           <Switch
                             checked={plan.state === 'published'}
-                            disabled={!can('products.publish')}
+                            disabled={!can('packages.write')}
                             onCheckedChange={async (checked) => {
                               await api.setPlanState(plan.id, checked ? 'published' : 'draft')
                               plans.mutate()

@@ -66,7 +66,7 @@ export default function BroadcastPage() {
 
   const { data, error, isLoading, mutate } = useSWR<BroadcastRow[]>('broadcasts', () => api.broadcasts())
 
-  if (!can('broadcast.view')) return <ForbiddenState permission="broadcast.view" />
+  if (!can('broadcast.read')) return <ForbiddenState permission="broadcast.read" />
 
   return (
     <>

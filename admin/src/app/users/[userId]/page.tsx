@@ -57,7 +57,7 @@ export default function UserDetailPage() {
   )
 
   const { data: wallet, mutate: mutateWallet } = useSWR(
-    can('wallet.view') ? ['wallet', userId] : null,
+    can('wallet.read') ? ['wallet', userId] : null,
     () => api.walletBalance(userId),
   )
 
@@ -66,7 +66,7 @@ export default function UserDetailPage() {
     () => api.subscriptions({ page: 1, userId: data ? data.customer.telegramId : undefined }),
   )
 
-  if (!can('users.view')) return <ForbiddenState permission="users.view" />
+  if (!can('users.read')) return <ForbiddenState permission="users.read" />
 
   const close = () => {
     setDialog(null)
