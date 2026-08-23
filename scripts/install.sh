@@ -303,9 +303,14 @@ ok "$TABLES tables present"
 step "Creating the administrator"
 # create_admin reads GEEKVPN_ADMIN_PASSWORD. Without it the tool falls back to
 # getpass, which has no terminal inside `compose run` and would hang the install.
+# The command prints a two-factor secret, which is why its output is not
+# swallowed. A super admin cannot sign in without a code, and this is the only
+# time the secret is readable.
 $COMPOSE run --rm -e GEEKVPN_ADMIN_PASSWORD="$ADMIN_PASSWORD" migrate \
   python -m geekvpn.entrypoints.create_admin --username "$ADMIN_USER"
 ok "administrator '$ADMIN_USER' created"
+warn "Scan the two-factor secret printed above into an authenticator app before
+     closing this terminal. Without it nobody can sign in to the panel."
 
 # ------------------------------------------------------------------- launch
 
@@ -425,14 +430,20 @@ ${GREEN}${BOLD}Installation complete.${OFF}
   loads. The wizard asks for all three; the two subdomains are the ones
   people forget.${OFF}
 
-${BOLD}Do these three things now:${OFF}
+${BOLD}Do these four things now:${OFF}
 
-  1. Back up ${ENV_FILE} somewhere off this machine. It holds the encryption
+  1. Scan the two-factor secret printed further up into an authenticator app,
+     if you have not already. Sign-in asks for a code from it and a super
+     admin has no way in without one. Lost it? Issue a new one:
+       ${DIM}$COMPOSE run --rm migrate python -m geekvpn.entrypoints.create_admin \\
+         --username ${ADMIN_USER} --reset-totp${OFF}
+
+  2. Back up ${ENV_FILE} somewhere off this machine. It holds the encryption
      master key, and every stored card number is unreadable without it.
 
-  2. ${TLS_NOTE}
+  3. ${TLS_NOTE}
 
-  3. Add your first VPN node, through the admin API, and confirm it
+  4. Add your first VPN node, through the admin API, and confirm it
      connects. Nothing can be sold until a node exists - provisioning picks
      one from the database, and an empty list means every paid order fails.
 

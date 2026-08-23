@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import uuid
 
-from geekvpn.application.identity.dto import AdminProfile
+from geekvpn.application.identity.dto import AdminProfile, TotpEnrolment
 from geekvpn.application.ports.audit import AuditRecorder
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.ports.passwords import PasswordHasher
+from geekvpn.application.ports.passwords import PasswordHasher, TotpService
 from geekvpn.application.ports.repositories import AdminRepository, SessionRepository
 from geekvpn.domain.audit.entry import AuditAction
 from geekvpn.domain.base.errors import NotFoundError, ValidationError
@@ -31,12 +31,16 @@ class ManageAdmins:
         admins: AdminRepository,
         sessions: SessionRepository,
         passwords: PasswordHasher,
+        totp: TotpService,
+        totp_issuer: str,
         clock: Clock,
         audit: AuditRecorder,
     ) -> None:
         self._admins = admins
         self._sessions = sessions
         self._passwords = passwords
+        self._totp = totp
+        self._totp_issuer = totp_issuer
         self._clock = clock
         self._audit = audit
 
@@ -173,6 +177,50 @@ class ManageAdmins:
         if admin is None:
             raise NotFoundError("Administrator not found.", admin_id=str(admin_id))
         return admin
+
+    async def enrol_totp(
+        self, *, username: str, actor_id: uuid.UUID | None = None
+    ) -> TotpEnrolment:
+        """Issue a second factor and hand back the one readable copy.
+
+        A super admin always requires 2FA - `Admin.requires_totp` is true for
+        the role whether or not a secret was ever enrolled - and nothing in the
+        product could enrol one. `Admin.enable_totp` had no caller anywhere,
+        and `TotpService.generate_secret` and `provisioning_uri` were declared
+        on the port and used by nobody. So the account the installer creates
+        demanded a code that could not exist, and the panel was locked from the
+        moment it was built.
+
+        Re-enrolling replaces the secret. That is the recovery path for a lost
+        authenticator, and the reason this is not refused when one is already
+        set - the alternative is an operator locked out for good.
+        """
+        admin = await self._admins.get_by_username(username.strip().lower())
+        if admin is None:
+            raise NotFoundError(f"No administrator named '{username}'.")
+
+        secret = self._totp.generate_secret()
+        admin.enable_totp(secret)
+        await self._admins.update(admin)
+
+        await self._audit.record(
+            AuditAction.AUTH_TOTP_ENABLED,
+            actor_type=SubjectType.ADMIN,
+            actor_id=actor_id or admin.id,
+            actor_label=admin.username,
+            target_type="admin",
+            target_id=str(admin.id),
+        )
+
+        return TotpEnrolment(
+            username=admin.username,
+            secret=secret,
+            provisioning_uri=self._totp.provisioning_uri(
+                secret=secret, account=admin.username, issuer=self._totp_issuer
+            ),
+        )
+
+
 
 
 def _validate_password(password: str) -> None:

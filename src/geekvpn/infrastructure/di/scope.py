@@ -246,6 +246,8 @@ class RequestScope:
             admins=self.admins,
             sessions=self.session_repository,
             passwords=self.container.passwords,
+            totp=self.container.totp,
+            totp_issuer=self.container.settings.app.name,
             clock=self.container.clock,
             audit=self.audit,
         )

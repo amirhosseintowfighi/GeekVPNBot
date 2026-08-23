@@ -76,3 +76,17 @@ class SessionSummary:
     user_agent: str | None
     device_label: str | None
     is_current: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TotpEnrolment:
+    """A freshly issued second factor, returned exactly once.
+
+    The secret is never readable again: it is stored encrypted and every later
+    read is a verification, not a disclosure. Whoever runs the enrolment has
+    this one chance to scan it into an authenticator.
+    """
+
+    username: str
+    secret: str
+    provisioning_uri: str
