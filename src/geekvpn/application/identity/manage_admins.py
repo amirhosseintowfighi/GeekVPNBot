@@ -178,6 +178,38 @@ class ManageAdmins:
             raise NotFoundError("Administrator not found.", admin_id=str(admin_id))
         return admin
 
+    async def link_telegram(
+        self, *, username: str, telegram_id: int, actor_id: uuid.UUID | None = None
+    ) -> AdminProfile:
+        """Attach the Telegram account an administrator acts through.
+
+        Not cosmetic, and not optional in practice: `admin_actor_id` refuses
+        every endpoint that records who performed an action unless this is set,
+        which is approving a payment, refunding one, adjusting a wallet,
+        answering a ticket and sending a broadcast - the whole money and
+        support surface. `create_admin` never set one, so the administrator the
+        installer creates could sign in and do none of it.
+        """
+        admin = await self._admins.get_by_username(username.strip().lower())
+        if admin is None:
+            raise NotFoundError(f"No administrator named '{username}'.")
+
+        previous = admin.telegram_id
+        admin.telegram_id = telegram_id
+        await self._admins.update(admin)
+
+        await self._audit.record(
+            AuditAction.ADMIN_UPDATED,
+            actor_type=SubjectType.ADMIN,
+            actor_id=actor_id or admin.id,
+            actor_label=admin.username,
+            target_type="admin",
+            target_id=str(admin.id),
+            previous_telegram_id=previous,
+            new_telegram_id=telegram_id,
+        )
+        return _profile(admin)
+
     async def enrol_totp(
         self, *, username: str, actor_id: uuid.UUID | None = None
     ) -> TotpEnrolment:

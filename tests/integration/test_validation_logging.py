@@ -30,3 +30,19 @@ def test_the_rejected_value_itself_is_not_logged(client, caplog) -> None:
         )
 
     assert "hunter2-in-the-wrong-field" not in caplog.text
+
+
+def test_a_domain_error_keeps_its_own_persian_message(client) -> None:
+    """The specific sentence beats the generic one keyed off the code.
+
+    `admin_actor_id` refuses with "برای این اقدام، حساب تلگرام مدیر باید متصل
+    باشد" - which names the actual problem. Rendering "اطلاعات واردشده درست
+    نیست" instead sent an operator to re-read a form that was never wrong.
+    """
+    from geekvpn.presentation.api.text_fa import GENERIC, user_message
+
+    specific = "برای این اقدام، حساب تلگرام مدیر باید متصل باشد."
+
+    assert user_message("validation_error", specific) == specific
+    assert user_message("validation_error", "Request validation failed.") != specific
+    assert user_message("no_such_code", "An internal detail.") == GENERIC

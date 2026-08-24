@@ -20,6 +20,13 @@ code rather than revealing the key.
 
 re-enrols an administrator who has lost their authenticator, which is also the
 way out for an account created before this enrolled anything.
+
+    ... create_admin --username amir --link-telegram 123456789
+
+attaches the Telegram account the administrator acts through. Approving a
+payment, refunding one, adjusting a wallet, answering a ticket and sending a
+broadcast all record that id and all refuse without it, so an administrator
+created without one can sign in and then do none of the work.
 """
 
 from __future__ import annotations
@@ -53,6 +60,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--reset-totp",
         action="store_true",
         help="Issue a new second factor for an existing administrator and exit.",
+    )
+    parser.add_argument(
+        "--link-telegram",
+        type=int,
+        default=None,
+        metavar="TELEGRAM_ID",
+        help="Attach a Telegram account to an existing administrator and exit.",
     )
     return parser.parse_args(argv)
 
@@ -88,6 +102,27 @@ async def _reset_totp(username: str) -> int:
             enrolment = await scope.manage_admins.enrol_totp(username=username)
             await uow.commit()
         _report_enrolment(enrolment)
+        return 0
+    finally:
+        await close_container(container)
+
+
+async def _link_telegram(username: str, telegram_id: int) -> int:
+    settings = get_settings()
+    container = build_container(settings)
+    try:
+        async with container.unit_of_work() as uow:
+            scope = build_scope(container, uow.session)
+            if await scope.admins.get_by_username(username.lower()) is None:
+                sys.stderr.write(f"No administrator named '{username}'.\n")
+                return 1
+            await scope.manage_admins.link_telegram(username=username, telegram_id=telegram_id)
+            await uow.commit()
+        sys.stdout.write(
+            f"Administrator '{username}' now acts as Telegram id {telegram_id}.\n"
+            "Approving payments, refunding, adjusting wallets, answering tickets and\n"
+            "sending broadcasts all record that id, and all refuse without it.\n"
+        )
         return 0
     finally:
         await close_container(container)
@@ -132,6 +167,8 @@ async def _create(args: argparse.Namespace, password: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
+    if args.link_telegram is not None:
+        return asyncio.run(_link_telegram(args.username, args.link_telegram))
     if args.reset_totp:
         # No password: this proves nothing that shell access to the container
         # does not already prove, and demanding one would lock out the operator

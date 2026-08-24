@@ -163,6 +163,13 @@ ask CERTBOT_EMAIL "Email for Let's Encrypt renewal notices"
 ask BOT_TOKEN     "Telegram bot token (from @BotFather)"
 ask ADMIN_USER    "Administrator username" "admin"
 ask_secret ADMIN_PASSWORD "Administrator password (min 12 chars)"
+# Not decoration. Approving a payment, refunding one, adjusting a wallet,
+# answering a ticket and sending a broadcast all record which Telegram account
+# did it, and all refuse outright when the administrator has none - so an
+# operator created without one signs in successfully and can then do none of
+# the work. Ask @userinfobot in Telegram for the number.
+ask ADMIN_TELEGRAM_ID "Your numeric Telegram id (ask @userinfobot; blank = skip)" "none"
+[[ "$ADMIN_TELEGRAM_ID" == "none" ]] && ADMIN_TELEGRAM_ID=""
 
 echo
 ask ADMIN_IPS "Admin panel IP allowlist, comma separated (blank = allow any)" "none"
@@ -328,9 +335,18 @@ step "Creating the administrator"
 # The command prints a two-factor secret, which is why its output is not
 # swallowed. A super admin cannot sign in without a code, and this is the only
 # time the secret is readable.
+TELEGRAM_ARG=()
+[[ -n "$ADMIN_TELEGRAM_ID" ]] && TELEGRAM_ARG=(--telegram-id "$ADMIN_TELEGRAM_ID")
 $COMPOSE run --rm -e GEEKVPN_ADMIN_PASSWORD="$ADMIN_PASSWORD" migrate \
-  python -m geekvpn.entrypoints.create_admin --username "$ADMIN_USER"
+  python -m geekvpn.entrypoints.create_admin --username "$ADMIN_USER" "${TELEGRAM_ARG[@]}"
 ok "administrator '$ADMIN_USER' created"
+if [[ -z "$ADMIN_TELEGRAM_ID" ]]; then
+  warn "No Telegram id was given, so approving payments, refunding, adjusting
+     wallets, answering tickets and sending broadcasts will all be refused.
+     Attach one when you have it:
+       ${DIM}$COMPOSE run --rm migrate python -m geekvpn.entrypoints.create_admin \\
+         --username ${ADMIN_USER} --link-telegram YOUR_ID${OFF}"
+fi
 warn "Scan the two-factor secret printed above into an authenticator app before
      closing this terminal. Without it nobody can sign in to the panel."
 

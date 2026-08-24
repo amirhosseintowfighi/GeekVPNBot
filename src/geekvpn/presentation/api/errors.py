@@ -37,7 +37,7 @@ from geekvpn.domain.catalog.errors import CatalogError
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.infrastructure.logging.context import get_correlation_id
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.presentation.api.text_fa import persian_for
+from geekvpn.presentation.api.text_fa import user_message
 
 logger = get_logger(__name__)
 
@@ -83,7 +83,7 @@ def problem_response(
         # nothing to render but their own generic copy - which on the sign-in
         # screen told an operator with a wrong password that their session had
         # expired.
-        "message_fa": persian_for(title),
+        "message_fa": user_message(title, detail),
         "instance": instance,
         "correlation_id": get_correlation_id(),
     }

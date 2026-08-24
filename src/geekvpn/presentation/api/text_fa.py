@@ -119,3 +119,23 @@ MESSAGES: Final[dict[str, str]] = {
 def persian_for(code: str) -> str:
     """The Persian sentence a customer or operator should read for `code`."""
     return MESSAGES.get(code, GENERIC)
+
+
+def _is_persian(text: str) -> bool:
+    return any("؀" <= character <= "ۿ" for character in text)
+
+
+def user_message(code: str, detail: str) -> str:
+    """The best Persian sentence available for this failure.
+
+    A domain error that already carries Persian wrote it for the person who
+    will read it, and it is always more specific than a message keyed off the
+    code: "برای این اقدام، حساب تلگرام مدیر باید متصل باشد" versus "اطلاعات
+    واردشده درست نیست". Preferring the generic one hid the real cause of a
+    broken broadcast for an entire evening - the panel showed a sentence about
+    form fields for a failure that had nothing to do with the form.
+
+    Errors whose message is English are internal phrasing meant for logs, so
+    those fall back to the curated copy.
+    """
+    return detail if _is_persian(detail) else persian_for(code)
