@@ -109,3 +109,20 @@ def test_the_ladder_endpoints_are_registered_where_the_panel_calls_them() -> Non
     assert f"{API_V1_PREFIX}/admin/duration-ladder" in registered
     assert f"{API_V1_PREFIX}/admin/catalog/plans/generate-ladder" in registered
     assert f"{API_V1_PREFIX}/admin/catalog/products/{{id}}/plans" in registered
+
+
+def test_the_ladder_dialog_can_build_every_plan_type_the_domain_has() -> None:
+    """A catalogue that can only sell time is half a catalogue.
+
+    The dialog hardcoded `unlimited` and asked for no volume, so `PlanType`
+    had three members and the panel could reach one. The quota rule it must
+    respect is `Plan._validate_quotas`: exactly one field, chosen by type.
+    """
+    from geekvpn.domain.catalog.enums import PlanType
+
+    source = (ADMIN_SRC / "lib" / "plans.ts").read_text(encoding="utf-8")
+
+    for plan_type in PlanType:
+        assert f"'{plan_type.value}'" in source, (
+            f"the admin panel cannot build a {plan_type.value} package"
+        )

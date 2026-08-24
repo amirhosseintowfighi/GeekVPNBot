@@ -7,6 +7,12 @@ import { Plus, Wand2 } from 'lucide-react'
 import { api, ApiError } from '@/lib/api'
 import { faNumber, gib, normalizeInput, percent, toman } from '@/lib/fa'
 import { PLAN_TYPE, PUBLICATION_STATE } from '@/lib/labels'
+import {
+  PLAN_TYPE_HINT_FA,
+  PLAN_TYPE_LABEL_FA,
+  quotaFieldsFor,
+  type PlanTypeValue,
+} from '@/lib/plans'
 import type { CategoryRow, DurationRung, PlanRow, ProductRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -278,6 +284,12 @@ export default function ProductsPage() {
  * The preview is computed client-side from the same rungs the server uses, so
  * the operator sees the exact prices before committing. Showing the saving
  * per rung is what makes an accidentally-inverted ladder obvious.
+ *
+ * The plan type decides which quota field the package carries, and the domain
+ * refuses anything else: a TRAFFIC package must have a total volume and no
+ * daily ceiling, a DURATION package the reverse, and an UNLIMITED one neither.
+ * The dialog only ever sold unlimited packages because it hardcoded the type
+ * and asked for no volume at all.
  */
 function LadderDialog({
   product,
@@ -289,10 +301,17 @@ function LadderDialog({
   onGenerated: () => void
 }) {
   const [monthly, setMonthly] = React.useState('')
+  const [planType, setPlanType] = React.useState<PlanTypeValue>('unlimited')
+  const [quota, setQuota] = React.useState('')
+  const [deviceLimit, setDeviceLimit] = React.useState('1')
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
   const rungs = useSWR<DurationRung[]>('duration-ladder', () => api.durationLadder())
+
+  const quotaGib = Number(normalizeInput(quota).replace(/\D/g, '')) || 0
+  const devices = Number(normalizeInput(deviceLimit).replace(/\D/g, '')) || 1
+  const needsQuota = planType !== 'unlimited'
 
   const monthlyPrice = Number(normalizeInput(monthly).replace(/\D/g, '')) || 0
 
@@ -315,13 +334,16 @@ function LadderDialog({
       await api.generateLadder({
         productId: product.id,
         monthlyPrice,
-        planType: 'unlimited',
+        planType,
         slugPrefix: product.slug,
         namePrefixFa: product.nameFa,
+        deviceLimit: devices,
+        ...quotaFieldsFor(planType, quotaGib),
       })
       onGenerated()
       onClose()
       setMonthly('')
+      setQuota('')
     } catch (thrown) {
       setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
     } finally {
@@ -352,6 +374,49 @@ function LadderDialog({
               autoFocus
             />
           </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={'نوع بسته'} hint={PLAN_TYPE_HINT_FA[planType]}>
+              <Select
+                value={planType}
+                onValueChange={(value) => setPlanType(value as PlanTypeValue)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(['unlimited', 'traffic', 'duration'] as const).map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {PLAN_TYPE_LABEL_FA[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label={'تعداد دستگاه هم‌زمان'}>
+              <Input
+                ltr
+                inputMode="numeric"
+                value={deviceLimit}
+                onChange={(event) => setDeviceLimit(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          {needsQuota ? (
+            <Field
+              label={planType === 'traffic' ? 'حجم کل (گیگابایت)' : 'سقف روزانه (گیگابایت)'}
+              hint={'روی همهٔ پله‌های نردبان یکسان اعمال می‌شود'}
+            >
+              <Input
+                ltr
+                inputMode="numeric"
+                value={quota}
+                onChange={(event) => setQuota(event.target.value)}
+              />
+            </Field>
+          ) : null}
 
           {monthlyPrice > 0 ? (
             <Table>
@@ -401,7 +466,13 @@ function LadderDialog({
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {'\u0627\u0646\u0635\u0631\u0627\u0641'}
           </Button>
-          <Button loading={busy} disabled={monthlyPrice <= 0} onClick={submit}>
+          <Button
+            loading={busy}
+            // A quota of zero is refused by the domain, not silently
+            // treated as unlimited.
+            disabled={monthlyPrice <= 0 || (needsQuota && quotaGib <= 0)}
+            onClick={submit}
+          >
             {'\u062a\u0648\u0644\u06cc\u062f \u067e\u06cc\u0634\u200c\u0646\u0648\u06cc\u0633\u200c\u0647\u0627'}
           </Button>
         </DialogFooter>
