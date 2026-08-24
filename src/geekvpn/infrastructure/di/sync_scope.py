@@ -27,10 +27,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from geekvpn.application.notifications.broadcast_service import BroadcastService
-from geekvpn.application.notifications.channels import InboxChannel
+from geekvpn.application.notifications.channels import InboxChannel, TelegramChannel
 from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
-from geekvpn.application.notifications.ports import EventPublisher
+from geekvpn.application.notifications.ports import Channel, EventPublisher
 from geekvpn.application.notifications.reminders import ReminderService
 from geekvpn.application.notifications.subscribers import (
     EngineSupportNotifier,
@@ -61,6 +61,10 @@ from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.infrastructure.notifications.audiences import SqlAudienceResolver
+from geekvpn.infrastructure.notifications.telegram import (
+    HttpTelegramSender,
+    TelegramIdIsTheUserId,
+)
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
@@ -346,14 +350,38 @@ class SyncScope:
     # -- notifications -----------------------------------------------------
 
     @cached_property
-    def channels(self) -> Sequence[InboxChannel]:
-        """Only the in-app inbox for now.
+    def channels(self) -> Sequence[Channel]:
+        """The inbox, and Telegram when a bot token is configured.
 
-        The Telegram channel needs a bot sender and a chat-id resolver, which
-        belong to the bot process; the API registering a half-built Telegram
-        channel would report deliveries that never happened.
+        This used to be the inbox alone, on the reasoning that a Telegram
+        channel needs a sender and a chat-id resolver that belong to the bot
+        process. Both turned out to be small - one HTTP call and an identity
+        function - and the cost of leaving them out was the whole point of the
+        feature: a broadcast reported "sent 2/2" and arrived on nobody's phone,
+        because the inbox it reached is only visible inside the Mini App.
+
+        Without a token the inbox is still the honest answer: registering a
+        channel that cannot authenticate would report deliveries that never
+        happened, which is the failure the original comment was guarding
+        against.
         """
-        return (InboxChannel(),)
+        token = self.container.settings.telegram.bot_token.get_secret_value()
+        if not token:
+            logger.warning(
+                "notify.telegram.disabled",
+                detail="TELEGRAM__BOT_TOKEN is unset; notifications reach the Mini App inbox only",
+            )
+            return (InboxChannel(),)
+
+        return (
+            InboxChannel(),
+            TelegramChannel(
+                sender=HttpTelegramSender(
+                    token, parse_mode=self.container.settings.telegram.parse_mode
+                ),
+                chat_ids=TelegramIdIsTheUserId(),
+            ),
+        )
 
     @cached_property
     def engine(self) -> NotificationEngine:

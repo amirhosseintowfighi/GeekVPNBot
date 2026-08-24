@@ -65,3 +65,24 @@ def test_the_engine_and_its_publisher_are_the_same_dispatch_table(scope: SyncSco
     # Publishing through the engine's handle must reach the scope's one table,
     # not a private second one.
     assert engine_publisher._resolve() is scope.events
+
+
+def test_telegram_is_registered_when_a_bot_token_exists(scope: SyncScope) -> None:
+    """The inbox alone is invisible to anyone who never opens the Mini App.
+
+    `TelegramChannel` existed with tests and no constructor, so a broadcast
+    reported "sent 2/2" and reached nobody's phone.
+    """
+    kinds = {type(channel).__name__ for channel in scope.channels}
+
+    assert kinds == {"InboxChannel", "TelegramChannel"}
+
+
+def test_without_a_token_only_the_inbox_is_registered(container, monkeypatch) -> None:
+    """Reporting a delivery that cannot happen is worse than not sending."""
+    monkeypatch.setattr(
+        container.settings.telegram, "bot_token", type(container.settings.telegram.bot_token)("")
+    )
+    scope = SyncScope(container=container, session=None)  # type: ignore[arg-type]
+
+    assert {type(channel).__name__ for channel in scope.channels} == {"InboxChannel"}
