@@ -227,6 +227,29 @@ function ReviewDialog({
         </DialogHeader>
 
         <DialogBody className="space-y-3">
+          {/* The receipt itself. An operator has to read a reference number
+              off it, so it is shown at a size worth reading and links out to
+              the full image. */}
+          {payment?.proof?.fileId ? (
+            <a
+              href={api.receiptUrl(payment.id)}
+              target="_blank"
+              rel="noreferrer"
+              className="block overflow-hidden rounded-md border border-border"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={api.receiptUrl(payment.id)}
+                alt={'رسید پرداخت'}
+                className="max-h-72 w-full object-contain"
+              />
+            </a>
+          ) : (
+            <p className="rounded-md border border-border px-3 py-2 text-2xs text-muted-foreground">
+              {'برای این پرداخت رسیدی ثبت نشده است.'}
+            </p>
+          )}
+
           {rejecting ? (
             <Field label={'دلیل رد'} hint={'برای مشتری فرستاده می‌شود'}>
               <Textarea

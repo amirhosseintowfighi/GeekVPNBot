@@ -297,6 +297,15 @@ export const api = {
   payments: (params: { state?: string; page?: number } = {}) =>
     fetcher<Paged<PaymentRow>>(`${ROOT}/payments${qs(params)}`),
 
+  /**
+   * The receipt image, as a URL the browser loads directly.
+   *
+   * Not a fetch: the endpoint answers with image bytes, and letting the
+   * browser request it means one round trip and no base64 in memory. The
+   * session cookie rides along because it is same-origin.
+   */
+  receiptUrl: (paymentId: string) => `${BASE_URL}${ROOT}/payments/${paymentId}/receipt`,
+
   approvePayment: (paymentId: string, actualAmount?: number) =>
     mutate<Record<string, unknown>>('POST', `${ROOT}/payments/${paymentId}/approve`, {
       actualAmount: actualAmount ?? null,

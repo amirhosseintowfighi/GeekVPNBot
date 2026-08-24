@@ -32,7 +32,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+import httpx
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import ConfigDict, Field
 from sqlalchemy import select
 
@@ -57,6 +58,10 @@ from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.security import CurrentAdmin, requires
 
 router = APIRouter(prefix="/admin/payments", tags=["payments"])
+
+#: Long enough for a photo over a slow route, short enough that a stuck
+#: fetch cannot hold an admin request open.
+TELEGRAM_TIMEOUT_SECONDS = 15.0
 
 # -- request bodies ---------------------------------------------------------
 
@@ -444,6 +449,64 @@ async def refund_payment(
         }
 
     return await mutate_scope(container, work)
+
+
+@router.get(
+    "/{payment_id}/receipt",
+    summary="The receipt image the customer sent, proxied from Telegram",
+    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
+    response_class=Response,
+)
+async def payment_receipt(
+    payment_id: str,
+    container: ContainerDep,
+    admin: CurrentAdmin,
+) -> Response:
+    """Approving a transfer you cannot see is a signature on a blank page.
+
+    The proof carries a Telegram file id and nothing else. The admin panel has
+    no bot token and must not be given one, so the image was unreachable and an
+    operator had to approve on trust - or open Telegram, find the customer, and
+    scroll.
+
+    The file id is read from the payment rather than accepted from the caller:
+    a file id is a bearer token for whatever it points at, and taking one from
+    the client would turn this into a way to read any file the bot can see.
+    """
+
+    def work(scope: SyncScope) -> str | None:
+        payment = scope.payments.get(payment_id)
+        if payment is None:
+            raise NotFoundError("این پرداخت پیدا نشد.")
+        return payment.proof.file_id if payment.proof else None
+
+    file_id = await read_scope(container, work)
+    if not file_id:
+        raise NotFoundError("برای این پرداخت رسیدی ثبت نشده است.")
+
+    token = container.settings.telegram.bot_token.get_secret_value()
+    if not token:
+        raise NotFoundError("توکن ربات تنظیم نشده، بنابراین رسید قابل دریافت نیست.")
+
+    async with httpx.AsyncClient(timeout=TELEGRAM_TIMEOUT_SECONDS) as client:
+        described = await client.get(
+            f"https://api.telegram.org/bot{token}/getFile", params={"file_id": file_id}
+        )
+        path = (described.json().get("result") or {}).get("file_path") if described.is_success else None
+        if not path:
+            raise NotFoundError("تلگرام این رسید را برنگرداند. ممکن است منقضی شده باشد.")
+
+        image = await client.get(f"https://api.telegram.org/file/bot{token}/{path}")
+        if not image.is_success:
+            raise NotFoundError("دریافت رسید از تلگرام ناموفق بود.")
+
+    return Response(
+        content=image.content,
+        media_type=image.headers.get("content-type", "image/jpeg"),
+        # A receipt carries a bank card number. It is fetched fresh every time
+        # rather than left in a browser cache for whoever uses the machine next.
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 __all__ = ["router"]

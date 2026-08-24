@@ -310,3 +310,39 @@ def test_the_review_queue_is_reachable_from_the_panel() -> None:
     for call in ("api.payments(", "api.approvePayment(", "api.rejectPayment("):
         assert call in screen, f"the queue screen never calls {call}"
     assert "'/payments'" in nav, "the queue is not in the sidebar, so nobody will find it"
+
+
+def test_the_receipt_image_is_reachable_from_the_review_screen() -> None:
+    """Approving a transfer you cannot see is a signature on a blank page.
+
+    The proof carries a Telegram file id and nothing else. The panel has no bot
+    token - and must not be given one - so the image was unreachable and an
+    operator either approved on trust or went looking through Telegram.
+    """
+    registered = registered_paths()
+
+    assert f"{API_V1_PREFIX}/admin/payments/{{id}}/receipt" in registered
+
+    screen = (ADMIN_SRC / "app" / "payments" / "page.tsx").read_text(encoding="utf-8")
+    assert "api.receiptUrl(" in screen, "the review dialog never shows the receipt"
+
+
+def test_the_receipt_endpoint_reads_the_file_id_from_the_payment() -> None:
+    """A Telegram file id is a bearer token for whatever it points at.
+
+    Taking one from the caller would turn this endpoint into a way to read any
+    file the bot can see, so it is looked up from the payment being reviewed.
+    """
+    source = (
+        ADMIN_SRC.parents[1]
+        / "src"
+        / "geekvpn"
+        / "presentation"
+        / "api"
+        / "routers"
+        / "admin_payments.py"
+    ).read_text(encoding="utf-8")
+    receipt = source[source.index('"/{payment_id}/receipt"') :]
+
+    assert "scope.payments.get(payment_id)" in receipt
+    assert "file_id: str" not in receipt.split("async def payment_receipt")[1][:400]
