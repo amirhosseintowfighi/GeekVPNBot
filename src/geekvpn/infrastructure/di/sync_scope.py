@@ -18,7 +18,7 @@ queue does not pay for constructing a notification engine.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
@@ -30,6 +30,7 @@ from geekvpn.application.notifications.broadcast_service import BroadcastService
 from geekvpn.application.notifications.channels import InboxChannel
 from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
+from geekvpn.application.notifications.ports import EventPublisher
 from geekvpn.application.notifications.reminders import ReminderService
 from geekvpn.application.notifications.subscribers import (
     EngineSupportNotifier,
@@ -221,6 +222,30 @@ def build_gateway_registry(session: Session) -> GatewayRegistry:
     return registry
 
 
+class _DeferredEventPublisher:
+    """An `EventPublisher` that resolves the real one on first publish.
+
+    `engine` needs a publisher, `events` needs the notification handlers, and
+    those handlers need `engine`. Constructing any one of them entered the
+    cycle and died with `RecursionError` - a 500 on every request that touched
+    the notification stack, which is approving a payment, refunding one,
+    crediting a wallet and sending a broadcast.
+
+    Deferring the lookup breaks it without weakening anything: by the time
+    something is actually published, `events` has finished building and is
+    cached, so the engine publishes into the same dispatch table as everyone
+    else. Handing the engine a `LoggingEventPublisher` instead - the trick
+    `order_bridge` uses for its own re-entrancy problem - would have broken the
+    cycle too, and silently dropped every event the engine emits.
+    """
+
+    def __init__(self, resolve: Callable[[], EventPublisher]) -> None:
+        self._resolve = resolve
+
+    def publish_all(self, events: Sequence[object]) -> None:
+        self._resolve().publish_all(events)
+
+
 # Deliberately not `slots=True`: `cached_property` needs a real `__dict__`.
 @dataclass
 class SyncScope:
@@ -338,7 +363,9 @@ class SyncScope:
             channels=self.channels,
             clock=self.container.clock,
             ids=self.ids,
-            events=self.events,
+            # Deferred, not `self.events`: the handlers `events` registers need
+            # this engine, so reading it here re-enters its own construction.
+            events=_DeferredEventPublisher(lambda: self.events),
         )
 
     @cached_property
