@@ -31,9 +31,12 @@ from urllib.parse import parse_qsl
 from geekvpn.application.ports.telegram_auth import TelegramIdentity
 from geekvpn.domain.identity.enums import AuthMethod
 from geekvpn.domain.identity.errors import InvalidTelegramAuthError
+from geekvpn.infrastructure.logging.setup import get_logger
 
 #: How old signed Telegram data may be. Telegram itself recommends checking
 #: this; 24h matches how long a Mini App session realistically stays open.
+logger = get_logger(__name__)
+
 DEFAULT_MAX_AGE_SECONDS = 86_400
 
 _EXCLUDED_FROM_CHECK_STRING = frozenset({"hash", "signature"})
@@ -75,13 +78,14 @@ class TelegramSignatureVerifier:
         if not provided:
             raise InvalidTelegramAuthError("initData has no hash.")
 
-        expected = hmac.new(
-            key=self._mini_app_secret,
-            msg=_data_check_string(fields).encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-
-        if not hmac.compare_digest(expected, provided):
+        if not self._signature_matches(fields, provided):
+            # The field names, never the values: they say whether `signature`
+            # was even present, which is the difference between "Telegram
+            # changed the payload again" and "this is not our bot's token".
+            logger.info(
+                "telegram.mini_app_hash_mismatch",
+                fields=sorted(key for key in fields if key != "hash"),
+            )
             raise InvalidTelegramAuthError()
 
         self._ensure_fresh(fields.get("auth_date"), max_age_seconds)
@@ -149,11 +153,39 @@ class TelegramSignatureVerifier:
             raise InvalidTelegramAuthError("Telegram authentication data has expired.")
 
 
-def _data_check_string(fields: dict[str, str]) -> str:
+    def _signature_matches(self, fields: dict[str, str], provided: str) -> bool:
+        """Both spellings of the data-check string, because Telegram has two.
+
+        The documented rule is "every field except `hash`". Then `signature`
+        arrived for third-party Ed25519 validation, and the ecosystem split:
+        some clients hash over it, some exclude it, and Telegram's own docs
+        have said both at different times. A Mini App that verified last month
+        can stop verifying after a client update, with no error but a hash that
+        does not match - which is exactly what this looked like.
+
+        Accepting either costs nothing in security. Both are HMACs over a
+        well-defined string keyed with the bot token, so a valid one still
+        proves Telegram signed this payload for this bot. What excluding
+        `signature` permits is tampering with `signature` itself, which nothing
+        here reads: the Ed25519 path is for third parties who do not have the
+        bot token, and we do.
+        """
+        for excluded in (_EXCLUDED_FROM_CHECK_STRING, frozenset({"hash"})):
+            expected = hmac.new(
+                key=self._mini_app_secret,
+                msg=_data_check_string(fields, excluded).encode("utf-8"),
+                digestmod=hashlib.sha256,
+            ).hexdigest()
+            if hmac.compare_digest(expected, provided):
+                return True
+        return False
+
+
+def _data_check_string(
+    fields: dict[str, str], excluded: frozenset[str] = _EXCLUDED_FROM_CHECK_STRING
+) -> str:
     return "\n".join(
-        f"{key}={value}"
-        for key, value in sorted(fields.items())
-        if key not in _EXCLUDED_FROM_CHECK_STRING
+        f"{key}={value}" for key, value in sorted(fields.items()) if key not in excluded
     )
 
 
