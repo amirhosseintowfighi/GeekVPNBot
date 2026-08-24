@@ -32,8 +32,10 @@ from geekvpn.application.bot.read_models import (
 )
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import PlanView, ProductView
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
+    customer_message,
     match_ref,
     safe_edit,
     tier_of,
@@ -46,6 +48,8 @@ from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
 from geekvpn.presentation.bot.ui.fa import normalize_input, toman
+
+logger = get_logger("bot.purchase")
 
 router = Router(name="purchase")
 
@@ -126,6 +130,11 @@ async def _render_review(
     except Exception:
         # A coupon that validated a moment ago can expire mid-flow. Drop it
         # and re-quote clean rather than dead-ending the purchase.
+        #
+        # Logged even though it is recovered: this also catches a quoting
+        # failure that has nothing to do with coupons, and silently re-quoting
+        # one of those hides a pricing bug behind a working screen.
+        logger.warning("bot.requote_without_coupon", exc_info=True)
         await state.update_data(coupon=None)
         quote = await scope.quoting.quote_view(
             plan_id=plan.id,
@@ -374,8 +383,14 @@ async def on_pay(
             return
 
         await safe_edit(query, T.PAY_GATEWAY_SOON, markup=K.single(K.home_button()))
-    except Exception:
-        await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+    except Exception as failure:
+        # Logged, not merely apologised for. This `except` used to swallow the
+        # exception whole: no traceback, no `handler_failed`, nothing in the
+        # log at all - so a wallet purchase that debited a customer and
+        # delivered nothing left no evidence of what went wrong, and every
+        # attempt to diagnose it from the outside came back empty.
+        logger.exception("bot.payment_failed", method=method, plan_id=str(plan_uuid))
+        await safe_edit(query, customer_message(failure), markup=K.single(K.home_button()))
 
 
 def _card_body(details: CardPaymentDetails, *, amount: int) -> str:

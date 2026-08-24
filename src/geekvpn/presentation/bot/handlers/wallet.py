@@ -24,8 +24,10 @@ from geekvpn.application.bot.read_models import (
     WalletSnapshot,
 )
 from geekvpn.application.bot.services import BotServices
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
+    customer_message,
     safe_edit,
     tier_emoji,
     tier_label,
@@ -39,6 +41,8 @@ from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PageCB, WalletCB
 from geekvpn.presentation.bot.ui.fa import normalize_input, toman
+
+logger = get_logger("bot.wallet")
 
 router = Router(name="wallet")
 
@@ -80,6 +84,10 @@ async def _snapshot(services: BotServices, user: Any) -> WalletSnapshot:
     try:
         return await services.wallet.snapshot(user.id)
     except Exception:
+        # An empty wallet is a safe thing to *draw* and a terrible thing to
+        # believe: a customer whose balance failed to load sees zero, and a
+        # zero balance is indistinguishable from a spent one. Never silently.
+        logger.exception("bot.wallet_snapshot_failed", user_id=getattr(user, "id", None))
         return WalletSnapshot()
 
 
@@ -172,8 +180,9 @@ async def _begin_topup(
 
     try:
         details = await services.checkout.begin_topup(user_id=user.id, amount=amount, method=method)
-    except Exception:
-        await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
+    except Exception as failure:
+        logger.exception("bot.topup_failed", amount=amount, method=method)
+        await safe_edit(query, customer_message(failure), markup=K.single(K.home_button()))
         return
 
     payment = details.payment
@@ -291,6 +300,9 @@ async def _render_history(
         )
         total = await services.wallet.transaction_count(user.id)
     except Exception:
+        # Same reasoning as the snapshot: an empty ledger reads as "you have
+        # never transacted", which is a lie a customer will act on.
+        logger.exception("bot.wallet_ledger_failed", user_id=getattr(user, "id", None))
         transactions, total = [], 0
 
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)

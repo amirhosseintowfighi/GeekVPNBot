@@ -16,6 +16,7 @@ from typing import Any
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.catalog.rewards import (
     TIER_CASHBACK_BONUS_BPS,
     TIER_LABEL_FA,
@@ -23,6 +24,7 @@ from geekvpn.domain.catalog.rewards import (
     LoyaltyTier,
 )
 from geekvpn.presentation.bot.ui import emoji as E
+from geekvpn.presentation.bot.ui import text as T
 
 # Telegram hard-caps a message body at 4096 characters. Renderers stay well
 # under it, but a user-supplied string (a long ticket subject) could push a
@@ -160,3 +162,21 @@ def local_hour(now: datetime, *, offset_hours: float = 3.5) -> int:
         now = now.replace(tzinfo=UTC)
     shifted = now.timestamp() + offset_hours * 3600
     return int((shifted // 3600) % 24)
+
+
+def customer_message(exception: BaseException) -> str:
+    """What to show a customer when something failed.
+
+    A domain error that already carries Persian was written for the person who
+    will read it, and is always better than the generic apology - "پرداخت شما
+    انجام شد، ولی ساخت اکانت هنوز کامل نشده" versus "مشکلی پیش آمد", which
+    after a debit reads as "your money is gone".
+
+    Anything else keeps the generic text: those messages are written for
+    whoever reads the logs, and a stack trace is not an apology.
+    """
+    message = getattr(exception, "message", "")
+    if isinstance(exception, DomainError) and any("؀" <= c <= "ۿ" for c in message):
+        return str(message)
+    return T.ERR_GENERIC
+
