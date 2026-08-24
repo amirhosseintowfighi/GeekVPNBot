@@ -126,6 +126,22 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _request_validation(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Which field, in the log, not only in the response body.
+        #
+        # A 422 read from `docker logs` used to say nothing but "validation
+        # error" on a path, so diagnosing one meant asking whoever hit it to
+        # open devtools and read the response - and every guess in between was
+        # a wasted round trip. The location and the reason are enough to name
+        # the field; the submitted value is deliberately left out, because a
+        # rejected login body holds a password.
+        logger.info(
+            "http.validation_failed",
+            path=request.url.path,
+            fields=[
+                {"loc": ".".join(str(part) for part in error["loc"]), "type": error["type"]}
+                for error in exc.errors()
+            ],
+        )
         return problem_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             title="validation_error",
