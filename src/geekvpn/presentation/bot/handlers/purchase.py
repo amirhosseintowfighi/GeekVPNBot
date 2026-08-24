@@ -31,6 +31,7 @@ from geekvpn.application.bot.read_models import (
     CryptoPaymentDetails,
 )
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.catalog.dto import PlanView, ProductView
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -71,7 +72,17 @@ def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
     return K.stack(rows)
 
 
-async def _find_plan(*, plan_id: uuid.UUID, user: Any, scope: Any, services: Any) -> Any:
+async def _find_plan(
+    *, plan_id: uuid.UUID, user: Any, scope: Any, services: Any
+) -> tuple[PlanView | None, ProductView | None]:
+    """The selected package and the product it belongs to.
+
+    Typed, unlike almost everything else that crosses this file. `Any` here
+    cost a working checkout: the review screen read `plan.name_fa`, which
+    `PlanView` does not have - the catalogue *model* has it, and so does
+    `ServerStatusRow` - and mypy could not see the mistake through an `Any`.
+    Every customer who picked a package got the generic apology.
+    """
     view = await load_storefront(user=user, scope=scope, services=services)
     for category in view.categories:
         for product in category.products:
@@ -100,7 +111,7 @@ async def _render_review(
     plan, product = await _find_plan(
         plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
     )
-    if plan is None:
+    if plan is None or product is None:
         await safe_edit(query, T.PLAN_UNAVAILABLE, markup=K.single(K.home_button()))
         return
 
@@ -123,7 +134,7 @@ async def _render_review(
         )
         coupon = None
 
-    name = f"{product.name} \u2014 {plan.name_fa}"
+    name = f"{product.name} \u2014 {plan.name}"
     await state.update_data(total=quote.total, plan_name=name)
     await state.set_state(Purchase.reviewing)
     await safe_edit(
@@ -243,7 +254,7 @@ async def on_coupon_text(
     plan, product = await _find_plan(
         plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
     )
-    if plan is None:
+    if plan is None or product is None:
         return
     quote = await scope.quoting.quote_view(
         plan_id=plan.id,
@@ -251,7 +262,7 @@ async def on_coupon_text(
         coupon_code=preview.code,
         loyalty_tier=tier_of(snapshot.lifetime_spend),
     )
-    name = f"{product.name} \u2014 {plan.name_fa}"
+    name = f"{product.name} \u2014 {plan.name}"
     await state.update_data(total=quote.total, plan_name=name)
     await answer(
         message,
