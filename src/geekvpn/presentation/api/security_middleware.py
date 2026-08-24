@@ -24,6 +24,7 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 from geekvpn.infrastructure.security import csrf
+from geekvpn.infrastructure.security.csrf import SAFE_METHODS
 from geekvpn.infrastructure.security.ip_allowlist import (
     DENIED_MESSAGE_FA as IP_DENIED_FA,
 )
@@ -197,11 +198,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._trusted_proxy_count = trusted_proxy_count
         self._default_policy = default_policy
 
-    def _policy_name(self, path: str) -> str | None:
+    def _policy_name(self, path: str, method: str) -> str | None:
         # Longest prefix wins, so "/api/v1/admin/analytics/export" is not caught
         # by the looser "/api/v1/admin" entry.
+        #
+        # A prefix cannot tell a read from a write, and one of these policies
+        # allows five requests an hour. Charging a page load against a budget
+        # meant for sending a message to every customer locked the operator out
+        # of the screen after opening it five times - reading the list, and
+        # estimating an audience, both counted as broadcasts.
         best: tuple[int, str] | None = None
         for prefix, name in self._route_policies:
+            if name in WRITE_ONLY_POLICIES and method in SAFE_METHODS:
+                continue
             if path.startswith(prefix) and (best is None or len(prefix) > best[0]):
                 best = (len(prefix), name)
         return best[1] if best else self._default_policy
@@ -211,7 +220,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in EXEMPT_PATHS:
             return await call_next(request)
 
-        name = self._policy_name(path)
+        name = self._policy_name(path, request.method)
         if name is None:
             return await call_next(request)
         try:
@@ -303,6 +312,11 @@ class AdminIpAllowlistMiddleware(BaseHTTPMiddleware):
 
 #: Coarse per-prefix limits for the middleware. Ordered loosest to tightest for
 #: readability only; the lookup picks the longest matching prefix.
+#: Policies that exist to limit an *action*, not a screen. They are skipped
+#: for safe methods, so reading a list never spends a budget meant for the
+#: thing that changes the world.
+WRITE_ONLY_POLICIES: Final[frozenset[str]] = frozenset({"admin.broadcast"})
+
 DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     ("/api/v1/catalog", "catalog.browse"),
     # The Mini App router carries its own prefix and is NOT under /api/v1,
@@ -322,6 +336,10 @@ DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     ("/api/v1/admin/analytics/export", "analytics.export"),
     ("/api/v1/admin/analytics", "analytics.dashboard"),
     ("/api/v1/admin/broadcasts", "admin.broadcast"),
+    # Estimating an audience is not sending to it. The compose screen asks for
+    # a count every time the operator changes the segment, so charging those
+    # against the send budget emptied it before a single message went out.
+    ("/api/v1/admin/broadcasts/estimate", "admin.mutation"),
     ("/api/v1/admin", "admin.mutation"),
     ("/api/v1/payments/receipt", "payments.receipt"),
     ("/api/v1/payments", "payments.checkout"),
