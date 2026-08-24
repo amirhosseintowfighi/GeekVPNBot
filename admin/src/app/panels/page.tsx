@@ -41,6 +41,7 @@ const PANEL_KIND_LABEL: Record<PanelKind, string> = {
  */
 export default function PanelsPage() {
   const [creating, setCreating] = React.useState(false)
+  const [editing, setEditing] = React.useState<PanelRow | null>(null)
   const { can } = useSession()
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<{ ok: boolean; messageFa: string } | null>(null)
@@ -133,7 +134,21 @@ export default function PanelsPage() {
                 const health = SERVER_HEALTH[panel.state]
                 return (
                   <TableRow key={panel.id}>
-                    <TableCell>{panel.nameFa}</TableCell>
+                    <TableCell>
+                      {/* The address is the field most likely to be wrong -
+                          an operator copies it from the browser while looking
+                          at the dashboard - and until now nothing could change
+                          it: `api.updatePanel` existed with no caller, so a
+                          mistyped node had to be lived with. */}
+                      <button
+                        type="button"
+                        disabled={!can('panels.write')}
+                        onClick={() => setEditing(panel)}
+                        className="text-start hover:underline disabled:no-underline"
+                      >
+                        {panel.nameFa}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       <span dir="ltr">{PANEL_KIND_LABEL[panel.panelKind]}</span>
                     </TableCell>
@@ -178,8 +193,12 @@ export default function PanelsPage() {
       </Card>
 
       <NodeDialog
-        open={creating}
-        onClose={() => setCreating(false)}
+        open={creating || editing !== null}
+        node={editing}
+        onClose={() => {
+          setCreating(false)
+          setEditing(null)
+        }}
         onCreated={() => mutate()}
       />
     </>

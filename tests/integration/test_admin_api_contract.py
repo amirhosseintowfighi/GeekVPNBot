@@ -264,3 +264,21 @@ def test_the_platform_can_be_given_a_card_without_touching_the_database() -> Non
     )
     for call in ("api.cards(", "api.createCard(", "api.updateCard("):
         assert call in source, f"the cards screen never calls {call}"
+
+
+def test_a_node_can_be_corrected_after_it_is_created() -> None:
+    """The address is the field most likely to be wrong, and it was read-only.
+
+    An operator copies the panel URL out of their browser while looking at the
+    dashboard, so it arrives as ".../dashboard/" and every call 405s.
+    `api.updatePanel` existed with no caller, so the only remedy was to live
+    with the broken node.
+    """
+    source = (ADMIN_SRC / "components" / "feature" / "node-dialog.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "api.updatePanel(" in source, "nothing edits a node"
+    assert "api.savePanel(" in source, "nothing creates a node"
+    # A blank password must not overwrite the stored credential.
+    assert "...(password ? { password } : {})" in source

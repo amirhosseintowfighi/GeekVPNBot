@@ -3,7 +3,7 @@
 import * as React from 'react'
 
 import { ApiError, api } from '@/lib/api'
-import type { NodeCreateBody } from '@/lib/types'
+import type { NodeCreateBody, PanelRow } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -50,10 +50,13 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
 
 export function NodeDialog({
   open,
+  node,
   onClose,
   onCreated,
 }: {
   open: boolean
+  /** The node being edited, or null to create one. */
+  node?: PanelRow | null
   onClose: () => void
   onCreated: () => void
 }) {
@@ -69,9 +72,28 @@ export function NodeDialog({
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
+  const editing = Boolean(node)
+
+  // Load the node being edited, and clear the form when it changes. The
+  // password is never sent back by the API - only `hasPassword` - so it starts
+  // blank and an untouched field leaves the stored one alone.
+  React.useEffect(() => {
+    setId(node?.id ?? '')
+    setNameFa(node?.nameFa ?? '')
+    setPanelKind(node?.panelKind ?? 'marzban')
+    setBaseUrl(node?.baseUrl ?? '')
+    setUsername(node?.username ?? '')
+    setPassword('')
+    setCountryCode(node?.countryCode ?? '')
+    setCapacity(String(node?.capacity ?? ''))
+    setVerifyTls(node?.verifyTls ?? true)
+    setFailure(null)
+  }, [node, open])
+
   const idValid = ID_PATTERN.test(id)
-  const complete =
-    idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== ''
+  const complete = editing
+    ? nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== ''
+    : idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== ''
 
   const reset = () => {
     setId('')
@@ -89,13 +111,10 @@ export function NodeDialog({
     setBusy(true)
     setFailure(null)
     try {
-      const body: NodeCreateBody = {
-        id: id.trim(),
+      const shared = {
         nameFa: nameFa.trim(),
-        panelKind,
         baseUrl: baseUrl.trim(),
         username: username.trim(),
-        password,
         // Two characters or nothing: the API rejects a one-letter code, and an
         // empty string is not the same as "not set".
         countryCode: countryCode.trim().length === 2 ? countryCode.trim().toUpperCase() : null,
@@ -104,7 +123,24 @@ export function NodeDialog({
         capacity: Number(capacity.replace(/\D/g, '')) || 0,
         verifyTls,
       }
-      await api.savePanel(body)
+
+      if (node) {
+        // PATCH, and only what changed. A blank password means "leave it
+        // alone" - sending an empty one would wipe the stored credential and
+        // the next provision would fail authentication.
+        await api.updatePanel(node.id, {
+          ...shared,
+          ...(password ? { password } : {}),
+        })
+      } else {
+        const body: NodeCreateBody = {
+          ...shared,
+          id: id.trim(),
+          panelKind,
+          password,
+        }
+        await api.savePanel(body)
+      }
       onCreated()
       onClose()
       reset()
@@ -119,7 +155,7 @@ export function NodeDialog({
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{'سرور جدید'}</DialogTitle>
+          <DialogTitle>{editing ? 'ویرایش سرور' : 'سرور جدید'}</DialogTitle>
           <DialogDescription>
             {'اعتبارنامه‌ی پنل رمزنگاری‌شده ذخیره می‌شود. بعد از ساخت، اتصال را تست کنید.'}
           </DialogDescription>
@@ -133,10 +169,11 @@ export function NodeDialog({
           >
             <Input
               ltr
+              disabled={editing}
               value={id}
               onChange={(event) => setId(event.target.value.toLowerCase())}
               placeholder="de-frankfurt-1"
-              autoFocus
+              autoFocus={!editing}
             />
           </Field>
 
@@ -149,7 +186,7 @@ export function NodeDialog({
           </Field>
 
           <Field label={'نوع پنل'}>
-            <Select value={panelKind} onValueChange={setPanelKind}>
+            <Select value={panelKind} onValueChange={setPanelKind} disabled={editing}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -163,7 +200,10 @@ export function NodeDialog({
             </Select>
           </Field>
 
-          <Field label={'آدرس پنل'} hint={'با https و بدون اسلش پایانی'}>
+          <Field
+            label={'آدرس پنل'}
+            hint={'فقط ریشه، بدون مسیر. «/dashboard» صفحه‌ای است که خودتان می‌بینید، نه ریشه‌ی API.'}
+          >
             <Input
               ltr
               value={baseUrl}
@@ -182,7 +222,10 @@ export function NodeDialog({
               />
             </Field>
 
-            <Field label={'گذرواژه پنل'}>
+            <Field
+              label={'گذرواژه پنل'}
+              hint={editing ? 'خالی بگذارید تا تغییر نکند' : undefined}
+            >
               <Input
                 ltr
                 type="password"
@@ -237,7 +280,7 @@ export function NodeDialog({
             {'انصراف'}
           </Button>
           <Button loading={busy} disabled={!complete} onClick={submit}>
-            {'ساخت سرور'}
+            {editing ? 'ذخیره' : 'ساخت سرور'}
           </Button>
         </DialogFooter>
       </DialogContent>
