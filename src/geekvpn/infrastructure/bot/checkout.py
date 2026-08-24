@@ -314,7 +314,7 @@ class BotCheckoutAdapter:
             # The owner is passed so a customer cannot attach proof to
             # somebody else's payment; ids travel through Telegram messages.
             payment = scope.checkout.submit_proof(
-                payment_id=str(payment_id), proof=proof, user_id=owner_id
+                payment_id=_as_stored_id(payment_id), proof=proof, user_id=owner_id
             )
             return PendingPayment(
                 payment_id=_as_uuid(payment.id),
@@ -399,6 +399,20 @@ def _as_uuid(value: str) -> uuid.UUID:
         return uuid.UUID(value)
     except ValueError:
         return uuid.UUID(int=0)
+
+
+def _as_stored_id(value: uuid.UUID) -> str:
+    """The inverse of `_as_uuid`, and it must be exact.
+
+    Payment ids are `uuid4().hex` - thirty-two characters, no dashes - because
+    that is what `Uuid4IdGenerator` produces. `str(UUID)` puts the dashes back,
+    so a payment created as "e89789f92d04..." was looked up as
+    "e89789f9-2d04-...", matched nothing, and every receipt a customer sent was
+    refused with the generic apology. The bot layer speaks UUIDs and the
+    payment store speaks strings; this is the one place that has to know they
+    are written differently.
+    """
+    return value.hex
 
 
 __all__ = ["BotCheckoutAdapter"]
