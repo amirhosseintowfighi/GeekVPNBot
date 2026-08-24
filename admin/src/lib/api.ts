@@ -59,12 +59,15 @@ export const SESSION_ERROR =
 export class ApiError extends Error {
   readonly status: number
   readonly messageFa: string
+  /** Field locations a 422 objected to, empty for every other status. */
+  readonly fields: readonly string[]
 
-  constructor(status: number, messageFa: string) {
+  constructor(status: number, messageFa: string, fields: readonly string[] = []) {
     super(`admin api error ${status}`)
     this.name = 'ApiError'
     this.status = status
     this.messageFa = messageFa
+    this.fields = fields
   }
 }
 
@@ -87,6 +90,33 @@ function messageForStatus(status: number, serverMessage?: string): string {
   return GENERIC_ERROR
 }
 
+/**
+ * The fields a 422 objected to, named.
+ *
+ * "اطلاعات واردشده درست نیست" with no indication of which field leaves an
+ * operator re-reading a form that looks correct - and it is not always a form
+ * field at all: a missing `Idempotency-Key` header fails the same way and no
+ * amount of staring at the inputs will reveal it. The API says exactly what it
+ * rejected; there is no reason to withhold it.
+ */
+function fieldsFromErrors(body: unknown): string[] {
+  if (typeof body !== 'object' || body === null) return []
+  const errors = (body as { errors?: unknown }).errors
+  if (!Array.isArray(errors)) return []
+  return errors
+    .map((error) => {
+      const loc = (error as { loc?: unknown }).loc
+      if (!Array.isArray(loc)) return null
+      // Drop the leading "body"/"query" segment, which names the part of the
+      // request rather than the field. "header" is kept: it is the difference
+      // between a form the operator can fix and one they cannot.
+      const parts = loc.map(String)
+      const trimmed = parts[0] === 'body' || parts[0] === 'query' ? parts.slice(1) : parts
+      return trimmed.join('.')
+    })
+    .filter((name): name is string => Boolean(name))
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
 
@@ -102,6 +132,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let serverMessage: string | undefined
+    let fields: string[] = []
     try {
       // `message_fa`, not `messageFa`. The API speaks problem details in
       // snake_case; reading the camelCase spelling meant `serverMessage` was
@@ -109,10 +140,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       // whatever had actually gone wrong.
       const body = (await response.json()) as { message_fa?: string }
       serverMessage = body.message_fa
+      fields = fieldsFromErrors(body)
     } catch {
       // A non-JSON error body is a proxy or gateway page. Never render it.
     }
-    throw new ApiError(response.status, messageForStatus(response.status, serverMessage))
+    const message = messageForStatus(response.status, serverMessage)
+    throw new ApiError(
+      response.status,
+      fields.length > 0 ? `${message} (${fields.join('، ')})` : message,
+      fields,
+    )
   }
 
   if (response.status === 204) return undefined as T
