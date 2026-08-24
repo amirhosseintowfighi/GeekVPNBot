@@ -51,6 +51,7 @@ from geekvpn.domain.catalog.pricing import PriceQuote
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.invoice import InvoiceLine
 from geekvpn.domain.payments.proof import PaymentProof
+from geekvpn.domain.provisioning.errors import DeliveryPending
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
@@ -141,7 +142,20 @@ class BotCheckoutAdapter:
         # forces the re-read; without it wallet checkout fails every time.
         self._session.expire_all()
 
-        subscription = await self._provisioning.provision(order.id)
+        try:
+            subscription = await self._provisioning.provision(order.id)
+        except Exception:
+            # The money is ours and the order says so. Persist whatever state
+            # provisioning reached - it marks the order FAILED for the retry
+            # queue - and tell the customer the truth instead of the generic
+            # apology, which reads as "your payment vanished".
+            await self._session.commit()
+            raise DeliveryPending(
+                "پرداخت شما انجام شد، ولی ساخت اکانت هنوز کامل نشده است. "
+                "پشتیبانی در جریان است و سرویس به‌زودی فعال می‌شود.",
+                order_id=order.id,
+            ) from None
+
         return to_card(subscription, order)
 
     async def begin_card(
@@ -282,6 +296,18 @@ class BotCheckoutAdapter:
             coupon_code=coupon_code,
         )
 
+        # Committed before a single Rial moves.
+        #
+        # The order lives on this async session; the wallet debit, the invoice
+        # and `OrderPaymentBridge` all live on the synchronous one. A separate
+        # transaction cannot see an uncommitted row, so the bridge looked for
+        # this order, found nothing, and left it PENDING - and `provision` then
+        # refused, because PENDING to PROVISIONING is not a legal transition.
+        # The customer's balance had already gone down by then, and the
+        # exception rolled this session back, so the order they had paid for
+        # ceased to exist.
+        await self._session.commit()
+
         await self._record_coupon_use(quote, user_id=user_id, order_id=order.id)
 
         year = self._jalali_year
@@ -305,6 +331,11 @@ class BotCheckoutAdapter:
         # approved payment cannot find its order and nothing gets provisioned.
         order.invoice_id = result.invoice.id
         await self._order_repository.update(order)
+        # Again, for the same reason: whatever happens next - a panel that will
+        # not answer, a node with no capacity - the order and its invoice link
+        # are already durable, and the admin panel can retry the delivery
+        # rather than an operator reconstructing it from a bank statement.
+        await self._session.commit()
         return result, order
 
     async def _submit_proof(

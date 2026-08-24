@@ -20,6 +20,7 @@ from __future__ import annotations
 from aiogram import Router
 from aiogram.types import CallbackQuery, ErrorEvent, Message
 
+from geekvpn.domain.base.errors import DomainError
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.ui import text as T
 
@@ -43,20 +44,38 @@ async def on_error(event: ErrorEvent) -> bool:
         error=str(event.exception),
     )
 
+    # A domain error that already speaks Persian was written for the person
+    # about to read it, and is always more use than the generic apology. The
+    # difference matters most exactly where this was worst: a customer whose
+    # wallet had just been debited was told "something went wrong", which reads
+    # as "your money is gone", when the truth was "paid, delivery in progress".
+    #
+    # Anything else - a bug, a driver error - keeps the generic text. Those
+    # messages are written for whoever reads the logs.
+    reply = T.ERR_GENERIC
+    if isinstance(event.exception, DomainError) and _is_persian(event.exception.message):
+        reply = event.exception.message
+
     # Best-effort only. The customer already saw a failure; a second one while
     # apologising must not escalate into the redelivery loop we are avoiding.
     try:
         callback: CallbackQuery | None = getattr(update, "callback_query", None)
         if callback is not None:
-            await callback.answer(T.ERR_GENERIC, show_alert=True)
+            await callback.answer(reply, show_alert=True)
             return True
 
         message: Message | None = getattr(update, "message", None)
         if message is not None:
-            await message.answer(T.ERR_GENERIC)
+            await message.answer(reply)
     except Exception:  # noqa: S110 - see below
         # Telegram refuses to answer an expired callback, and an apology that
         # fails must not become the error it is apologising for.
         pass
 
     return True
+
+
+def _is_persian(text: str) -> bool:
+    """Whether this message was written for a customer or for a log reader."""
+    return any("؀" <= character <= "ۿ" for character in text)
+

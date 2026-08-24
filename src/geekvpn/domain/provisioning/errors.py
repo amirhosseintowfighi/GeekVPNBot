@@ -97,3 +97,20 @@ __all__ = [
     "SubscriptionNotFound",
     "SubscriptionRevoked",
 ]
+
+
+class DeliveryPending(ProvisioningError):
+    """Paid for, not yet delivered, and the money must stay accounted for.
+
+    Wallet checkout settles the payment and provisions in the same breath. When
+    the panel refuses at that last step the customer has already been debited,
+    so the failure is not "something went wrong" - it is a service that is owed
+    and is coming. The order survives in FAILED for the retry queue, which is
+    what the admin panel's retry button acts on.
+
+    Carries its own Persian message because the customer reads it directly.
+    """
+
+    code = "delivery_pending"
+    message = "پرداخت انجام شد و سرویس به‌زودی فعال می‌شود."
+
