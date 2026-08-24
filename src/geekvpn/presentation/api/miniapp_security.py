@@ -24,12 +24,15 @@ from fastapi import Depends, Header
 
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.identity.dto import UserProfile
-from geekvpn.domain.base.errors import AuthenticationError
+from geekvpn.domain.base.errors import AuthenticationError, DomainError
 from geekvpn.infrastructure.bot.services import build_bot_services
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.security import ScopeDep
 
 #: The scheme Telegram's Mini App SDK uses. Compared case-insensitively because
 #: the SDK's own examples disagree with each other about the capitalisation.
+logger = get_logger(__name__)
+
 SCHEME = "tma"
 
 
@@ -52,7 +55,29 @@ async def current_mini_app_user(
     message: telling an attacker which half of the header was wrong is free
     information.
     """
-    return await scope.authenticate_telegram.verify_mini_app_request(_init_data(authorization))
+    try:
+        return await scope.authenticate_telegram.verify_mini_app_request(_init_data(authorization))
+    except DomainError as failure:
+        # Which of them, in the log.
+        #
+        # Six different things produce this one 401 - no header, wrong scheme,
+        # empty initData, a hash that does not match, data older than the
+        # freshness window, no user object - and they need completely different
+        # fixes. The response deliberately says none of it, because telling an
+        # attacker which half of the header was wrong is free information. The
+        # operator reading the log has already proven they own the server.
+        #
+        # The initData itself is never logged: it is a valid credential until
+        # it expires, and a log file is not the place for one. Its length
+        # separates "empty" from "present and rejected", which is the only part
+        # that matters here.
+        logger.info(
+            "miniapp.auth_rejected",
+            reason=str(failure),
+            header_present=authorization is not None,
+            init_data_length=len(authorization or "") - len(SCHEME) - 1,
+        )
+        raise
 
 
 CurrentMiniAppUser = Annotated[UserProfile, Depends(current_mini_app_user)]
