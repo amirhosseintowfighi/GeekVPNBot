@@ -185,134 +185,6 @@ async def list_payments(
     return await read_scope(container, work)
 
 
-@router.get(
-    "/{payment_id}",
-    summary="One payment, with its receipt and refund history",
-    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
-)
-async def get_payment(
-    payment_id: str,
-    container: ContainerDep,
-    admin: CurrentAdmin,
-) -> dict[str, Any]:
-    now = container.clock.now()
-
-    def work(scope: SyncScope) -> dict[str, Any]:
-        payment = scope.payments.get(payment_id)
-        if payment is None:
-            raise NotFoundError("این پرداخت پیدا نشد.", payment_id=payment_id)
-        return _payment_dict(payment, now=now)
-
-    return await read_scope(container, work)
-
-
-@router.post(
-    "/{payment_id}/approve",
-    status_code=status.HTTP_200_OK,
-    summary="Approve a manually-paid payment",
-    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
-)
-async def approve_payment(
-    payment_id: str,
-    payload: ApproveRequestBody,
-    idempotency_key: IdempotencyKey,
-    container: ContainerDep,
-    actor: ActorId,
-) -> dict[str, Any]:
-    await claim_idempotency(container, idempotency_key, scope_label=f"payment.approve:{payment_id}")
-    request = ApprovalRequest(
-        payment_id=payment_id, actor_id=actor, actual_amount=payload.actualAmount
-    )
-
-    def work(scope: SyncScope) -> dict[str, Any]:
-        return _payment_dict(scope.review.approve(request))
-
-    return await mutate_scope(container, work)
-
-
-@router.post(
-    "/{payment_id}/reject",
-    status_code=status.HTTP_200_OK,
-    summary="Reject a payment with a reason the customer will read",
-    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
-)
-async def reject_payment(
-    payment_id: str,
-    payload: RejectRequestBody,
-    idempotency_key: IdempotencyKey,
-    container: ContainerDep,
-    actor: ActorId,
-) -> dict[str, Any]:
-    await claim_idempotency(container, idempotency_key, scope_label=f"payment.reject:{payment_id}")
-
-    def work(scope: SyncScope) -> dict[str, Any]:
-        return _payment_dict(
-            scope.review.reject(payment_id=payment_id, actor_id=actor, reason_fa=payload.reasonFa)
-        )
-
-    return await mutate_scope(container, work)
-
-
-@router.post(
-    "/{payment_id}/request-proof",
-    status_code=status.HTTP_200_OK,
-    summary="Ask the customer for a clearer receipt",
-    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
-)
-async def request_better_proof(
-    payment_id: str,
-    idempotency_key: IdempotencyKey,
-    container: ContainerDep,
-    actor: ActorId,
-) -> dict[str, Any]:
-    await claim_idempotency(container, idempotency_key, scope_label=f"payment.proof:{payment_id}")
-
-    def work(scope: SyncScope) -> dict[str, Any]:
-        return _payment_dict(
-            scope.review.request_better_proof(payment_id=payment_id, actor_id=actor)
-        )
-
-    return await mutate_scope(container, work)
-
-
-@router.post(
-    "/{payment_id}/refund",
-    status_code=status.HTTP_200_OK,
-    summary="Refund a settled payment, to the wallet by default",
-    dependencies=[Depends(requires(Permission.ORDERS_REFUND))],
-)
-async def refund_payment(
-    payment_id: str,
-    payload: RefundRequestBody,
-    idempotency_key: IdempotencyKey,
-    container: ContainerDep,
-    actor: ActorId,
-) -> dict[str, Any]:
-    await claim_idempotency(container, idempotency_key, scope_label=f"payment.refund:{payment_id}")
-    request = RefundRequest(
-        payment_id=payment_id,
-        actor_id=actor,
-        reason=payload.reason,
-        note_fa=payload.noteFa,
-        amount=payload.amount,
-        destination=payload.destination,
-    )
-
-    def work(scope: SyncScope) -> dict[str, Any]:
-        outcome = scope.refunds.refund(request)
-        return {
-            "payment": _payment_dict(outcome.payment),
-            "refundId": outcome.entry.refund_id,
-            "amount": outcome.entry.amount,
-            "destination": outcome.destination.value,
-            "walletCredited": outcome.wallet_credited,
-            "fullyRefunded": outcome.fully_refunded,
-            "messageFa": outcome.message_fa,
-        }
-
-    return await mutate_scope(container, work)
-
-
 # -- destination cards -------------------------------------------------------
 #
 # The card-to-card flow reads its destination from `billing_card_accounts`,
@@ -437,6 +309,139 @@ async def update_card(
         card.daily_limit = payload.daily_limit
         scope.session.flush()
         return _card_dict(card)
+
+    return await mutate_scope(container, work)
+
+
+# Declared before `/{payment_id}`, and it has to stay that way: FastAPI
+# matches in declaration order, so a literal path that comes after a
+# parameterised one on the same prefix is unreachable. It was, and the
+# symptom read like a database fault - creating a card worked, listing them
+# returned nothing, and adding the same card again said it already existed.
+@router.get(
+    "/{payment_id}",
+    summary="One payment, with its receipt and refund history",
+    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
+)
+async def get_payment(
+    payment_id: str,
+    container: ContainerDep,
+    admin: CurrentAdmin,
+) -> dict[str, Any]:
+    now = container.clock.now()
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        payment = scope.payments.get(payment_id)
+        if payment is None:
+            raise NotFoundError("این پرداخت پیدا نشد.", payment_id=payment_id)
+        return _payment_dict(payment, now=now)
+
+    return await read_scope(container, work)
+
+
+@router.post(
+    "/{payment_id}/approve",
+    status_code=status.HTTP_200_OK,
+    summary="Approve a manually-paid payment",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def approve_payment(
+    payment_id: str,
+    payload: ApproveRequestBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+    actor: ActorId,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"payment.approve:{payment_id}")
+    request = ApprovalRequest(
+        payment_id=payment_id, actor_id=actor, actual_amount=payload.actualAmount
+    )
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        return _payment_dict(scope.review.approve(request))
+
+    return await mutate_scope(container, work)
+
+
+@router.post(
+    "/{payment_id}/reject",
+    status_code=status.HTTP_200_OK,
+    summary="Reject a payment with a reason the customer will read",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def reject_payment(
+    payment_id: str,
+    payload: RejectRequestBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+    actor: ActorId,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"payment.reject:{payment_id}")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        return _payment_dict(
+            scope.review.reject(payment_id=payment_id, actor_id=actor, reason_fa=payload.reasonFa)
+        )
+
+    return await mutate_scope(container, work)
+
+
+@router.post(
+    "/{payment_id}/request-proof",
+    status_code=status.HTTP_200_OK,
+    summary="Ask the customer for a clearer receipt",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def request_better_proof(
+    payment_id: str,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+    actor: ActorId,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"payment.proof:{payment_id}")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        return _payment_dict(
+            scope.review.request_better_proof(payment_id=payment_id, actor_id=actor)
+        )
+
+    return await mutate_scope(container, work)
+
+
+@router.post(
+    "/{payment_id}/refund",
+    status_code=status.HTTP_200_OK,
+    summary="Refund a settled payment, to the wallet by default",
+    dependencies=[Depends(requires(Permission.ORDERS_REFUND))],
+)
+async def refund_payment(
+    payment_id: str,
+    payload: RefundRequestBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+    actor: ActorId,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"payment.refund:{payment_id}")
+    request = RefundRequest(
+        payment_id=payment_id,
+        actor_id=actor,
+        reason=payload.reason,
+        note_fa=payload.noteFa,
+        amount=payload.amount,
+        destination=payload.destination,
+    )
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        outcome = scope.refunds.refund(request)
+        return {
+            "payment": _payment_dict(outcome.payment),
+            "refundId": outcome.entry.refund_id,
+            "amount": outcome.entry.amount,
+            "destination": outcome.destination.value,
+            "walletCredited": outcome.wallet_credited,
+            "fullyRefunded": outcome.fully_refunded,
+            "messageFa": outcome.message_fa,
+        }
 
     return await mutate_scope(container, work)
 

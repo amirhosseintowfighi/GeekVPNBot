@@ -113,6 +113,36 @@ export default function ProductsPage() {
         />
       ) : null}
 
+      {/* Categories, and whether each is published.
+          The storefront requires a published category, product *and* package,
+          so a draft category hides every product under it - and the operator
+          gets no clue, because the panel itself lists them all regardless.
+          Categories created before this published on creation are drafts. */}
+      {can('packages.write') && (categories.data ?? []).length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{'دسته‌بندی‌ها'}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {(categories.data ?? []).map((category) => (
+              <label
+                key={category.id}
+                className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+              >
+                <Switch
+                  checked={category.state === 'published'}
+                  onCheckedChange={async (checked) => {
+                    await api.setCategoryState(category.id, checked ? 'published' : 'draft')
+                    categories.mutate()
+                  }}
+                />
+                <span className="text-xs">{category.nameFa}</span>
+              </label>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <Toolbar>
           <FilterSelect

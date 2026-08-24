@@ -282,3 +282,13 @@ def test_a_node_can_be_corrected_after_it_is_created() -> None:
     assert "api.savePanel(" in source, "nothing creates a node"
     # A blank password must not overwrite the stored credential.
     assert "...(password ? { password } : {})" in source
+
+
+def test_every_link_in_the_storefront_chain_has_a_control() -> None:
+    """The bot shows a package only when category, product and package are all
+    published. Each needed a switch; the category had none, so a correctly
+    built catalogue stayed invisible with nothing on screen to explain it."""
+    source = (ADMIN_SRC / "app" / "products" / "page.tsx").read_text(encoding="utf-8")
+
+    for call in ("setCategoryState", "setProductState", "setPlanState"):
+        assert call in source, f"nothing on the products screen calls {call}"
