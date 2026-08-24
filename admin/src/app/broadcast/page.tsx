@@ -136,6 +136,17 @@ export default function BroadcastPage() {
                             {broadcast.failedCount > 0
                               ? ' \u00b7 ' + faNumber(broadcast.failedCount) + ' \u0646\u0627\u0645\u0648\u0641\u0642'
                               : ''}
+                            {/* Suppressed is not failed, and hiding it is why a
+                                broadcast that reached nobody looked like one
+                                that reached everybody. A customer is skipped
+                                when they muted the category, when they have
+                                had their two marketing messages for the day,
+                                or when the same message already went out. */}
+                            {broadcast.suppressedCount > 0
+                              ? ' \u00b7 ' +
+                                faNumber(broadcast.suppressedCount) +
+                                ' \u0631\u062f\u0634\u062f\u0647'
+                              : ''}
                           </span>
                         </div>
                       </TableCell>
@@ -270,7 +281,17 @@ function ComposeDialog({
             </span>
           </div>
 
-          <Field label={'\u062f\u0633\u062a\u0647\u200c\u0628\u0646\u062f\u06cc'}>
+          <Field
+            label={'\u062f\u0633\u062a\u0647\u200c\u0628\u0646\u062f\u06cc'}
+            hint={
+              // MARKETING_DAILY_CAP in application/notifications/engine.py.
+              // Invisible until now: the third promotional message of the day
+              // was skipped per customer and the history still read "sent".
+              category === 'critical'
+                ? '\u0627\u0632 \u0633\u0627\u0639\u0627\u062a \u0633\u06a9\u0648\u062a \u0648 \u0633\u0642\u0641 \u0631\u0648\u0632\u0627\u0646\u0647 \u0639\u0628\u0648\u0631 \u0645\u06cc\u200c\u06a9\u0646\u062f. \u0641\u0642\u0637 \u0628\u0631\u0627\u06cc \u0627\u0637\u0644\u0627\u0639\u200c\u0631\u0633\u0627\u0646\u06cc \u0636\u0631\u0648\u0631\u06cc.'
+                : '\u0647\u0631 \u0645\u0634\u062a\u0631\u06cc \u0631\u0648\u0632\u0627\u0646\u0647 \u062d\u062f\u0627\u06a9\u062b\u0631 \u06f2 \u067e\u06cc\u0627\u0645 \u062a\u0628\u0644\u06cc\u063a\u0627\u062a\u06cc \u06cc\u0627 \u062e\u0628\u0631\u06cc \u0645\u06cc\u200c\u06af\u06cc\u0631\u062f\u061b \u0628\u06cc\u0634\u062a\u0631 \u0627\u0632 \u0622\u0646 \u0631\u062f \u0645\u06cc\u200c\u0634\u0648\u062f.'
+            }
+          >
             <Select value={category} onValueChange={(value) => setCategory(value as typeof category)}>
               <SelectTrigger>
                 <SelectValue />
