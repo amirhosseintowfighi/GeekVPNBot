@@ -318,9 +318,9 @@ export const api = {
    * so the chain stopped at its first link and the catalogue could never leave
    * draft.
    */
-  bindProductPanel: (productId: string, panelId: string, nodeTags: string[] = []) =>
+  bindProductPanel: (productId: string, nodeId: string, nodeTags: string[] = []) =>
     mutate<ProductRow>('PUT', `${ROOT}/catalog/products/${productId}/panel`, {
-      panelId,
+      nodeId,
       nodeTags,
     }),
 

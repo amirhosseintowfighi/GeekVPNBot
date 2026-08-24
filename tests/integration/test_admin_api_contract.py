@@ -220,3 +220,26 @@ def test_the_panel_can_walk_the_whole_chain_from_node_to_published_package() -> 
             f"the products screen never calls {call}, so the chain stops there"
         )
         assert f"{call}:" in client, f"{call} is missing from the client"
+
+
+def test_the_panel_binds_a_product_with_a_field_the_route_accepts() -> None:
+    """The id an operator can see, not one they cannot produce.
+
+    Node ids are strings; the route used to demand a UUID, so the dropdown on
+    the products screen could not send anything that validated.
+    """
+    from geekvpn.presentation.api.schemas_catalog import ProductPanelBindRequest
+
+    accepted = set(ProductPanelBindRequest.model_fields)
+    source = (ADMIN_SRC / "lib" / "api.ts").read_text(encoding="utf-8")
+    call = source[source.index("bindProductPanel") : source.index("bindProductPanel") + 300]
+
+    assert "nodeId" in call, "the panel no longer sends a node id"
+    assert "node_id" in accepted, "the route no longer takes a node id"
+
+
+def test_a_product_response_names_the_node_it_provisions_from() -> None:
+    """`panel_id` is a derived uuid5 nobody can read. The screen shows a server."""
+    from geekvpn.presentation.api.schemas_catalog import ProductAdminResponse
+
+    assert "node_id" in ProductAdminResponse.model_fields

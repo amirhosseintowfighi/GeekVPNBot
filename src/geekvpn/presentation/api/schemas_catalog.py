@@ -181,7 +181,17 @@ class ProductUpdateRequest(_Schema):
 
 
 class ProductPanelBindRequest(_Schema):
-    panel_id: uuid.UUID
+    """Bind by node id, which is the only id an operator ever sees.
+
+    This used to take `panel_id: UUID`. Node ids are opaque strings in this
+    schema - "de-frankfurt-1" - so there was no value the admin panel could
+    send that would validate, and binding a product was impossible from the
+    only screen that offers it. The UUID the product stores is derived from the
+    node id by `panel_id_for`, the same function provisioning uses to address
+    the account it created.
+    """
+
+    node_id: str = Field(min_length=1, max_length=64)
     node_tags: list[str] = Field(default_factory=list)
 
 
@@ -201,6 +211,9 @@ class ProductAdminResponse(_Schema):
     is_featured: bool
     state: str
     panel_id: uuid.UUID | None
+    #: The node behind `panel_id`, resolved back for display. The panel selects
+    #: a server by name; the UUID means nothing to anyone reading the screen.
+    node_id: str | None = None
     node_tags: list[str]
     is_provisionable: bool
 

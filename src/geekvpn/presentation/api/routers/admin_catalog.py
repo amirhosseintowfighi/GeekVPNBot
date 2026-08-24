@@ -34,6 +34,8 @@ from geekvpn.application.catalog.commands import (
 )
 from geekvpn.application.catalog.dto import QuoteView
 from geekvpn.application.catalog.duration_ladder import LadderRequest
+from geekvpn.application.provisioning import panel_id_for
+from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.catalog.campaign import Campaign
 from geekvpn.domain.catalog.category import Category
 from geekvpn.domain.catalog.coupon import Coupon
@@ -175,7 +177,15 @@ async def set_category_state(
 # -- products --------------------------------------------------------------
 
 
-def _product_view(product: Product) -> ProductAdminResponse:
+def _product_view(
+    product: Product, node_ids: dict[uuid.UUID, str] | None = None
+) -> ProductAdminResponse:
+    """`node_ids` maps the derived panel UUID back to the node it came from.
+
+    Derivation is one-way - `panel_id_for` is a uuid5 - so the only way to
+    show which server a product provisions from is to derive every node's id
+    and look the product's up. Cheap: the node list is small and read once
+    per request."""
     return ProductAdminResponse(
         id=product.id,
         category_id=product.category_id,
@@ -192,6 +202,7 @@ def _product_view(product: Product) -> ProductAdminResponse:
         is_featured=product.is_featured,
         state=product.state.value,
         panel_id=product.panel_id,
+        node_id=(node_ids or {}).get(product.panel_id) if product.panel_id else None,
         node_tags=list(product.node_tags),
         is_provisionable=product.is_provisionable,
     )
@@ -207,7 +218,10 @@ async def list_products(
     scope: ScopeDep, category_id: uuid.UUID | None = Query(default=None)
 ) -> list[ProductAdminResponse]:
     products = await scope.catalog_admin.list_products(category_id=category_id)
-    return [_product_view(p) for p in products]
+    # One node read for the whole list, so each row can name the server it
+    # provisions from instead of showing a UUID nobody recognises.
+    node_ids = {panel_id_for(node.id): node.id for node in await scope.nodes.list_all()}
+    return [_product_view(p, node_ids) for p in products]
 
 
 @router.post(
@@ -262,13 +276,20 @@ async def bind_panel(
     actor: CurrentAdmin,
     scope: ScopeDep,
 ) -> ProductAdminResponse:
+    node = await scope.nodes.get_for_admin(payload.node_id)
+    if node is None:
+        raise NotFoundError(f"There is no node called '{payload.node_id}'.")
+
     product = await scope.catalog_admin.bind_product_panel(
         product_id,
-        panel_id=payload.panel_id,
+        # The same derivation provisioning uses to address the account it
+        # creates. Sending a raw UUID here would bind the product to a panel no
+        # adapter is ever built for.
+        panel_id=panel_id_for(node.id),
         node_tags=tuple(payload.node_tags),
         actor_id=actor.subject_id,
     )
-    return _product_view(product)
+    return _product_view(product, {panel_id_for(node.id): node.id})
 
 
 @router.put(
