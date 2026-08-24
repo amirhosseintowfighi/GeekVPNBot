@@ -13,7 +13,7 @@ import {
   quotaFieldsFor,
   type PlanTypeValue,
 } from '@/lib/plans'
-import type { CategoryRow, DurationRung, PlanRow, ProductRow } from '@/lib/types'
+import type { CategoryRow, DurationRung, PanelRow, PlanRow, ProductRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -65,6 +65,9 @@ export default function ProductsPage() {
   const [creatingCategory, setCreatingCategory] = React.useState(false)
 
   const categories = useSWR<CategoryRow[]>('categories', () => api.categories())
+  // The nodes a product can be bound to. Without one it cannot be
+  // published, and without a published product no package can be either.
+  const panels = useSWR<PanelRow[]>('panels', () => api.panels())
   const products = useSWR<ProductRow[]>(['products', categoryId], () => api.products({ categoryId }))
   const plans = useSWR<PlanRow[]>(
     selectedProduct ? ['plans', selectedProduct] : null,
@@ -161,12 +164,56 @@ export default function ProductsPage() {
                         ?.nameFa ?? '\u2014'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={stateMeta.tone} dot>
-                        {stateMeta.fa}
-                      </Badge>
+                      {/* A package cannot be published while its product is a
+                          draft, and nothing here could publish a product:
+                          `api.setProductState` existed with no caller, so the
+                          whole catalogue was stuck in draft with no way out. */}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={product.state === 'published'}
+                          disabled={!can('packages.write') || product.state === 'archived'}
+                          onCheckedChange={async (checked) => {
+                            await api.setProductState(
+                              product.id,
+                              checked ? 'published' : 'draft',
+                            )
+                            products.mutate()
+                          }}
+                        />
+                        <Badge variant={stateMeta.tone} dot>
+                          {stateMeta.fa}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {product.nodeId ?? '\u0645\u062a\u0635\u0644 \u0646\u0634\u062f\u0647'}
+                    <TableCell>
+                      {/* Binding is what makes a product publishable at all -
+                          `Product.publish` refuses an unbound one - so this is
+                          the first thing to fix on a product, not a detail
+                          hidden behind an edit screen. */}
+                      {can('packages.write') ? (
+                        <Select
+                          value={product.nodeId ?? ''}
+                          onValueChange={async (panelId) => {
+                            await api.bindProductPanel(product.id, panelId)
+                            products.mutate()
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-36 text-2xs">
+                            <SelectValue placeholder={'\u0645\u062a\u0635\u0644 \u0646\u0634\u062f\u0647'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(panels.data ?? []).map((panel) => (
+                              <SelectItem key={panel.id} value={panel.id}>
+                                {panel.nameFa}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {product.nodeId ?? '\u0645\u062a\u0635\u0644 \u0646\u0634\u062f\u0647'}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{product.tier}</TableCell>
                     <TableCell>

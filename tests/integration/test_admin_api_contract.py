@@ -200,3 +200,23 @@ def test_the_panel_sends_the_state_verbs_the_campaign_route_accepts() -> None:
     assert offered <= accepted, (
         f"the panel offers campaign states the route rejects: {sorted(offered - accepted)}"
     )
+
+
+def test_the_panel_can_walk_the_whole_chain_from_node_to_published_package() -> None:
+    """Selling anything requires five links, and any one missing stops it.
+
+    A node, a category, a product, that product bound to the node, and a
+    package published under it. `Product.publish` refuses an unbound product
+    and `set_plan_state` refuses a package under an unpublished one, so a
+    single missing button leaves the catalogue permanently in draft - which is
+    exactly what happened: `bindProductPanel` and `setProductState` both
+    existed in the client with no screen calling either.
+    """
+    source = (ADMIN_SRC / "app" / "products" / "page.tsx").read_text(encoding="utf-8")
+    client = (ADMIN_SRC / "lib" / "api.ts").read_text(encoding="utf-8")
+
+    for call in ("bindProductPanel", "setProductState", "generateLadder", "setPlanState"):
+        assert f"api.{call}(" in source or f"{call}(" in source, (
+            f"the products screen never calls {call}, so the chain stops there"
+        )
+        assert f"{call}:" in client, f"{call} is missing from the client"

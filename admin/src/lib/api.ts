@@ -309,6 +309,21 @@ export const api = {
   // `{state}` - wrong method and wrong body - so publishing anything from the
   // catalogue answered 405 and the operator was left with a draft they could
   // not put on sale.
+  /**
+   * Bind the product to the node that will provision it.
+   *
+   * `PUT /products/{id}/panel`, and the only reason a product can be
+   * published: `Product.publish` refuses one that is not bound, and a package
+   * cannot be published under an unpublished product. No screen called this,
+   * so the chain stopped at its first link and the catalogue could never leave
+   * draft.
+   */
+  bindProductPanel: (productId: string, panelId: string, nodeTags: string[] = []) =>
+    mutate<ProductRow>('PUT', `${ROOT}/catalog/products/${productId}/panel`, {
+      panelId,
+      nodeTags,
+    }),
+
   setProductState: (productId: string, state: string) =>
     mutate<ProductRow>('PUT', `${ROOT}/catalog/products/${productId}/state`, {
       publish: state === 'published',
