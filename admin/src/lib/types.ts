@@ -220,6 +220,28 @@ export type OrderDetail = OrderRow
 // ----------------------------------------------------------------- catalog
 
 /** PATCH /api/v1/admin/panels/{id} - UpdateNodeRequest. Every field optional. */
+/**
+ * POST /api/v1/admin/panels - CreateNodeRequest.
+ *
+ * Distinct from `NodeUpdateBody`: creating a node needs the identity and the
+ * credentials that an update leaves alone. `savePanel` used to take the update
+ * shape, which cannot satisfy the endpoint - every required field was optional
+ * in the only type describing the call.
+ */
+export interface NodeCreateBody {
+  id: string
+  nameFa: string
+  panelKind: string
+  baseUrl: string
+  username: string
+  password: string
+  countryCode?: string | null
+  capacity?: number
+  verifyTls?: boolean
+  timeoutSeconds?: number
+  sortOrder?: number
+}
+
 export interface NodeUpdateBody {
   nameFa?: string
   baseUrl?: string
@@ -375,6 +397,28 @@ export interface CouponCreateBody {
 }
 
 /** GET /api/v1/admin/catalog/campaigns - CampaignAdminResponse. */
+/**
+ * POST /api/v1/admin/catalog/campaigns - CampaignCreateRequest.
+ *
+ * Not `Partial<CampaignRow>`: the row carries a rendered `discountLabel` where
+ * the request needs a kind and a value, so the create call was typed against a
+ * shape the endpoint does not accept.
+ */
+export interface CampaignCreateBody {
+  slug: string
+  kind: string
+  nameFa: string
+  discountKind: 'percentage' | 'fixed_amount'
+  /** Basis points for a percentage, Toman for a fixed amount. */
+  discountValue: number
+  maxDiscount?: number | null
+  startsAt?: string | null
+  endsAt?: string | null
+  descriptionFa?: string | null
+  maxRedemptions?: number | null
+  priority?: number
+}
+
 export interface CampaignRow {
   id: string
   slug: string

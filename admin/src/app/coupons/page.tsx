@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Copy, Layers, Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber, normalizeInput } from '@/lib/fa'
+import { basisPoints, faDate, faNumber, normalizeInput } from '@/lib/fa'
 import type { CouponRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -23,7 +23,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, Input } from '@/components/ui/input'
-import { FilterSelect } from '@/components/ui/select'
+import {
+  FilterSelect,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Progress } from '@/components/ui/primitives'
@@ -44,6 +51,7 @@ export default function CouponsPage() {
   const { can } = useSession()
   const [state, setState] = React.useState<string | undefined>('active')
   const [bulkOpen, setBulkOpen] = React.useState(false)
+  const [createOpen, setCreateOpen] = React.useState(false)
 
   const { data, error, isLoading, mutate } = useSWR<CouponRow[]>(
     ['coupons', state],
@@ -64,7 +72,7 @@ export default function CouponsPage() {
                 <Layers className="size-3.5" aria-hidden />
                 {'\u0633\u0627\u062e\u062a \u06af\u0631\u0648\u0647\u06cc'}
               </Button>
-              <Button>
+              <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="size-3.5" aria-hidden />
                 {'\u06a9\u062f \u062c\u062f\u06cc\u062f'}
               </Button>
@@ -178,6 +186,12 @@ export default function CouponsPage() {
       </Card>
 
       <BulkDialog open={bulkOpen} onClose={() => setBulkOpen(false)} onDone={() => mutate()} />
+
+      <CouponDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => mutate()}
+      />
     </>
   )
 }
@@ -215,9 +229,15 @@ function BulkDialog({
         count: parsedCount,
         template: {
           code: cleanPrefix,
-          kind: 'promotional',
+          // `single_use`, not `promotional`. CouponKind has four members -
+          // public, single_use, per_user, targeted - and `promotional` is
+          // none of them, so every bulk creation was rejected before it
+          // reached the domain. One redemption per code is single_use.
+          kind: 'single_use',
           discountKind: 'percentage',
-          discountValue: parsedDiscount,
+          // Basis points, which is what the endpoint documents and what the
+          // domain stores. Sending 20 for "20%" created a 0.2% coupon.
+          discountValue: basisPoints(parsedDiscount),
           maxPerUser: 1,
           maxRedemptions: 1,
         },
@@ -313,6 +333,157 @@ function BulkDialog({
               {'\u0633\u0627\u062e\u062a'}
             </Button>
           ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Creating one coupon.
+ *
+ * The bulk dialog beside it makes fifty single-use codes for a campaign; this
+ * makes the one an operator promises a customer in a ticket. Its button had no
+ * handler at all, so the only way to create a coupon was to generate a batch
+ * and throw forty-nine away.
+ *
+ * Percentages are entered as percentages and sent as basis points, because
+ * that is what the domain stores and nobody types "2000" meaning twenty.
+ */
+function CouponDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [code, setCode] = React.useState('')
+  const [kind, setKind] = React.useState('public')
+  const [discountKind, setDiscountKind] = React.useState<'percentage' | 'fixed_amount'>('percentage')
+  const [value, setValue] = React.useState('20')
+  const [maxRedemptions, setMaxRedemptions] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
+
+  // ASCII only, uppercase: customers type these on Latin keyboards.
+  const cleanCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const parsedValue = Number(normalizeInput(value).replace(/\D/g, '')) || 0
+  const parsedMax = Number(normalizeInput(maxRedemptions).replace(/\D/g, '')) || 0
+
+  const percentageValid = discountKind !== 'percentage' || (parsedValue > 0 && parsedValue <= 100)
+  const complete = cleanCode.length >= 3 && parsedValue > 0 && percentageValid
+
+  const submit = async () => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await api.saveCoupon({
+        code: cleanCode,
+        kind,
+        discountKind,
+        discountValue: discountKind === 'percentage' ? basisPoints(parsedValue) : parsedValue,
+        maxRedemptions: parsedMax > 0 ? parsedMax : null,
+        maxPerUser: 1,
+      })
+      onCreated()
+      onClose()
+      setCode('')
+      setMaxRedemptions('')
+    } catch (thrown) {
+      setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{'\u06a9\u062f \u062a\u062e\u0641\u06cc\u0641 \u062c\u062f\u06cc\u062f'}</DialogTitle>
+          <DialogDescription>
+            {'\u06a9\u062f\u0647\u0627 \u0628\u0627\u06cc\u06af\u0627\u0646\u06cc \u0645\u06cc\u200c\u0634\u0648\u0646\u062f \u0648 \u0647\u0631\u06af\u0632 \u062d\u0630\u0641 \u0646\u0645\u06cc\u200c\u0634\u0648\u0646\u062f\u060c \u062a\u0627 \u0633\u0627\u0628\u0642\u0647\u200c\u06cc \u0645\u0635\u0631\u0641 \u0628\u0645\u0627\u0646\u062f.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <Field label={'\u06a9\u062f'} hint={'\u062d\u0631\u0648\u0641 \u0628\u0632\u0631\u06af \u0627\u0646\u06af\u0644\u06cc\u0633\u06cc \u0648 \u0639\u062f\u062f\u060c \u062d\u062f\u0627\u0642\u0644 \u06f3 \u0646\u0648\u06cc\u0633\u0647'}>
+            <Input
+              ltr
+              value={cleanCode}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="NOWRUZ"
+              autoFocus
+            />
+          </Field>
+
+          <Field label={'\u0646\u0648\u0639 \u06a9\u062f'}>
+            <Select value={kind} onValueChange={setKind}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">{'\u0639\u0645\u0648\u0645\u06cc'}</SelectItem>
+                <SelectItem value="single_use">{'\u06cc\u06a9\u200c\u0628\u0627\u0631\u0645\u0635\u0631\u0641'}</SelectItem>
+                <SelectItem value="per_user">{'\u0647\u0631 \u06a9\u0627\u0631\u0628\u0631 \u06cc\u06a9 \u0628\u0627\u0631'}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={'\u0646\u0648\u0639 \u062a\u062e\u0641\u06cc\u0641'}>
+              <Select
+                value={discountKind}
+                onValueChange={(next) => setDiscountKind(next as 'percentage' | 'fixed_amount')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">{'\u062f\u0631\u0635\u062f\u06cc'}</SelectItem>
+                  <SelectItem value="fixed_amount">{'\u0645\u0628\u0644\u063a \u062b\u0627\u0628\u062a'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field
+              label={discountKind === 'percentage' ? '\u062f\u0631\u0635\u062f \u062a\u062e\u0641\u06cc\u0641' : '\u0645\u0628\u0644\u063a \u062a\u062e\u0641\u06cc\u0641 (\u062a\u0648\u0645\u0627\u0646)'}
+              error={!percentageValid ? '\u062f\u0631\u0635\u062f \u0628\u0627\u06cc\u062f \u0628\u06cc\u0646 \u06f1 \u062a\u0627 \u06f1\u06f0\u06f0 \u0628\u0627\u0634\u062f' : null}
+            >
+              <Input
+                ltr
+                inputMode="numeric"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <Field label={'\u0633\u0642\u0641 \u062f\u0641\u0639\u0627\u062a \u0645\u0635\u0631\u0641'} hint={'\u062e\u0627\u0644\u06cc \u06cc\u0639\u0646\u06cc \u0628\u062f\u0648\u0646 \u0633\u0642\u0641'}>
+            <Input
+              ltr
+              inputMode="numeric"
+              value={maxRedemptions}
+              onChange={(event) => setMaxRedemptions(event.target.value)}
+            />
+          </Field>
+
+          {failure ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
+              {failure}
+            </p>
+          ) : null}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {'\u0627\u0646\u0635\u0631\u0627\u0641'}
+          </Button>
+          <Button loading={busy} disabled={!complete} onClick={submit}>
+            {'\u0633\u0627\u062e\u062a \u06a9\u062f'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

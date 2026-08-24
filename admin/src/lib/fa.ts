@@ -88,6 +88,18 @@ export function percent(value: number): string {
   return faNumber(value) + PERCENT_SIGN
 }
 
+/**
+ * A percentage as the basis points the API stores.
+ *
+ * Every discount the backend holds is in basis points, and every operator
+ * types a percentage. The bulk coupon dialog sent the percentage straight
+ * through, so "20% off" was created as a 0.2% discount - a coupon that
+ * appeared to work and gave away nothing.
+ */
+export function basisPoints(percentage: number): number {
+  return Math.round(percentage * 100)
+}
+
 /** Volume. `null` means an unlimited package, which has no number to show. */
 export function gib(value: number | null): string {
   if (value === null) return UNLIMITED

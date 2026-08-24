@@ -12,6 +12,7 @@ import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
+import { NodeDialog } from '@/components/feature/node-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { SkeletonTable } from '@/components/ui/skeleton'
@@ -39,6 +40,7 @@ const PANEL_KIND_LABEL: Record<PanelKind, string> = {
  *   being swallowed by a toast.
  */
 export default function PanelsPage() {
+  const [creating, setCreating] = React.useState(false)
   const { can } = useSession()
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<{ ok: boolean; messageFa: string } | null>(null)
@@ -76,7 +78,7 @@ export default function PanelsPage() {
         description={'\u067e\u0646\u0644\u200c\u0647\u0627\u06cc \u062a\u062d\u0648\u06cc\u0644 \u0627\u0634\u062a\u0631\u0627\u06a9 \u0648 \u0648\u0636\u0639\u06cc\u062a \u0633\u0644\u0627\u0645\u062a \u0622\u0646\u200c\u0647\u0627'}
         actions={
           can('panels.write') ? (
-            <Button>
+            <Button onClick={() => setCreating(true)}>
               <Plus className="size-3.5" aria-hidden />
               {'\u067e\u0646\u0644 \u062c\u062f\u06cc\u062f'}
             </Button>
@@ -174,6 +176,12 @@ export default function PanelsPage() {
           </Table>
         )}
       </Card>
+
+      <NodeDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={() => mutate()}
+      />
     </>
   )
 }

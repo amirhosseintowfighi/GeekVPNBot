@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 
@@ -11,6 +12,7 @@ import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
+import { NodeDialog } from '@/components/feature/node-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { SkeletonTable } from '@/components/ui/skeleton'
@@ -29,6 +31,7 @@ import { Progress, usageTone } from '@/components/ui/primitives'
  * maintenance must not destroy its history or its bound plans.
  */
 export default function ServersPage() {
+  const [creating, setCreating] = React.useState(false)
   const { can } = useSession()
   const { data, error, isLoading, mutate } = useSWR<ServerRow[]>('servers', () => api.servers())
 
@@ -41,7 +44,7 @@ export default function ServersPage() {
         description={'\u0638\u0631\u0641\u06cc\u062a\u060c \u062a\u0623\u062e\u06cc\u0631 \u0648 \u0646\u0645\u0627\u06cc\u0634 \u062f\u0631 \u0635\u0641\u062d\u0647\u0654 \u0648\u0636\u0639\u06cc\u062a'}
         actions={
           can('panels.write') ? (
-            <Button>
+            <Button onClick={() => setCreating(true)}>
               <Plus className="size-3.5" aria-hidden />
               {'\u0633\u0631\u0648\u0631 \u062c\u062f\u06cc\u062f'}
             </Button>
@@ -126,6 +129,12 @@ export default function ServersPage() {
           </Table>
         )}
       </Card>
+
+      <NodeDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={() => mutate()}
+      />
     </>
   )
 }

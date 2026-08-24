@@ -24,7 +24,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, Input } from '@/components/ui/input'
-import { FilterSelect } from '@/components/ui/select'
+import {
+  FilterSelect,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -48,6 +55,8 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined)
   const [selectedProduct, setSelectedProduct] = React.useState<string | null>(null)
   const [ladderFor, setLadderFor] = React.useState<ProductRow | null>(null)
+  const [creating, setCreating] = React.useState(false)
+  const [creatingCategory, setCreatingCategory] = React.useState(false)
 
   const categories = useSWR<CategoryRow[]>('categories', () => api.categories())
   const products = useSWR<ProductRow[]>(['products', categoryId], () => api.products({ categoryId }))
@@ -67,10 +76,22 @@ export default function ProductsPage() {
         description={'\u062f\u0633\u062a\u0647\u200c\u0647\u0627\u060c \u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0648 \u0646\u0631\u062f\u0628\u0627\u0646 \u0645\u062f\u062a\u200c\u0632\u0645\u0627\u0646'}
         actions={
           can('packages.write') ? (
-            <Button>
-              <Plus className="size-3.5" aria-hidden />
-              {'\u0645\u062d\u0635\u0648\u0644 \u062c\u062f\u06cc\u062f'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setCreatingCategory(true)}>
+                <Plus className="size-3.5" aria-hidden />
+                {'دسته‌ی جدید'}
+              </Button>
+              {/* A product belongs to a category, so there is nothing to
+                  create until one exists. Disabled rather than hidden: an
+                  empty catalogue should still show what it is missing. */}
+              <Button
+                onClick={() => setCreating(true)}
+                disabled={(categories.data ?? []).length === 0}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                {'\u0645\u062d\u0635\u0648\u0644 \u062c\u062f\u06cc\u062f'}
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -234,6 +255,19 @@ export default function ProductsPage() {
           plans.mutate()
         }}
       />
+
+      <CategoryDialog
+        open={creatingCategory}
+        onClose={() => setCreatingCategory(false)}
+        onCreated={() => categories.mutate()}
+      />
+
+      <ProductDialog
+        open={creating}
+        categories={categories.data ?? []}
+        onClose={() => setCreating(false)}
+        onCreated={() => products.mutate()}
+      />
     </>
   )
 }
@@ -369,6 +403,227 @@ function LadderDialog({
           </Button>
           <Button loading={busy} disabled={monthlyPrice <= 0} onClick={submit}>
             {'\u062a\u0648\u0644\u06cc\u062f \u067e\u06cc\u0634\u200c\u0646\u0648\u06cc\u0633\u200c\u0647\u0627'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Creating a category.
+ *
+ * A product must belong to one, and nothing in the panel could make one -
+ * `api.saveCategory` existed and no screen called it. On a fresh install that
+ * left the catalogue permanently empty: no category, therefore no product,
+ * therefore no plan, therefore nothing to sell.
+ */
+function CategoryDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [slug, setSlug] = React.useState('')
+  const [nameFa, setNameFa] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
+
+  const complete = slug.trim().length >= 2 && nameFa.trim() !== ''
+
+  const submit = async () => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await api.saveCategory({ slug: slug.trim(), nameFa: nameFa.trim() })
+      onCreated()
+      onClose()
+      setSlug('')
+      setNameFa('')
+    } catch (thrown) {
+      setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{'\u062f\u0633\u062a\u0647\u200c\u06cc \u062c\u062f\u06cc\u062f'}</DialogTitle>
+          <DialogDescription>
+            {'\u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0632\u06cc\u0631 \u062f\u0633\u062a\u0647\u200c\u0647\u0627 \u06af\u0631\u0648\u0647 \u0645\u06cc\u200c\u0634\u0648\u0646\u062f. \u0645\u062b\u0644 \u00ab\u0627\u0631\u0648\u067e\u0627\u00bb \u06cc\u0627 \u00ab\u067e\u0631\u0633\u0631\u0639\u062a\u00bb.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <Field label={'\u0646\u0627\u0645 \u062f\u0633\u062a\u0647'}>
+            <Input value={nameFa} onChange={(event) => setNameFa(event.target.value)} autoFocus />
+          </Field>
+
+          <Field label={'\u0634\u0646\u0627\u0633\u0647'} hint={'\u062d\u0631\u0648\u0641 \u06a9\u0648\u0686\u06a9 \u0627\u0646\u06af\u0644\u06cc\u0633\u06cc\u060c \u062d\u062f\u0627\u0642\u0644 \u06f2 \u0646\u0648\u06cc\u0633\u0647'}>
+            <Input
+              ltr
+              value={slug}
+              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              placeholder="europe"
+            />
+          </Field>
+
+          {failure ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
+              {failure}
+            </p>
+          ) : null}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {'\u0627\u0646\u0635\u0631\u0627\u0641'}
+          </Button>
+          <Button loading={busy} disabled={!complete} onClick={submit}>
+            {'\u0633\u0627\u062e\u062a \u062f\u0633\u062a\u0647'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Creating a product.
+ *
+ * Only what the endpoint requires, plus the tagline - the one optional field a
+ * customer actually reads. Features, badge and accent colour are editing, not
+ * creation; a create form long enough to scroll is how an operator ends up not
+ * creating anything.
+ *
+ * It lands in DRAFT, like a generated ladder: nothing reaches the storefront
+ * until a human publishes it.
+ */
+function ProductDialog({
+  open,
+  categories,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  categories: CategoryRow[]
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [categoryId, setCategoryId] = React.useState('')
+  const [slug, setSlug] = React.useState('')
+  const [nameFa, setNameFa] = React.useState('')
+  const [taglineFa, setTaglineFa] = React.useState('')
+  const [tier, setTier] = React.useState('direct')
+  const [busy, setBusy] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
+
+  // Preselect when there is only one category, which is every fresh install.
+  React.useEffect(() => {
+    const first = categories[0]
+    if (categoryId === '' && first) setCategoryId(first.id)
+  }, [categories, categoryId])
+
+  const complete = categoryId !== '' && slug.trim().length >= 2 && nameFa.trim() !== ''
+
+  const submit = async () => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await api.saveProduct({
+        categoryId,
+        slug: slug.trim(),
+        tier,
+        nameFa: nameFa.trim(),
+        taglineFa: taglineFa.trim() || null,
+      })
+      onCreated()
+      onClose()
+      setSlug('')
+      setNameFa('')
+      setTaglineFa('')
+    } catch (thrown) {
+      setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{'\u0645\u062d\u0635\u0648\u0644 \u062c\u062f\u06cc\u062f'}</DialogTitle>
+          <DialogDescription>
+            {'\u0645\u062d\u0635\u0648\u0644 \u0628\u0647 \u0635\u0648\u0631\u062a \u067e\u06cc\u0634\u200c\u0646\u0648\u06cc\u0633 \u0633\u0627\u062e\u062a\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0628\u0639\u062f \u0627\u0632 \u0633\u0627\u062e\u062a\u060c \u0646\u0631\u062f\u0628\u0627\u0646 \u0642\u06cc\u0645\u062a \u0631\u0627 \u062a\u0648\u0644\u06cc\u062f \u06a9\u0646\u06cc\u062f.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <Field label={'\u062f\u0633\u062a\u0647'}>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.nameFa}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label={'\u0646\u0627\u0645 \u0645\u062d\u0635\u0648\u0644'}>
+            <Input value={nameFa} onChange={(event) => setNameFa(event.target.value)} autoFocus />
+          </Field>
+
+          <Field label={'\u0634\u0646\u0627\u0633\u0647'} hint={'\u062d\u0631\u0648\u0641 \u06a9\u0648\u0686\u06a9 \u0627\u0646\u06af\u0644\u06cc\u0633\u06cc\u060c \u062d\u062f\u0627\u0642\u0644 \u06f2 \u0646\u0648\u06cc\u0633\u0647'}>
+            <Input
+              ltr
+              value={slug}
+              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              placeholder="germany-direct"
+            />
+          </Field>
+
+          <Field label={'\u06a9\u06cc\u0641\u06cc\u062a \u0627\u062a\u0635\u0627\u0644'} hint={'\u0631\u0648\u06cc \u0642\u06cc\u0645\u062a\u200c\u06af\u0630\u0627\u0631\u06cc \u0627\u062b\u0631 \u062f\u0627\u0631\u062f'}>
+            <Select value={tier} onValueChange={setTier}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="direct">{'\u0645\u0633\u062a\u0642\u06cc\u0645'}</SelectItem>
+                <SelectItem value="tunnel">{'\u062a\u0648\u0646\u0644'}</SelectItem>
+                <SelectItem value="elite">{'\u0648\u06cc\u0698\u0647'}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label={'\u062a\u0648\u0636\u06cc\u062d \u06a9\u0648\u062a\u0627\u0647'} hint={'\u0627\u062e\u062a\u06cc\u0627\u0631\u06cc. \u06cc\u06a9 \u062e\u0637\u060c \u0632\u06cc\u0631 \u0646\u0627\u0645 \u0645\u062d\u0635\u0648\u0644.'}>
+            <Input value={taglineFa} onChange={(event) => setTaglineFa(event.target.value)} />
+          </Field>
+
+          {failure ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
+              {failure}
+            </p>
+          ) : null}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {'\u0627\u0646\u0635\u0631\u0627\u0641'}
+          </Button>
+          <Button loading={busy} disabled={!complete} onClick={submit}>
+            {'\u0633\u0627\u062e\u062a \u0645\u062d\u0635\u0648\u0644'}
           </Button>
         </DialogFooter>
       </DialogContent>

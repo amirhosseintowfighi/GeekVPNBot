@@ -33,7 +33,13 @@ import type {
   UserRow,
   WalletTransactionRow,
 } from './types'
-import type { CouponCreateBody, NodeUpdateBody, PagedWithCursor } from './types'
+import type {
+  CampaignCreateBody,
+  CouponCreateBody,
+  NodeCreateBody,
+  NodeUpdateBody,
+  PagedWithCursor,
+} from './types'
 import type { Role } from './rbac'
 
 export const BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? ''
@@ -289,8 +295,7 @@ export const api = {
 
   // ------------------------------------------------------ panels/servers
   panels: () => fetcher<PanelRow[]>(`${ROOT}/panels`),
-  savePanel: (body: NodeUpdateBody & { password?: string }) =>
-    mutate<PanelRow>('POST', `${ROOT}/panels`, body),
+  savePanel: (body: NodeCreateBody) => mutate<PanelRow>('POST', `${ROOT}/panels`, body),
   // PATCH, and only the fields being changed. Posting a whole row back to
   // /panels created a second node instead of editing the one in front of you.
   updatePanel: (nodeId: string, patch: NodeUpdateBody) =>
@@ -319,7 +324,7 @@ export const api = {
     mutate<CouponRow>('DELETE', `${ROOT}/catalog/coupons/${couponId}`),
 
   campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/catalog/campaigns`),
-  saveCampaign: (body: Partial<CampaignRow>) =>
+  saveCampaign: (body: CampaignCreateBody) =>
     mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns`, body),
   setCampaignState: (campaignId: string, state: string) =>
     mutate<CampaignRow>('PUT', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),

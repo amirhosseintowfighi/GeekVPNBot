@@ -1,0 +1,246 @@
+'use client'
+
+import * as React from 'react'
+
+import { ApiError, api } from '@/lib/api'
+import type { NodeCreateBody } from '@/lib/types'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Field, Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+
+/**
+ * Creating a node.
+ *
+ * One dialog, two screens: "panels" and "servers" are the same resource seen
+ * from two angles, which is why `api.servers()` and `api.panels()` are the
+ * same GET. Both had a "new" button that did nothing at all - no handler, no
+ * dialog, nothing behind it - so a fresh install had no way to add the one
+ * thing without which nothing can be sold: provisioning picks a node from the
+ * database, and an empty list fails every paid order.
+ *
+ * The panel kinds are the registry in `domain/panels/enums.py`. Adding one
+ * there means adding it here; there is no way to discover them at runtime and
+ * inventing an endpoint for five constants would be worse.
+ */
+const PANEL_KINDS = [
+  { value: 'pasarguard', label: 'PasarGuard' },
+  { value: 'marzban', label: 'Marzban' },
+  { value: 'marzneshin', label: 'Marzneshin' },
+  { value: 'sanaei', label: '3x-ui (Sanaei)' },
+  { value: 'alireza', label: 'x-ui (Alireza)' },
+] as const
+
+const ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
+
+export function NodeDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [id, setId] = React.useState('')
+  const [nameFa, setNameFa] = React.useState('')
+  const [panelKind, setPanelKind] = React.useState<string>('marzban')
+  const [baseUrl, setBaseUrl] = React.useState('')
+  const [username, setUsername] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [countryCode, setCountryCode] = React.useState('')
+  const [capacity, setCapacity] = React.useState('')
+  const [verifyTls, setVerifyTls] = React.useState(true)
+  const [busy, setBusy] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
+
+  const idValid = ID_PATTERN.test(id)
+  const complete =
+    idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== ''
+
+  const reset = () => {
+    setId('')
+    setNameFa('')
+    setBaseUrl('')
+    setUsername('')
+    setPassword('')
+    setCountryCode('')
+    setCapacity('')
+    setVerifyTls(true)
+    setFailure(null)
+  }
+
+  const submit = async () => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      const body: NodeCreateBody = {
+        id: id.trim(),
+        nameFa: nameFa.trim(),
+        panelKind,
+        baseUrl: baseUrl.trim(),
+        username: username.trim(),
+        password,
+        // Two characters or nothing: the API rejects a one-letter code, and an
+        // empty string is not the same as "not set".
+        countryCode: countryCode.trim().length === 2 ? countryCode.trim().toUpperCase() : null,
+        // Zero means "no declared ceiling", which is what NodeRecord.has_room
+        // reads it as.
+        capacity: Number(capacity.replace(/\D/g, '')) || 0,
+        verifyTls,
+      }
+      await api.savePanel(body)
+      onCreated()
+      onClose()
+      reset()
+    } catch (thrown) {
+      setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{'سرور جدید'}</DialogTitle>
+          <DialogDescription>
+            {'اعتبارنامه‌ی پنل رمزنگاری‌شده ذخیره می‌شود. بعد از ساخت، اتصال را تست کنید.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <Field
+            label={'شناسه'}
+            hint={'حروف کوچک انگلیسی، عدد، خط تیره. بعداً قابل تغییر نیست.'}
+            error={id !== '' && !idValid ? 'فقط حروف کوچک، عدد، _ و -' : null}
+          >
+            <Input
+              ltr
+              value={id}
+              onChange={(event) => setId(event.target.value.toLowerCase())}
+              placeholder="de-frankfurt-1"
+              autoFocus
+            />
+          </Field>
+
+          <Field label={'نام نمایشی'} hint={'همین نام را مشتری می‌بیند'}>
+            <Input
+              value={nameFa}
+              onChange={(event) => setNameFa(event.target.value)}
+              placeholder={'آلمان - فرانکفورت'}
+            />
+          </Field>
+
+          <Field label={'نوع پنل'}>
+            <Select value={panelKind} onValueChange={setPanelKind}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PANEL_KINDS.map((kind) => (
+                  <SelectItem key={kind.value} value={kind.value}>
+                    {kind.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label={'آدرس پنل'} hint={'با https و بدون اسلش پایانی'}>
+            <Input
+              ltr
+              value={baseUrl}
+              onChange={(event) => setBaseUrl(event.target.value)}
+              placeholder="https://panel.example.com"
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={'نام کاربری پنل'}>
+              <Input
+                ltr
+                autoComplete="off"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </Field>
+
+            <Field label={'گذرواژه پنل'}>
+              <Input
+                ltr
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={'کد کشور'} hint={'دو حرف، مثل DE. اختیاری.'}>
+              <Input
+                ltr
+                maxLength={2}
+                value={countryCode}
+                onChange={(event) => setCountryCode(event.target.value)}
+                placeholder="DE"
+              />
+            </Field>
+
+            <Field label={'ظرفیت'} hint={'صفر یعنی بدون سقف'}>
+              <Input
+                ltr
+                inputMode="numeric"
+                value={capacity}
+                onChange={(event) => setCapacity(event.target.value)}
+                placeholder="0"
+              />
+            </Field>
+          </div>
+
+          <label className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <span className="text-xs">
+              {'بررسی گواهی TLS'}
+              <span className="block text-2xs text-muted-foreground">
+                {'فقط برای پنلی با گواهی self-signed خاموش کنید'}
+              </span>
+            </span>
+            <Switch checked={verifyTls} onCheckedChange={setVerifyTls} />
+          </label>
+
+          {failure ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
+              {failure}
+            </p>
+          ) : null}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {'انصراف'}
+          </Button>
+          <Button loading={busy} disabled={!complete} onClick={submit}>
+            {'ساخت سرور'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

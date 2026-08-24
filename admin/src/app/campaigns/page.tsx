@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber } from '@/lib/fa'
+import { basisPoints, faDate, faNumber } from '@/lib/fa'
 import type { CampaignRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
@@ -13,6 +13,23 @@ import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/state
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Field, Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -36,6 +53,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  */
 export default function CampaignsPage() {
   const { can } = useSession()
+  const [creating, setCreating] = React.useState(false)
   const { data, error, isLoading, mutate } = useSWR<CampaignRow[]>('campaigns', () => api.campaigns())
 
   if (!can('packages.read')) return <ForbiddenState permission="packages.read" />
@@ -49,7 +67,7 @@ export default function CampaignsPage() {
         description={'\u062a\u062e\u0641\u06cc\u0641\u200c\u0647\u0627\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u0648 \u0641\u0631\u0648\u0634\u200c\u0647\u0627\u06cc \u0644\u062d\u0638\u0647\u200c\u0627\u06cc'}
         actions={
           can('campaigns.write') ? (
-            <Button>
+            <Button onClick={() => setCreating(true)}>
               <Plus className="size-3.5" aria-hidden />
               {'\u06a9\u0645\u067e\u06cc\u0646 \u062c\u062f\u06cc\u062f'}
             </Button>
@@ -155,6 +173,151 @@ export default function CampaignsPage() {
           </Table>
         )}
       </Card>
+
+      <CampaignDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={() => mutate()}
+      />
     </>
+  )
+}
+
+/**
+ * Creating a campaign.
+ *
+ * A campaign discounts automatically, with no code to type - which is exactly
+ * why it starts paused. The table beside this exists to make a campaign that
+ * gives away more than it earns visible; one that starts running the moment it
+ * is created would do that giving before anyone had looked at it.
+ */
+function CampaignDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [slug, setSlug] = React.useState('')
+  const [nameFa, setNameFa] = React.useState('')
+  const [kind, setKind] = React.useState('seasonal')
+  const [discountKind, setDiscountKind] = React.useState<'percentage' | 'fixed_amount'>('percentage')
+  const [value, setValue] = React.useState('15')
+  const [busy, setBusy] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
+
+  const parsedValue = Number(value.replace(/\D/g, '')) || 0
+  const percentageValid = discountKind !== 'percentage' || (parsedValue > 0 && parsedValue <= 100)
+  const complete = slug.trim().length >= 2 && nameFa.trim() !== '' && parsedValue > 0 && percentageValid
+
+  const submit = async () => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await api.saveCampaign({
+        slug: slug.trim(),
+        kind,
+        nameFa: nameFa.trim(),
+        discountKind,
+        // Basis points for a percentage, Toman for a fixed amount.
+        discountValue: discountKind === 'percentage' ? basisPoints(parsedValue) : parsedValue,
+      })
+      onCreated()
+      onClose()
+      setSlug('')
+      setNameFa('')
+    } catch (thrown) {
+      setFailure(thrown instanceof ApiError ? thrown.messageFa : '')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{'کمپین جدید'}</DialogTitle>
+          <DialogDescription>
+            {'کمپین متوقف ساخته می‌شود. بعد از بررسی، از همین جدول فعالش کنید.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <Field label={'نام کمپین'}>
+            <Input value={nameFa} onChange={(event) => setNameFa(event.target.value)} autoFocus />
+          </Field>
+
+          <Field label={'شناسه'} hint={'حروف کوچک انگلیسی، حداقل ۲ نویسه'}>
+            <Input
+              ltr
+              value={slug}
+              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              placeholder="nowruz-1405"
+            />
+          </Field>
+
+          <Field label={'نوع کمپین'}>
+            <Select value={kind} onValueChange={setKind}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="seasonal">{'مناسبتی'}</SelectItem>
+                <SelectItem value="flash_sale">{'فروش لحظه‌ای'}</SelectItem>
+                <SelectItem value="launch">{'معرفی محصول'}</SelectItem>
+                <SelectItem value="winback">{'بازگرداندن مشتری'}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={'نوع تخفیف'}>
+              <Select
+                value={discountKind}
+                onValueChange={(next) => setDiscountKind(next as 'percentage' | 'fixed_amount')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">{'درصدی'}</SelectItem>
+                  <SelectItem value="fixed_amount">{'مبلغ ثابت'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field
+              label={discountKind === 'percentage' ? 'درصد تخفیف' : 'مبلغ تخفیف (تومان)'}
+              error={!percentageValid ? 'درصد باید بین ۱ تا ۱۰۰ باشد' : null}
+            >
+              <Input
+                ltr
+                inputMode="numeric"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          {failure ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">
+              {failure}
+            </p>
+          ) : null}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {'انصراف'}
+          </Button>
+          <Button loading={busy} disabled={!complete} onClick={submit}>
+            {'ساخت کمپین'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
