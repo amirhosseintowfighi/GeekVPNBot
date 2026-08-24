@@ -161,7 +161,7 @@ export default function CampaignsPage() {
                         checked={published}
                         disabled={!can('campaigns.write')}
                         onCheckedChange={async (checked) => {
-                          await api.setCampaignState(campaign.id, checked ? 'published' : 'draft')
+                          await api.setCampaignState(campaign.id, checked ? 'activate' : 'pause')
                           mutate()
                         }}
                       />

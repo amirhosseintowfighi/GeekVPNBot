@@ -32,20 +32,40 @@ ADMIN_SRC = Path(__file__).resolve().parents[2] / "admin" / "src"
 #: at all, which is why the list is now checked from both directions.
 KNOWN_GAPS: frozenset[str] = frozenset()
 
-_TEMPLATE = re.compile(r"\$\{[^}]*\}")
+#: A `${...}` interpolation, tolerating one level of nesting so that
+#: `${encodeURIComponent(key)}` collapses to a single segment rather than
+#: truncating the path at the first bracket.
+_TEMPLATE = re.compile(r"\$\{(?:[^{}]|\{[^{}]*\})*\}")
 
 
 def called_paths() -> set[str]:
     """Every `${ROOT}/...` template literal the admin client builds."""
     found: set[str] = set()
     for file in ADMIN_SRC.rglob("*.ts"):
-        for raw in re.findall(r"\$\{ROOT\}/[^`'\"\s,)]*", file.read_text(encoding="utf-8")):
+        # Up to the closing backtick, not to the first bracket: a path can
+        # contain a call, as `${encodeURIComponent(key)}` does.
+        for raw in re.findall(r"`(\$\{ROOT\}/[^`]*)`", file.read_text(encoding="utf-8")):
             # A trailing `${qs(...)}` is a query string, not a path segment.
             path = raw.split("${qs")[0]
             # Expand ${ROOT} before collapsing the rest, or the prefix itself
             # becomes an {id} segment.
             path = path.replace("${ROOT}", f"{API_V1_PREFIX}/admin")
             found.add(_TEMPLATE.sub("{id}", path).rstrip("/"))
+    return found
+
+
+def client_calls() -> set[tuple[str, str]]:
+    """Every `mutate('VERB', `${ROOT}/...`)` the client makes, as (verb, path).
+
+    Read-only calls go through `fetcher`, which is GET by construction, so only
+    the mutations can disagree about the verb.
+    """
+    pattern = re.compile(r"mutate<[^>]*>\(\s*'(POST|PUT|PATCH|DELETE)',\s*`([^`]+)`")
+    found: set[tuple[str, str]] = set()
+    for file in ADMIN_SRC.rglob("*.ts"):
+        for method, raw in pattern.findall(file.read_text(encoding="utf-8")):
+            path = raw.split("${qs")[0].replace("${ROOT}", f"{API_V1_PREFIX}/admin")
+            found.add((method, _TEMPLATE.sub("{id}", path).rstrip("/")))
     return found
 
 
@@ -126,3 +146,57 @@ def test_the_ladder_dialog_can_build_every_plan_type_the_domain_has() -> None:
         assert f"'{plan_type.value}'" in source, (
             f"the admin panel cannot build a {plan_type.value} package"
         )
+
+
+def test_the_panel_calls_every_route_with_the_method_it_declares() -> None:
+    """A path that exists is not a route that answers.
+
+    `KNOWN_GAPS` compares paths and nothing else, so the panel could call a
+    real path with the wrong verb and this file stayed green. Publishing a
+    package did exactly that: the route is PUT and the client sent POST, so
+    every attempt answered 405 and the operator could not put anything on
+    sale.
+    """
+    spec = create_app().openapi()["paths"]
+    by_path: dict[str, set[str]] = {
+        _TEMPLATE.sub("{id}", re.sub(r"\{[^}]*\}", "{id}", path)): {
+            method.upper() for method in operations
+        }
+        for path, operations in spec.items()
+    }
+
+    mismatches: list[str] = []
+    for method, path in client_calls():
+        allowed = by_path.get(path)
+        if allowed is None:
+            continue  # a missing path is the other test's job
+        if method not in allowed:
+            mismatches.append(f"{method} {path} (route accepts {', '.join(sorted(allowed))})")
+
+    assert not mismatches, "the admin panel uses a verb the route refuses:\n  " + "\n  ".join(
+        sorted(mismatches)
+    )
+
+
+def test_the_panel_sends_the_state_verbs_the_campaign_route_accepts() -> None:
+    """A method check cannot see this one: right path, right verb, wrong words.
+
+    `/campaigns/{id}/state` takes activate, pause or archive. The screen sent
+    "published" and "draft" - the vocabulary the *other* state routes use - and
+    the campaign switch failed on every flick.
+    """
+    import re as _re
+
+    from geekvpn.presentation.api.schemas_catalog import CampaignStateRequest
+
+    field = CampaignStateRequest.model_fields["state"]
+    pattern = next(m.pattern for m in field.metadata if hasattr(m, "pattern"))
+    accepted = set(_re.findall(r"[a-z]+", pattern))
+
+    source = (ADMIN_SRC / "lib" / "api.ts").read_text(encoding="utf-8")
+    signature = source[source.index("setCampaignState") : source.index("setCampaignState") + 400]
+    offered = set(_re.findall(r"'([a-z]+)'", signature)) - {"put"}
+
+    assert offered <= accepted, (
+        f"the panel offers campaign states the route rejects: {sorted(offered - accepted)}"
+    )

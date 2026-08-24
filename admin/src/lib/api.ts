@@ -305,13 +305,21 @@ export const api = {
     fetcher<ProductRow[]>(`${ROOT}/catalog/products${qs(params)}`),
   saveProduct: (body: Partial<ProductRow>) =>
     mutate<ProductRow>('POST', `${ROOT}/catalog/products`, body),
+  // PUT with `{publish}`, which is what the route declares. This was POST with
+  // `{state}` - wrong method and wrong body - so publishing anything from the
+  // catalogue answered 405 and the operator was left with a draft they could
+  // not put on sale.
   setProductState: (productId: string, state: string) =>
-    mutate<ProductRow>('POST', `${ROOT}/catalog/products/${productId}/state`, { state }),
+    mutate<ProductRow>('PUT', `${ROOT}/catalog/products/${productId}/state`, {
+      publish: state === 'published',
+    }),
 
   plans: (productId: string) => fetcher<PlanRow[]>(`${ROOT}/catalog/products/${productId}/plans`),
   savePlan: (body: Partial<PlanRow>) => mutate<PlanRow>('POST', `${ROOT}/catalog/plans`, body),
   setPlanState: (planId: string, state: string) =>
-    mutate<PlanRow>('POST', `${ROOT}/catalog/plans/${planId}/state`, { state }),
+    mutate<PlanRow>('PUT', `${ROOT}/catalog/plans/${planId}/state`, {
+      publish: state === 'published',
+    }),
 
   /** The duration ladder from domain/catalog/durations.py. */
   durationLadder: () => fetcher<DurationRung[]>(`${ROOT}/duration-ladder`),
@@ -363,8 +371,13 @@ export const api = {
   campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/catalog/campaigns`),
   saveCampaign: (body: CampaignCreateBody) =>
     mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns`, body),
-  setCampaignState: (campaignId: string, state: string) =>
-    mutate<CampaignRow>('PUT', `${ROOT}/catalog/campaigns/${campaignId}/state`, { state }),
+  // The campaign route takes a verb - activate/pause/archive - not the
+  // publication state the other three take. The screen was sending
+  // "published"/"draft", which matches the pattern on neither side.
+  setCampaignState: (campaignId: string, action: 'activate' | 'pause' | 'archive') =>
+    mutate<CampaignRow>('PUT', `${ROOT}/catalog/campaigns/${campaignId}/state`, {
+      state: action,
+    }),
 
   // ---------------------------------------------------------- analytics
   // A window in days, matching GET /api/v1/admin/analytics, which takes
@@ -452,8 +465,29 @@ export const api = {
 
   // ----------------------------------------------------------- settings
   settings: () => fetcher<PolicySetting[]>(`${ROOT}/settings`),
-  saveSettings: (values: Record<string, number | boolean | string>) =>
-    mutate<PolicySetting[]>('PUT', `${ROOT}/settings`, { values }),
+  /**
+   * One PUT per changed key, because that is the API there is.
+   *
+   * This used to send the whole draft to `PUT /settings`, a path that only
+   * answers GET, so saving any setting failed with 405 and the screen reported
+   * a generic error. The real route is `PUT /settings/{key}` with `{value}`.
+   *
+   * Sequential, not parallel: the failures worth having are the ones you can
+   * read in order, and a settings screen saves a handful of keys, not a
+   * hundred. A key that fails stops the run, leaving the earlier ones saved -
+   * which the screen then shows, because it re-reads the server's list.
+   */
+  saveSettings: async (values: Record<string, number | boolean | string>) => {
+    const updated: PolicySetting[] = []
+    for (const [key, value] of Object.entries(values)) {
+      updated.push(
+        await mutate<PolicySetting>('PUT', `${ROOT}/settings/${encodeURIComponent(key)}`, {
+          value,
+        }),
+      )
+    }
+    return updated
+  },
 
   // -------------------------------------------------------- permissions
   operators: () => fetcher<OperatorRow[]>(`${ROOT}/admins`),
