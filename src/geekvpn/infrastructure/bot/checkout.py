@@ -333,12 +333,30 @@ class BotCheckoutAdapter:
 
         # The link OrderPaymentBridge follows on approval. Without it an
         # approved payment cannot find its order and nothing gets provisioned.
-        order.invoice_id = result.invoice.id
-        await self._order_repository.update(order)
-        # Again, for the same reason: whatever happens next - a panel that will
-        # not answer, a node with no capacity - the order and its invoice link
-        # are already durable, and the admin panel can retry the delivery
-        # rather than an operator reconstructing it from a bank statement.
+        # Re-read before writing anything back.
+        #
+        # The other scope may have advanced this order already: a wallet
+        # payment settles inside `checkout.begin`, and `OrderPaymentBridge`
+        # marks the order PAID and links the invoice before that call returns.
+        # This session still holds the PENDING copy it created moments ago, and
+        # `update` applies the whole aggregate - so writing it back overwrote
+        # the state the bridge had just committed. The order went back to
+        # PENDING, provisioning refused it, and the customer was debited for
+        # nothing. The bridge fix alone did not show, because this line undid it
+        # a few microseconds later.
+        self._session.expire_all()
+        order = await self._order_repository.get(order.id) or order
+
+        if order.invoice_id is None:
+            # Still unlinked, so no bridge has run: a card or crypto payment,
+            # which is approved later. That path does need this write.
+            order.invoice_id = result.invoice.id
+            await self._order_repository.update(order)
+
+        # Whatever happens next - a panel that will not answer, a node with no
+        # capacity - the order and its invoice link are already durable, and
+        # the admin panel can retry the delivery rather than an operator
+        # reconstructing it from a bank statement.
         await self._session.commit()
         return result, order
 
