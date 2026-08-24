@@ -292,3 +292,21 @@ def test_every_link_in_the_storefront_chain_has_a_control() -> None:
 
     for call in ("setCategoryState", "setProductState", "setPlanState"):
         assert call in source, f"nothing on the products screen calls {call}"
+
+
+def test_the_review_queue_is_reachable_from_the_panel() -> None:
+    """Approve and reject existed with nothing to approve.
+
+    `GET /admin/payments` defaults to `pending_review` because that is the
+    queue, and no screen called it - so a customer could transfer money, send a
+    receipt, and wait while the payment sat exactly where it was meant to sit,
+    with the buttons that would clear it one page away and unreachable.
+    """
+    client = (ADMIN_SRC / "lib" / "api.ts").read_text(encoding="utf-8")
+    screen = (ADMIN_SRC / "app" / "payments" / "page.tsx").read_text(encoding="utf-8")
+    nav = (ADMIN_SRC / "lib" / "nav.ts").read_text(encoding="utf-8")
+
+    assert "payments: (params" in client, "the client cannot list payments"
+    for call in ("api.payments(", "api.approvePayment(", "api.rejectPayment("):
+        assert call in screen, f"the queue screen never calls {call}"
+    assert "'/payments'" in nav, "the queue is not in the sidebar, so nobody will find it"

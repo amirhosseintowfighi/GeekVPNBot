@@ -69,11 +69,23 @@ export const NAV: NavSection[] = [
     titleFa: '\u0639\u0645\u0644\u06cc\u0627\u062a',
     items: [
       {
+        // Above orders on purpose: a payment in this queue is a customer who
+        // has already sent money and is waiting. Nothing else on this list
+        // outranks that.
+        href: '/payments',
+        labelFa: 'بررسی پرداخت‌ها',
+        icon: Receipt,
+        permission: 'payments.read',
+        queueKey: 'pending_payments',
+      },
+      {
+        // The badge belongs to the review queue above, not here: a pending
+        // payment is acted on there, and two entries counting the same thing
+        // makes neither of them mean anything.
         href: '/orders',
         labelFa: '\u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627',
         icon: Receipt,
         permission: 'orders.read',
-        queueKey: 'pending_payments',
       },
       {
         href: '/tickets',

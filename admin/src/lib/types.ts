@@ -681,3 +681,26 @@ export interface CardBody {
   dailyLimit?: number | null
 }
 
+/** GET /api/v1/admin/payments - the review queue. */
+export interface PaymentRow {
+  id: string
+  invoiceId: string
+  userId: number
+  method: string
+  state: string
+  amount: number
+  gatewayKey: string | null
+  gatewayReference: string | null
+  expiresAt: string | null
+  waitingMinutes?: number
+  proof: {
+    method: string
+    reference: string | null
+    digest: string | null
+    submittedAt: string
+    fileId: string | null
+    network: string | null
+    noteFa: string | null
+  } | null
+}
+

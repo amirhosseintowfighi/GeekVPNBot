@@ -27,6 +27,7 @@ import type {
   OrderRow,
   Paged,
   PanelRow,
+  PaymentRow,
   PlanRow,
   PolicySetting,
   ProductRow,
@@ -283,6 +284,18 @@ export const api = {
       'POST',
       `${ROOT}/orders/${orderId}/retry-provision`,
     ),
+
+  /**
+   * The review queue.
+   *
+   * `GET /admin/payments` has existed since payments did, defaulting to
+   * `pending_review`, and no screen ever called it. So a customer could send a
+   * receipt, the payment would sit in the queue exactly as designed, and the
+   * panel offered approve and reject buttons with no way to reach a payment
+   * that needed them.
+   */
+  payments: (params: { state?: string; page?: number } = {}) =>
+    fetcher<Paged<PaymentRow>>(`${ROOT}/payments${qs(params)}`),
 
   approvePayment: (paymentId: string, actualAmount?: number) =>
     mutate<Record<string, unknown>>('POST', `${ROOT}/payments/${paymentId}/approve`, {
