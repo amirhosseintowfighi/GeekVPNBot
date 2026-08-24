@@ -104,7 +104,6 @@ POLICIES: Final[dict[str, Policy]] = {
     # --- expensive admin work ----------------------------------------------
     "analytics.dashboard": Policy("analytics.dashboard", limit=60, window_seconds=60, cost=2),
     "analytics.export": Policy("analytics.export", limit=6, window_seconds=600, cost=10),
-    "admin.broadcast": Policy("admin.broadcast", limit=5, window_seconds=3600),
     "admin.mutation": Policy("admin.mutation", limit=120, window_seconds=60),
 }
 

@@ -31,7 +31,13 @@ class TestPolicyTable:
             "payments.receipt",
             "payments.topup",
             "support.open_ticket",
-            "admin.broadcast",
+            # `admin.broadcast` used to be listed here. It was five sends an
+            # hour applied to the whole prefix, and a rejected attempt spent the
+            # budget too, so an operator debugging a failure locked themselves
+            # out of the screen for the rest of the hour. Broadcasts now share
+            # `admin.mutation` with the rest of the admin surface. Nothing else
+            # in this list moves money or grants access either way - a broadcast
+            # does neither.
             "analytics.export",
         ):
             assert required in POLICIES
