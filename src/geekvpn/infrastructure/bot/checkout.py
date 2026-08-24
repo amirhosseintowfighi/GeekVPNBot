@@ -144,17 +144,21 @@ class BotCheckoutAdapter:
 
         try:
             subscription = await self._provisioning.provision(order.id)
-        except Exception:
+        except Exception as failure:
             # The money is ours and the order says so. Persist whatever state
             # provisioning reached - it marks the order FAILED for the retry
             # queue - and tell the customer the truth instead of the generic
             # apology, which reads as "your payment vanished".
             await self._session.commit()
+            # `from failure`, never `from None`. Suppressing the cause here
+            # produced a log line containing only this apology - the one thing
+            # already visible on the customer's screen - and threw away the
+            # panel error underneath it, which is the only part worth keeping.
             raise DeliveryPending(
                 "پرداخت شما انجام شد، ولی ساخت اکانت هنوز کامل نشده است. "
                 "پشتیبانی در جریان است و سرویس به‌زودی فعال می‌شود.",
                 order_id=order.id,
-            ) from None
+            ) from failure
 
         return to_card(subscription, order)
 

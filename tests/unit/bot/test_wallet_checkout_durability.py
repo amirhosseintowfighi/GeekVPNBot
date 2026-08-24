@@ -77,3 +77,16 @@ def test_the_customer_is_told_their_money_arrived() -> None:
     """"Something went wrong" after a debit reads as "your money is gone"."""
     assert any("؀" <= ch <= "ۿ" for ch in DeliveryPending.message)
     assert DeliveryPending.code == "delivery_pending"
+
+
+def test_a_delivery_failure_keeps_the_cause_in_the_chain() -> None:
+    """`from None` threw away the only part worth logging.
+
+    The apology it raises is already on the customer's screen; the panel error
+    underneath it is what says why nothing was delivered. Suppressing the cause
+    produced a log line that repeated the apology and explained nothing.
+    """
+    source = ast.unparse(_function("pay_from_wallet"))
+
+    assert "from failure" in source or "raise DeliveryPending" not in source
+    assert "from None" not in source
