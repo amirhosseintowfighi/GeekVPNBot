@@ -29,17 +29,20 @@ Money rules encoded here rather than trusted to the caller
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from pydantic import ConfigDict, Field
+from sqlalchemy import select
 
 from geekvpn.application.payments.refund_service import RefundRequest
 from geekvpn.application.payments.review_service import ApprovalRequest
-from geekvpn.domain.base.errors import NotFoundError
+from geekvpn.domain.base.errors import ConflictError, NotFoundError
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.payments.enums import PaymentState, RefundDestination, RefundReason
 from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
 from geekvpn.presentation.api.admin_common import (
     ADMIN_PAGE_SIZE,
     ActorId,
@@ -306,6 +309,134 @@ async def refund_payment(
             "fullyRefunded": outcome.fully_refunded,
             "messageFa": outcome.message_fa,
         }
+
+    return await mutate_scope(container, work)
+
+
+# -- destination cards -------------------------------------------------------
+#
+# The card-to-card flow reads its destination from `billing_card_accounts`,
+# deliberately: "cards rotate constantly in the Iranian market, and a rotation
+# must be something support can do in the panel, not a deployment" - the
+# comment in `sync_scope` that describes a panel screen which did not exist.
+# There was no endpoint and no UI, so the only way to take a payment was to
+# write a row by hand, and a fresh install could not sell at all.
+
+
+class CardBody(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    holder_fa: str = Field(min_length=1, max_length=128)
+    bank_fa: str = Field(min_length=1, max_length=64)
+    #: Digits only. Stored as typed; the bot formats it for the customer.
+    card_number: str = Field(pattern=r"^\d{16,19}$")
+    sheba: str | None = Field(default=None, max_length=26)
+    #: The bot offers the lowest sort order that is active, so this is how a
+    #: card is rotated without deleting the one it replaces.
+    sort_order: int = 0
+    active: bool = True
+    daily_limit: int | None = Field(default=None, gt=0)
+
+
+def _card_dict(card: CardAccountModel) -> dict[str, Any]:
+    return {
+        "id": card.id,
+        "holderFa": card.holder_fa,
+        "bankFa": card.bank_fa,
+        "cardNumber": card.card_number,
+        "sheba": card.sheba,
+        "active": card.active,
+        "sortOrder": card.sort_order,
+        "dailyLimit": card.daily_limit,
+    }
+
+
+@router.get(
+    "/cards",
+    summary="Destination cards for the card-to-card flow",
+    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
+)
+async def list_cards(container: ContainerDep) -> list[dict[str, Any]]:
+    def work(scope: SyncScope) -> list[dict[str, Any]]:
+        rows = (
+            scope.session.execute(
+                select(CardAccountModel).order_by(
+                    CardAccountModel.sort_order, CardAccountModel.id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [_card_dict(row) for row in rows]
+
+    return await read_scope(container, work)
+
+
+@router.post(
+    "/cards",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a destination card",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def create_card(
+    payload: CardBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label="card.create")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        existing = scope.session.execute(
+            select(CardAccountModel).where(
+                CardAccountModel.card_number == payload.card_number
+            )
+        ).scalars().first()
+        if existing is not None:
+            raise ConflictError("این شماره کارت قبلاً ثبت شده است.")
+
+        card = CardAccountModel(
+            id=uuid.uuid4().hex,
+            holder_fa=payload.holder_fa,
+            bank_fa=payload.bank_fa,
+            card_number=payload.card_number,
+            sheba=payload.sheba,
+            active=payload.active,
+            sort_order=payload.sort_order,
+            daily_limit=payload.daily_limit,
+        )
+        scope.session.add(card)
+        scope.session.flush()
+        return _card_dict(card)
+
+    return await mutate_scope(container, work)
+
+
+@router.patch(
+    "/cards/{card_id}",
+    summary="Edit a card, or retire it",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def update_card(
+    card_id: str,
+    payload: CardBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"card.update:{card_id}")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        card = scope.session.get(CardAccountModel, card_id)
+        if card is None:
+            raise NotFoundError("این کارت پیدا نشد.")
+        card.holder_fa = payload.holder_fa
+        card.bank_fa = payload.bank_fa
+        card.card_number = payload.card_number
+        card.sheba = payload.sheba
+        card.active = payload.active
+        card.sort_order = payload.sort_order
+        card.daily_limit = payload.daily_limit
+        scope.session.flush()
+        return _card_dict(card)
 
     return await mutate_scope(container, work)
 

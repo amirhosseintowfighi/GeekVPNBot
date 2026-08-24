@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api'
 import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
+import { CardsSection } from '@/components/feature/cards-section'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Button } from '@/components/ui/button'
@@ -115,6 +116,10 @@ export default function SettingsPage() {
           ) : null
         }
       />
+
+      {/* Cards first: without one the platform cannot take money at all, which
+          outranks every pricing policy below it. */}
+      <CardsSection />
 
       {error ? (
         <ErrorState

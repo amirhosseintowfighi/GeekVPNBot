@@ -243,3 +243,24 @@ def test_a_product_response_names_the_node_it_provisions_from() -> None:
     from geekvpn.presentation.api.schemas_catalog import ProductAdminResponse
 
     assert "node_id" in ProductAdminResponse.model_fields
+
+
+def test_the_platform_can_be_given_a_card_without_touching_the_database() -> None:
+    """No card, no card-to-card, no sale.
+
+    `sync_scope` reads the destination card out of `billing_card_accounts` and
+    says so: rotations must be "something support can do in the panel, not a
+    deployment". There was no endpoint and no screen, so the only way to have a
+    card was a hand-written INSERT, and `payments.no_active_card` was the log
+    line every fresh install produced forever.
+    """
+    registered = registered_paths()
+
+    assert f"{API_V1_PREFIX}/admin/payments/cards" in registered
+    assert f"{API_V1_PREFIX}/admin/payments/cards/{{id}}" in registered
+
+    source = (ADMIN_SRC / "components" / "feature" / "cards-section.tsx").read_text(
+        encoding="utf-8"
+    )
+    for call in ("api.cards(", "api.createCard(", "api.updateCard("):
+        assert call in source, f"the cards screen never calls {call}"

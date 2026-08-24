@@ -658,3 +658,26 @@ export interface AnalyticsBundle {
     stats: Array<{ segment: string; labelFa: string; customers: number }>
   }
 }
+
+/** GET /api/v1/admin/payments/cards - the card-to-card destinations. */
+export interface CardRow {
+  id: string
+  holderFa: string
+  bankFa: string
+  cardNumber: string
+  sheba: string | null
+  active: boolean
+  sortOrder: number
+  dailyLimit: number | null
+}
+
+export interface CardBody {
+  holderFa: string
+  bankFa: string
+  cardNumber: string
+  sheba?: string | null
+  active?: boolean
+  sortOrder?: number
+  dailyLimit?: number | null
+}
+

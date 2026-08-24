@@ -556,7 +556,13 @@ function CategoryDialog({
     setBusy(true)
     setFailure(null)
     try {
-      await api.saveCategory({ slug: slug.trim(), nameFa: nameFa.trim() })
+      // Published on creation, unlike a product. The storefront hides a
+      // category that is not published, so a draft one silently hides every
+      // product under it - and unlike a product, a category has no
+      // prerequisite to check first: it carries no price and no panel
+      // binding, and an empty published category is invisible anyway.
+      const created = await api.saveCategory({ slug: slug.trim(), nameFa: nameFa.trim() })
+      await api.setCategoryState(created.id, 'published')
       onCreated()
       onClose()
       setSlug('')

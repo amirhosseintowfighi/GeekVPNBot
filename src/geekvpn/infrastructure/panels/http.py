@@ -130,8 +130,21 @@ class PanelHttpClient:
                 )
 
             # 4xx that is not auth or rate limiting: our request was wrong.
+            #
+            # 404 and 405 are worth naming, because in practice they mean one
+            # thing: the base URL points at the panel's web page rather than
+            # its API root. An operator copies the address out of the browser
+            # while looking at the dashboard - ".../dashboard/" - and every
+            # call lands on a route that serves HTML to GET and refuses POST.
+            # The status alone sends them looking for a bug in the panel.
+            hint = ""
+            if response.status_code in (404, 405):
+                hint = (
+                    " The address may point at the panel's dashboard page rather than"
+                    f" its API root - the request went to {response.request.url}."
+                )
             raise PanelContractViolation(
-                f"Panel returned unexpected HTTP {response.status_code}.",
+                f"Panel returned unexpected HTTP {response.status_code}.{hint}",
                 panel=self._panel_name,
                 status=response.status_code,
                 body=_safe_body(response),

@@ -16,6 +16,8 @@ import type {
   BroadcastAudience,
   BroadcastRow,
   CampaignRow,
+  CardBody,
+  CardRow,
   CategoryRow,
   CouponRow,
   DashboardSummary,
@@ -300,6 +302,10 @@ export const api = {
   categories: () => fetcher<CategoryRow[]>(`${ROOT}/catalog/categories`),
   saveCategory: (body: Partial<CategoryRow>) =>
     mutate<CategoryRow>('POST', `${ROOT}/catalog/categories`, body),
+  setCategoryState: (categoryId: string, state: string) =>
+    mutate<CategoryRow>('PUT', `${ROOT}/catalog/categories/${categoryId}/state`, {
+      publish: state === 'published',
+    }),
 
   products: (params: { categoryId?: string; state?: string }) =>
     fetcher<ProductRow[]>(`${ROOT}/catalog/products${qs(params)}`),
@@ -393,6 +399,15 @@ export const api = {
     mutate<CampaignRow>('PUT', `${ROOT}/catalog/campaigns/${campaignId}/state`, {
       state: action,
     }),
+
+  // ------------------------------------------------------ destination cards
+  // The card the customer is told to transfer to. Read from the database on
+  // purpose - cards rotate constantly - and until now there was no way to put
+  // one there but a hand-written INSERT.
+  cards: () => fetcher<CardRow[]>(`${ROOT}/payments/cards`),
+  createCard: (body: CardBody) => mutate<CardRow>('POST', `${ROOT}/payments/cards`, body),
+  updateCard: (cardId: string, body: CardBody) =>
+    mutate<CardRow>('PATCH', `${ROOT}/payments/cards/${cardId}`, body),
 
   // ---------------------------------------------------------- analytics
   // A window in days, matching GET /api/v1/admin/analytics, which takes
