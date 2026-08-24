@@ -538,3 +538,39 @@ def test_the_generated_env_file_configures_the_admin_allowlist(
 
     assert allowlist.allows("10.0.0.77")
     assert not allowlist.allows("198.51.100.4")
+
+
+def test_the_installer_refuses_a_machine_that_already_runs_a_deployment() -> None:
+    """The volume prompt is one keystroke from erasing a live database.
+
+    An operator who ran the installer instead of the upgrade path was asked
+    "delete everything in it?" rather than being told they were in the wrong
+    place. That question must never be reached while containers are up.
+    """
+    text = INSTALL.read_text(encoding="utf-8")
+
+    guard = text.index("com.docker.compose.project=$PROJECT_NAME")
+    prompt = text.index("Delete it, and everything in it")
+
+    assert guard < prompt, (
+        "install.sh offers to delete the data volumes before checking whether a "
+        "deployment is running, so the check cannot protect anything"
+    )
+    assert "bash scripts/deploy.sh" in text[guard:prompt], (
+        "the refusal must name the upgrade path, or the operator's only visible "
+        "option is the destructive one"
+    )
+
+
+def test_the_installer_reads_the_compose_project_name_rather_than_guessing() -> None:
+    """`basename $PWD` is not the project name, and the difference deletes data.
+
+    Compose fixes the name in the file. A clone in a differently named
+    directory looked for containers that did not exist under that label,
+    stopped nothing, and went on to delete volumes a running deployment still
+    held - and in a directory that happened to match, it would have succeeded.
+    """
+    text = INSTALL.read_text(encoding="utf-8")
+
+    assert 'PROJECT_NAME=$(awk' in text, "install.sh still derives the project name from the path"
+    assert 'PROJECT_NAME=$(basename' not in text

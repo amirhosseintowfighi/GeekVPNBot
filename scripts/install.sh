@@ -104,12 +104,34 @@ if [[ -f "$ENV_FILE" ]]; then
   ok "backed up to .env.backup"
 fi
 
+# The compose project name is fixed in the compose files themselves. Deriving
+# it from the directory - as this did - is wrong in both directions, and one of
+# them destroys data: a clone in ~/geekvpn-new looked for containers labelled
+# "geekvpn-new", found none, stopped nothing, and went on to delete volumes that
+# a running deployment still held. That failed, which is the only reason the
+# database survived. Run from a directory that happens to be named "geekvpn" and
+# the same path force-removes the containers and then succeeds.
+PROJECT_NAME=$(awk '/^name:/ {print $2; exit}' docker-compose.yml)
+[[ -n "$PROJECT_NAME" ]] || die "docker-compose.yml declares no project name."
+
+# A deployment already running here is not something to ask a yes/no question
+# about. The question was "delete everything in it?", one keystroke from every
+# customer, order and payment in the database - offered to an operator whose
+# actual mistake was running the installer instead of the upgrade path.
+RUNNING=$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT_NAME" | wc -l)
+if [[ "$RUNNING" -gt 0 ]]; then
+  die "This machine already runs a '$PROJECT_NAME' deployment ($RUNNING containers).
+     This wizard only installs onto an empty machine. To upgrade, use:
+       ${DIM}bash scripts/deploy.sh${OFF}
+     If you really mean to erase it, say so explicitly and run this again:
+       ${DIM}$COMPOSE down -v${OFF}"
+fi
+
 # Postgres reads POSTGRES_PASSWORD only while its data directory is empty. A
 # volume left behind by an earlier run therefore keeps that run's password
 # forever, while this wizard generates a fresh one - so every later attempt
 # fails authentication, and it fails inside alembic, long after the operator
 # has answered every question. Checked here, before the first prompt.
-PROJECT_NAME=$(basename "$PROJECT_DIR")
 STALE_VOLUMES=$(docker volume ls -q --filter "name=postgres-data" --filter "name=redis-data" || true)
 if [[ -n "$STALE_VOLUMES" ]]; then
   warn "Data volumes from an earlier run already exist:"
