@@ -48,7 +48,7 @@ from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.provisioning.order_service import OrderPaymentBridge
+from geekvpn.application.provisioning.order_service import INVOICE_ORDER_KEY, OrderPaymentBridge
 from geekvpn.application.support.search_service import SearchService
 from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
@@ -299,7 +299,23 @@ class SyncScope:
             orders=self.orders,
             clock=self.container.clock,
             events=LoggingEventPublisher(),
+            order_id_for_invoice=self._order_id_for_invoice,
         )
+
+    def _order_id_for_invoice(self, invoice_id: str) -> str | None:
+        """The order an invoice was raised for, from its own metadata.
+
+        `INVOICE_ORDER_KEY` has been travelling on every checkout since the bot
+        was written and nothing ever read it. It is the only way to connect a
+        wallet payment to its order, because that payment settles inside the
+        call that creates the invoice - before anything can write the invoice
+        id back onto the order.
+        """
+        invoice = self.invoices.get(invoice_id)
+        if invoice is None:
+            return None
+        order_id = invoice.metadata.get(INVOICE_ORDER_KEY)
+        return str(order_id) if order_id else None
 
     @cached_property
     def orders(self) -> SyncOrderRepository:

@@ -137,6 +137,10 @@ class SyncOrderRepository(Protocol):
 
     def get_by_invoice(self, invoice_id: str) -> Order | None: ...
 
+    #: By id, for the window where the invoice link does not exist yet - a
+    #: wallet purchase settles inside the call that creates the invoice.
+    def get(self, order_id: str) -> Order | None: ...
+
     def update(self, order: Order) -> None: ...
 
 

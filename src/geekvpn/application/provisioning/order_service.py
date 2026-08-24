@@ -16,6 +16,8 @@ Two classes live here because they run in two different scopes:
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import (
     EventPublisher,
@@ -125,7 +127,7 @@ class OrderPaymentBridge:
     top-ups are payments too, and they legitimately buy nothing.
     """
 
-    __slots__ = ("_clock", "_events", "_orders")
+    __slots__ = ("_clock", "_events", "_order_id_for_invoice", "_orders")
 
     def __init__(
         self,
@@ -133,10 +135,14 @@ class OrderPaymentBridge:
         orders: SyncOrderRepository,
         clock: Clock,
         events: EventPublisher,
+        order_id_for_invoice: Callable[[str], str | None] | None = None,
     ) -> None:
         self._orders = orders
         self._clock = clock
         self._events = events
+        # A second way to find the order, for the window where the first one
+        # cannot work. See `_find_order`.
+        self._order_id_for_invoice = order_id_for_invoice
 
     def on_payment_approved(self, event: object) -> Order | None:
         """Handle ``PaymentApproved``.
@@ -149,7 +155,7 @@ class OrderPaymentBridge:
         if not isinstance(invoice_id, str):
             return None
 
-        order = self._orders.get_by_invoice(invoice_id)
+        order = self._find_order(invoice_id)
         if order is None:
             return None
         if order.state is not OrderState.PENDING:
@@ -162,6 +168,33 @@ class OrderPaymentBridge:
         self._orders.update(order)
         self._events.publish_all(order.collect_events())
         return order
+
+    def _find_order(self, invoice_id: str) -> Order | None:
+        """By invoice, or by the order id the invoice was created with.
+
+        The second path exists because of a window the first cannot cover. A
+        wallet purchase settles *inside* the call that creates the invoice, so
+        this handler runs before the caller has had a chance to write the
+        invoice id onto the order - `get_by_invoice` matches nothing, the order
+        stays PENDING, and provisioning then refuses it, because PENDING to
+        PROVISIONING is not a legal transition. The customer is debited and
+        receives nothing.
+
+        The order id has been travelling on the invoice's metadata the whole
+        time: `INVOICE_ORDER_KEY` was defined and exported for exactly this and
+        never read by anything.
+
+        A callable rather than the invoice repository, so provisioning still
+        does not depend on billing - the direction of that dependency is why a
+        Telegram outage cannot roll back a payment.
+        """
+        order = self._orders.get_by_invoice(invoice_id)
+        if order is not None:
+            return order
+        if self._order_id_for_invoice is None:
+            return None
+        order_id = self._order_id_for_invoice(invoice_id)
+        return self._orders.get(order_id) if order_id else None
 
 
 __all__ = ["INVOICE_ORDER_KEY", "OrderPaymentBridge", "OrderService"]
