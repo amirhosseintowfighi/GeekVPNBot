@@ -20,6 +20,7 @@ Decisions worth knowing before changing anything here
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
@@ -30,6 +31,7 @@ from geekvpn.application.support.ticket_service import NoteRequest, ReplyRequest
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.support.enums import TicketCategory, TicketPriority, TicketState
 from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.persistence.repositories.sync_directory import Person
 from geekvpn.presentation.api.admin_common import (
     ADMIN_PAGE_SIZE,
     ActorId,
@@ -105,10 +107,33 @@ class TemplateUpdateBody(ApiModel):
 # -- serialisation ----------------------------------------------------------
 
 
-def _summary_dict(summary: Any) -> dict[str, Any]:
+def _with_people(scope: SyncScope, summaries: Sequence[Any]) -> list[dict[str, Any]]:
+    """Label a page of tickets with who opened them.
+
+    One lookup for the whole page. Per row it would be twenty-six round trips
+    for a queue of twenty-five, and the queue is the screen an operator keeps
+    open all day.
+    """
+    people = scope.directory.by_telegram_ids(summary.user_id for summary in summaries)
+    return [_summary_dict(summary, people.get(summary.user_id)) for summary in summaries]
+
+
+def _summary_dict(summary: Any, person: Person | None = None) -> dict[str, Any]:
+    """One ticket, with the customer behind it where we have them.
+
+    The queue stores a Telegram id because that is what the bot knows and the
+    number never changes. An operator needs a person - the panel showed the
+    raw id and the support team was looking each one up by hand.
+
+    `None` when the id belongs to nobody we have a row for, which is possible
+    for a ticket older than a wiped user table. The id is still there, so the
+    row stays usable.
+    """
     return {
         "ticketId": summary.ticket_id,
         "userId": summary.user_id,
+        "customerName": person.display_name if person else None,
+        "customerUsername": person.username if person else None,
         "reference": summary.reference,
         "category": summary.category.value,
         "priority": summary.priority.value,
@@ -178,7 +203,7 @@ async def ticket_queue(
             offset=offset,
         )
         return {
-            "items": [_summary_dict(s) for s in summaries],
+            "items": _with_people(scope, summaries),
             "page": page,
             "pageSize": ADMIN_PAGE_SIZE,
             "total": scope.tickets.count_open(
@@ -213,7 +238,7 @@ async def search_tickets(
     def work(scope: SyncScope) -> dict[str, Any]:
         result = scope.support_search.search(query)
         return {
-            "items": [_summary_dict(s) for s in result.summaries],
+            "items": _with_people(scope, result.summaries),
             "page": page,
             "pageSize": ADMIN_PAGE_SIZE,
             "total": result.total,
@@ -232,7 +257,10 @@ async def get_ticket(
     ticket_id: str, container: ContainerDep, admin: CurrentAdmin
 ) -> dict[str, Any]:
     def work(scope: SyncScope) -> dict[str, Any]:
-        return _summary_dict(scope.support.get_ticket(ticket_id))
+        summary = scope.support.get_ticket(ticket_id)
+        return _summary_dict(
+            summary, scope.directory.by_telegram_ids([summary.user_id]).get(summary.user_id)
+        )
 
     return await read_scope(container, work)
 

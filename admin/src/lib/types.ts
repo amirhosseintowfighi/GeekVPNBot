@@ -468,6 +468,12 @@ export interface WalletTransactionRow {
 export interface AdminTicketRow {
   ticketId: string
   userId: number
+  /**
+   * Who opened it. `null` only when the id belongs to no user row we still
+   * have - the id itself is always there, so a row stays usable either way.
+   */
+  customerName: string | null
+  customerUsername: string | null
   reference: string
   category: string
   priority: string

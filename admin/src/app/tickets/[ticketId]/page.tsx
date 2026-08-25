@@ -85,7 +85,12 @@ export default function TicketDetailPage() {
       <PageHeader
         breadcrumb={{ href: '/tickets', labelFa: '\u062a\u06cc\u06a9\u062a\u200c\u0647\u0627' }}
         title={ticket.subjectFa}
-        description={'\u06a9\u0627\u0631\u0628\u0631 ' + ticket.userId + ' \u00b7 ' + ticket.reference}
+        description={
+          (ticket.customerName ?? '\u06a9\u0627\u0631\u0628\u0631 ' + ticket.userId) +
+          (ticket.customerUsername ? ' (@' + ticket.customerUsername + ')' : '') +
+          ' \u00b7 ' +
+          ticket.reference
+        }
         actions={
           <div className="flex items-center gap-2">
             <Badge variant={meta.tone} dot>

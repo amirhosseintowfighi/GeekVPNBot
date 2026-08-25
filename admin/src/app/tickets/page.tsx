@@ -112,9 +112,17 @@ export default function TicketsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Link href={'/users/' + ticket.userId} className="hover:underline">
-                          {faNumber(ticket.userId)}
+                        <Link
+                          href={'/users/' + ticket.userId}
+                          className="hover:underline"
+                        >
+                          {ticket.customerName ?? faNumber(ticket.userId)}
                         </Link>
+                        {ticket.customerUsername ? (
+                          <span dir="ltr" className="block text-2xs text-muted-foreground">
+                            {'@' + ticket.customerUsername}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Badge variant={meta.tone} dot>

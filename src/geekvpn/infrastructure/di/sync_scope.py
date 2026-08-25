@@ -73,6 +73,9 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
 from geekvpn.infrastructure.persistence.repositories.subscription_reader import (
     SqlSubscriptionReader,
 )
+from geekvpn.infrastructure.persistence.repositories.sync_directory import (
+    SyncUserDirectory,
+)
 from geekvpn.infrastructure.persistence.repositories.sync_notifications import (
     SyncBroadcastRepository,
     SyncNotificationRepository,
@@ -320,6 +323,11 @@ class SyncScope:
     @cached_property
     def orders(self) -> SyncOrderRepository:
         return SyncOrderRepository(self.session)
+
+    @cached_property
+    def directory(self) -> SyncUserDirectory:
+        """Telegram ids to people, for queues that only store the id."""
+        return SyncUserDirectory(self.session)
 
     @cached_property
     def audit(self) -> SyncAuditLog:

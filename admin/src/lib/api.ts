@@ -497,8 +497,12 @@ export const api = {
   // Wrapped in {items}, and a separate call from the ticket itself.
   ticketMessages: (ticketId: string) =>
     fetcher<{ items: AdminTicketMessage[] }>(`${ROOT}/tickets/${ticketId}/messages`),
-  replyToTicket: (ticketId: string, message: string) =>
-    mutate<AdminTicketMessage>('POST', `${ROOT}/tickets/${ticketId}/reply`, { message }),
+  // `bodyFa`, which is what the endpoint declares - and it forbids extras, so
+  // sending `message` failed twice over: the field it wanted was missing and
+  // the one it got was not allowed. The operator saw "(bodyFa، message)" and
+  // no reply was ever posted from the panel.
+  replyToTicket: (ticketId: string, bodyFa: string) =>
+    mutate<AdminTicketMessage>('POST', `${ROOT}/tickets/${ticketId}/reply`, { bodyFa }),
   closeTicket: (ticketId: string) =>
     mutate<AdminTicketRow>('POST', `${ROOT}/tickets/${ticketId}/close`),
 
