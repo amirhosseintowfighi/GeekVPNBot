@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from geekvpn.domain.catalog.rewards import LoyaltyTier
+
 
 class SubscriptionState(str, Enum):
     ACTIVE = "active"
@@ -112,6 +114,10 @@ class WalletSnapshot:
     balance: int = 0
     lifetime_spend: int = 0
     pending_credit: int = 0
+    #: Derived from lifetime spend, not stored. Shown on the home screen
+    #: and the profile ladder, both of which read bronze for everyone
+    #: while this was missing.
+    tier: LoyaltyTier = LoyaltyTier.BRONZE
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +187,9 @@ class TicketCard:
     created_at: datetime
     last_message_fa: str = ""
     unread_count: int = 0
+    #: When the thread last moved, from either side. The support list
+    #: sorts and labels by this and falls back to `created_at`.
+    last_reply_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

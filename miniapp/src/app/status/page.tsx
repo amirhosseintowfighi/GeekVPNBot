@@ -89,14 +89,6 @@ export default function StatusPage() {
                     </div>
                   ) : null}
 
-                  {row.latencyMs !== null ? (
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>{'\u062a\u0627\u062e\u06cc\u0631'}</span>
-                      <span className="nums">
-                        {faNumber(row.latencyMs) + ' \u0645\u06cc\u0644\u06cc\u200c\u062b\u0627\u0646\u06cc\u0647'}
-                      </span>
-                    </div>
-                  ) : null}
                 </Card>
               </li>
             )

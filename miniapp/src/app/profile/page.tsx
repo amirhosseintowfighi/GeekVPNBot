@@ -136,9 +136,9 @@ export default function ProfilePage() {
                   {data.displayName ||
                     '\u06a9\u0627\u0631\u0628\u0631 \u06af\u06cc\u06a9 \u0648\u06cc\u200c\u067e\u06cc\u200c\u0627\u0646'}
                 </p>
-                {data.telegramUsername ? (
+                {data.username ? (
                   <p dir="ltr" className="truncate text-start text-xs text-muted-foreground">
-                    {'@' + data.telegramUsername}
+                    {'@' + data.username}
                   </p>
                 ) : null}
               </div>

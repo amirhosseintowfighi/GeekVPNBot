@@ -178,9 +178,8 @@ export interface ReferralSummary {
 export interface ProfileSummary {
   userId: string
   displayName: string | null
-  telegramUsername: string | null
+  username: string | null
   phone: string | null
-  email: string | null
   tier: LoyaltyTier
   lifetimeSpend: number
   orderCount: number
@@ -191,14 +190,12 @@ export interface ServerStatusRow {
   nameFa: string
   health: ServerHealth
   loadPercent: number | null
-  latencyMs: number | null
 }
 
 export interface TicketCard {
   ticketId: string
   reference: string
   topicFa: string
-  subjectFa: string
   state: TicketState
   createdAt: string
   lastReplyAt: string | null

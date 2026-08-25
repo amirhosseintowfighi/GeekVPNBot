@@ -36,6 +36,8 @@ from geekvpn.application.bot.read_models import (
     TransactionKind as CardKind,
 )
 from geekvpn.application.support.ticket_service import OpenTicketRequest, TicketSummary
+from geekvpn.domain.catalog.money import Money
+from geekvpn.domain.catalog.rewards import tier_for_spend
 from geekvpn.domain.payments.enums import TransactionKind
 from geekvpn.domain.payments.wallet import LedgerEntry
 from geekvpn.domain.support.enums import TicketState
@@ -117,7 +119,11 @@ class SyncWalletCardReader:
             # the wallet aggregate if a heavy user makes this show up.
             statement = scope.wallet.statement(telegram_id, limit=_ALL_ENTRIES)
             spend = sum(-e.amount for e in statement.entries if e.amount < 0)
-            return WalletSnapshot(balance=statement.balance, lifetime_spend=spend)
+            return WalletSnapshot(
+                balance=statement.balance,
+                lifetime_spend=spend,
+                tier=tier_for_spend(Money(spend)),
+            )
 
         return await self._bridge.run(work)
 
@@ -251,6 +257,7 @@ def _to_ticket_card(summary: TicketSummary) -> TicketCard:
         state=_CARD_TICKET_STATE.get(summary.state, CardTicketState.OPEN),
         created_at=summary.created_at,
         unread_count=summary.unread_for_customer,
+        last_reply_at=summary.updated_at,
     )
 
 

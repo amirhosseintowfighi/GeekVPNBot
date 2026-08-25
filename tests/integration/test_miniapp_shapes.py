@@ -18,7 +18,10 @@ import re
 from pathlib import Path
 
 import pytest
+from pydantic.alias_generators import to_camel, to_snake
 
+from geekvpn.application.bot import read_models
+from geekvpn.presentation.api.routers import miniapp
 from geekvpn.presentation.api.routers.miniapp import (
     CategoryCard,
     PlanCard,
@@ -69,3 +72,85 @@ def test_the_payload_is_camel_case() -> None:
 
     assert "planId" in sent
     assert "plan_id" not in sent
+
+
+# -- endpoints without a response model -------------------------------------
+#
+# Most Mini App endpoints return an application read model directly. Those are
+# flat DTOs shaped for exactly these screens, so a response model per endpoint
+# would only restate them - `_CamelCaseRoute` fixes the one thing that was
+# wrong on the wire, which was the spelling. The check below is what keeps the
+# two sides honest instead.
+#
+# The failure this catches has a signature: the services card read `usedGib`,
+# `quotaGib` and `deviceLimit` off a payload spelling them `used_gib`,
+# `quota_gib`, `device_limit`, and rendered "NaN گیگابایت از NaN گیگابایت".
+
+
+def _sent_by_dataclass(model: type) -> set[str]:
+    return {to_camel(name) for name in model.__dataclass_fields__}
+
+
+#: Fields the endpoint composes on top of its read model, and where from. A
+#: read model is one query's worth of data; these are facts that live in
+#: another one, and joining them in the reader would mean reaching across the
+#: sync/async boundary for a screen's convenience.
+COMPOSED: dict[str, set[str]] = {
+    # Lifetime spend is a wallet fact, so the tier derived from it is too.
+    "ProfileSummary": {"tier", "lifetimeSpend"},
+    # The invite terms are admin-configurable settings, not the customer's own
+    # results, and the invite screen has to quote them.
+    "ReferralSummary": {"inviteeBonus", "firstPurchaseBps", "recurringBps"},
+    # The destination card comes from the gateway registry: it rotates, and a
+    # customer mid-transfer must see the one that is active now.
+    "PendingPayment": {"card", "crypto"},
+}
+
+
+@pytest.mark.parametrize(
+    ("model", "interface"),
+    [
+        (read_models.SubscriptionCard, "SubscriptionCard"),
+        (read_models.WalletSnapshot, "WalletSnapshot"),
+        (read_models.WalletTransaction, "WalletTransaction"),
+        (read_models.ReferralSummary, "ReferralSummary"),
+        (read_models.ProfileSummary, "ProfileSummary"),
+        (read_models.ServerStatusRow, "ServerStatusRow"),
+        (read_models.TicketCard, "TicketCard"),
+        (read_models.PendingPayment, "PendingPayment"),
+    ],
+)
+def test_the_mini_app_reads_only_fields_the_read_model_carries(
+    model: type, interface: str
+) -> None:
+    sent = _sent_by_dataclass(model) | COMPOSED.get(interface, set())
+    missing = _fields_of(interface) - sent
+
+    assert not missing, (
+        f"{interface} reads fields {model.__name__} does not carry: {sorted(missing)}"
+    )
+
+
+def test_the_router_camel_cases_what_it_sends() -> None:
+    """Without this every field above arrives under its Python name."""
+    assert miniapp.router.route_class is miniapp._CamelCaseRoute
+    assert miniapp._camelize({"used_gib": [{"quota_gib": 1}]}) == {
+        "usedGib": [{"quotaGib": 1}]
+    }
+
+
+def test_every_composed_field_is_actually_composed_somewhere() -> None:
+    """`COMPOSED` is a claim about the router, so it is checked against it.
+
+    Otherwise the list above becomes a place to silence this test: name a field
+    here and the check passes whether or not anything sends it.
+    """
+    source = Path(miniapp.__file__).read_text(encoding="utf-8")
+    unsent = [
+        name
+        for names in COMPOSED.values()
+        for name in names
+        if f'"{to_snake(name)}"' not in source
+    ]
+
+    assert not unsent, f"claimed to be composed by the router, but never sent: {unsent}"

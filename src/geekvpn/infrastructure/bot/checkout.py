@@ -171,7 +171,7 @@ class BotCheckoutAdapter:
             card_number=getattr(gateway, "card_number", ""),
             card_holder_fa=getattr(gateway, "card_holder_fa", ""),
             bank_fa=getattr(gateway, "bank_name_fa", ""),
-            review_sla_fa=_REVIEW_SLA_FA,
+            review_sla_fa=REVIEW_SLA_FA,
             payment=_to_pending(result),
         )
 
@@ -218,7 +218,7 @@ class BotCheckoutAdapter:
             card_number=getattr(gateway, "card_number", ""),
             card_holder_fa=getattr(gateway, "card_holder_fa", ""),
             bank_fa=getattr(gateway, "bank_name_fa", ""),
-            review_sla_fa=_REVIEW_SLA_FA,
+            review_sla_fa=REVIEW_SLA_FA,
             payment=_to_pending(result),
         )
 
@@ -419,7 +419,7 @@ class BotCheckoutAdapter:
 
 #: Shown next to every manual payment so the customer knows what "in review"
 #: costs them in waiting.
-_REVIEW_SLA_FA = "بررسی معمولاً کمتر از ۳۰ دقیقه طول می‌کشد."
+REVIEW_SLA_FA = "بررسی معمولاً کمتر از ۳۰ دقیقه طول می‌کشد."
 
 
 def _lines_for(plan_name_fa: str, quote: PriceQuote) -> list[InvoiceLine]:

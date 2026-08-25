@@ -13,16 +13,24 @@ front-end already calls, and it is checked by
 
 from __future__ import annotations
 
+import dataclasses
+import functools
 import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.datastructures import DefaultPlaceholder
+from fastapi.encoders import jsonable_encoder
+from fastapi.routing import APIRoute
 from pydantic import ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 from geekvpn.application.bot.read_models import NotificationPreferences
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.payments.enums import PaymentMethod
 from geekvpn.domain.payments.payment import Payment
+from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
@@ -30,7 +38,51 @@ from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 from geekvpn.presentation.api.miniapp_security import CurrentMiniAppUser, ServicesDep
 from geekvpn.presentation.api.security import ScopeDep
 
-router = APIRouter(prefix="/api/miniapp", tags=["mini-app"])
+
+#: The Mini App reads camelCase everywhere. Endpoints with a response model
+#: get that from ``ApiModel``; the ones that hand back an application read
+#: model directly used to emit its Python field names instead, so the front
+#: end read ``usedGib`` off a payload that said ``used_gib`` and rendered NaN.
+class _CamelCaseRoute(APIRoute):
+    """Serialises snake_case field names as camelCase.
+
+    The alternative was a response model per endpoint - twenty schemas that
+    restate the read models field for field, and drift from them silently the
+    first time a field is added. The read models are already flat DTOs shaped
+    for exactly these screens; the only thing wrong with them on the wire was
+    the spelling.
+
+    Routes that *do* declare a response model are left alone: ``ApiModel``
+    already emits aliases, and camelising a name with no underscore in it is a
+    no-op anyway.
+    """
+
+    def __init__(self, path: str, endpoint: Any, **kwargs: Any) -> None:
+        model = kwargs.get("response_model")
+        if isinstance(model, DefaultPlaceholder):
+            model = model.value
+        if model is None:
+            endpoint = _camel_cased(endpoint)
+        super().__init__(path, endpoint, **kwargs)
+
+
+def _camel_cased(endpoint: Any) -> Any:
+    @functools.wraps(endpoint)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        return _camelize(jsonable_encoder(await endpoint(*args, **kwargs)))
+
+    return wrapper
+
+
+def _camelize(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {to_camel(key): _camelize(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_camelize(item) for item in value]
+    return value
+
+
+router = APIRouter(prefix="/api/miniapp", tags=["mini-app"], route_class=_CamelCaseRoute)
 
 #: A customer with more outstanding payments than this has a support problem,
 #: not a pagination problem.
@@ -64,8 +116,22 @@ def _message_view(message: MessageView) -> dict[str, Any]:
     }
 
 
-def _payment_view(payment: Payment) -> dict[str, Any]:
-    """The card number and the receipt digest deliberately stay server-side."""
+def _payment_view(payment: Payment, scope: SyncScope) -> dict[str, Any]:
+    """The receipt digest stays server-side. The destination card does not.
+
+    This is the screen a customer reads the card number off before making
+    the transfer. Sending the payment without it left them on a page asking
+    for a receipt for a transfer they were never told how to make.
+
+    The card is registry configuration rather than something stored on the
+    payment, which is deliberate: cards rotate, and a customer who is still
+    mid-transfer should be shown the card that is active now.
+    """
+    card = (
+        scope.gateways.get(CARD)
+        if payment.method is PaymentMethod.CARD and scope.gateways.has(CARD)
+        else None
+    )
     return {
         "payment_id": payment.id,
         "reference": payment.id,
@@ -74,6 +140,20 @@ def _payment_view(payment: Payment) -> dict[str, Any]:
         "state": payment.state.value,
         "created_at": payment.created_at,
         "expires_at": payment.expires_at,
+        "card": (
+            {
+                "card_number": getattr(card, "card_number", ""),
+                "card_holder_fa": getattr(card, "card_holder_fa", ""),
+                "bank_fa": getattr(card, "bank_name_fa", ""),
+                "review_sla_fa": REVIEW_SLA_FA,
+            }
+            if card is not None
+            else None
+        ),
+        # No crypto gateway is registered anywhere in the container, so a
+        # crypto payment cannot exist to describe. Null is the honest answer
+        # rather than an empty address the customer would send funds to.
+        "crypto": None,
     }
 
 
@@ -365,7 +445,7 @@ async def pending_payments(user: CurrentMiniAppUser, container: ContainerDep) ->
     def work(scope: SyncScope) -> list[dict[str, Any]]:
         payments = scope.payments.list_for_user(telegram_id, limit=_PENDING_LIMIT)
         return [
-            _payment_view(payment)
+            _payment_view(payment, scope)
             for payment in payments
             if not payment.state.is_settled() and not payment.state.is_terminal()
         ]
@@ -474,8 +554,22 @@ async def topup(
 
 
 @router.get("/referral", summary="Invite code and its results")
-async def referral(user: CurrentMiniAppUser, services: ServicesDep) -> Any:
-    return await services.referrals.summary(user.id)
+async def referral(
+    user: CurrentMiniAppUser, services: ServicesDep, scope: ScopeDep
+) -> Any:
+    """The customer's own results, plus the terms they are being offered.
+
+    The rates are admin-configurable settings rather than constants, so the
+    invite screen has to read them rather than state them. It was rendering
+    "NaN%" for both of them and a NaN toman bonus.
+    """
+    summary = await services.referrals.summary(user.id)
+    policy = await scope.pricing_policies.load()
+    return dataclasses.asdict(summary) | {
+        "invitee_bonus": policy.referral.invitee_bonus.amount,
+        "first_purchase_bps": policy.referral.first_purchase_bps,
+        "recurring_bps": policy.referral.recurring_bps,
+    }
 
 
 @router.get("/tickets", summary="This customer's support tickets")
@@ -535,7 +629,20 @@ async def reply_to_ticket(
 
 @router.get("/profile", summary="Profile summary")
 async def profile(user: CurrentMiniAppUser, services: ServicesDep) -> Any:
-    return await services.profiles.summary(user.id)
+    """The profile, plus the two numbers the tier ladder is drawn from.
+
+    Lifetime spend is a wallet fact, not a user column, so the profile
+    reader has never been able to fill it in - it returned zero, and the
+    ladder showed every customer as bronze with nothing spent. Composing
+    the two read models here is cheaper than teaching the profile reader to
+    reach across into the payments scope.
+    """
+    summary = await services.profiles.summary(user.id)
+    wallet = await services.wallet.snapshot(user.id)
+    return dataclasses.asdict(summary) | {
+        "lifetime_spend": wallet.lifetime_spend,
+        "tier": wallet.tier.value,
+    }
 
 
 @router.post("/profile", summary="Update the display name")

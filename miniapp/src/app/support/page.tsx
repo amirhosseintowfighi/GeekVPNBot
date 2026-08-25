@@ -207,7 +207,7 @@ export default function SupportPage() {
                   <Card className="space-y-2 p-3 transition-colors hover:border-border">
                     <div className="flex items-start justify-between gap-3">
                       <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {ticket.subjectFa}
+                        {ticket.topicFa}
                       </p>
                       <div className="flex shrink-0 items-center gap-1.5">
                         {ticket.unreadCount > 0 ? (

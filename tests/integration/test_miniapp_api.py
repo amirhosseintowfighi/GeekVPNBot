@@ -152,7 +152,21 @@ def test_a_pending_payment_never_exposes_the_receipt_or_card() -> None:
         gateway_reference="gw-ref",
     )
 
-    view = _payment_view(payment)
+    # The destination card is the one thing here the customer must see - it is
+    # what they transfer to. It comes from the gateway registry, never from the
+    # payment row, so a stub registry is the whole dependency.
+    scope = SimpleNamespace(
+        gateways=SimpleNamespace(
+            has=lambda key: True,
+            get=lambda key: SimpleNamespace(
+                card_number="6037-9900-0000-0000",
+                card_holder_fa="علی",
+                bank_name_fa="ملی",
+            ),
+        )
+    )
+
+    view = _payment_view(payment, scope)
 
     assert set(view) == {
         "payment_id",
@@ -162,6 +176,8 @@ def test_a_pending_payment_never_exposes_the_receipt_or_card() -> None:
         "state",
         "created_at",
         "expires_at",
+        "card",
+        "crypto",
     }
     assert "secret-receipt" not in str(view)
     assert "gw-ref" not in str(view)
