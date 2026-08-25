@@ -26,9 +26,14 @@ from pydantic import ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from geekvpn.application.bot.read_models import NotificationPreferences
+from geekvpn.application.payments.receipt_intent import (
+    RECEIPT_INTENT_TTL_SECONDS,
+    RECEIPT_REQUESTED_TEMPLATE,
+    receipt_intent_key,
+)
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
-from geekvpn.domain.payments.enums import PaymentMethod
+from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
 from geekvpn.infrastructure.di.sync_scope import SyncScope
@@ -432,6 +437,57 @@ async def attach_txid(
     payment = await services.checkout.attach_txid(user.id, payment_id=payment_id, txid=payload.txid)
     await uow.commit()
     return payment
+
+
+@router.post(
+    "/payments/{payment_id}/receipt-request",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Ask the bot to collect the receipt for this payment",
+)
+async def request_receipt(
+    payment_id: uuid.UUID, user: CurrentMiniAppUser, container: ContainerDep
+) -> dict[str, Any]:
+    """Send the customer a prompt in the chat, and remember what it was about.
+
+    The Mini App cannot upload to Telegram's file storage, so the receipt has
+    to arrive in the bot chat. Closing the app and hoping was the old
+    behaviour, and it left people staring at a conversation that had said
+    nothing to them.
+
+    The intent is written before the prompt is sent, because the customer can
+    reply faster than we can lose the race. It is a hint and nothing more - the
+    bot still checks the payment is theirs and still unproven.
+    """
+    telegram_id = user.telegram_id
+    stored_id = payment_id.hex
+
+    def find(scope: SyncScope) -> Payment | None:
+        for candidate in scope.payments.list_for_user(telegram_id, limit=_PENDING_LIMIT):
+            if candidate.id == stored_id and candidate.state is PaymentState.AWAITING_PROOF:
+                return candidate
+        return None
+
+    payment = await read_scope(container, find)
+    if payment is None:
+        # 404 for "not yours" as well as "not waiting", so the response cannot
+        # be used to discover which payment ids exist.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No payment is awaiting a receipt.")
+
+    await container.cache.set(
+        receipt_intent_key(telegram_id), stored_id, ttl_seconds=RECEIPT_INTENT_TTL_SECONDS
+    )
+
+    amount = payment.amount.amount
+
+    def notify(scope: SyncScope) -> None:
+        scope.engine.notify(
+            user_id=telegram_id,
+            template_key=RECEIPT_REQUESTED_TEMPLATE,
+            fields={"amount": amount},
+        )
+
+    await mutate_scope(container, notify)
+    return {"sent": True}
 
 
 @router.get("/payments/pending", summary="Payments still awaiting proof or review")

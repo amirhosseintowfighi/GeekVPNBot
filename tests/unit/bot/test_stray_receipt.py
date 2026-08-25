@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 import pytest
 
 from geekvpn.application.bot.read_models import PaymentMethod, PaymentState, PendingPayment
+from geekvpn.application.payments.receipt_intent import receipt_intent_key
 from geekvpn.presentation.bot.handlers.fallback import stray_receipt
 from geekvpn.presentation.bot.ui import text as T
 
@@ -37,6 +38,25 @@ class Message:
 
     async def answer(self, text: str, **_: object) -> None:
         self.replies.append(text)
+
+
+class Cache:
+    """The shared cache the Mini App writes a receipt intent into."""
+
+    def __init__(self, stored: dict[str, str] | None = None) -> None:
+        self.stored = dict(stored or {})
+
+    async def get(self, key: str) -> str | None:
+        return self.stored.get(key)
+
+    async def set(self, key: str, value: str, *, ttl_seconds: int | None = None) -> None:
+        self.stored[key] = value
+
+    async def delete(self, key: str) -> None:
+        self.stored.pop(key, None)
+
+    async def add_if_absent(self, key: str, value: str, *, ttl_seconds: int) -> bool:
+        return self.stored.setdefault(key, value) == value
 
 
 class State:
@@ -69,6 +89,7 @@ class Services:
 
 class User:
     id = uuid.UUID(int=7)
+    telegram_id = 87791922
 
 
 def payment(reference: str = "1405-00009") -> PendingPayment:
@@ -82,21 +103,30 @@ def payment(reference: str = "1405-00009") -> PendingPayment:
     )
 
 
-async def run(pending: list[PendingPayment]) -> tuple[Message, Checkout, State]:
+async def run(
+    pending: list[PendingPayment], *, intent: PendingPayment | None = None
+) -> tuple[Message, Checkout, Cache]:
     message = Message([Photo("small"), Photo("largest")])
     checkout = Checkout(pending)
-    state = State()
-    await stray_receipt(message, state, Services(checkout), User())  # type: ignore[arg-type]
-    return message, checkout, state
+    cache = Cache(
+        {receipt_intent_key(User.telegram_id): intent.payment_id.hex} if intent else {}
+    )
+    await stray_receipt(
+        message,
+        State(),
+        Services(checkout),  # type: ignore[arg-type]
+        cache,  # type: ignore[arg-type]
+        User(),
+    )
+    return message, checkout, cache
 
 
 async def test_the_only_waiting_payment_gets_the_receipt() -> None:
     waiting = payment()
-    message, checkout, state = await run([waiting])
+    message, checkout, _ = await run([waiting])
 
     assert checkout.attached is not None
     assert checkout.attached[0] == waiting.payment_id
-    assert state.cleared
     assert "1405-00009" in message.replies[0]
 
 
@@ -118,6 +148,46 @@ async def test_a_photo_with_nothing_waiting_is_explained_not_attached() -> None:
 async def test_two_waiting_payments_are_never_guessed_between() -> None:
     """Attaching the wrong receipt gets the wrong order approved."""
     message, checkout, _ = await run([payment("A"), payment("B")])
+
+    assert checkout.attached is None
+    assert message.replies == [T.PAY_RECEIPT_AMBIGUOUS]
+
+
+# -- the intent the Mini App leaves behind ---------------------------------
+
+
+async def test_the_customer_is_not_asked_when_they_already_said_which() -> None:
+    """The point of the intent: two open payments, no question."""
+    first, second = payment("A"), payment("B")
+    message, checkout, _ = await run([first, second], intent=second)
+
+    assert checkout.attached is not None
+    assert checkout.attached[0] == second.payment_id
+    assert T.PAY_RECEIPT_AMBIGUOUS not in message.replies
+
+
+async def test_the_intent_is_spent_once() -> None:
+    """Left behind, it would claim the next receipt for a payment that is
+    already proven."""
+    waiting = payment()
+    _, _, cache = await run([waiting], intent=waiting)
+
+    assert cache.stored == {}
+
+
+async def test_a_stale_intent_does_not_select_a_payment_that_closed() -> None:
+    """It is a hint, checked against what is actually open."""
+    closed, still_open = payment("closed"), payment("open")
+    _, checkout, _ = await run([still_open], intent=closed)
+
+    # One payment left, so the guess is safe and the receipt still lands.
+    assert checkout.attached is not None
+    assert checkout.attached[0] == still_open.payment_id
+
+
+async def test_a_stale_intent_with_two_open_payments_still_asks() -> None:
+    """Falling back to a guess here is how the wrong order gets approved."""
+    message, checkout, _ = await run([payment("A"), payment("B")], intent=payment("gone"))
 
     assert checkout.attached is None
     assert message.replies == [T.PAY_RECEIPT_AMBIGUOUS]

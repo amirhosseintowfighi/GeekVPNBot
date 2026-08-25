@@ -13,7 +13,10 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from geekvpn.application.bot.read_models import PendingPayment
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.payments.receipt_intent import receipt_intent_key
+from geekvpn.application.ports.cache import Cache
 from geekvpn.presentation.bot.handlers import (
     dashboard,
     faq,
@@ -98,9 +101,25 @@ async def tap_status(message: Message, state: FSMContext, services: BotServices)
     await server_status.on_status_command(message, state, services)
 
 
+def _intended(pending: list[PendingPayment], intent: str | None) -> PendingPayment | None:
+    """The payment the customer said this receipt is for, if it is still open.
+
+    The intent is a hint from the Mini App, not an authority: it is matched
+    against what this customer actually has awaiting proof, so a stale one -
+    or someone else's - selects nothing and falls through to the guess.
+    """
+    if intent is None:
+        return None
+    return next((payment for payment in pending if payment.payment_id.hex == intent), None)
+
+
 @router.message(F.photo)
 async def stray_receipt(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    cache: Cache,
+    user: Any = None,
 ) -> None:
     """A receipt photo with no flow behind it.
 
@@ -128,15 +147,23 @@ async def stray_receipt(
     if not pending:
         await answer(message, T.PAY_RECEIPT_NO_PENDING, reply_markup=K.main_menu())
         return
-    if len(pending) > 1:
-        await answer(message, T.PAY_RECEIPT_AMBIGUOUS, reply_markup=K.main_menu())
-        return
+
+    key = receipt_intent_key(user.telegram_id)
+    chosen = _intended(pending, await cache.get(key))
+    if chosen is None:
+        if len(pending) > 1:
+            await answer(message, T.PAY_RECEIPT_AMBIGUOUS, reply_markup=K.main_menu())
+            return
+        chosen = pending[0]
 
     payment = await services.checkout.attach_receipt(
         user.id,
-        payment_id=pending[0].payment_id,
+        payment_id=chosen.payment_id,
         file_id=message.photo[-1].file_id,
     )
+    # Spent, so the next photo is judged on its own. Left behind, it would
+    # attach a second receipt to a payment that already has one.
+    await cache.delete(key)
     await state.clear()
     await answer(
         message,

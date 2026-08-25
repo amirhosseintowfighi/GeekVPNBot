@@ -156,6 +156,15 @@ export const api = {
       file_id: fileId,
     }),
 
+  // Asks the bot to send the customer a prompt, and tells it which payment
+  // the reply is about. Without the second half the bot has to guess, and it
+  // refuses to guess when more than one payment is waiting for a receipt.
+  requestReceipt: (paymentId: string) =>
+    post<{ sent: boolean }>(
+      `/api/miniapp/payments/${paymentId}/receipt-request`,
+      {},
+    ),
+
   attachTxid: (paymentId: string, txid: string) =>
     post<PendingPayment>(`/api/miniapp/payments/${paymentId}/txid`, { txid }),
 

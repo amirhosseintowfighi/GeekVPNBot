@@ -348,6 +348,20 @@ CATALOG: dict[str, MessageTemplate] = {
             action="shop",
         ),
         MessageTemplate(
+            key="payment.receipt_requested",
+            # CRITICAL, because the customer asked for it seconds ago and is
+            # waiting on it. Any other category can be switched off in their
+            # own settings, and a prompt that never arrives leaves them holding
+            # a receipt for a transfer nobody knows about.
+            category=_C.CRITICAL,
+            title_fa="رسید پرداخت",
+            body_fa=(
+                "عکس رسید واریز {amount} تومان را همین‌جا بفرستید.\n\n"
+                "به همان پرداخت وصل می‌شود و بررسی‌اش را شروع می‌کنیم."
+            ),
+            action=None,
+        ),
+        MessageTemplate(
             key="broadcast.custom",
             category=_C.NEWS,
             title_fa="{title}",

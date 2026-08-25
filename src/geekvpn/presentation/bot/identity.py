@@ -82,6 +82,10 @@ class IdentityMiddleware(BaseMiddleware):
             # process. Handlers declare `services: BotServices` and aiogram
             # injects it by name.
             data["services"] = build_bot_services(scope, fetch_receipt=self._fetch_receipt)
+            # Shared with the API, which writes a receipt intent here when the
+            # Mini App asks the bot to collect one. Handlers that need it
+            # declare `cache: Cache`.
+            data["cache"] = self._container.cache
             outcome = await handler(event, data)
             await uow.commit()
             return outcome

@@ -91,6 +91,37 @@ export default function PaymentPage() {
     window.setTimeout(() => setCopied(null), 1600)
   }
 
+  /**
+   * Hand the receipt step to the bot chat.
+   *
+   * The request is what makes the chat say anything: it sends the customer a
+   * prompt and records which payment the next photo is about. Closing first
+   * and hoping was the old behaviour, and it dropped people into a
+   * conversation that had nothing to say to them.
+   *
+   * The app is only closed once that has landed. If it fails the customer
+   * stays here and is told, rather than arriving in a silent chat.
+   */
+  async function openBotForReceipt() {
+    if (!current) return
+    setBusy(true)
+    setFormError(null)
+    try {
+      await api.requestReceipt(current.paymentId)
+      haptic.impact('light')
+      window.Telegram?.WebApp?.close?.()
+    } catch (err) {
+      haptic.notify('error')
+      setFormError(
+        err instanceof ApiError
+          ? err.messageFa
+          : '\u0627\u0631\u0633\u0627\u0644 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u0645\u0645\u06a9\u0646 \u0646\u0634\u062f.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submitTxid() {
     const value = normalizeInput(txid).trim()
     if (value.length < MIN_TXID) {
@@ -222,13 +253,11 @@ export default function PaymentPage() {
             <Button
               variant="outline"
               full
-              onClick={() => {
-                haptic.impact('light')
-                window.Telegram?.WebApp?.close?.()
-              }}
+              loading={busy}
+              onClick={() => void openBotForReceipt()}
             >
               <Upload className="size-4" aria-hidden />
-              {'\u0628\u0627\u0632 \u06a9\u0631\u062f\u0646 \u0686\u062a \u0631\u0628\u0627\u062a'}
+              {'\u0627\u0631\u0633\u0627\u0644 \u0631\u0633\u06cc\u062f \u062f\u0631 \u0631\u0628\u0627\u062a'}
             </Button>
           </Card>
         ) : null}
