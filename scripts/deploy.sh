@@ -254,7 +254,13 @@ log "restarting the bot onto the new image"
 # The bot has no blue/green pair: it is a single long-poll/webhook consumer, and
 # running two would deliver every Telegram update twice. A brief restart here is
 # acceptable because Telegram retries undelivered webhook updates.
-$COMPOSE up -d --no-deps bot || warn "the bot did not restart; check it manually"
+# --force-recreate, because plain `up -d` compares image ids and does
+# nothing when they match. The API colours are recreated by name either way,
+# so a deploy could log "restarting the bot onto the new image" and leave
+# the old container running - a bot serving last week's handlers while every
+# other service ran this week's, with nothing in the output to say so.
+$COMPOSE up -d --no-deps --force-recreate bot \
+  || warn "the bot did not restart; check it manually"
 
 log "starting the background services"
 # Neither of these had ever been started by anything. They were defined,
@@ -265,7 +271,9 @@ log "starting the background services"
 #            subscriptions never expire and nobody is ever reminded to renew.
 #   certbot  the renewal loop. The first certificate is issued by install.sh;
 #            this is what stops TLS going down on day ninety.
-$COMPOSE up -d --no-deps worker || warn "the worker did not start; no scheduled job will run"
+# Same image, same reason.
+$COMPOSE up -d --no-deps --force-recreate worker \
+  || warn "the worker did not start; no scheduled job will run"
 $COMPOSE up -d --no-deps certbot || warn "certbot did not start; TLS will not auto-renew"
 
 log "starting the front-ends"
