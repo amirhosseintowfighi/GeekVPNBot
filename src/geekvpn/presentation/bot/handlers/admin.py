@@ -21,6 +21,7 @@ import secrets
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.enums import ButtonStyle
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -189,8 +190,19 @@ async def on_payment(
     markup = K.stack(
         [
             [
-                K.btn(A.BTN_APPROVE, AdminCB(action="approve", ref=payment_id)),
-                K.btn(A.BTN_REJECT, AdminCB(action="reject", ref=payment_id)),
+                # Green and red, because these two are one tap apart and one of
+                # them moves money. Colour is the cheapest way to make a
+                # mis-tap look wrong before it happens.
+                K.btn(
+                    A.BTN_APPROVE,
+                    AdminCB(action="approve", ref=payment_id),
+                    style=ButtonStyle.SUCCESS,
+                ),
+                K.btn(
+                    A.BTN_REJECT,
+                    AdminCB(action="reject", ref=payment_id),
+                    style=ButtonStyle.DANGER,
+                ),
             ],
             [K.btn(A.BTN_BACK, AdminCB(action="payments"))],
         ]
@@ -341,8 +353,16 @@ async def on_ticket(
         markup=K.stack(
             [
                 [
-                    K.btn(A.BTN_REPLY, AdminCB(action="reply", ref=ticket_id)),
-                    K.btn(A.BTN_CLOSE_TICKET, AdminCB(action="close", ref=ticket_id)),
+                    K.btn(
+                        A.BTN_REPLY,
+                        AdminCB(action="reply", ref=ticket_id),
+                        style=ButtonStyle.PRIMARY,
+                    ),
+                    K.btn(
+                        A.BTN_CLOSE_TICKET,
+                        AdminCB(action="close", ref=ticket_id),
+                        style=ButtonStyle.DANGER,
+                    ),
                 ],
                 [K.btn(A.BTN_BACK, AdminCB(action="tickets"))],
             ]

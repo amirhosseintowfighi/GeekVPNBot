@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
+from aiogram.enums import ButtonStyle
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -50,10 +51,17 @@ def _label(value: str) -> str:
     return truncate(value, MAX_LABEL)
 
 
-def btn(text: str, callback: Any) -> InlineKeyboardButton:
-    """Build a button from a CallbackData instance or a raw string."""
+def btn(text: str, callback: Any, *, style: str | None = None) -> InlineKeyboardButton:
+    """One inline button.
+
+    `style` is Bot API 9.4's button colour - primary, success or danger. It is
+    passed through rather than decided here: which action is destructive is
+    something only the screen showing it knows.
+
+    Accepts a `CallbackData` instance or a raw string.
+    """
     data = callback if isinstance(callback, str) else callback.pack()
-    return InlineKeyboardButton(text=_label(text), callback_data=data)
+    return InlineKeyboardButton(text=_label(text), callback_data=data, style=style)
 
 
 def url_btn(text: str, url: str) -> InlineKeyboardButton:
@@ -103,8 +111,18 @@ def main_menu() -> ReplyKeyboardMarkup:
     matching the inline convention above.
     """
     builder = ReplyKeyboardBuilder()
-    builder.row(KeyboardButton(text=TAP_SHOP), KeyboardButton(text=TAP_DASHBOARD))
-    builder.row(KeyboardButton(text=TAP_WALLET), KeyboardButton(text=TAP_REFERRAL))
+    # Colour is a signal, not decoration. Buying and topping up are the two
+    # things a customer came here to do, so those are the coloured ones; making
+    # all nine primary would say nothing at all. Requires Bot API 9.4 - older
+    # clients render the same buttons uncoloured rather than failing.
+    builder.row(
+        KeyboardButton(text=TAP_SHOP, style=ButtonStyle.PRIMARY),
+        KeyboardButton(text=TAP_DASHBOARD),
+    )
+    builder.row(
+        KeyboardButton(text=TAP_WALLET, style=ButtonStyle.SUCCESS),
+        KeyboardButton(text=TAP_REFERRAL),
+    )
     builder.row(KeyboardButton(text=TAP_SUPPORT), KeyboardButton(text=TAP_STATUS))
     builder.row(
         KeyboardButton(text=TAP_PROFILE),

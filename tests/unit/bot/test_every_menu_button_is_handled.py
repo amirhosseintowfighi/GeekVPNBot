@@ -87,3 +87,29 @@ def test_the_captions_carry_their_emoji() -> None:
 
     assert K.TAP_SETTINGS != T.MENU_SETTINGS
     assert K.TAP_SETTINGS.endswith(T.MENU_SETTINGS)
+
+
+# -- colour ----------------------------------------------------------------
+
+
+def test_the_two_buttons_a_customer_came_for_are_coloured() -> None:
+    """Bot API 9.4 button styles. Older clients render them plain, so this is
+    an enhancement rather than a requirement - but a silently dropped `style`
+    would be invisible, hence the check."""
+    styled = {
+        button.text: button.style
+        for row in K.main_menu().keyboard
+        for button in row
+        if button.style is not None
+    }
+
+    assert styled == {K.TAP_SHOP: "primary", K.TAP_WALLET: "success"}
+
+
+def test_colour_stays_a_signal() -> None:
+    """Nine coloured buttons say the same thing as none."""
+    coloured = sum(
+        1 for row in K.main_menu().keyboard for button in row if button.style is not None
+    )
+
+    assert coloured <= 3
