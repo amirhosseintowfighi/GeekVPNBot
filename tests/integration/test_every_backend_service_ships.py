@@ -53,9 +53,9 @@ _Loader.add_multi_constructor("!", _passthrough)
 
 
 def _services() -> dict:
-    # noqa: S506 - `_Loader` subclasses SafeLoader; the only thing added is a
-    # passthrough for Compose's own `!override` tag, which constructs no
-    # objects of its own.
+    # `_Loader` subclasses SafeLoader; the only thing added is a passthrough
+    # for Compose's own `!override` tag, which constructs no objects of its
+    # own. S506 is right to ask, and this is the answer.
     return yaml.load(  # noqa: S506
         COMPOSE.read_text(encoding="utf-8"), Loader=_Loader
     )["services"]
