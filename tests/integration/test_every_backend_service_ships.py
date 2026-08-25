@@ -53,7 +53,12 @@ _Loader.add_multi_constructor("!", _passthrough)
 
 
 def _services() -> dict:
-    return yaml.load(COMPOSE.read_text(encoding="utf-8"), Loader=_Loader)["services"]
+    # noqa: S506 - `_Loader` subclasses SafeLoader; the only thing added is a
+    # passthrough for Compose's own `!override` tag, which constructs no
+    # objects of its own.
+    return yaml.load(  # noqa: S506
+        COMPOSE.read_text(encoding="utf-8"), Loader=_Loader
+    )["services"]
 
 
 @pytest.mark.parametrize("service", BACKEND_SERVICES)
