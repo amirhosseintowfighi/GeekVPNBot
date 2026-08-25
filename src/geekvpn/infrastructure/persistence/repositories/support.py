@@ -153,6 +153,11 @@ class SqlAlchemyTicketRepository:
 
     async def add(self, ticket: Ticket) -> None:
         self._session.add(ticket_to_row(ticket))
+        # The parent alone first. `support_messages.ticket_id` is a foreign key
+        # to this row and the two models carry no `relationship()`, so nothing
+        # tells SQLAlchemy which insert has to come first - and it chose the
+        # child. Same bug, same shape, as the synchronous repository.
+        await self._session.flush()
         for message in ticket.messages:
             self._session.add(message_to_row(message))
         await self._session.flush()

@@ -82,6 +82,15 @@ class SyncTicketRepository:
         row = self._session.get(TicketModel, ticket.id)
         if row is None:
             self._session.add(ticket_to_row(ticket))
+            # Flushed on its own, before any message references it.
+            #
+            # `support_messages.ticket_id` is a foreign key to this row, but the
+            # two models carry no `relationship()`, and without one SQLAlchemy
+            # has nothing to order the inserts by. It emitted the message first
+            # and Postgres refused it - so a brand new ticket could not be
+            # saved, while replies to an existing one were fine, because that
+            # parent row was already there.
+            self._session.flush()
         else:
             ticket_apply(row, ticket)
 
