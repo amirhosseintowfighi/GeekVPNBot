@@ -160,10 +160,17 @@ class EngineSupportNotifier:
         self._agent_chat_ids = agent_chat_ids
 
     def notify_customer_reply(self, ticket: Any, message_body_fa: str) -> None:
+        """Send the answer, not a notice that one exists.
+
+        `message_body_fa` was accepted and discarded - the customer was told
+        their ticket had a reply and had to go and find it. Most of a support
+        answer is three lines long, and the round trip to read them is where
+        the conversation was being lost.
+        """
         self._engine.notify(
             user_id=ticket.user_id,
-            template_key="ticket.replied",
-            fields={"reference": ticket.reference},
+            template_key="ticket.answered",
+            fields={"reference": ticket.reference, "body": message_body_fa},
             source="support.reply",
         )
 

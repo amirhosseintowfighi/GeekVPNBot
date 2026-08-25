@@ -26,6 +26,7 @@ from geekvpn.application.bot.read_models import (
 )
 from geekvpn.application.bot.read_models import (
     TicketCard,
+    TicketMessageCard,
     WalletSnapshot,
     WalletTransaction,
 )
@@ -35,12 +36,16 @@ from geekvpn.application.bot.read_models import (
 from geekvpn.application.bot.read_models import (
     TransactionKind as CardKind,
 )
-from geekvpn.application.support.ticket_service import OpenTicketRequest, TicketSummary
+from geekvpn.application.support.ticket_service import (
+    OpenTicketRequest,
+    ReplyRequest,
+    TicketSummary,
+)
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.rewards import tier_for_spend
 from geekvpn.domain.payments.enums import TransactionKind
 from geekvpn.domain.payments.wallet import LedgerEntry
-from geekvpn.domain.support.enums import TicketCategory, TicketState
+from geekvpn.domain.support.enums import MessageKind, TicketCategory, TicketState
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope, build_sync_scope
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
@@ -176,6 +181,64 @@ class SyncTicketCardReader:
             return _to_ticket_card(summary)
 
         return await self._bridge.run(work)
+
+    async def thread(self, user_id: uuid.UUID, *, ticket_id: str) -> list[TicketMessageCard]:
+        """The conversation, oldest first.
+
+        Ownership is checked here and not assumed: a ticket id reaches this
+        method through a Telegram callback, which anyone can craft.
+        """
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return []
+
+        def work(scope: SyncScope) -> list[TicketMessageCard]:
+            if scope.support.get_ticket(ticket_id).user_id != telegram_id:
+                return []
+            return [
+                TicketMessageCard(
+                    message_id=_as_uuid(message.message_id),
+                    from_support=message.kind is MessageKind.SUPPORT,
+                    body_fa=message.body_fa,
+                    created_at=message.created_at,
+                )
+                # Internal notes are excluded by default and must stay that
+                # way: they are written for colleagues, about the customer.
+                for message in scope.support.get_messages(ticket_id)
+            ]
+
+        return await self._bridge.run(work)
+
+    async def reply(self, user_id: uuid.UUID, *, ticket_id: str, message: str) -> TicketCard:
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            raise LookupError(f"No user {user_id}.")
+
+        def work(scope: SyncScope) -> TicketCard:
+            summary = scope.support.get_ticket(ticket_id)
+            if summary.user_id != telegram_id:
+                raise LookupError("Not this customer's ticket.")
+            scope.support.customer_reply(
+                ReplyRequest(ticket_id=ticket_id, body_fa=message, author_id=telegram_id)
+            )
+            return _to_ticket_card(scope.support.get_ticket(ticket_id))
+
+        return await self._bridge.run(work)
+
+    async def find_by_reference(
+        self, user_id: uuid.UUID, *, reference: str
+    ) -> TicketCard | None:
+        """Matched against this customer's own tickets, never searched globally.
+
+        The reference is printed in every message the bot sends about a ticket,
+        so it arrives back typed or quoted by whoever is replying - which is
+        exactly why it is only ever resolved within their own list.
+        """
+        wanted = reference.strip().upper()
+        return next(
+            (card for card in await self.list_for_user(user_id) if card.reference.upper() == wanted),
+            None,
+        )
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[TicketCard]:
         telegram_id = await self._bridge.telegram_id(user_id)

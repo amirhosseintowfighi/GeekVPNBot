@@ -42,6 +42,9 @@ const STATE_META: Record<
 > = {
   open: { labelFa: '\u0628\u0627\u0632', variant: 'warning' },
   answered: { labelFa: '\u067e\u0627\u0633\u062e \u062f\u0627\u062f\u0647 \u0634\u062f', variant: 'success' },
+  // The agent has answered; the next move is the customer's. Amber rather
+  // than green: from where they are standing this is still open.
+  waiting: { labelFa: '\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u067e\u0627\u0633\u062e \u0634\u0645\u0627', variant: 'warning' },
   closed: { labelFa: '\u0628\u0633\u062a\u0647 \u0634\u062f\u0647', variant: 'muted' },
 }
 

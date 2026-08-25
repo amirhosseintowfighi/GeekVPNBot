@@ -193,6 +193,21 @@ class TicketCard:
 
 
 @dataclass(frozen=True, slots=True)
+class TicketMessageCard:
+    """One message in a support thread, as the bot renders it.
+
+    `from_support` rather than the raw kind: the bot draws two sides of a
+    conversation and internal notes never reach it, so a boolean is the whole
+    of what the screen needs.
+    """
+
+    message_id: uuid.UUID
+    from_support: bool
+    body_fa: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class PendingPayment:
     """A payment intent awaiting proof or admin review.
 

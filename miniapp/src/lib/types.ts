@@ -32,7 +32,11 @@ export type TransactionKind =
   | 'refund'
   | 'adjustment'
 
-export type PaymentMethod = 'wallet' | 'card' | 'crypto'
+// `gateway` is in the read model and no gateway is registered yet, so nothing
+// can send it today. Listed anyway: the union's job is to describe what the
+// API *can* say, and the day one is registered is not the day to discover a
+// lookup returning undefined.
+export type PaymentMethod = 'wallet' | 'card' | 'crypto' | 'gateway'
 
 /**
  * Card-to-card and crypto both settle through a human review step today, so
@@ -50,7 +54,15 @@ export type PaymentState =
 
 export type ServerHealth = 'healthy' | 'degraded' | 'down' | 'maintenance'
 
-export type TicketState = 'open' | 'answered' | 'closed'
+/**
+ * Mirrors `TicketState` in `application/bot/read_models.py`.
+ *
+ * `waiting` was missing - the state a ticket enters the moment an agent
+ * replies. `STATE_META[ticket.state]` was then undefined and the next line
+ * read `.variant` off it, so the support page threw as soon as any ticket had
+ * ever been answered.
+ */
+export type TicketState = 'open' | 'answered' | 'waiting' | 'closed'
 
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 

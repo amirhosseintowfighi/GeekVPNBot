@@ -18,6 +18,7 @@ from geekvpn.application.bot.read_models import (
     SubscriptionCard,
     SubscriptionState,
     TicketCard,
+    TicketMessageCard,
     TicketState,
     TransactionKind,
     WalletSnapshot,
@@ -40,6 +41,7 @@ from geekvpn.presentation.bot.ui.fa import (
     ratio,
     rtl_line,
     toman,
+    truncate,
 )
 
 SEPARATOR = "\u2014" * 12
@@ -387,6 +389,36 @@ def ticket_button_label(ticket: TicketCard) -> str:
     state = _TICKET_LABEL.get(ticket.state, "")
     badge = f" ({fa_digits(ticket.unread_count)})" if ticket.unread_count else ""
     return f"{state} {ticket.topic_fa}{badge}"
+
+
+#: How much of a thread fits in one Telegram message. The tail is the part
+#: anyone is reading; the whole conversation stays in the Mini App.
+THREAD_MESSAGES = 6
+THREAD_BODY_CHARS = 400
+
+
+def ticket_thread(card: TicketCard, messages: list[TicketMessageCard]) -> str:
+    """One ticket, as a conversation.
+
+    Newest last, the way a chat reads. Trimmed to the tail because a Telegram
+    message has a hard length limit and the useful end of a support thread is
+    always the recent one - the whole of it stays in the Mini App.
+    """
+    header = T.TICKET_THREAD_HEADER.format(
+        topic=card.topic_fa,
+        ref=card.reference,
+        state=_TICKET_LABEL.get(card.state, ""),
+    )
+    if not messages:
+        return rtl_line(header) + "\n\n" + rtl_line(T.TICKET_THREAD_EMPTY)
+
+    lines = [rtl_line(header), ""]
+    for message in messages[-THREAD_MESSAGES:]:
+        side = T.TICKET_SIDE_SUPPORT if message.from_support else T.TICKET_SIDE_CUSTOMER
+        lines.append(rtl_line(f"<b>{side}</b> · {fa_date(message.created_at)}"))
+        lines.append(rtl_line(truncate(message.body_fa, THREAD_BODY_CHARS)))
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def ticket_list(tickets: list[TicketCard]) -> str:

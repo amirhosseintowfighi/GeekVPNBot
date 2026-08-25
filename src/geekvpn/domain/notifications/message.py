@@ -348,6 +348,23 @@ CATALOG: dict[str, MessageTemplate] = {
             action="shop",
         ),
         MessageTemplate(
+            key="ticket.answered",
+            # Distinct from `ticket.replied`, which only says an answer exists.
+            # A customer told "there is a reply, go and look" has to leave the
+            # chat to read three lines, and most of them do not - so the answer
+            # travels with the notice, and replying to this message answers
+            # back. The reference is in the text because that is what the reply
+            # handler reads to know which ticket this is.
+            category=_C.CRITICAL,
+            title_fa="پاسخ پشتیبانی",
+            body_fa=(
+                "تیکت {reference}\n\n"
+                "{body}\n\n"
+                "برای ادامه‌ی گفتگو، روی همین پیام ریپلای کنید و پاسخ‌تان را بنویسید."
+            ),
+            action="support",
+        ),
+        MessageTemplate(
             key="payment.receipt_requested",
             # CRITICAL, because the customer asked for it seconds ago and is
             # waiting on it. Any other category can be switched off in their

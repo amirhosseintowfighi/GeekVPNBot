@@ -25,6 +25,7 @@ from geekvpn.application.bot.read_models import (
     ServerStatusRow,
     SubscriptionCard,
     TicketCard,
+    TicketMessageCard,
     WalletSnapshot,
     WalletTransaction,
 )
@@ -72,6 +73,26 @@ class TicketReader(Protocol):
     async def open_ticket(self, user_id: uuid.UUID, *, topic: str, message: str) -> TicketCard: ...
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[TicketCard]: ...
+
+    async def thread(self, user_id: uuid.UUID, *, ticket_id: str) -> list[TicketMessageCard]:
+        """The conversation, oldest first, without internal notes.
+
+        Scoped to the customer: a ticket id travels through Telegram messages,
+        so ownership is checked here rather than trusted.
+        """
+        ...
+
+    async def reply(self, user_id: uuid.UUID, *, ticket_id: str, message: str) -> TicketCard:
+        """Append the customer's own reply to a ticket they own."""
+        ...
+
+    async def find_by_reference(self, user_id: uuid.UUID, *, reference: str) -> TicketCard | None:
+        """Their ticket carrying this reference, if it is theirs.
+
+        The reference is printed in every message the bot sends about a ticket,
+        which is what lets a customer answer by replying to one.
+        """
+        ...
 
 
 @runtime_checkable

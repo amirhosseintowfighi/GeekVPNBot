@@ -8,6 +8,7 @@ one tap away, never hidden.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import structlog
@@ -16,6 +17,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from geekvpn.application.bot.read_models import TicketState as CardTicketState
 from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.states import Support
@@ -154,8 +156,152 @@ async def on_ticket_list(query: CallbackQuery, services: BotServices, user: Any 
         # the difference has to survive somewhere.
         logger.exception("bot.ticket_list_failed")
         tickets = []
-    await safe_edit(
-        query,
-        R.ticket_list(tickets),
-        markup=K.single(K.btn(T.BTN_BACK, NavCB(to="support"))),
+    rows = [
+        [K.btn(f"{ticket.topic_fa} - {ticket.reference}", TicketCB(action="view", ref=ticket.reference))]
+        for ticket in tickets
+    ]
+    rows.append([K.btn(T.BTN_BACK, NavCB(to="support"))])
+    await safe_edit(query, R.ticket_list(tickets), markup=K.stack(rows))
+
+
+@router.callback_query(TicketCB.filter(F.action == "view"))
+async def on_ticket_view(
+    query: CallbackQuery, callback_data: TicketCB, services: BotServices, user: Any = None
+) -> None:
+    """One ticket and its conversation.
+
+    Addressed by reference rather than id: the reference is short enough for a
+    callback payload, it is what the customer is shown everywhere else, and it
+    is resolved against their own tickets - so a crafted one finds nothing.
+    """
+    await toast(query)
+    if user is None:
+        return
+
+    card = await services.tickets.find_by_reference(user.id, reference=callback_data.ref)
+    if card is None:
+        await safe_edit(query, T.TICKET_REPLY_UNKNOWN, markup=_back_to_list())
+        return
+
+    messages = await services.tickets.thread(user.id, ticket_id=str(card.ticket_id))
+    buttons = []
+    if card.state is not CardTicketState.CLOSED:
+        buttons.append([K.btn(T.BTN_TICKET_REPLY, TicketCB(action="reply", ref=card.reference))])
+    buttons.append([K.btn(T.BTN_BACK, TicketCB(action="list", ref="-"))])
+
+    await safe_edit(query, R.ticket_thread(card, messages), markup=K.stack(buttons))
+
+
+@router.callback_query(TicketCB.filter(F.action == "reply"))
+async def on_ticket_reply(
+    query: CallbackQuery, callback_data: TicketCB, state: FSMContext
+) -> None:
+    await toast(query)
+    await state.update_data(reply_reference=callback_data.ref)
+    await state.set_state(Support.replying)
+    await safe_edit(query, T.TICKET_ASK_REPLY, markup=_back_to_list())
+
+
+#: A ticket reference as it is printed in every message the bot sends about
+#: one. Read back out of a quoted message, which is what makes "reply to this"
+#: work without storing a message id anywhere.
+REFERENCE = re.compile(r"\bSUP-\d{4}-\d{6}\b", re.IGNORECASE)
+
+
+@router.message(F.reply_to_message, F.text)
+async def on_reply_to_support(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
+    """Answer a ticket by replying to the message that carried the answer.
+
+    The ticket is identified from the text being replied to, not from a stored
+    message id. Telegram hands us the quoted message in full, the reference is
+    already printed in it, and it is resolved against this customer's own
+    tickets - so nothing has to be remembered between two processes, and a
+    forged quote resolves to nothing.
+
+    Registered before the FSM handlers below on purpose: someone mid-flow who
+    replies to an older support message means the reply, not the flow.
+    """
+    quoted = message.reply_to_message
+    found = REFERENCE.search((quoted.text or quoted.caption or "") if quoted else "")
+    if found is None:
+        # Not about a ticket. Fall through to whatever else was expecting this
+        # message rather than swallowing it.
+        await _fall_through(message, state, services, user)
+        return
+
+    await state.clear()
+    await _post_reply(
+        message,
+        services,
+        user,
+        reference=found.group(0),
+        body=normalize_input(message.text or ""),
     )
+
+
+async def _fall_through(
+    message: Message, state: FSMContext, services: BotServices, user: Any
+) -> None:
+    """A reply that is not about a ticket still belongs to whoever wanted it.
+
+    Only the two flows that read free text can be here; anything else gets the
+    same nudge the catch-all would have given.
+    """
+    current = await state.get_state()
+    if current == Support.writing_message.state:
+        await on_ticket_message(message, state, services, user)
+        return
+    if current == Support.replying.state:
+        await on_ticket_reply_text(message, state, services, user)
+        return
+    await answer(message, T.ERR_UNKNOWN_COMMAND, reply_markup=K.main_menu())
+
+
+@router.message(Support.replying, F.text)
+async def on_ticket_reply_text(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
+    data = await state.get_data()
+    await state.clear()
+    await _post_reply(
+        message,
+        services,
+        user,
+        reference=str(data.get("reply_reference") or ""),
+        body=normalize_input(message.text or ""),
+    )
+
+
+async def _post_reply(
+    message: Message, services: BotServices, user: Any, *, reference: str, body: str
+) -> None:
+    """Append one customer reply, from whichever route asked for it."""
+    if user is None or not reference:
+        await answer(message, T.TICKET_REPLY_UNKNOWN, reply_markup=K.main_menu())
+        return
+    if len(body) < MIN_MESSAGE:
+        await answer(message, T.TICKET_TOO_SHORT)
+        return
+
+    card = await services.tickets.find_by_reference(user.id, reference=reference)
+    if card is None:
+        await answer(message, T.TICKET_REPLY_UNKNOWN, reply_markup=K.main_menu())
+        return
+    if card.state is CardTicketState.CLOSED:
+        await answer(message, T.TICKET_CLOSED_CANNOT_REPLY, reply_markup=K.main_menu())
+        return
+
+    try:
+        await services.tickets.reply(user.id, ticket_id=str(card.ticket_id), message=body)
+    except Exception:
+        logger.exception("bot.ticket_reply_failed", reference=reference)
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    await answer(message, T.TICKET_REPLY_SENT, reply_markup=K.main_menu())
+
+
+def _back_to_list() -> Any:
+    return K.single(K.btn(T.BTN_BACK, TicketCB(action="list", ref="-")))

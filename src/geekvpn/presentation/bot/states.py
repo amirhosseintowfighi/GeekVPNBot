@@ -53,6 +53,8 @@ class Support(StatesGroup):
     writing_subject = State()
     writing_message = State()
     in_thread = State()
+    #: Writing a reply to a ticket that already exists.
+    replying = State()
 
 
 class Profile(StatesGroup):

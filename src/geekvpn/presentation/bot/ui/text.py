@@ -177,6 +177,22 @@ PAY_RECEIPT_NOT_IMAGE: Final = "\u0644\u0637\u0641\u0627\u064b \u0631\u0633\u06c
 #: A receipt photo that arrives with no flow behind it - almost always a
 #: card payment started in the Mini App, where the customer taps a button
 #: that closes the app and then sends the photo here.
+#: One ticket, with its conversation.
+TICKET_THREAD_HEADER: Final = "\U0001f4ac <b>{topic}</b>\n\nکد پیگیری: <code>{ref}</code>\nوضعیت: {state}"
+TICKET_THREAD_EMPTY: Final = "این تیکت هنوز پیامی ندارد."
+TICKET_SIDE_SUPPORT: Final = "\U0001f9d1\u200d\U0001f4bb پشتیبانی"
+TICKET_SIDE_CUSTOMER: Final = "\U0001f464 شما"
+BTN_TICKET_REPLY: Final = "\u270d\ufe0f پاسخ"
+TICKET_ASK_REPLY: Final = "پاسخ خود را بنویسید.\n\nهر وقت هم روی پیام پشتیبانی ریپلای کنید، همان‌جا ثبت می\u200cشود."
+TICKET_REPLY_SENT: Final = "\u2705 پاسخ شما ثبت شد. پشتیبانی به\u200cزودی جواب می\u200cدهد."
+TICKET_REPLY_UNKNOWN: Final = (
+    "این پیام به هیچ تیکتی از شما وصل نیست.\n\n"
+    "از بخش پشتیبانی تیکت مورد نظر را باز کنید."
+)
+TICKET_CLOSED_CANNOT_REPLY: Final = (
+    "این تیکت بسته شده است. برای موضوع تازه، تیکت جدید باز کنید."
+)
+
 PAY_RECEIPT_NO_PENDING: Final = (
     "رسیدی دریافت شد، ولی هیچ پرداختی در انتظار رسید ندارید.\n\n"
     "اگر تازه واریز کرده\u200cاید، اول خرید را از فروشگاه شروع کنید."
