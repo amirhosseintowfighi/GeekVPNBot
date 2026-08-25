@@ -19,6 +19,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from geekvpn.application.bot.services import BotServices
+from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     display_name_of,
@@ -43,6 +44,7 @@ async def on_start(
     message: Message,
     state: FSMContext,
     services: BotServices,
+    scope: Any = None,
     user: Any = None,
     is_new_user: bool = False,
     suspended: bool = False,
@@ -80,7 +82,9 @@ async def on_start(
         T.WELCOME_BACK.format(name=isolate(display_name_of(user))),
         reply_markup=K.main_menu(),
     )
-    body, markup = await render_home(user=user, services=services)
+    body, markup = await render_home(
+        user=user, services=services, is_admin=await is_admin(scope, user)
+    )
     await answer(message, body, reply_markup=markup)
 
 
@@ -115,13 +119,16 @@ async def on_skip_name(
     query: CallbackQuery,
     state: FSMContext,
     services: BotServices,
+    scope: Any = None,
     user: Any = None,
 ) -> None:
     await state.clear()
     await toast(query, T.TOAST_DONE)
     if user is None:
         return
-    body, markup = await render_home(user=user, services=services)
+    body, markup = await render_home(
+        user=user, services=services, is_admin=await is_admin(scope, user)
+    )
     await safe_edit(query, body, markup=markup)
 
 

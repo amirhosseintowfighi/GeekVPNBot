@@ -133,6 +133,23 @@ def _actions() -> tuple[set[str], set[str]]:
             and isinstance(node.comparators[0], ast.Constant)
         ):
             handled.add(str(node.comparators[0].value))
+        # AdminCB.filter(F.action.in_({"a", "b"})) - one handler, several
+        # actions. Reading only `==` made these look unhandled, which is the
+        # test being wrong about the code rather than the other way round.
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "in_"
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "action"
+        ):
+            for argument in node.args:
+                if isinstance(argument, ast.Set | ast.List | ast.Tuple):
+                    handled.update(
+                        str(element.value)
+                        for element in argument.elts
+                        if isinstance(element, ast.Constant)
+                    )
 
     return emitted, handled
 

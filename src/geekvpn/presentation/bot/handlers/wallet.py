@@ -55,7 +55,7 @@ PAGE_SIZE = 8
 def _wallet_keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
-            [K.btn(T.BTN_TOPUP, WalletCB(action="topup", ref="-"))],
+            [K.btn(T.BTN_TOPUP, WalletCB(action="topup", ref="-"), style=K.YES)],
             [K.btn(T.BTN_WALLET_HISTORY, WalletCB(action="history", ref="-"))],
             [K.home_button()],
         ]

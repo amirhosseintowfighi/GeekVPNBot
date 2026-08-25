@@ -57,7 +57,9 @@ MIN_TXID = 10
 
 
 def _review_keyboard(*, has_coupon: bool) -> InlineKeyboardMarkup:
-    rows: list[list[Any]] = [[K.btn(T.BTN_PAY, PayCB(action="choose", method="-", ref="-"))]]
+    rows: list[list[Any]] = [
+        [K.btn(T.BTN_PAY, PayCB(action="choose", method="-", ref="-"), style=K.GO)]
+    ]
     if has_coupon:
         rows.append([K.btn(T.BTN_DROP_COUPON, PayCB(action="uncoupon", method="-", ref="-"))])
     else:
@@ -69,10 +71,16 @@ def _review_keyboard(*, has_coupon: bool) -> InlineKeyboardMarkup:
 def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
     rows: list[list[Any]] = []
     if wallet_ok:
-        rows.append([K.btn(T.PAY_WALLET, PayCB(action="pay", method="wallet", ref="-"))])
-    rows.append([K.btn(T.PAY_CARD, PayCB(action="pay", method="card", ref="-"))])
+        # Green: the balance is already ours, so this one completes on the
+        # spot rather than sending the customer off to transfer money.
+        rows.append(
+            [K.btn(T.PAY_WALLET, PayCB(action="pay", method="wallet", ref="-"), style=K.YES)]
+        )
+    rows.append(
+        [K.btn(T.PAY_CARD, PayCB(action="pay", method="card", ref="-"), style=K.GO)]
+    )
     rows.append([K.btn(T.PAY_CRYPTO, PayCB(action="pay", method="crypto", ref="-"))])
-    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="home"))])
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="home"), style=K.NO)])
     return K.stack(rows)
 
 
@@ -346,7 +354,9 @@ async def on_pay(
                         T.PAY_CASHBACK_LINE.format(amount=toman(cashback)) if cashback else ""
                     ),
                 ),
-                markup=K.single(K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"))),
+                markup=K.single(
+                    K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"), style=K.YES)
+                ),
             )
             return
 

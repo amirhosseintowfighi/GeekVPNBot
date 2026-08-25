@@ -28,6 +28,7 @@ from geekvpn.presentation.bot.handlers import (
     support,
     wallet,
 )
+from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import answer, toast
 from geekvpn.presentation.bot.handlers.menu import render_home
 from geekvpn.presentation.bot.ui import keyboards as K
@@ -174,7 +175,11 @@ async def stray_receipt(
 
 @router.message()
 async def unknown_message(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    scope: Any = None,
+    user: Any = None,
 ) -> None:
     """Anything we did not understand.
 
@@ -185,7 +190,9 @@ async def unknown_message(
     await state.clear()
     await answer(message, T.ERR_UNKNOWN_COMMAND, reply_markup=K.main_menu())
     if user is not None:
-        body, markup = await render_home(user=user, services=services)
+        body, markup = await render_home(
+            user=user, services=services, is_admin=await is_admin(scope, user)
+        )
         await answer(message, body, reply_markup=markup)
 
 

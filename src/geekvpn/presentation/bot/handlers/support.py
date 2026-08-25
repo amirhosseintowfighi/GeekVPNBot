@@ -47,7 +47,7 @@ def _menu_keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.btn(f"\u2753 {T.MENU_FAQ}", NavCB(to="faq"))],
-            [K.btn(T.BTN_NEW_TICKET, TicketCB(action="new", ref="-"))],
+            [K.btn(T.BTN_NEW_TICKET, TicketCB(action="new", ref="-"), style=K.GO)],
             [K.btn(T.BTN_MY_TICKETS, TicketCB(action="list", ref="-"))],
             [K.home_button()],
         ]
@@ -186,7 +186,15 @@ async def on_ticket_view(
     messages = await services.tickets.thread(user.id, ticket_id=card.ticket_id)
     buttons = []
     if card.state is not CardTicketState.CLOSED:
-        buttons.append([K.btn(T.BTN_TICKET_REPLY, TicketCB(action="reply", ref=card.reference))])
+        buttons.append(
+            [
+                K.btn(
+                    T.BTN_TICKET_REPLY,
+                    TicketCB(action="reply", ref=card.reference),
+                    style=K.GO,
+                )
+            ]
+        )
     buttons.append([K.btn(T.BTN_BACK, TicketCB(action="list", ref="-"))])
 
     await safe_edit(query, R.ticket_thread(card, messages), markup=K.stack(buttons))

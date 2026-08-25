@@ -41,7 +41,7 @@ DaysQuery = Annotated[
 ]
 
 
-def _services(container: ContainerDep) -> dict[str, Any]:
+def analytics_services(container: ContainerDep) -> dict[str, Any]:
     """Build the analytics graph around one synchronous reporting session."""
     session = container.reporting_sessions()
     readers = build_readers(session)
@@ -57,9 +57,9 @@ def _services(container: ContainerDep) -> dict[str, Any]:
     }
 
 
-async def _run[T](container: ContainerDep, work: Callable[[Any], T]) -> T:
+async def run_report[T](container: ContainerDep, work: Callable[[Any], T]) -> T:
     """Run one synchronous report off the event loop and always close its session."""
-    services = _services(container)
+    services = analytics_services(container)
 
     def _call() -> Any:
         try:
@@ -80,7 +80,7 @@ async def bundle(
     admin: CurrentAdmin,
     days: DaysQuery = DEFAULT_DAYS,
 ) -> dict[str, Any]:
-    return await _run(container, lambda s: s["analytics"].bundle(days=days).as_dict())
+    return await run_report(container, lambda s: s["analytics"].bundle(days=days).as_dict())
 
 
 @router.get(
@@ -94,7 +94,7 @@ async def export(
     admin: CurrentAdmin,
     days: DaysQuery = DEFAULT_DAYS,
 ) -> Response:
-    body = await _run(container, lambda s: bundle_csv(s["analytics"].bundle(days=days)))
+    body = await run_report(container, lambda s: bundle_csv(s["analytics"].bundle(days=days)))
     return Response(
         content=body,
         media_type=CONTENT_TYPE,
@@ -113,7 +113,7 @@ async def export(
     dependencies=[Depends(requires(Permission.ANALYTICS_VIEW))],
 )
 async def dashboard(container: ContainerDep, admin: CurrentAdmin) -> dict[str, Any]:
-    return await _run(container, lambda s: s["dashboard"].build().as_dict())
+    return await run_report(container, lambda s: s["dashboard"].build().as_dict())
 
 
 @router.get(
@@ -134,7 +134,7 @@ async def marketing(
             "underperformers": [item.as_dict() for item in service.underperformers(days=days)],
         }
 
-    return await _run(container, work)
+    return await run_report(container, work)
 
 
 @router.get(
@@ -150,7 +150,7 @@ async def leaderboard(
     def work(s: dict[str, Any]) -> dict[str, Any]:
         return {"rows": [row.as_dict() for row in s["gamification"].leaderboard(days=days)]}
 
-    return await _run(container, work)
+    return await run_report(container, work)
 
 
 @router.get(
@@ -173,7 +173,7 @@ async def segment_audience(
             "userIds": list(audience.user_ids),
         }
 
-    return await _run(container, work)
+    return await run_report(container, work)
 
 
 __all__ = ["router"]

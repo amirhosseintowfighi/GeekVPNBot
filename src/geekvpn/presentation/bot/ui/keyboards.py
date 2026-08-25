@@ -51,6 +51,21 @@ def _label(value: str) -> str:
     return truncate(value, MAX_LABEL)
 
 
+#: What the three colours mean here. Bot API 9.4 offers exactly these, and the
+#: value of a colour is entirely in its consistency - a green that sometimes
+#: means "confirm" and sometimes means "back" is worse than no colour at all.
+#:
+#: PRIMARY  the one thing this screen is for: buy, continue, open.
+#: SUCCESS  money arriving or a service starting: top up, renew, approve.
+#: DANGER   anything that ends something: cancel, reject, revoke, delete.
+#:
+#: Everything else stays plain. A screen where every button is coloured has
+#: told the reader nothing about which one to press.
+GO = ButtonStyle.PRIMARY
+YES = ButtonStyle.SUCCESS
+NO = ButtonStyle.DANGER
+
+
 def btn(text: str, callback: Any, *, style: str | None = None) -> InlineKeyboardButton:
     """One inline button.
 
@@ -149,8 +164,8 @@ def confirm_cancel(
     a 50/50 row is exactly how that happens.
     """
     builder = InlineKeyboardBuilder()
-    builder.row(btn(confirm_text or T.BTN_CONFIRM, confirm_cb))
-    builder.row(btn(cancel_text or T.BTN_CANCEL, cancel_cb))
+    builder.row(btn(confirm_text or T.BTN_CONFIRM, confirm_cb, style=YES))
+    builder.row(btn(cancel_text or T.BTN_CANCEL, cancel_cb, style=NO))
     return builder.as_markup()
 
 

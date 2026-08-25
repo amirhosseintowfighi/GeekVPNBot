@@ -17,6 +17,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 
 from geekvpn.application.bot.read_models import SubscriptionState
 from geekvpn.application.bot.services import BotServices
+from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     display_name_of,
     local_hour,
@@ -26,30 +27,43 @@ from geekvpn.presentation.bot.handlers.common import (
     tier_of,
     toast,
 )
+from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import emoji as E
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
-from geekvpn.presentation.bot.ui.callbacks import NavCB, NoopCB
+from geekvpn.presentation.bot.ui.callbacks import AdminCB, NavCB, NoopCB
 
 router = Router(name="menu")
 
 _LIVE_STATES = (SubscriptionState.ACTIVE, SubscriptionState.EXPIRING)
 
 
-def home_keyboard() -> InlineKeyboardMarkup:
-    return K.stack(
+def home_keyboard(*, is_admin: bool = False) -> InlineKeyboardMarkup:
+    """The home screen.
+
+    The operator row appears only for someone who already holds an admin
+    account. It is not access control - the handlers behind it check on every
+    call - it is discovery: an operator should not have to be told a command
+    exists to run the business from their phone.
+    """
+    rows = [
         [
-            [
-                K.btn(f"{E.SHOP} {T.MENU_SHOP}", NavCB(to="shop")),
-                K.btn(f"{E.DASHBOARD} {T.MENU_DASHBOARD}", NavCB(to="dashboard")),
-            ],
-            [
-                K.btn(f"{E.WALLET} {T.MENU_WALLET}", NavCB(to="wallet")),
-                K.btn(f"{E.REFERRAL} {T.MENU_REFERRAL}", NavCB(to="referral")),
-            ],
-        ]
-    )
+            K.btn(f"{E.SHOP} {T.MENU_SHOP}", NavCB(to="shop"), style=K.GO),
+            K.btn(f"{E.DASHBOARD} {T.MENU_DASHBOARD}", NavCB(to="dashboard")),
+        ],
+        [
+            K.btn(f"{E.WALLET} {T.MENU_WALLET}", NavCB(to="wallet"), style=K.YES),
+            K.btn(f"{E.REFERRAL} {T.MENU_REFERRAL}", NavCB(to="referral")),
+        ],
+        [
+            K.btn(f"{E.SUPPORT} {T.MENU_SUPPORT}", NavCB(to="support")),
+            K.btn(f"{E.FAQ} {T.MENU_FAQ}", NavCB(to="faq")),
+        ],
+    ]
+    if is_admin:
+        rows.append([K.btn(A.MENU_BUTTON, AdminCB(action="menu"))])
+    return K.stack(rows)
 
 
 async def render_home(
@@ -58,6 +72,7 @@ async def render_home(
     services: BotServices,
     name: str | None = None,
     now: datetime | None = None,
+    is_admin: bool = False,
 ) -> tuple[str, InlineKeyboardMarkup]:
     """Load and compose the home screen.
 
@@ -90,7 +105,7 @@ async def render_home(
         tier_emoji=tier_emoji(tier),
         active_count=active,
     )
-    return body, home_keyboard()
+    return body, home_keyboard(is_admin=is_admin)
 
 
 @router.callback_query(NavCB.filter(F.to == "home"))
@@ -98,13 +113,16 @@ async def on_home(
     query: CallbackQuery,
     state: FSMContext,
     services: BotServices,
+    scope: Any = None,
     user: Any = None,
 ) -> None:
     await state.clear()
     await toast(query)
     if user is None:
         return
-    body, markup = await render_home(user=user, services=services)
+    body, markup = await render_home(
+        user=user, services=services, is_admin=await is_admin(scope, user)
+    )
     await safe_edit(query, body, markup=markup)
 
 
