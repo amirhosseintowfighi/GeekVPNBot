@@ -481,6 +481,9 @@ export const api = {
   // The user id is in the path and the body is {signedAmount, reasonFa} - not
   // a flat {userId, amount, descriptionFa} posted to /wallet/adjust, which is
   // not a route.
+  // Every wallet route is keyed by the Telegram id, not the customer's
+  // UUID: the ledger predates the users table and is written by the bot,
+  // which only ever knows the Telegram id.
   walletBalance: (userId: string) =>
     fetcher<{ userId: number; balance: number }>(`${ROOT}/wallets/${userId}`),
 
@@ -489,6 +492,16 @@ export const api = {
       'POST',
       `${ROOT}/wallets/${userId}/adjust`,
       { signedAmount, reasonFa },
+    ),
+
+  // Direct message to one customer. Sends through the notification engine
+  // rather than the bot API, so it is recorded and the customer's inbox
+  // shows it alongside everything else they were sent.
+  messageCustomer: (customerId: string, titleFa: string, bodyFa: string) =>
+    mutate<{ notificationId: string | null; delivered: boolean; deferred: boolean }>(
+      'POST',
+      `${ROOT}/customers/${customerId}/message`,
+      { titleFa, bodyFa },
     ),
 
   // --------------------------------------------------------------- logs

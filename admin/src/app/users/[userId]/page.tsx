@@ -28,7 +28,7 @@ import { Field, Input, Textarea } from '@/components/ui/input'
 import { SkeletonCards } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-type DialogKind = 'state' | 'wallet' | null
+type DialogKind = 'state' | 'wallet' | 'message' | null
 
 /**
  * One customer.
@@ -48,6 +48,7 @@ export default function UserDetailPage() {
   const [dialog, setDialog] = React.useState<DialogKind>(null)
   const [reason, setReason] = React.useState('')
   const [amount, setAmount] = React.useState('')
+  const [title, setTitle] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState<string | null>(null)
 
@@ -56,9 +57,14 @@ export default function UserDetailPage() {
     () => api.user(userId),
   )
 
+  // Keyed by Telegram id, which only arrives with `data`. Passing the
+  // route's UUID here asked for a wallet belonging to nobody: the balance
+  // never rendered and every adjustment was rejected before reaching the
+  // ledger.
+  const telegramId = data?.customer.telegramId
   const { data: wallet, mutate: mutateWallet } = useSWR(
-    can('wallet.read') ? ['wallet', userId] : null,
-    () => api.walletBalance(userId),
+    telegramId !== undefined && can('wallet.read') ? ['wallet', telegramId] : null,
+    () => api.walletBalance(String(telegramId)),
   )
 
   const { data: subscriptions } = useSWR<Paged<AdminSubscriptionRow>>(
@@ -72,6 +78,7 @@ export default function UserDetailPage() {
     setDialog(null)
     setReason('')
     setAmount('')
+    setTitle('')
     setActionError(null)
   }
 
@@ -89,9 +96,12 @@ export default function UserDetailPage() {
           ? api.suspendUser(userId, reason.trim())
           : api.reinstateUser(userId))
       }
-      if (dialog === 'wallet') {
-        await api.adjustWallet(userId, parsedAmount, reason.trim())
+      if (dialog === 'wallet' && telegramId !== undefined) {
+        await api.adjustWallet(String(telegramId), parsedAmount, reason.trim())
         await mutateWallet()
+      }
+      if (dialog === 'message') {
+        await api.messageCustomer(userId, title.trim(), reason.trim())
       }
       await mutate()
       close()
@@ -138,6 +148,11 @@ export default function UserDetailPage() {
             {can('wallet.adjust') ? (
               <Button size="sm" variant="outline" onClick={() => setDialog('wallet')}>
                 {'اصلاح کیف پول'}
+              </Button>
+            ) : null}
+            {can('broadcast.send') ? (
+              <Button size="sm" onClick={() => setDialog('message')}>
+                {'ارسال پیام'}
               </Button>
             ) : null}
           </div>
@@ -259,16 +274,20 @@ export default function UserDetailPage() {
             <DialogTitle>
               {dialog === 'wallet'
                 ? 'اصلاح کیف پول'
-                : suspended
-                  ? 'رفع مسدودی'
-                  : 'مسدودسازی کاربر'}
+                : dialog === 'message'
+                  ? 'ارسال پیام به کاربر'
+                  : suspended
+                    ? 'رفع مسدودی'
+                    : 'مسدودسازی کاربر'}
             </DialogTitle>
             <DialogDescription>
               {dialog === 'wallet'
                 ? 'مبلغ مثبت اعتبار می‌افزاید و مبلغ منفی کم می‌کند. هر دو در دفتر ثبت می‌شوند.'
-                : suspended
-                  ? 'کاربر دوباره می‌تواند خرید کند.'
-                  : 'کاربر تا رفع مسدودی نمی‌تواند خرید کند.'}
+                : dialog === 'message'
+                  ? 'پیام مستقیم در تلگرام برای همین کاربر فرستاده می‌شود و در سوابق او ثبت می‌ماند.'
+                  : suspended
+                    ? 'کاربر دوباره می‌تواند خرید کند.'
+                    : 'کاربر تا رفع مسدودی نمی‌تواند خرید کند.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -285,9 +304,17 @@ export default function UserDetailPage() {
               </Field>
             ) : null}
 
-            {/* Reinstating needs no reason; every other action here does. */}
-            {dialog === 'wallet' || !suspended ? (
-              <Field label={'دلیل'}>
+            {dialog === 'message' ? (
+              <Field label={'عنوان'}>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+              </Field>
+            ) : null}
+
+            {/* Reinstating needs no reason; every other action here does. The
+                same textarea carries the message body - only one dialog is
+                open at a time and `close` clears it. */}
+            {dialog === 'wallet' || dialog === 'message' || !suspended ? (
+              <Field label={dialog === 'message' ? 'متن پیام' : 'دلیل'}>
                 <Textarea
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
@@ -309,6 +336,7 @@ export default function UserDetailPage() {
               disabled={
                 busy ||
                 (dialog === 'wallet' && (parsedAmount === 0 || reasonTooShort)) ||
+                (dialog === 'message' && (title.trim() === '' || reasonTooShort)) ||
                 (dialog === 'state' && !suspended && reasonTooShort)
               }
             >
