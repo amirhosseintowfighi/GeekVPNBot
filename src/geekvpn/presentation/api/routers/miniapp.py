@@ -657,20 +657,27 @@ async def open_ticket(
 
 
 @router.get("/tickets/{ticket_id}/messages", summary="One ticket's thread")
-async def ticket_messages(ticket_id: str, user: CurrentMiniAppUser, container: ContainerDep) -> Any:
+async def ticket_messages(
+    ticket_id: uuid.UUID, user: CurrentMiniAppUser, container: ContainerDep
+) -> Any:
     """Internal notes are excluded, and the ticket must belong to the caller."""
     telegram_id = user.telegram_id
+    # Stored ids are hex without dashes; the Mini App holds the parsed form,
+    # because that is what the ticket list sends it. `str()` on the way back
+    # puts the dashes in and the lookup finds nothing - which is the third
+    # place this exact mistake has surfaced.
+    stored = ticket_id.hex
 
     def work(scope: SyncScope) -> list[dict[str, Any]]:
-        _require_own_ticket(scope, ticket_id, telegram_id)
-        return [_message_view(m) for m in scope.support.get_messages(ticket_id)]
+        _require_own_ticket(scope, stored, telegram_id)
+        return [_message_view(m) for m in scope.support.get_messages(stored)]
 
     return await read_scope(container, work)
 
 
 @router.post("/tickets/{ticket_id}/messages", summary="Reply to a ticket")
 async def reply_to_ticket(
-    ticket_id: str,
+    ticket_id: uuid.UUID,
     payload: TicketReplyRequest,
     user: CurrentMiniAppUser,
     container: ContainerDep,
@@ -678,11 +685,13 @@ async def reply_to_ticket(
     telegram_id = user.telegram_id
     body = payload.message
 
+    stored = ticket_id.hex
+
     def work(scope: SyncScope) -> dict[str, Any]:
-        _require_own_ticket(scope, ticket_id, telegram_id)
+        _require_own_ticket(scope, stored, telegram_id)
         return _message_view(
             scope.support.customer_reply(
-                ReplyRequest(ticket_id=ticket_id, body_fa=body, author_id=telegram_id)
+                ReplyRequest(ticket_id=stored, body_fa=body, author_id=telegram_id)
             )
         )
 
