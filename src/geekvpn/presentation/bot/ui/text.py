@@ -174,6 +174,21 @@ PAY_CARD_ASK_RECEIPT: Final = (
     "\u0645\u0637\u0645\u0626\u0646 \u0634\u0648\u06cc\u062f \u0645\u0628\u0644\u063a\u060c \u062a\u0627\u0631\u06cc\u062e \u0648 \u0686\u0647\u0627\u0631 \u0631\u0642\u0645 \u0622\u062e\u0631 \u06a9\u0627\u0631\u062a \u062e\u0648\u0627\u0646\u0627 \u0628\u0627\u0634\u062f."
 )
 PAY_RECEIPT_NOT_IMAGE: Final = "\u0644\u0637\u0641\u0627\u064b \u0631\u0633\u06cc\u062f \u0631\u0627 \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u0639\u06a9\u0633 \u0628\u0641\u0631\u0633\u062a\u06cc\u062f\u060c \u0646\u0647 \u0645\u062a\u0646."
+#: A receipt photo that arrives with no flow behind it - almost always a
+#: card payment started in the Mini App, where the customer taps a button
+#: that closes the app and then sends the photo here.
+PAY_RECEIPT_NO_PENDING: Final = (
+    "رسیدی دریافت شد، ولی هیچ پرداختی در انتظار رسید ندارید.\n\n"
+    "اگر تازه واریز کرده\u200cاید، اول خرید را از فروشگاه شروع کنید."
+)
+
+#: More than one is unusual, and guessing wrong attaches a receipt to the
+#: wrong payment - which an operator then approves.
+PAY_RECEIPT_AMBIGUOUS: Final = (
+    "شما بیش از یک پرداخت در انتظار رسید دارید.\n\n"
+    "یکی را از بخش پرداخت\u200cها باز کنید و رسید را همانجا بفرستید."
+)
+
 PAY_RECEIPT_RECEIVED: Final = (
     "\u2705 \u0631\u0633\u06cc\u062f \u0634\u0645\u0627 \u062f\u0631\u06cc\u0627\u0641\u062a \u0634\u062f.\n\n"
     "\u0634\u0645\u0627\u0631\u0647\u0654 \u067e\u06cc\u06af\u06cc\u0631\u06cc: {ref}\n\n"

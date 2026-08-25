@@ -205,9 +205,20 @@ export default function PaymentPage() {
               The receipt image is uploaded through the bot chat, not here.
               A Mini App cannot hand a file to Telegram's file storage without
               its own upload endpoint and virus scanning, and the bot already
-              has a reviewed path for exactly this. Pretending otherwise would
-              strand people mid-payment.
+              has a reviewed path for exactly this.
+
+              What this button used to do was close the app and nothing else.
+              The customer landed in the chat with no prompt and no state, sent
+              the photo, and got "I did not understand that" - so the payment
+              stayed unproven and they had no way to say so. The bot now
+              attaches any photo to the payment that is waiting for one, and
+              the only thing missing was telling them that before the app
+              disappears.
             */}
+            <p className="rounded-lg bg-secondary/40 px-3 py-2 text-xs leading-loose text-muted-foreground">
+              {'\u067e\u0633 \u0627\u0632 \u0648\u0627\u0631\u06cc\u0632\u060c \u0639\u06a9\u0633 \u0631\u0633\u06cc\u062f \u0631\u0627 \u062f\u0631 \u0686\u062a \u0631\u0628\u0627\u062a \u0628\u0641\u0631\u0633\u062a\u06cc\u062f. \u062e\u0648\u062f\u06a9\u0627\u0631 \u0628\u0647 \u0647\u0645\u06cc\u0646 \u067e\u0631\u062f\u0627\u062e\u062a \u0648\u0635\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
+            </p>
+
             <Button
               variant="outline"
               full
@@ -217,7 +228,7 @@ export default function PaymentPage() {
               }}
             >
               <Upload className="size-4" aria-hidden />
-              {'\u0627\u0631\u0633\u0627\u0644 \u0631\u0633\u06cc\u062f \u062f\u0631 \u0631\u0628\u0627\u062a'}
+              {'\u0628\u0627\u0632 \u06a9\u0631\u062f\u0646 \u0686\u062a \u0631\u0628\u0627\u062a'}
             </Button>
           </Card>
         ) : null}

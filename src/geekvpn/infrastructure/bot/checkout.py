@@ -50,6 +50,7 @@ from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.pricing import PriceQuote
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.invoice import InvoiceLine
+from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.proof import PaymentProof
 from geekvpn.domain.provisioning.errors import DeliveryPending
 from geekvpn.domain.provisioning.order import Order
@@ -71,6 +72,11 @@ MIB_PER_GIB = 1024
 CARD = "card"
 CRYPTO = "crypto"
 WALLET = "wallet"
+
+#: How far back to look for an unpaid card payment when a receipt photo
+#: arrives with no flow behind it. Anything older is a payment the
+#: customer has forgotten about, not the one they just made.
+_RECENT_PAYMENTS = 20
 
 _CARD_STATE: dict[PaymentState, CardPaymentState] = {
     PaymentState.AWAITING_PROOF: CardPaymentState.AWAITING_PROOF,
@@ -223,6 +229,18 @@ class BotCheckoutAdapter:
         )
 
     # -- proof -------------------------------------------------------------
+
+    async def awaiting_proof(self, user_id: uuid.UUID) -> list[PendingPayment]:
+        owner_id = await self._require_telegram_id(user_id)
+
+        def work(scope: SyncScope) -> list[PendingPayment]:
+            return [
+                _pending_from(payment)
+                for payment in scope.payments.list_for_user(owner_id, limit=_RECENT_PAYMENTS)
+                if payment.state is PaymentState.AWAITING_PROOF
+            ]
+
+        return await self._bridge.run(work)
 
     async def attach_receipt(
         self, user_id: uuid.UUID, *, payment_id: uuid.UUID, file_id: str
@@ -436,10 +454,18 @@ def _lines_for(plan_name_fa: str, quote: PriceQuote) -> list[InvoiceLine]:
 
 
 def _to_pending(result: CheckoutResult) -> PendingPayment:
-    payment = result.payment
+    return _pending_from(result.payment, reference=result.invoice.number)
+
+
+def _pending_from(payment: Payment, *, reference: str | None = None) -> PendingPayment:
+    """The invoice number when we have one; the payment id otherwise.
+
+    Reading a payment back on its own does not carry the invoice, and the
+    id is what the customer sees on the Mini App payment screen anyway.
+    """
     return PendingPayment(
         payment_id=_as_uuid(payment.id),
-        reference=result.invoice.number,
+        reference=reference or payment.id,
         amount=payment.amount.amount,
         method=_CARD_METHOD.get(payment.method, CardMethod.CARD),
         state=_CARD_STATE.get(payment.state, CardPaymentState.AWAITING_PROOF),

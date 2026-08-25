@@ -109,6 +109,16 @@ class CheckoutService(Protocol):
         self, user_id: uuid.UUID, *, amount: int, method: str
     ) -> CardPaymentDetails | CryptoPaymentDetails: ...
 
+    async def awaiting_proof(self, user_id: uuid.UUID) -> list[PendingPayment]:
+        """Payments this customer still owes us a receipt for.
+
+        The bot needs it to attach a photo that arrives with no flow
+        behind it. Someone who started a card payment in the Mini App
+        and then sends the receipt in the chat has no FSM state at all,
+        and asking them to start over is asking them to pay twice.
+        """
+        ...
+
     async def attach_receipt(
         self, user_id: uuid.UUID, *, payment_id: uuid.UUID, file_id: str
     ) -> PendingPayment: ...

@@ -38,14 +38,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Ordered by how long the customer has been waiting, because that is the only
  * thing on this screen that represents a person currently out of pocket.
  */
+/**
+ * The two states a payment can be stuck in, and what an operator can do about
+ * each. `awaiting_proof` was invisible: the endpoint defaults to the review
+ * queue and this screen never asked for anything else, so a customer who
+ * started a card payment and never managed to send a receipt appeared nowhere
+ * at all - not in the queue, not on any list, nothing to cancel or chase.
+ */
+const TABS = [
+  { state: 'pending_review', labelFa: 'در انتظار بررسی' },
+  { state: 'awaiting_proof', labelFa: 'در انتظار رسید' },
+] as const
+
 export default function PaymentsPage() {
   const { can } = useSession()
   const [acting, setActing] = React.useState<PaymentRow | null>(null)
   const [rejecting, setRejecting] = React.useState(false)
+  const [tab, setTab] = React.useState<(typeof TABS)[number]['state']>('pending_review')
 
   const { data, error, isLoading, mutate } = useSWR<Paged<PaymentRow>>(
-    'payments-queue',
-    () => api.payments(),
+    ['payments-queue', tab],
+    () => api.payments({ state: tab }),
     // A queue is worth re-reading when the operator comes back to the tab.
     { revalidateOnFocus: true, refreshInterval: 60_000 },
   )
@@ -59,6 +72,25 @@ export default function PaymentsPage() {
       <PageHeader
         title={'بررسی پرداخت‌ها'}
         description={'رسیدهای کارت‌به‌کارت در انتظار تأیید'}
+        actions={
+          <div className="flex gap-1 rounded-lg bg-secondary/50 p-1">
+            {TABS.map((entry) => (
+              <button
+                key={entry.state}
+                type="button"
+                onClick={() => setTab(entry.state)}
+                className={
+                  'rounded-md px-3 py-1.5 text-2xs transition-colors ' +
+                  (tab === entry.state
+                    ? 'bg-background font-medium shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground')
+                }
+              >
+                {entry.labelFa}
+              </button>
+            ))}
+          </div>
+        }
       />
 
       {error ? (
@@ -75,7 +107,11 @@ export default function PaymentsPage() {
         ) : rows.length === 0 ? (
           <EmptyState
             title={'صف خالی است'}
-            description={'هر رسیدی که مشتری بفرستد همین‌جا می‌نشیند تا تأییدش کنید.'}
+            description={
+              tab === 'pending_review'
+                ? 'هر رسیدی که مشتری بفرستد همین‌جا می‌نشیند تا تأییدش کنید.'
+                : 'پرداختی هست که مشتری هنوز رسیدش را نفرستاده باشد، اینجا دیده می‌شود.'
+            }
           />
         ) : (
           <Table>

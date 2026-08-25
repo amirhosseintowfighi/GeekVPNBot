@@ -98,6 +98,49 @@ async def tap_status(message: Message, state: FSMContext, services: BotServices)
     await server_status.on_status_command(message, state, services)
 
 
+@router.message(F.photo)
+async def stray_receipt(
+    message: Message, state: FSMContext, services: BotServices, user: Any = None
+) -> None:
+    """A receipt photo with no flow behind it.
+
+    Every other photo handler is scoped to an FSM state and has already had its
+    turn by the time a message reaches this router. What lands here is a photo
+    sent by someone the bot is not mid-conversation with - which is exactly
+    what a Mini App card payment produces. That flow closes the app and leaves
+    the customer in the chat with no state at all, so the photo they were told
+    to send matched nothing and got the generic "I did not understand that".
+    They had transferred the money and had no way to prove it, and the payment
+    sat in AWAITING_PROOF where no reviewer looks.
+
+    Attaching it to the single payment that is waiting for one is the whole
+    fix. Two waiting payments is not a guess worth making: attaching the wrong
+    receipt produces an approval against the wrong order.
+    """
+    if user is None or not message.photo:
+        return
+
+    pending = await services.checkout.awaiting_proof(user.id)
+    if not pending:
+        await answer(message, T.PAY_RECEIPT_NO_PENDING, reply_markup=K.main_menu())
+        return
+    if len(pending) > 1:
+        await answer(message, T.PAY_RECEIPT_AMBIGUOUS, reply_markup=K.main_menu())
+        return
+
+    payment = await services.checkout.attach_receipt(
+        user.id,
+        payment_id=pending[0].payment_id,
+        file_id=message.photo[-1].file_id,
+    )
+    await state.clear()
+    await answer(
+        message,
+        T.PAY_RECEIPT_RECEIVED.format(ref=f"<code>{payment.reference}</code>"),
+        reply_markup=K.main_menu(),
+    )
+
+
 @router.message()
 async def unknown_message(
     message: Message, state: FSMContext, services: BotServices, user: Any = None
