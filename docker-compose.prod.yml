@@ -142,6 +142,17 @@ services:
     profiles: ["never"]
 
   bot:
+    # The same image as the API colours, which is the whole point: the bot and
+    # the API are one codebase, and two image tags are two chances to run
+    # different halves of it.
+    #
+    # Without this the base file's build produced `geekvpn-bot:latest`, a tag
+    # nothing in scripts/deploy.sh ever builds - it builds the idle colour,
+    # nginx and the two front-ends. So every deploy shipped new code everywhere
+    # except the bot, which kept running whatever image happened to exist from
+    # the first install. Handlers were written, tested, merged and deployed,
+    # and the bot went on answering with the ones it had.
+    image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       SECURITY__TRUSTED_PROXY_COUNT: "1"

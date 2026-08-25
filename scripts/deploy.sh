@@ -199,7 +199,10 @@ IDLE=$(idle_colour)
 log "active: ${ACTIVE}  ->  deploying to: ${IDLE}"
 
 log "building images"
-$COMPOSE build --pull "$IDLE" nginx miniapp admin || die "build failed"
+# `bot` shares the API image, so this line is belt and braces - but the
+# alternative is a build list that is silently wrong the moment a service
+# gets its own tag again.
+$COMPOSE build --pull "$IDLE" bot worker nginx miniapp admin || die "build failed"
 
 log "ensuring infrastructure is up"
 $COMPOSE up -d postgres redis || die "could not start postgres/redis"
