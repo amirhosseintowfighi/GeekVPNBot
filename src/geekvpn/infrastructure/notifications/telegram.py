@@ -22,6 +22,9 @@ Two adapters, both small, because the hard part was never the code:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 import httpx
 
 from geekvpn.infrastructure.logging.setup import get_logger
@@ -81,6 +84,92 @@ class HttpTelegramSender:
             description=description,
         )
         raise TelegramApiError(description or f"HTTP {response.status_code}")
+
+
+class HttpOperatorSender:
+    """`OperatorSender` over the Bot API.
+
+    Separate from `HttpTelegramSender` because the two send different things:
+    that one renders a customer template as text, this one sends an image with
+    the decisions attached. Buttons arrive as (label, callback data) pairs, so
+    the application layer never touches an aiogram type.
+
+    The callback data must match what the bot's operator handlers parse. It is
+    built from `AdminCB`'s prefix and the same action names, and there is a
+    test holding the two together - a button whose callback nothing decodes is
+    a button that answers "this button is from an older version".
+    """
+
+    def __init__(self, token: str, *, parse_mode: str = "HTML") -> None:
+        self._token = token
+        self._parse_mode = parse_mode
+
+    def send_photo(
+        self,
+        *,
+        chat_id: int,
+        file_id: str,
+        caption: str,
+        buttons: Sequence[tuple[str, str]],
+    ) -> None:
+        self._post(
+            "sendPhoto",
+            {
+                "chat_id": chat_id,
+                "photo": file_id,
+                "caption": caption,
+                "parse_mode": self._parse_mode,
+                "reply_markup": _markup(buttons),
+            },
+        )
+
+    def send_text(
+        self, *, chat_id: int, text: str, buttons: Sequence[tuple[str, str]]
+    ) -> None:
+        self._post(
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": self._parse_mode,
+                "disable_web_page_preview": True,
+                "reply_markup": _markup(buttons),
+            },
+        )
+
+    def _post(self, method: str, payload: dict[str, Any]) -> None:
+        response = httpx.post(
+            f"https://api.telegram.org/bot{self._token}/{method}",
+            json=payload,
+            timeout=TIMEOUT_SECONDS,
+        )
+        if response.status_code == httpx.codes.OK:
+            return
+
+        description = ""
+        try:
+            description = str(response.json().get("description", ""))
+        except ValueError:  # pragma: no cover - a gateway page, not JSON
+            description = response.text[:200]
+        logger.info("notify.operator.refused", method=method, description=description)
+        raise TelegramApiError(description or f"HTTP {response.status_code}")
+
+
+def _markup(buttons: Sequence[tuple[str, str]]) -> dict[str, Any]:
+    """Approve and reject side by side, green and red.
+
+    The colours are the same ones the operator area uses for the same two
+    decisions, because this message is that screen arriving unprompted.
+    """
+    styles = ("success", "danger")
+    return {
+        "inline_keyboard": [
+            [
+                {"text": label, "callback_data": data, "style": style}
+                for (label, data), style in zip(buttons, styles, strict=False)
+            ]
+        ]
+    }
 
 
 class TelegramIdIsTheUserId:

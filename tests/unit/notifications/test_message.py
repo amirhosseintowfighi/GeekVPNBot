@@ -83,14 +83,18 @@ def test_every_template_carries_a_category():
 def test_every_template_body_is_persian():
     """The whole point of a central catalogue: one place to audit.
 
-    Placeholder names are Latin by necessity, so they are stripped before the
-    check.
+    Placeholder names are Latin by necessity, and so are HTML tags - `<code>`
+    around a subscription link is what makes it tap-to-copy in Telegram, and
+    the reader never sees it. Both are stripped: what is being checked is that
+    no English *word* reaches a Persian speaker, not that the string contains
+    no Latin bytes.
     """
     import re
 
     for key, template in CATALOG.items():
         for text in (template.title_fa, template.body_fa):
             stripped = re.sub(r"\{[a-z_]+\}", "", text)
+            stripped = re.sub(r"</?[a-z]+>", "", stripped)
             assert not (set(stripped.lower()) & LATIN), f"{key}: {stripped}"
 
 

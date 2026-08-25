@@ -348,6 +348,33 @@ CATALOG: dict[str, MessageTemplate] = {
             action="shop",
         ),
         MessageTemplate(
+            key="purchase.delivered",
+            # CRITICAL: somebody paid, and this is the thing they paid for.
+            # A preference that could silence it would silence the delivery,
+            # not an announcement about it.
+            category=_C.CRITICAL,
+            title_fa="سرویس شما آماده است",
+            body_fa=(
+                "لینک اشتراک شما:\n\n"
+                "<code>{link}</code>\n\n"
+                "روی لینک بزنید تا کپی شود، بعد در برنامه‌ی خود واردش کنید."
+            ),
+            action="dashboard",
+        ),
+        MessageTemplate(
+            key="purchase.delivered_no_link",
+            # The account exists but its link has not been read back yet.
+            # Saying so beats saying nothing: the customer can open "my
+            # services" and the link will be there.
+            category=_C.CRITICAL,
+            title_fa="سرویس شما آماده است",
+            body_fa=(
+                "اکانت شما ساخته شد.\n\n"
+                "لینک اتصال را از بخش «سرویس‌های من» بردارید."
+            ),
+            action="dashboard",
+        ),
+        MessageTemplate(
             key="ticket.answered",
             # Distinct from `ticket.replied`, which only says an answer exists.
             # A customer told "there is a reply, go and look" has to leave the

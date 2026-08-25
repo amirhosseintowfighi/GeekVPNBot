@@ -52,6 +52,19 @@ class SqlSubscriptionReader:
         self._session = session
         self._limit = limit
 
+    def subscription_url(self, subscription_id: str) -> str | None:
+        """Just the link, for the message that hands it to the customer.
+
+        Narrow on purpose: the delivery notification needs one column, and a
+        full aggregate read would put the whole of a subscription behind a
+        notification handler that has no business with the rest of it.
+        """
+        return self._session.execute(
+            select(SubscriptionModel.subscription_url).where(
+                SubscriptionModel.id == subscription_id
+            )
+        ).scalar_one_or_none()
+
     def expiring_within(self, days: int, *, now: datetime) -> list[SubscriptionSnapshot]:
         """Active subscriptions whose expiry falls inside the window.
 

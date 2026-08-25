@@ -30,6 +30,14 @@ from geekvpn.application.notifications.broadcast_service import BroadcastService
 from geekvpn.application.notifications.channels import InboxChannel, TelegramChannel
 from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
+from geekvpn.application.notifications.operator_alerts import (
+    APPROVE_LABEL_FA,
+    RECEIPT_ALERT_FA,
+    RECEIPT_ALERT_NO_IMAGE_FA,
+    REJECT_LABEL_FA,
+    DeliveryNotifications,
+    ReceiptAlerts,
+)
 from geekvpn.application.notifications.ports import Channel, EventPublisher
 from geekvpn.application.notifications.reminders import ReminderService
 from geekvpn.application.notifications.subscribers import (
@@ -54,14 +62,16 @@ from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
-from geekvpn.domain.payments.events import PaymentApproved
+from geekvpn.domain.payments.events import PaymentApproved, ProofSubmitted
 from geekvpn.domain.payments.gateway import GatewayRegistry
+from geekvpn.domain.provisioning.events import SubscriptionActivated
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.infrastructure.notifications.audiences import SqlAudienceResolver
 from geekvpn.infrastructure.notifications.telegram import (
+    HttpOperatorSender,
     HttpTelegramSender,
     TelegramIdIsTheUserId,
 )
@@ -80,6 +90,9 @@ from geekvpn.infrastructure.persistence.repositories.sync_notifications import (
     SyncBroadcastRepository,
     SyncNotificationRepository,
     SyncPreferencesStore,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_operators import (
+    SyncOperatorDirectory,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_payments import (
     SyncInvoiceRepository,
@@ -285,9 +298,46 @@ class SyncScope:
             purchases=self.purchase_notifications,
         )
         table[PaymentApproved.name] = self.order_bridge.on_payment_approved
+        # The service exists now, and the customer is owed the link. Written
+        # long ago as `on_service_provisioned` and subscribed by nothing, so a
+        # paying customer watched a chat go quiet.
+        table[SubscriptionActivated.name] = self.delivery_notifications.on_subscription_activated
+        # And an operator is owed the receipt. The panel had it in a queue
+        # nobody has open at one in the morning.
+        table[ProofSubmitted.name] = self.receipt_alerts.on_proof_submitted
         for name, handler in table.items():
             publisher.subscribe(name, handler)
         return publisher
+
+    @cached_property
+    def operator_directory(self) -> SyncOperatorDirectory:
+        return SyncOperatorDirectory(self.session)
+
+    @cached_property
+    def delivery_notifications(self) -> DeliveryNotifications:
+        return DeliveryNotifications(engine=self.engine, links=self.subscription_reader)
+
+    @cached_property
+    def receipt_alerts(self) -> ReceiptAlerts:
+        """Sends the receipt itself, with the two buttons that decide it.
+
+        Not through the notification engine: that renders a customer template
+        as text, and this is an image with actions attached. Without a bot
+        token it still constructs - the sender simply has nowhere to post, and
+        the alert fails into a log line rather than taking down the transaction
+        that accepted the customer's receipt.
+        """
+        return ReceiptAlerts(
+            sender=HttpOperatorSender(
+                self.container.settings.telegram.bot_token.get_secret_value()
+            ),
+            directory=self.operator_directory,
+            payments=self.payments,
+            approve_label=APPROVE_LABEL_FA,
+            reject_label=REJECT_LABEL_FA,
+            caption=RECEIPT_ALERT_FA,
+            no_image_caption=RECEIPT_ALERT_NO_IMAGE_FA,
+        )
 
     @cached_property
     def order_bridge(self) -> OrderPaymentBridge:
