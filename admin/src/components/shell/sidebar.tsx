@@ -44,7 +44,9 @@ function NavList({
   return (
     <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
       {NAV.map((section) => {
-        const visible = section.items.filter((item) => can(held, item.permission))
+        const visible = section.items.filter(
+          (item) => !item.hidden && can(held, item.permission),
+        )
         if (visible.length === 0) return null
 
         return (

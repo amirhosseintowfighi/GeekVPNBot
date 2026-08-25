@@ -258,6 +258,38 @@ export const api = {
     )
   },
 
+  subscription: (id: string) =>
+    fetcher<AdminSubscriptionRow>(`${ROOT}/subscriptions/${id}`),
+
+  // Every one of these reaches the VPN panel before it changes our record, so
+  // a 502 here means the panel refused and nothing was promised. The payloads
+  // are what the endpoints declare, not what seemed natural: `reasonFa` is
+  // required on the two that close access, because an account cut off for no
+  // stated reason is a support ticket nobody can answer.
+  syncSubscriptionUsage: (id: string) =>
+    mutate<{ ok: boolean; subscription: AdminSubscriptionRow | null; message: string | null }>(
+      'POST',
+      `${ROOT}/subscriptions/${id}/sync-usage`,
+    ),
+
+  suspendSubscription: (id: string, reasonFa: string) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/suspend`, { reasonFa }),
+
+  resumeSubscription: (id: string) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/resume`),
+
+  revokeSubscription: (id: string, reasonFa: string) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/revoke`, { reasonFa }),
+
+  extendSubscription: (id: string, days: number) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/extend`, { days }),
+
+  addSubscriptionTraffic: (id: string, gib: number) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/add-traffic`, { gib }),
+
+  resetSubscriptionTraffic: (id: string) =>
+    mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/reset-traffic`),
+
   // -------------------------------------------------------------- orders
   // state, number, limit, offset. The method/from/to filters it used to send
   // do not exist on the endpoint and were silently ignored.

@@ -40,6 +40,18 @@ export interface NavItem {
   /** Key into the dashboard ActionQueue, rendered as a count badge. */
   /** Matches ActionItem.key from GET /api/v1/admin/analytics/dashboard. */
   queueKey?: 'pending_payments' | 'open_tickets' | 'offline_nodes'
+  /**
+   * Reachable, but not a sidebar destination.
+   *
+   * The route guard denies any path this table does not cover - correctly, a
+   * screen missing from it is a bug rather than a door to leave open. But
+   * subscriptions are only ever reached from a customer, so listing them in
+   * the sidebar would be a menu entry leading to a page that needs an id.
+   * Without an entry of some kind, clicking a customer's subscription showed
+   * "your role does not have access", to an owner who has every permission
+   * there is.
+   */
+  hidden?: boolean
 }
 
 export interface NavSection {
@@ -105,6 +117,13 @@ export const NAV: NavSection[] = [
         labelFa: '\u06a9\u06cc\u0641 \u067e\u0648\u0644',
         icon: Wallet,
         permission: 'wallet.read',
+      },
+      {
+        href: '/subscriptions',
+        labelFa: '\u0627\u0634\u062a\u0631\u0627\u06a9\u200c\u0647\u0627',
+        icon: Wallet,
+        permission: 'subscriptions.read',
+        hidden: true,
       },
     ],
   },

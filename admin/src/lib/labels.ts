@@ -76,6 +76,8 @@ export const SUBSCRIPTION_STATE: Record<SubscriptionState, LabelMeta> = {
   expired: { fa: '\u0645\u0646\u0642\u0636\u06cc', tone: 'muted' },
   exhausted: { fa: '\u062d\u062c\u0645 \u062a\u0645\u0627\u0645 \u0634\u062f\u0647', tone: 'destructive' },
   suspended: { fa: '\u062a\u0639\u0644\u06cc\u0642 \u0634\u062f\u0647', tone: 'muted' },
+  // Destructive, unlike expiry: this one is final and somebody chose it.
+  revoked: { fa: '\u0644\u063a\u0648 \u0634\u062f\u0647', tone: 'destructive' },
 }
 
 export const PLAN_TYPE: Record<PlanType, LabelMeta> = {

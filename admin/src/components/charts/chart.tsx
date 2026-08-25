@@ -88,7 +88,7 @@ function ChartTooltip({
   payload,
   label,
   format,
-  labelIsDate = true,
+  labelIsDate = false,
 }: {
   active?: boolean
   payload?: Array<{ name?: string; value?: number; color?: string }>
@@ -140,14 +140,17 @@ export function SeriesChart({
 
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(225 10% 20%)" vertical={false} />
 
-          {/* Time runs right-to-left. */}
-          <XAxis
-            dataKey="date"
-            reversed
-            {...AXIS_PROPS}
-            tickFormatter={(value: string) => faDate(value).split(' ').slice(0, 2).join(' ')}
-            minTickGap={24}
-          />
+          {/*
+            Time runs right-to-left.
+
+            `labelFa`, not `at`: the server already labels each bucket, and it
+            labels it for the granularity - a month bucket reads as a month
+            rather than as its first day. The axis used `dataKey="date"`, a
+            field no point has, so every tick formatted `undefined` and the
+            whole axis read "NaN اسفند". A `dataKey` is a string Recharts looks
+            up at runtime, so nothing typechecked it.
+          */}
+          <XAxis dataKey="labelFa" reversed {...AXIS_PROPS} minTickGap={24} />
           <YAxis
             orientation="right"
             {...AXIS_PROPS}
@@ -155,8 +158,11 @@ export function SeriesChart({
             tickFormatter={(value: number) => compact(value, series.format)}
           />
 
+          {/* The tooltip's label is now the bucket's own Persian text, not
+              an ISO date, so re-formatting it would put the NaN back - here
+              instead of on the axis. */}
           <Tooltip
-            content={<ChartTooltip format={series.format} />}
+            content={<ChartTooltip format={series.format} labelIsDate={false} />}
             cursor={{ stroke: 'hsl(225 10% 30%)' }}
           />
 

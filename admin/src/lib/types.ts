@@ -15,12 +15,23 @@ import type { Role } from './rbac'
 
 // Unions shared with the bot and the Mini App. Kept identical on purpose: a
 // state that renders green for a customer must render green for an operator.
+/**
+ * Mirrors `domain/provisioning/enums.py`.
+ *
+ * `revoked` is the one an operator creates by hand, and it was missing - so
+ * the moment a subscription was closed its badge looked up `undefined` and
+ * rendered blank. `expiring` and `pending` are not stored states at all; they
+ * belong to the bot's read model, where "about to expire" is computed from
+ * the clock. They stay because other screens type against them, but nothing
+ * on the admin API ever sends them.
+ */
 export type SubscriptionState =
   | 'active'
   | 'expiring'
   | 'expired'
   | 'exhausted'
   | 'suspended'
+  | 'revoked'
   | 'pending'
 
 export type PlanType = 'traffic' | 'unlimited' | 'duration'

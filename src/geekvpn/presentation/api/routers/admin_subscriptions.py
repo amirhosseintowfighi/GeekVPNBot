@@ -12,10 +12,12 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.provisioning.enums import SubscriptionState
+from geekvpn.domain.provisioning.errors import SubscriptionNotFound
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
@@ -126,3 +128,124 @@ async def sync_usage(subscription_id: str, scope: ScopeDep) -> SyncUsageResponse
             ok=False, message="This subscription has no panel account to read."
         )
     return SyncUsageResponse(ok=True, subscription=SubscriptionResponse.of(updated))
+
+
+# -- operator actions ------------------------------------------------------
+#
+# Every one of these existed on the aggregate and on the panel adapters and was
+# called by nothing, so an operator's only options were "read it" and "read its
+# usage again". A shared customer link, a week owed for an outage, an account
+# to close: all of them were a SQL statement and a hand-edited panel.
+
+
+class ReasonRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Recorded on the subscription. An account closed for no stated reason is
+    #: a support ticket nobody can answer six weeks later.
+    reason_fa: str = Field(min_length=3, max_length=200)
+
+
+class ExtendRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: A year at a time is generous; anything beyond it is a typo, and a typo
+    #: here gives away a decade of service.
+    days: int = Field(gt=0, le=365)
+
+
+class AddTrafficRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    gib: int = Field(gt=0, le=10_000)
+
+
+async def _act(scope: ScopeDep, action: str, subscription_id: str, **kwargs: object) -> Subscription:
+    """Run one operator action, turning its two failure modes into HTTP.
+
+    A `PanelError` is the panel being unreachable or refusing, which is news
+    for the operator rather than a fault in this service - 502, with the
+    panel's own message, and our record left exactly as it was.
+    """
+    try:
+        method = getattr(scope.subscription_admin, action)
+        return await method(subscription_id, **kwargs)  # type: ignore[no-any-return]
+    except SubscriptionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.") from exc
+    except PanelError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{subscription_id}/suspend",
+    response_model=SubscriptionResponse,
+    summary="Cut off access without deleting the account",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def suspend_subscription(
+    subscription_id: str, payload: ReasonRequest, scope: ScopeDep
+) -> SubscriptionResponse:
+    return SubscriptionResponse.of(
+        await _act(scope, "suspend", subscription_id, reason_fa=payload.reason_fa)
+    )
+
+
+@router.post(
+    "/{subscription_id}/resume",
+    response_model=SubscriptionResponse,
+    summary="Restore access to a suspended subscription",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def resume_subscription(subscription_id: str, scope: ScopeDep) -> SubscriptionResponse:
+    return SubscriptionResponse.of(await _act(scope, "resume", subscription_id))
+
+
+@router.post(
+    "/{subscription_id}/revoke",
+    response_model=SubscriptionResponse,
+    summary="Delete the panel account and close the subscription",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def revoke_subscription(
+    subscription_id: str, payload: ReasonRequest, scope: ScopeDep
+) -> SubscriptionResponse:
+    """The row stays. An order, a payment and any refund all point at it, and
+    deleting it would leave three records naming a subscription that never
+    existed."""
+    return SubscriptionResponse.of(
+        await _act(scope, "revoke", subscription_id, reason_fa=payload.reason_fa)
+    )
+
+
+@router.post(
+    "/{subscription_id}/extend",
+    response_model=SubscriptionResponse,
+    summary="Add days, without charging for them",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def extend_subscription(
+    subscription_id: str, payload: ExtendRequest, scope: ScopeDep
+) -> SubscriptionResponse:
+    return SubscriptionResponse.of(await _act(scope, "extend", subscription_id, days=payload.days))
+
+
+@router.post(
+    "/{subscription_id}/add-traffic",
+    response_model=SubscriptionResponse,
+    summary="Raise the traffic cap",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def add_traffic(
+    subscription_id: str, payload: AddTrafficRequest, scope: ScopeDep
+) -> SubscriptionResponse:
+    return SubscriptionResponse.of(await _act(scope, "add_traffic", subscription_id, gib=payload.gib))
+
+
+@router.post(
+    "/{subscription_id}/reset-traffic",
+    response_model=SubscriptionResponse,
+    summary="Set usage back to zero",
+    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+)
+async def reset_traffic(subscription_id: str, scope: ScopeDep) -> SubscriptionResponse:
+    return SubscriptionResponse.of(await _act(scope, "reset_traffic", subscription_id))
