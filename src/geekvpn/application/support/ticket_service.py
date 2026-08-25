@@ -34,10 +34,18 @@ from geekvpn.domain.support.ticket import (
 
 
 def _gregorian_to_jalali_year(year: int) -> int:
-    """Approximate Jalali year for grouping. Good enough for ticket numbers."""
-    # Nowruz falls on ~March 20-21 each year.
-    # 2026 -> 1405, 2025 -> 1404 etc.
-    return year + 621 if year < 2100 else year - 1679
+    """Approximate Jalali year for grouping. Good enough for ticket numbers.
+
+    Minus, not plus. The comment underneath always said 2026 -> 1405 and the
+    arithmetic said 2647, so the first references this platform issued read
+    `SUP-2647-000003`. Nobody noticed for as long as nobody could open a ticket
+    at all.
+
+    Off by a few weeks either side of Nowruz, which is deliberate: this groups
+    reference numbers, and a ticket filed on the 19th of March landing in last
+    year's run is not worth a calendar conversion to prevent.
+    """
+    return year - 621
 
 
 @dataclass(frozen=True, slots=True)

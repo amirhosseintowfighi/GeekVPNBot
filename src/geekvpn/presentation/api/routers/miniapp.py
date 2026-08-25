@@ -114,6 +114,10 @@ def _message_view(message: MessageView) -> dict[str, Any]:
         "message_id": message.message_id,
         "ticket_id": message.ticket_id,
         "kind": message.kind.value,
+        # The Mini App draws two sides of a conversation and reads a boolean.
+        # It was never sent one, so every message rendered as the customer's -
+        # including the answers.
+        "from_support": message.kind.value == "support",
         "body_fa": message.body_fa,
         "created_at": message.created_at,
         "attachment_count": message.attachment_count,

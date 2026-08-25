@@ -183,7 +183,7 @@ async def on_ticket_view(
         await safe_edit(query, T.TICKET_REPLY_UNKNOWN, markup=_back_to_list())
         return
 
-    messages = await services.tickets.thread(user.id, ticket_id=str(card.ticket_id))
+    messages = await services.tickets.thread(user.id, ticket_id=card.ticket_id)
     buttons = []
     if card.state is not CardTicketState.CLOSED:
         buttons.append([K.btn(T.BTN_TICKET_REPLY, TicketCB(action="reply", ref=card.reference))])
@@ -294,7 +294,7 @@ async def _post_reply(
         return
 
     try:
-        await services.tickets.reply(user.id, ticket_id=str(card.ticket_id), message=body)
+        await services.tickets.reply(user.id, ticket_id=card.ticket_id, message=body)
     except Exception:
         logger.exception("bot.ticket_reply_failed", reference=reference)
         await answer(message, T.ERR_GENERIC)

@@ -182,7 +182,9 @@ class SyncTicketCardReader:
 
         return await self._bridge.run(work)
 
-    async def thread(self, user_id: uuid.UUID, *, ticket_id: str) -> list[TicketMessageCard]:
+    async def thread(
+        self, user_id: uuid.UUID, *, ticket_id: uuid.UUID
+    ) -> list[TicketMessageCard]:
         """The conversation, oldest first.
 
         Ownership is checked here and not assumed: a ticket id reaches this
@@ -192,8 +194,13 @@ class SyncTicketCardReader:
         if telegram_id is None:
             return []
 
+        # Stored ids are hex without dashes. `str(UUID)` puts them in, and the
+        # lookup then finds nothing - the same trap the payment ids fell into.
+        # Converting here rather than at every call site keeps one spelling.
+        stored = ticket_id.hex
+
         def work(scope: SyncScope) -> list[TicketMessageCard]:
-            if scope.support.get_ticket(ticket_id).user_id != telegram_id:
+            if scope.support.get_ticket(stored).user_id != telegram_id:
                 return []
             return [
                 TicketMessageCard(
@@ -204,24 +211,28 @@ class SyncTicketCardReader:
                 )
                 # Internal notes are excluded by default and must stay that
                 # way: they are written for colleagues, about the customer.
-                for message in scope.support.get_messages(ticket_id)
+                for message in scope.support.get_messages(stored)
             ]
 
         return await self._bridge.run(work)
 
-    async def reply(self, user_id: uuid.UUID, *, ticket_id: str, message: str) -> TicketCard:
+    async def reply(
+        self, user_id: uuid.UUID, *, ticket_id: uuid.UUID, message: str
+    ) -> TicketCard:
         telegram_id = await self._bridge.telegram_id(user_id)
         if telegram_id is None:
             raise LookupError(f"No user {user_id}.")
 
+        stored = ticket_id.hex
+
         def work(scope: SyncScope) -> TicketCard:
-            summary = scope.support.get_ticket(ticket_id)
+            summary = scope.support.get_ticket(stored)
             if summary.user_id != telegram_id:
                 raise LookupError("Not this customer's ticket.")
             scope.support.customer_reply(
-                ReplyRequest(ticket_id=ticket_id, body_fa=message, author_id=telegram_id)
+                ReplyRequest(ticket_id=stored, body_fa=message, author_id=telegram_id)
             )
-            return _to_ticket_card(scope.support.get_ticket(ticket_id))
+            return _to_ticket_card(scope.support.get_ticket(stored))
 
         return await self._bridge.run(work)
 

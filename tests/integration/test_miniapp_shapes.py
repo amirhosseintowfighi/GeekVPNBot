@@ -154,3 +154,22 @@ def test_every_composed_field_is_actually_composed_somewhere() -> None:
     ]
 
     assert not unsent, f"claimed to be composed by the router, but never sent: {unsent}"
+
+
+def test_the_thread_says_which_side_each_message_is() -> None:
+    """The Mini App draws two sides of a conversation from one boolean.
+
+    It was never sent one, so every message rendered as the customer's -
+    including the answers they had come to read.
+    """
+    import ast
+    from pathlib import Path
+
+    source = Path(miniapp.__file__).read_text(encoding="utf-8")
+    view = next(
+        ast.unparse(node)
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.FunctionDef) and node.name == "_message_view"
+    )
+
+    assert "'from_support'" in view or '"from_support"' in view

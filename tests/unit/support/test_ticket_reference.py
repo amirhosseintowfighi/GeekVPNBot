@@ -61,3 +61,23 @@ def test_invoices_number_the_same_way() -> None:
 
     with pytest.raises(PaymentValidationError, match="positive"):
         format_invoice_number(year=1405, sequence=0)
+
+
+def test_the_jalali_year_is_the_gregorian_one_minus_621() -> None:
+    """It was plus, so the first references ever issued read SUP-2647-000003.
+
+    The comment beside the arithmetic always said 2026 -> 1405; the arithmetic
+    said 2647. Nobody noticed for as long as nobody could open a ticket at all.
+    """
+    from geekvpn.application.support.ticket_service import _gregorian_to_jalali_year
+
+    assert _gregorian_to_jalali_year(2026) == 1405
+    assert _gregorian_to_jalali_year(2025) == 1404
+
+
+def test_a_reference_is_readable_by_someone_who_uses_this_calendar() -> None:
+    from geekvpn.application.support.ticket_service import _gregorian_to_jalali_year
+
+    year = _gregorian_to_jalali_year(2026)
+
+    assert format_ticket_reference(year=year, sequence=3) == "SUP-1405-000003"
