@@ -52,10 +52,53 @@ echo "nginx-entrypoint: serving TLS from ${SSL_DIR}" >&2
 TEMPLATE=/etc/nginx/templates/geekvpn.conf
 TARGET=/etc/nginx/conf.d/geekvpn.conf
 
+# ---------------------------------------------------------------------------
+# Upstream pools for the front-ends.
+#
+# A `proxy_pass` that names its target through a variable defers resolution to
+# request time. That is what lets this edge start while a blue/green colour is
+# stopped - but it also means nginx re-resolves the name every time its 
+# resolver cache expires, in the middle of a live request, with no retry: a
+# single failed lookup is a 502 the customer sees. Both front-ends did exactly
+# that, on the first page load after any quiet period:
+#
+#     admin could not be resolved (3: Host not found)
+#
+# Nginx matches a variable target against defined upstream groups first, and
+# only falls back to the resolver when no group has that name. So a pool
+# removes request-time DNS for these two without touching the variable
+# mechanism the API colours still need - and adds keepalive, which the
+# resolver path cannot have and which is worth most exactly here, where one
+# page load pulls dozens of chunks.
+#
+# The pool is only written when the name resolves *now*, at container start.
+# Nginx refuses to load a config naming an upstream it cannot resolve, and an
+# edge that will not start because an optional container is absent is the
+# failure this whole file was built to avoid. Absent means the variable path,
+# same as before.
+POOLS=/etc/nginx/conf.d/10-frontend-pools.conf
+: > "$POOLS"
+echo "# Generated at container start. See entrypoint.sh." >> "$POOLS"
+
+pool_for() {  # name host port  ->  echoes the proxy_pass target
+  if getent hosts "$2" >/dev/null 2>&1; then
+    printf 'upstream %s {\n    server %s:%s max_fails=0;\n    keepalive 16;\n}\n' \
+      "$1" "$2" "$3" >> "$POOLS"
+    echo "$1"
+  else
+    echo "nginx-entrypoint: $2 does not resolve; leaving it on request-time DNS" >&2
+    echo "$2:$3"
+  fi
+}
+
+MINIAPP_TARGET=$(pool_for miniapp_pool miniapp 3000)
+ADMIN_TARGET=$(pool_for admin_pool admin 3001)
+export MINIAPP_TARGET ADMIN_TARGET
+
 # Substitute only our own names. A bare `envsubst` with no variable list would
 # also eat every nginx variable - $host, $request_uri, $active_api - and replace
 # them with empty strings, producing a config that is valid and completely wrong.
-envsubst '${PRIMARY_DOMAIN} ${ADMIN_DOMAIN} ${MINIAPP_DOMAIN} ${SSL_DIR}' < "$TEMPLATE" > "$TARGET"
+envsubst '${PRIMARY_DOMAIN} ${ADMIN_DOMAIN} ${MINIAPP_DOMAIN} ${SSL_DIR} ${MINIAPP_TARGET} ${ADMIN_TARGET}' < "$TEMPLATE" > "$TARGET"
 
 # Render the admin allowlist.
 ALLOW_FILE=/etc/nginx/conf.d/admin-allow.conf
