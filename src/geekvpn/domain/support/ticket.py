@@ -51,6 +51,22 @@ from geekvpn.domain.support.events import (
 
 MIN_MESSAGE: Final[int] = 5
 MAX_ATTACHMENTS: Final[int] = 5
+
+TICKET_PREFIX: Final[str] = "SUP"
+
+
+def format_ticket_reference(*, year: int, sequence: int) -> str:
+    """``SUP-1405-000042``. The year is Jalali, as printed.
+
+    Here rather than in the service because the repository has to build the
+    same string to count the ones already issued, and a prefix written out in
+    two places is two prefixes as soon as one is edited.
+    """
+    if sequence <= 0:
+        raise ValueError(f"sequence must be positive, got {sequence}")
+    return f"{TICKET_PREFIX}-{year:04d}-{sequence:06d}"
+
+
 ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
     {
         "image/jpeg",

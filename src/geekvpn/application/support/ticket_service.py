@@ -25,17 +25,12 @@ from geekvpn.domain.support.enums import (
     TicketState,
 )
 from geekvpn.domain.support.errors import TemplateNotFound
-from geekvpn.domain.support.ticket import Attachment, Message, Ticket
-
-TICKET_PREFIX = "SUP"
-
-
-def _format_reference(*, year: int, sequence: int) -> str:
-    """Human-readable ticket reference: SUP-1405-000042."""
-    if sequence <= 0:
-        raise ValueError(f"sequence must be positive, got {sequence}")
-    jalali_year = _gregorian_to_jalali_year(year)
-    return f"{TICKET_PREFIX}-{jalali_year}-{sequence:06d}"
+from geekvpn.domain.support.ticket import (
+    Attachment,
+    Message,
+    Ticket,
+    format_ticket_reference,
+)
 
 
 def _gregorian_to_jalali_year(year: int) -> int:
@@ -166,8 +161,13 @@ class TicketService:
         now = self._clock.now()
         ticket_id = self._ids.new_id()
         message_id = self._ids.new_id()
-        sequence = self._tickets.next_sequence(year=now.year)
-        reference = _format_reference(year=now.year, sequence=sequence)
+        # The Jalali year, not the Gregorian one. The reference prints Jalali,
+        # and the repository counts what it has already printed - passing 2026
+        # here asked it how many references contain "2026" while every one of
+        # them contains "1405", so the answer was always zero.
+        year = _gregorian_to_jalali_year(now.year)
+        sequence = self._tickets.next_sequence(year=year)
+        reference = format_ticket_reference(year=year, sequence=sequence)
 
         ticket = Ticket.open(
             ticket_id,

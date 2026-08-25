@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.support.enums import TicketCategory, TicketPriority, TicketState
 from geekvpn.domain.support.template import Template
-from geekvpn.domain.support.ticket import Ticket
+from geekvpn.domain.support.ticket import TICKET_PREFIX, Ticket
 from geekvpn.infrastructure.persistence.mappers.support import (
     message_apply,
     message_to_row,
@@ -208,17 +208,37 @@ class SyncTicketRepository:
         return self._hydrate_many(self._session.execute(stmt).scalars().all())
 
     def next_sequence(self, *, year: int) -> int:
-        """How many references already carry this Jalali year.
+        """The next ticket number for this Jalali year, starting at 1.
 
-        Matching the year as a substring keeps the reference format
-        (``SUP-1405-000042``) the service's business, not the repository's.
+        One-based, because `format_ticket_reference` refuses a sequence of
+        zero: a bare count meant the very first ticket of every Jalali year
+        raised instead of being opened. Which is to say the first ticket this
+        platform ever received could not be filed at all - by the customer, the
+        Mini App, or anyone.
+
+        The pattern is anchored to the real format. A bare ``%1405%`` also
+        matches an id or a body containing those digits, and - since the caller
+        was passing the Gregorian year - matched nothing at all, so every
+        reference would have been ...000001 and the second ticket would have
+        collided on a unique index.
+
+        FOR UPDATE on the matching rows makes allocation atomic: two customers
+        writing in the same second would otherwise read the same count and
+        claim the same reference.
+
+        This is the invoice repository's fix, applied to the same bug in the
+        same shape one file over.
         """
+        pattern = f"{TICKET_PREFIX}-{year:04d}-%"
+        self._session.execute(
+            select(TicketModel.id).where(TicketModel.reference.like(pattern)).with_for_update()
+        )
         stmt = (
             select(func.count())
             .select_from(TicketModel)
-            .where(TicketModel.reference.like(f"%{year}%"))
+            .where(TicketModel.reference.like(pattern))
         )
-        return int(self._session.execute(stmt).scalar_one())
+        return int(self._session.execute(stmt).scalar_one()) + 1
 
     def count_for_user(self, user_id: int, *, state: TicketState | None = None) -> int:
         stmt = select(func.count()).select_from(TicketModel).where(TicketModel.user_id == user_id)
