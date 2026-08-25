@@ -273,6 +273,18 @@ log "starting the front-ends"
 $COMPOSE up -d --no-deps miniapp admin \
   || warn "a front-end did not start; the API and the bot are unaffected"
 
+# Recreating a container gives it a new address, and nginx resolves the
+# front-end pools once, when it loads its config. Without this it keeps routing
+# to the address the old container had and answers 502 for every page - not
+# occasionally, but until something restarts the edge. A reload re-resolves
+# them and keeps in-flight requests on the old workers until they finish.
+#
+# This is the cost of resolving at load time rather than per request, and it is
+# the right trade only as long as this line exists.
+log "reloading nginx onto the new front-end addresses"
+$COMPOSE exec -T nginx nginx -s reload \
+  || warn "nginx did not reload; the front-ends may still 502 until it does"
+
 if [[ "${WITH_MONITORING:-1}" == "1" && -f docker-compose.monitoring.yml ]]; then
   # Same again: the installer asks for an alert chat id, generates a Grafana
   # password and writes both, and until now started none of it.
