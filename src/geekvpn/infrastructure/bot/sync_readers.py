@@ -40,7 +40,7 @@ from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.rewards import tier_for_spend
 from geekvpn.domain.payments.enums import TransactionKind
 from geekvpn.domain.payments.wallet import LedgerEntry
-from geekvpn.domain.support.enums import TicketState
+from geekvpn.domain.support.enums import TicketCategory, TicketState
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope, build_sync_scope
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
@@ -162,11 +162,14 @@ class SyncTicketCardReader:
         if telegram_id is None:
             raise LookupError(f"No user {user_id}.")
 
+        category, subject = _categorise(topic)
+
         def work(scope: SyncScope) -> TicketCard:
             summary = scope.support.open_ticket(
                 OpenTicketRequest(
                     user_id=telegram_id,
-                    subject_fa=topic,
+                    subject_fa=subject,
+                    category=category,
                     first_message_fa=message,
                 )
             )
@@ -274,3 +277,21 @@ __all__ = [
     "SyncTicketCardReader",
     "SyncWalletCardReader",
 ]
+
+
+def _categorise(topic: str) -> tuple[TicketCategory, str]:
+    """Turn whatever the front-end sent into a category and a Persian subject.
+
+    The bot sends a category key - "connection" - and it was being written
+    straight into `subject_fa`, so an agent's queue read "connection" in Latin
+    script while `category` stayed OTHER for every ticket ever opened, which is
+    the field the queue filters on.
+
+    The Mini App sends free text instead, which matches no category and is
+    already the subject. Both arrive here, so both are handled here.
+    """
+    try:
+        category = TicketCategory(topic)
+    except ValueError:
+        return TicketCategory.OTHER, topic
+    return category, category.label_fa()

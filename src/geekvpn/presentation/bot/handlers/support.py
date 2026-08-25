@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import structlog
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -23,6 +24,8 @@ from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, TicketCB
 from geekvpn.presentation.bot.ui.fa import normalize_input
+
+logger = structlog.stdlib.get_logger(__name__)
 
 router = Router(name="support")
 
@@ -106,6 +109,13 @@ async def on_ticket_message(
     try:
         ticket = await services.tickets.open_ticket(user.id, topic=topic, message=body)
     except Exception:
+        # Logged, not merely apologised for. This `except` swallowed the
+        # exception whole - no traceback, nothing in the log at all - so a
+        # customer who could not open a ticket left no evidence of why, and
+        # every attempt to diagnose it from the outside came back empty. The
+        # same mistake, in the same shape, as the one already fixed in
+        # `purchase.py`.
+        logger.exception("bot.ticket_open_failed", topic=topic)
         await answer(message, T.ERR_GENERIC)
         return
 
@@ -140,6 +150,9 @@ async def on_ticket_list(query: CallbackQuery, services: BotServices, user: Any 
     try:
         tickets = await services.tickets.list_for_user(user.id)
     except Exception:
+        # An empty list and a failed read look identical to the customer, so
+        # the difference has to survive somewhere.
+        logger.exception("bot.ticket_list_failed")
         tickets = []
     await safe_edit(
         query,
