@@ -20,7 +20,7 @@ ellipsised on a narrow phone. Most menus use two.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Final
 
 from aiogram.types import (
     InlineKeyboardButton,
@@ -72,6 +72,26 @@ def home_button() -> InlineKeyboardButton:
     return btn(T.BTN_HOME, NavCB(to="home"))
 
 
+#: What the persistent keyboard's buttons actually say.
+#:
+#: A tap sends this exact string. The handlers used to compare against the bare
+#: label in `text.py` - "تنظیمات" - while the button sent "⚙️ تنظیمات", so every
+#: one of them fell through to "I did not understand that". Only the shop
+#: button worked, because one handler somewhere used `contains` instead.
+#:
+#: Defined once, and matched against the same constant, so the caption and the
+#: handler cannot describe different strings.
+TAP_SHOP: Final = f"{E.SHOP} {T.MENU_SHOP}"
+TAP_DASHBOARD: Final = f"{E.DASHBOARD} {T.MENU_DASHBOARD}"
+TAP_WALLET: Final = f"{E.WALLET} {T.MENU_WALLET}"
+TAP_REFERRAL: Final = f"{E.REFERRAL} {T.MENU_REFERRAL}"
+TAP_SUPPORT: Final = f"{E.SUPPORT} {T.MENU_SUPPORT}"
+TAP_STATUS: Final = f"{E.STATUS} {T.MENU_STATUS}"
+TAP_PROFILE: Final = f"{E.PROFILE} {T.MENU_PROFILE}"
+TAP_FAQ: Final = f"{E.FAQ} {T.MENU_FAQ}"
+TAP_SETTINGS: Final = f"{E.SETTINGS} {T.MENU_SETTINGS}"
+
+
 def main_menu() -> ReplyKeyboardMarkup:
     """The persistent reply keyboard.
 
@@ -83,22 +103,13 @@ def main_menu() -> ReplyKeyboardMarkup:
     matching the inline convention above.
     """
     builder = ReplyKeyboardBuilder()
+    builder.row(KeyboardButton(text=TAP_SHOP), KeyboardButton(text=TAP_DASHBOARD))
+    builder.row(KeyboardButton(text=TAP_WALLET), KeyboardButton(text=TAP_REFERRAL))
+    builder.row(KeyboardButton(text=TAP_SUPPORT), KeyboardButton(text=TAP_STATUS))
     builder.row(
-        KeyboardButton(text=f"{E.SHOP} {T.MENU_SHOP}"),
-        KeyboardButton(text=f"{E.DASHBOARD} {T.MENU_DASHBOARD}"),
-    )
-    builder.row(
-        KeyboardButton(text=f"{E.WALLET} {T.MENU_WALLET}"),
-        KeyboardButton(text=f"{E.REFERRAL} {T.MENU_REFERRAL}"),
-    )
-    builder.row(
-        KeyboardButton(text=f"{E.SUPPORT} {T.MENU_SUPPORT}"),
-        KeyboardButton(text=f"{E.STATUS} {T.MENU_STATUS}"),
-    )
-    builder.row(
-        KeyboardButton(text=f"{E.PROFILE} {T.MENU_PROFILE}"),
-        KeyboardButton(text=f"{E.FAQ} {T.MENU_FAQ}"),
-        KeyboardButton(text=f"{E.SETTINGS} {T.MENU_SETTINGS}"),
+        KeyboardButton(text=TAP_PROFILE),
+        KeyboardButton(text=TAP_FAQ),
+        KeyboardButton(text=TAP_SETTINGS),
     )
     return builder.as_markup(
         resize_keyboard=True,

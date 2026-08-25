@@ -13,7 +13,7 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 
 from geekvpn.application.bot.read_models import SubscriptionState
 from geekvpn.application.bot.services import BotServices
@@ -108,17 +108,11 @@ async def on_home(
     await safe_edit(query, body, markup=markup)
 
 
-@router.message(F.text.contains(T.MENU_SHOP))
-async def on_shop_text(message: Message, state: FSMContext, **_: Any) -> None:
-    """Reply-keyboard entry points delegate to the inline flows.
-
-    Implemented as a thin forward rather than duplicated logic so the reply
-    keyboard and the inline keyboard can never drift apart.
-    """
-    from geekvpn.presentation.bot.handlers import shop
-
-    await state.clear()
-    await shop.open_storefront(message, **_)
+# The reply keyboard is handled in one place, `fallback.py`, and the shop
+# button used to be handled here as well - with `contains` rather than `==`,
+# which is the only reason it was the single button that worked while the rest
+# matched a string the keyboard never sends. Two handlers for one button is
+# what let the other eight stay broken without anyone noticing.
 
 
 @router.callback_query(NoopCB.filter())

@@ -36,7 +36,7 @@ from geekvpn.presentation.bot.ui import text as T
 router = Router(name="fallback")
 
 
-@router.message(F.text == T.MENU_SHOP)
+@router.message(F.text == K.TAP_SHOP)
 async def tap_shop(message: Message, state: FSMContext, **kwargs: Any) -> None:
     await state.clear()
     await shop.open_storefront(
@@ -47,21 +47,21 @@ async def tap_shop(message: Message, state: FSMContext, **kwargs: Any) -> None:
     )
 
 
-@router.message(F.text == T.MENU_DASHBOARD)
+@router.message(F.text == K.TAP_DASHBOARD)
 async def tap_dashboard(
     message: Message, state: FSMContext, services: BotServices, user: Any = None
 ) -> None:
     await dashboard.on_services_command(message, state, services, user)
 
 
-@router.message(F.text == T.MENU_WALLET)
+@router.message(F.text == K.TAP_WALLET)
 async def tap_wallet(
     message: Message, state: FSMContext, services: BotServices, user: Any = None
 ) -> None:
     await wallet.on_wallet_command(message, state, services, user)
 
 
-@router.message(F.text == T.MENU_REFERRAL)
+@router.message(F.text == K.TAP_REFERRAL)
 async def tap_referral(
     message: Message,
     state: FSMContext,
@@ -72,31 +72,31 @@ async def tap_referral(
     await referral.on_referral_command(message, state, services, bot, user)
 
 
-@router.message(F.text == T.MENU_SUPPORT)
+@router.message(F.text == K.TAP_SUPPORT)
 async def tap_support(message: Message, state: FSMContext) -> None:
     await support.on_support_command(message, state)
 
 
-@router.message(F.text == T.MENU_PROFILE)
+@router.message(F.text == K.TAP_PROFILE)
 async def tap_profile(
     message: Message, state: FSMContext, services: BotServices, user: Any = None
 ) -> None:
     await profile.on_profile_command(message, state, services, user)
 
 
-@router.message(F.text == T.MENU_FAQ)
+@router.message(F.text == K.TAP_FAQ)
 async def tap_faq(message: Message, state: FSMContext) -> None:
     await faq.on_faq_command(message, state)
 
 
-@router.message(F.text == T.MENU_SETTINGS)
+@router.message(F.text == K.TAP_SETTINGS)
 async def tap_settings(
     message: Message, state: FSMContext, services: BotServices, user: Any = None
 ) -> None:
     await settings.on_settings_command(message, state, services, user)
 
 
-@router.message(F.text == T.MENU_STATUS)
+@router.message(F.text == K.TAP_STATUS)
 async def tap_status(message: Message, state: FSMContext, services: BotServices) -> None:
     await server_status.on_status_command(message, state, services)
 
