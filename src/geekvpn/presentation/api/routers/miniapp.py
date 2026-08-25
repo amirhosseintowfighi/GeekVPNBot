@@ -30,7 +30,7 @@ from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod
 from geekvpn.domain.payments.payment import Payment
-from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA
+from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
@@ -133,7 +133,9 @@ def _payment_view(payment: Payment, scope: SyncScope) -> dict[str, Any]:
         else None
     )
     return {
-        "payment_id": payment.id,
+        # The same spelling `/checkout/card` returns, because the Mini App
+        # navigates with that one and looks the payment up in this list.
+        "payment_id": payment_uuid(payment.id),
         "reference": payment.id,
         "amount": payment.amount.amount,
         "method": payment.method.value,

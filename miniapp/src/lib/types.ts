@@ -222,6 +222,8 @@ export interface CardPaymentDetails {
   cardHolderFa: string
   bankFa: string
   reviewSlaFa: string
+  /** The payment these details are for. Absent only if checkout half-failed. */
+  payment: PendingPayment | null
 }
 
 export interface CryptoPaymentDetails {
@@ -229,6 +231,7 @@ export interface CryptoPaymentDetails {
   asset: string
   amountDisplay: string
   address: string
+  payment: PendingPayment | null
 }
 
 export interface PendingPayment {

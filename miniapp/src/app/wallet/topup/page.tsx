@@ -39,9 +39,10 @@ export default function TopupPage() {
     setBusy(true)
     setError(null)
     try {
-      const payment = await api.beginTopup(amount, method)
+      const details = await api.beginTopup(amount, method)
+      if (!details.payment) throw new Error('top-up returned no payment')
       haptic.impact('medium')
-      router.push(`/payments/${payment.paymentId}`)
+      router.push(`/payments/${details.payment.paymentId}`)
     } catch (err) {
       haptic.notify('error')
       setError(

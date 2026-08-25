@@ -136,12 +136,13 @@ export default function CheckoutPage() {
         router.replace('/services?purchased=1')
         return
       }
-      const payment =
+      const details =
         method === 'card'
           ? await api.beginCardPayment(planId, coupon)
           : await api.beginCryptoPayment(planId, coupon)
+      if (!details.payment) throw new Error('checkout returned no payment')
       haptic.impact('medium')
-      router.push(`/payments/${payment.paymentId}`)
+      router.push(`/payments/${details.payment.paymentId}`)
     } catch (err) {
       haptic.notify('error')
       setSubmitError(

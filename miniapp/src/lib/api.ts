@@ -14,7 +14,9 @@
 
 import { getInitData } from './telegram'
 import type {
+  CardPaymentDetails,
   CouponPreview,
+  CryptoPaymentDetails,
   FaqSection,
   NotificationPreferences,
   PendingPayment,
@@ -131,14 +133,19 @@ export const api = {
       coupon_code: couponCode,
     }),
 
+  // `CardPaymentDetails`, not `PendingPayment`. These endpoints answer with
+  // the transfer instructions and the payment *nested inside* them, so reading
+  // `paymentId` off the top level produced undefined - and the caller pushed
+  // the customer to /payments/undefined, a route that renders a skeleton and
+  // never resolves.
   beginCardPayment: (planId: string, couponCode?: string) =>
-    post<PendingPayment>('/api/miniapp/checkout/card', {
+    post<CardPaymentDetails>('/api/miniapp/checkout/card', {
       plan_id: planId,
       coupon_code: couponCode,
     }),
 
   beginCryptoPayment: (planId: string, couponCode?: string) =>
-    post<PendingPayment>('/api/miniapp/checkout/crypto', {
+    post<CryptoPaymentDetails>('/api/miniapp/checkout/crypto', {
       plan_id: planId,
       coupon_code: couponCode,
     }),
@@ -180,8 +187,12 @@ export const api = {
       `/api/miniapp/wallet/transactions?page=${page}&page_size=${pageSize}`,
     ),
 
+  // Same shape as the checkout calls above, and the same trap.
   beginTopup: (amount: number, method: 'card' | 'crypto') =>
-    post<PendingPayment>('/api/miniapp/wallet/topup', { amount, method }),
+    post<CardPaymentDetails | CryptoPaymentDetails>('/api/miniapp/wallet/topup', {
+      amount,
+      method,
+    }),
 
   // -- referral ----------------------------------------------------------
 

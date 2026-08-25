@@ -388,7 +388,7 @@ class BotCheckoutAdapter:
                 payment_id=_as_stored_id(payment_id), proof=proof, user_id=owner_id
             )
             return PendingPayment(
-                payment_id=_as_uuid(payment.id),
+                payment_id=payment_uuid(payment.id),
                 reference=payment.id,
                 amount=payment.amount.amount,
                 method=_CARD_METHOD.get(payment.method, CardMethod.CARD),
@@ -464,7 +464,7 @@ def _pending_from(payment: Payment, *, reference: str | None = None) -> PendingP
     id is what the customer sees on the Mini App payment screen anyway.
     """
     return PendingPayment(
-        payment_id=_as_uuid(payment.id),
+        payment_id=payment_uuid(payment.id),
         reference=reference or payment.id,
         amount=payment.amount.amount,
         method=_CARD_METHOD.get(payment.method, CardMethod.CARD),
@@ -473,7 +473,14 @@ def _pending_from(payment: Payment, *, reference: str | None = None) -> PendingP
     )
 
 
-def _as_uuid(value: str) -> uuid.UUID:
+def payment_uuid(value: str) -> uuid.UUID:
+    """Public because two routers must agree on how a payment id is spelled.
+
+    Stored ids are hex with no dashes. A `uuid.UUID` serialises with them.
+    One endpoint returned the parsed form and another the raw string, so the
+    Mini App navigated to a payment id that its own next request could never
+    match, and the payment screen waited on a skeleton forever.
+    """
     try:
         return uuid.UUID(value)
     except ValueError:
@@ -481,7 +488,7 @@ def _as_uuid(value: str) -> uuid.UUID:
 
 
 def _as_stored_id(value: uuid.UUID) -> str:
-    """The inverse of `_as_uuid`, and it must be exact.
+    """The inverse of `payment_uuid`, and it must be exact.
 
     Payment ids are `uuid4().hex` - thirty-two characters, no dashes - because
     that is what `Uuid4IdGenerator` produces. `str(UUID)` puts the dashes back,

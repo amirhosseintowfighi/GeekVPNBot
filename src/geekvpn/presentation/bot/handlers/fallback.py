@@ -118,6 +118,10 @@ async def stray_receipt(
     receipt produces an approval against the wrong order.
     """
     if user is None or not message.photo:
+        # Never silent. A handler that matches and answers nothing is
+        # indistinguishable from a bot that is down, and this one fires on a
+        # customer holding proof of a transfer they have already made.
+        await answer(message, T.ERR_SESSION_EXPIRED, reply_markup=K.main_menu())
         return
 
     pending = await services.checkout.awaiting_proof(user.id)
