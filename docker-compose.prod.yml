@@ -254,6 +254,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    # `worker_rlimit_nofile` can only raise the soft limit as far as the hard
+    # one, so the ceiling has to be lifted here as well as in nginx.conf.
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
     # !override for the same reason as depends_on above: Compose appends volume
     # lists, keyed on the target path. The base file mounts the whole host
     # directory at /etc/nginx/conf.d **read-only**, and prod's single-file mount
