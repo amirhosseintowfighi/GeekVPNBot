@@ -146,10 +146,127 @@ class PreferencesRequest(ApiModel):
 # -- storefront and pricing ------------------------------------------------
 
 
-@router.get("/storefront", summary="Categories, products and priced plans")
-async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
+class PlanCard(ApiModel):
+    """One purchasable package, as the Mini App renders it."""
+
+    plan_id: uuid.UUID
+    product_id: uuid.UUID
+    name_fa: str
+    plan_type: str
+    duration_days: int
+    price: int
+    #: Struck through in the UI, so it is only sent where a real discount
+    #: exists. Equal to the price would draw a line through the same number.
+    compare_at_price: int | None
+    quota_gib: int | None
+    daily_quota_gib: int | None
+    device_limit: int
+    badge_fa: str | None
+    is_featured: bool
+    description_fa: str | None
+
+
+class ProductCard(ApiModel):
+    product_id: uuid.UUID
+    category_id: uuid.UUID
+    name_fa: str
+    tagline_fa: str | None
+    description_fa: str | None
+    features_fa: list[str]
+    icon: str | None
+    badge_fa: str | None
+    is_featured: bool
+    plans: list[PlanCard]
+
+
+class CategoryCard(ApiModel):
+    category_id: uuid.UUID
+    name_fa: str
+    icon: str | None
+    products: list[ProductCard]
+
+
+class StorefrontResponse(ApiModel):
+    categories: list[CategoryCard]
+    wallet_balance: int
+    loyalty_tier: str
+    #: Whether a first-purchase-only offer applies to this customer. Not on the
+    #: storefront view - it is a fact about the person, not the catalogue.
+    is_first_purchase: bool
+
+
+@router.get(
+    "/storefront",
+    response_model=StorefrontResponse,
+    summary="Categories, products and priced plans",
+)
+async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> StorefrontResponse:
+    """The catalogue, in the shape the Mini App reads.
+
+    This used to return the internal `StorefrontView` dataclass directly, typed
+    `Any`. FastAPI serialised it field for field, so the payload arrived in
+    snake_case with the domain's own names - `id`, `name`, `tagline` - while
+    the Mini App reads `categoryId`, `nameFa`, `taglineFa`. Every one of them
+    was undefined, mapping over `products` threw, and the whole storefront
+    rendered as "a client-side exception has occurred".
+
+    A response model rather than a hand-built dict: `ApiModel` emits camelCase
+    from these names, and the shape is then something a schema can be checked
+    against instead of a dictionary nobody validates.
+    """
     view = await scope.storefront.load(user_id=user.id)
-    return view
+    first_purchase = not await scope.orders.has_completed_order(user.telegram_id)
+
+    return StorefrontResponse(
+        categories=[
+            CategoryCard(
+                category_id=category.id,
+                name_fa=category.name,
+                icon=category.icon,
+                products=[
+                    ProductCard(
+                        product_id=product.id,
+                        category_id=category.id,
+                        name_fa=product.name,
+                        tagline_fa=product.tagline,
+                        description_fa=product.description,
+                        features_fa=list(product.features),
+                        icon=product.icon,
+                        badge_fa=product.badge,
+                        is_featured=product.is_featured,
+                        plans=[
+                            PlanCard(
+                                plan_id=plan.id,
+                                product_id=product.id,
+                                name_fa=plan.name,
+                                plan_type=plan.plan_type,
+                                duration_days=plan.duration_days,
+                                price=plan.price.total,
+                                compare_at_price=(
+                                    plan.price.compare_at_price
+                                    if plan.price.compare_at_price
+                                    and plan.price.compare_at_price > plan.price.total
+                                    else None
+                                ),
+                                quota_gib=plan.quota_gib,
+                                daily_quota_gib=plan.daily_quota_gib,
+                                device_limit=plan.device_limit,
+                                badge_fa=plan.badge,
+                                is_featured=plan.is_featured,
+                                description_fa=plan.description,
+                            )
+                            for plan in product.plans
+                        ],
+                    )
+                    for product in category.products
+                ],
+            )
+            for category in view.categories
+        ],
+        wallet_balance=view.wallet_balance,
+        loyalty_tier=view.loyalty_tier,
+        is_first_purchase=first_purchase,
+    )
 
 
 @router.post("/quote", summary="Price one plan for this customer")
