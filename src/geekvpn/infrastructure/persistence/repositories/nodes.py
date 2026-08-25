@@ -44,6 +44,7 @@ def node_to_admin_record(model: NodeModel) -> NodeAdminRecord:
     timeout = model.timeout_seconds
     return NodeAdminRecord(
         id=model.id,
+        config=dict(model.config_json or {}),
         name_fa=model.name_fa,
         panel_kind=PanelKind(model.panel_kind),
         state=NodeState(model.state),

@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, Input } from '@/components/ui/input'
+import type { PanelGroupOption } from '@/lib/types'
 import {
   Select,
   SelectContent,
@@ -69,6 +70,13 @@ export function NodeDialog({
   const [countryCode, setCountryCode] = React.useState('')
   const [capacity, setCapacity] = React.useState('')
   const [verifyTls, setVerifyTls] = React.useState(true)
+  // PasarGuard grants access through groups, and which group an account
+  // joins decides which configs it receives. Read from the panel rather than
+  // typed, because a wrong id produces a working account carrying nothing the
+  // customer can use - a failure that looks like a broken server for a week.
+  const [groups, setGroups] = React.useState<PanelGroupOption[]>([])
+  const [chosenGroups, setChosenGroups] = React.useState<string[]>([])
+  const [groupsNote, setGroupsNote] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
@@ -88,6 +96,41 @@ export function NodeDialog({
     setCapacity(String(node?.capacity ?? ''))
     setVerifyTls(node?.verifyTls ?? true)
     setFailure(null)
+    setGroups([])
+    setGroupsNote(null)
+    setChosenGroups(
+      Array.isArray(node?.config?.defaultGroups)
+        ? (node.config.defaultGroups as string[]).map(String)
+        : [],
+    )
+  }, [node, open])
+
+  // Only for a node that exists: listing groups means logging in to the panel,
+  // and there are no stored credentials until it has been saved once.
+  React.useEffect(() => {
+    if (!open || !node) return
+    let cancelled = false
+    void api
+      .panelGroups(node.id)
+      .then((result) => {
+        if (cancelled) return
+        if (!result.supported) {
+          setGroupsNote('این پنل مفهوم گروه ندارد.')
+          return
+        }
+        if (!result.ok) {
+          setGroupsNote(result.message ?? 'خواندن گروه‌ها از پنل ممکن نشد.')
+          return
+        }
+        setGroups(result.groups)
+        setGroupsNote(result.groups.length === 0 ? 'این پنل هنوز گروهی ندارد.' : null)
+      })
+      .catch(() => {
+        if (!cancelled) setGroupsNote('خواندن گروه‌ها از پنل ممکن نشد.')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [node, open])
 
   const idValid = ID_PATTERN.test(id)
@@ -131,6 +174,10 @@ export function NodeDialog({
         await api.updatePanel(node.id, {
           ...shared,
           ...(password ? { password } : {}),
+          // Sent whenever groups were readable, including when the operator
+          // cleared them: an empty list is a decision, and merging would give
+          // no way to make it.
+          ...(groups.length > 0 ? { config: { defaultGroups: chosenGroups } } : {}),
         })
       } else {
         const body: NodeCreateBody = {
@@ -267,6 +314,58 @@ export function NodeDialog({
             </span>
             <Switch checked={verifyTls} onCheckedChange={setVerifyTls} />
           </label>
+
+          {/*
+            Groups, for panels that have them.
+
+            Only shown for a saved node: listing them means logging in, and
+            there are no stored credentials until the node exists. A new node
+            is therefore created first and its groups chosen on the next open,
+            which is also the order that lets the operator confirm the panel is
+            reachable before making a selling decision on top of it.
+          */}
+          {node ? (
+            <div className="space-y-2">
+              <p className="text-2xs font-medium">{'گروه‌های دسترسی'}</p>
+              {groupsNote ? (
+                <p className="text-2xs text-muted-foreground">{groupsNote}</p>
+              ) : null}
+              {groups.length > 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {groups.map((group) => {
+                      const picked = chosenGroups.includes(group.id)
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() =>
+                            setChosenGroups((current) =>
+                              picked
+                                ? current.filter((value) => value !== group.id)
+                                : [...current, group.id],
+                            )
+                          }
+                          className={
+                            'rounded-md border px-2 py-1 text-2xs transition-colors ' +
+                            (picked
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border text-muted-foreground hover:text-foreground')
+                          }
+                        >
+                          {group.name}
+                          {group.isDefault ? ' ★' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-2xs text-muted-foreground">
+                    {'اکانت‌های ساخته‌شده روی این سرور به گروه‌های انتخاب‌شده اضافه می‌شوند. اگر هیچ‌کدام انتخاب نشود، پیش‌فرض خود پنل اعمال می‌شود.'}
+                  </p>
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
           {failure ? (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive">

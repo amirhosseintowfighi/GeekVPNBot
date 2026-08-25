@@ -18,12 +18,14 @@ import pytest
 
 from geekvpn.application.ports.panel import PanelAdapter
 from geekvpn.domain.panels.enums import AccountState, Capability
+from geekvpn.domain.panels.errors import CapabilityNotSupported
 from geekvpn.domain.panels.values import (
     AccountSpec,
     AccountUsage,
     NodeInfo,
     PanelAccount,
     PanelAccountRef,
+    PanelGroup,
     PanelHealth,
     SubscriptionPayload,
     TrafficQuota,
@@ -113,6 +115,12 @@ class HypotheticalAdapter:
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         raise NotImplementedError
+
+    async def groups(self) -> Sequence[PanelGroup]:
+        # Capability-gated like `reset_traffic` and `bulk_usage`: on the port
+        # so a caller can always ask, and refused by adapters that cannot
+        # answer. A panel that grants access some other way says so.
+        raise CapabilityNotSupported("no groups", capability="access_groups")
 
     async def nodes(self) -> Sequence[NodeInfo]:
         raise NotImplementedError

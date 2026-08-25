@@ -242,7 +242,14 @@ export type OrderDetail = OrderRow
  * shape, which cannot satisfy the endpoint - every required field was optional
  * in the only type describing the call.
  */
+export interface PanelGroupOption {
+  id: string
+  name: string
+  isDefault: boolean
+}
+
 export interface NodeCreateBody {
+  config?: Record<string, unknown>
   id: string
   nameFa: string
   panelKind: string
@@ -257,6 +264,9 @@ export interface NodeCreateBody {
 }
 
 export interface NodeUpdateBody {
+  /** Adapter settings, replaced wholesale. Holds `defaultGroups` for
+   *  PasarGuard, which decides which configs an account receives. */
+  config?: Record<string, unknown>
   nameFa?: string
   baseUrl?: string
   username?: string
@@ -358,6 +368,8 @@ export interface PanelRow {
   sortOrder: number
   lastCheckAt: string | null
   lastError: string | null
+  /** Adapter settings. `defaultGroups` for PasarGuard; never a secret. */
+  config: Record<string, unknown>
 }
 
 export type ServerRow = PanelRow

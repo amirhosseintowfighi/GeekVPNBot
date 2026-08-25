@@ -22,6 +22,7 @@ from geekvpn.domain.panels.values import (
     AccountUsage,
     NodeInfo,
     PanelAccountRef,
+    PanelGroup,
     SubscriptionPayload,
 )
 from geekvpn.infrastructure.panels.http import PanelHttpClient
@@ -79,6 +80,18 @@ class HttpPanelAdapter:
         )
 
     # -- capability gate ---------------------------------------------------
+
+    async def groups(self) -> Sequence[PanelGroup]:
+        """No groups, unless an adapter says otherwise.
+
+        Every panel this project speaks to grants access *somehow* - Marzban
+        through inbounds, Marzneshin through services - but only PasarGuard can
+        list them, and only a list is useful for choosing between them. So the
+        default is an honest refusal rather than an empty list, which would
+        read on screen as "this panel has none configured".
+        """
+        self.require(Capability.ACCESS_GROUPS)
+        return ()
 
     def require(self, capability: Capability) -> None:
         """Guard a capability-gated method.

@@ -24,7 +24,7 @@ from pydantic import ConfigDict, Field
 from geekvpn.application.provisioning.ports import NodeAdminRecord
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.panels.enums import PanelKind
-from geekvpn.domain.panels.errors import PanelError
+from geekvpn.domain.panels.errors import CapabilityNotSupported, PanelError
 from geekvpn.domain.provisioning.enums import NodeState
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
@@ -51,6 +51,9 @@ class NodeResponse(ApiModel):
     sort_order: int
     last_check_at: datetime | None
     last_error: str | None
+    #: What the adapter was configured with. No secret lives here - the
+    #: password has its own encrypted column and is never in this blob.
+    config: dict[str, object] = Field(default_factory=dict)
 
     @classmethod
     def of(cls, record: NodeAdminRecord) -> NodeResponse:
@@ -71,6 +74,7 @@ class NodeResponse(ApiModel):
             sort_order=record.sort_order,
             last_check_at=record.last_check_at,
             last_error=record.last_error,
+            config=record.config,
         )
 
 
@@ -112,6 +116,13 @@ class UpdateNodeRequest(ApiModel):
     sort_order: int | None = None
     state: NodeState | None = None
     accepting_new: bool | None = None
+    #: Adapter settings, replaced wholesale when sent.
+    #:
+    #: This is where a PasarGuard node's `default_groups` lives, and it was
+    #: settable on create and nowhere else - so choosing the wrong group
+    #: meant deleting the node and making it again. Replaced rather than
+    #: merged, because a merge gives no way to remove a key.
+    config: dict[str, object] | None = None
 
 
 class TestConnectionResponse(ApiModel):
@@ -181,6 +192,9 @@ async def update_node(node_id: str, payload: UpdateNodeRequest, scope: ScopeDep)
     changes = payload.model_dump(exclude_unset=True)
     if "state" in changes and changes["state"] is not None:
         changes["state"] = NodeState(changes["state"]).value
+    if "config" in changes:
+        # The column is `config_json`; the field is `config`, matching create.
+        changes["config_json"] = changes.pop("config")
     record = await scope.nodes.update(node_id, **changes)
     if record is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Node not found.")
@@ -196,6 +210,65 @@ async def update_node(node_id: str, payload: UpdateNodeRequest, scope: ScopeDep)
 async def delete_node(node_id: str, scope: ScopeDep) -> None:
     if not await scope.nodes.delete(node_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Node not found.")
+
+
+class PanelGroupResponse(ApiModel):
+    id: str
+    name: str
+    is_default: bool
+
+
+class PanelGroupsResponse(ApiModel):
+    """A failure is reported, not raised.
+
+    Reading groups means reaching a panel that may be down, mid-upgrade, or
+    refusing our credentials. That is news for the operator - and a 5xx would
+    make their panel's outage look like ours.
+    """
+
+    ok: bool
+    supported: bool
+    groups: list[PanelGroupResponse] = Field(default_factory=list)
+    message: str | None = None
+
+
+@router.get(
+    "/{node_id}/groups",
+    response_model=PanelGroupsResponse,
+    summary="Access groups this panel offers",
+    dependencies=[Depends(requires(Permission.PANELS_READ))],
+)
+async def node_groups(node_id: str, scope: ScopeDep) -> PanelGroupsResponse:
+    """Which groups exist, so an operator picks one instead of typing an id.
+
+    A group decides which configs an account receives, so choosing the wrong
+    one produces a working account that carries nothing the customer can use -
+    the kind of failure that looks like a broken server for a week.
+    """
+    record = await scope.nodes.get(node_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Node not found.")
+
+    try:
+        adapter = await scope.panel_provider.for_node(record)
+        groups = await adapter.groups()
+    except CapabilityNotSupported:
+        # Not an error. Marzban calls this idea inbounds and Marzneshin calls
+        # it services, and neither can list them - so the screen says "this
+        # panel has no groups" rather than showing an empty picker that looks
+        # like a panel with none configured.
+        return PanelGroupsResponse(ok=True, supported=False)
+    except PanelError as exc:
+        return PanelGroupsResponse(ok=False, supported=True, message=str(exc))
+
+    return PanelGroupsResponse(
+        ok=True,
+        supported=True,
+        groups=[
+            PanelGroupResponse(id=group.id, name=group.name, is_default=group.is_default)
+            for group in groups
+        ],
+    )
 
 
 @router.post(

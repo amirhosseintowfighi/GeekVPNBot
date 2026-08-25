@@ -36,6 +36,7 @@ from geekvpn.domain.panels.values import (
     NodeInfo,
     PanelAccount,
     PanelAccountRef,
+    PanelGroup,
     PanelHealth,
     SubscriptionPayload,
     TrafficQuota,
@@ -113,6 +114,15 @@ class PanelAdapter(Protocol):
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         """Requires `Capability.BULK_USAGE`. Keyed by username."""
+        ...
+
+    async def groups(self) -> Sequence[PanelGroup]:
+        """Access groups this panel offers, for an operator to choose from.
+
+        Requires `Capability.ACCESS_GROUPS`. Panels without the concept raise
+        rather than returning an empty list: "this panel has no groups" and
+        "this panel has none configured" need different answers on screen.
+        """
         ...
 
     async def nodes(self) -> Sequence[NodeInfo]:

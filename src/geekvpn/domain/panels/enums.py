@@ -43,6 +43,14 @@ class Capability(StrEnum):
     BULK_USAGE = "bulk_usage"
     #: Exposes individual nodes/servers and their health.
     NODE_INVENTORY = "node_inventory"
+    #: Grants access through named groups, and can list them.
+    #:
+    #: PasarGuard's central concept: which group an account joins decides
+    #: which configs it receives, so two customers on one node can hold
+    #: entirely different inbounds. Marzban calls the same idea inbounds
+    #: and Marzneshin calls it services; neither can list them, so neither
+    #: declares this.
+    ACCESS_GROUPS = "access_groups"
     #: Can pin an account to a subset of nodes.
     PER_NODE_ASSIGNMENT = "per_node_assignment"
     #: Serves a ready-made subscription document (Clash, sing-box, v2ray...).

@@ -15,7 +15,7 @@ whole design exists to prevent.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
@@ -85,6 +85,10 @@ class NodeAdminRecord:
     account_count: int
     accepting_new: bool
     country_code: str | None = None
+    #: Adapter settings. Holds a PasarGuard node's `default_groups`, which
+    #: decides which configs its accounts receive - a selling decision, and
+    #: one an operator cannot revisit if it is write-only.
+    config: dict[str, object] = field(default_factory=dict)
     sort_order: int = 0
     last_check_at: datetime | None = None
     last_error: str | None = None

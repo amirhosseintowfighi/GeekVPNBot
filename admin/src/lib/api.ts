@@ -420,6 +420,18 @@ export const api = {
   // /panels created a second node instead of editing the one in front of you.
   updatePanel: (nodeId: string, patch: NodeUpdateBody) =>
     mutate<PanelRow>('PATCH', `${ROOT}/panels/${nodeId}`, patch),
+  // Which access groups the panel offers. PasarGuard grants access through
+  // them and the choice decides which configs an account receives, so an
+  // operator picks from the real list rather than typing an id - a wrong one
+  // produces a working account carrying nothing the customer can use.
+  panelGroups: (panelId: string) =>
+    fetcher<{
+      ok: boolean
+      supported: boolean
+      groups: { id: string; name: string; isDefault: boolean }[]
+      message: string | null
+    }>(`${ROOT}/panels/${panelId}/groups`),
+
   testPanel: (panelId: string) =>
     mutate<{ ok: boolean; latencyMs: number | null; version: string | null; message: string | null }>(
       'POST',

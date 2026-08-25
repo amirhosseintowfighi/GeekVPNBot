@@ -48,6 +48,26 @@ class TrafficQuota:
 
 
 @dataclass(frozen=True, slots=True)
+class PanelGroup:
+    """One access group on a panel that has the concept.
+
+    PasarGuard grants access through groups, and which group an account joins
+    decides which configs it gets - so two customers on the same node can hold
+    entirely different inbounds. That makes the group a selling decision, not a
+    connection detail, which is why it is a first-class value rather than a
+    string in a config blob.
+
+    `id` is what the panel wants back; `name` is what an operator recognises.
+    Sending the name would work on some panels and silently grant nothing on
+    others.
+    """
+
+    id: str
+    name: str
+    is_default: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class PanelAccountRef:
     """Stable pointer to an account on one specific panel.
 

@@ -33,6 +33,7 @@ from geekvpn.domain.panels.values import (
     NodeInfo,
     PanelAccount,
     PanelAccountRef,
+    PanelGroup,
     PanelHealth,
     SubscriptionPayload,
     TrafficQuota,
@@ -73,6 +74,7 @@ class PasarGuardAdapter(HttpPanelAdapter):
             Capability.NATIVE_QUOTA_EXTEND,
             Capability.BULK_USAGE,
             Capability.NODE_INVENTORY,
+            Capability.ACCESS_GROUPS,
             Capability.PER_NODE_ASSIGNMENT,
             Capability.SUBSCRIPTION_URL,
             Capability.DEVICE_LIMIT,
@@ -300,6 +302,37 @@ class PasarGuardAdapter(HttpPanelAdapter):
                     external_id=str(item["id"]) if item.get("id") is not None else None,
                     xray_version=item.get("xray_version"),
                     message=item.get("message"),
+                )
+            )
+        return result
+
+    async def groups(self) -> Sequence[PanelGroup]:
+        """The panel's access groups, for an operator to choose between.
+
+        `id` is what goes back in `group_ids` on a create; `name` is what the
+        operator recognises. Both are kept because sending the name would work
+        on a panel that accepts either and silently grant nothing on one that
+        does not.
+        """
+        self.require(Capability.ACCESS_GROUPS)
+        response = await self._http.request(
+            "GET", "/api/groups", headers=await self._auth_headers(), expected=(200,)
+        )
+        payload = self._http.json(response)
+        rows = payload if isinstance(payload, list) else payload.get("groups", [])
+        result: list[PanelGroup] = []
+        for row in rows:
+            item = require_mapping(row, panel=self.kind.value, what="group")
+            identifier = item.get("id")
+            if identifier is None:
+                continue
+            result.append(
+                PanelGroup(
+                    id=str(identifier),
+                    # Falls back to the id: a group with no name is still
+                    # selectable, and an empty row in a list is not.
+                    name=str(item.get("name") or identifier),
+                    is_default=bool(item.get("is_default", False)),
                 )
             )
         return result
