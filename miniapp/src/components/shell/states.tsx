@@ -117,7 +117,7 @@ export function StaggerList({
     <motion.div
       variants={listVariants}
       initial="hidden"
-      animate="show"
+      animate="visible"
       className={className}
     >
       {children}
