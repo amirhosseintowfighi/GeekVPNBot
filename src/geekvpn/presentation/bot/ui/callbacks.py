@@ -96,6 +96,20 @@ class PageCB(CallbackData, prefix="pg"):
     page: int
 
 
+class AdminCB(CallbackData, prefix="adm"):
+    """The operator area. `ref` is a payment id, a ticket id, or a role name.
+
+    Full ids rather than the short tokens the customer flows use: those are
+    resolved against an FSM-cached list, and a reviewer arrives here from a
+    notification with no list behind them.
+    """
+
+    action: str  # menu | payments | payment | approve | reject
+    #                | tickets | ticket | reply | close
+    #                | admins | add_admin | role
+    ref: str = ""
+
+
 class NoopCB(CallbackData, prefix="noop"):
     """A button that exists only as a label (page counters, headers).
 

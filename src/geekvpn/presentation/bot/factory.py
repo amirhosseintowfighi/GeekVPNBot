@@ -19,6 +19,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from geekvpn.infrastructure.config.settings import Settings
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.presentation.bot.handlers import (
+    admin,
     dashboard,
     errors,
     fallback,
@@ -52,6 +53,7 @@ from geekvpn.presentation.bot.throttle import ThrottlingMiddleware
 ROUTERS = (
     errors,
     system,
+    admin,
     start,
     menu,
     shop,

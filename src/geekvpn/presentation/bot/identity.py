@@ -86,6 +86,10 @@ class IdentityMiddleware(BaseMiddleware):
             # Mini App asks the bot to collect one. Handlers that need it
             # declare `cache: Cache`.
             data["cache"] = self._container.cache
+            # The operator handlers open their own synchronous scope, the
+            # same way the admin API does, because approving a payment and
+            # answering a ticket both live on that side of the split.
+            data["container"] = self._container
             outcome = await handler(event, data)
             await uow.commit()
             return outcome
