@@ -134,7 +134,12 @@ export default function PaymentsPage() {
                     </span>
                   </TableCell>
                   <TableCell dir="ltr" className="font-mono text-2xs text-muted-foreground">
-                    {payment.userId}
+                    {payment.customerName ?? payment.userId}
+                    {payment.customerUsername ? (
+                      <span dir="ltr" className="block text-2xs text-muted-foreground">
+                        {'@' + payment.customerUsername}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell numeric className="font-semibold">
                     {toman(payment.amount, false)}

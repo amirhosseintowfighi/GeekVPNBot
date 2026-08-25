@@ -208,6 +208,9 @@ export interface OrderRow {
   id: string
   number: string
   userId: number
+  /** Who it belongs to. `null` when no user row survives for that id. */
+  customerName: string | null
+  customerUsername: string | null
   state: OrderState
   planId: string
   planNameFa: string
@@ -703,6 +706,9 @@ export interface PaymentRow {
   id: string
   invoiceId: string
   userId: number
+  /** Who it belongs to. `null` when no user row survives for that id. */
+  customerName: string | null
+  customerUsername: string | null
   method: string
   state: string
   amount: number

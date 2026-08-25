@@ -30,6 +30,7 @@ Money rules encoded here rather than trusted to the caller
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 import httpx
@@ -44,6 +45,7 @@ from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.payments.enums import PaymentState, RefundDestination, RefundReason
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
+from geekvpn.infrastructure.persistence.repositories.sync_directory import Person
 from geekvpn.presentation.api.admin_common import (
     ADMIN_PAGE_SIZE,
     ActorId,
@@ -120,11 +122,29 @@ def _proof_dict(payment: Any) -> dict[str, Any] | None:
     }
 
 
-def _payment_dict(payment: Any, *, now: Any = None) -> dict[str, Any]:
+def _with_people(scope: SyncScope, payments: Sequence[Any], *, now: Any = None) -> list[dict[str, Any]]:
+    """Label a page of payments with who made them.
+
+    One lookup for the page, the same as the ticket queue. This is the screen
+    where money is approved, and approving the wrong customer's transfer is the
+    mistake a raw id invites.
+    """
+    people = scope.directory.by_telegram_ids(payment.user_id for payment in payments)
+    return [
+        _payment_dict(payment, now=now, person=people.get(payment.user_id))
+        for payment in payments
+    ]
+
+
+def _payment_dict(
+    payment: Any, *, now: Any = None, person: Person | None = None
+) -> dict[str, Any]:
     data: dict[str, Any] = {
         "id": payment.id,
         "invoiceId": payment.invoice_id,
         "userId": payment.user_id,
+        "customerName": person.display_name if person else None,
+        "customerUsername": person.username if person else None,
         "method": payment.method.value,
         "state": payment.state.value,
         "amount": payment.amount.amount,
@@ -181,7 +201,7 @@ async def list_payments(
     def work(scope: SyncScope) -> dict[str, Any]:
         rows = scope.payments.in_state(state, limit=ADMIN_PAGE_SIZE, offset=offset)
         return {
-            "items": [_payment_dict(row, now=now) for row in rows],
+            "items": _with_people(scope, rows, now=now),
             "page": page,
             "pageSize": ADMIN_PAGE_SIZE,
             "total": scope.payments.count_in_state(state),
@@ -339,7 +359,11 @@ async def get_payment(
         payment = scope.payments.get(payment_id)
         if payment is None:
             raise NotFoundError("این پرداخت پیدا نشد.", payment_id=payment_id)
-        return _payment_dict(payment, now=now)
+        return _payment_dict(
+            payment,
+            now=now,
+            person=scope.directory.by_telegram_ids([payment.user_id]).get(payment.user_id),
+        )
 
     return await read_scope(container, work)
 

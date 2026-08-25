@@ -22,6 +22,7 @@ from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.provisioning.enums import OrderState
 from geekvpn.domain.provisioning.order import Order
+from geekvpn.infrastructure.persistence.repositories.sync_directory import Person
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
 
@@ -32,6 +33,10 @@ class OrderResponse(ApiModel):
     id: str
     number: str
     user_id: int
+    #: Who placed it. `None` only when the id belongs to no user row we still
+    #: have; the id itself is always there, so the row stays usable.
+    customer_name: str | None = None
+    customer_username: str | None = None
     state: OrderState
     plan_id: str
     plan_name_fa: str
@@ -49,11 +54,13 @@ class OrderResponse(ApiModel):
     failure_reason: str | None
 
     @classmethod
-    def of(cls, order: Order) -> OrderResponse:
+    def of(cls, order: Order, person: Person | None = None) -> OrderResponse:
         return cls(
             id=order.id,
             number=order.number,
             user_id=order.user_id,
+            customer_name=person.display_name if person else None,
+            customer_username=person.username if person else None,
             state=order.state,
             plan_id=order.plan_id,
             plan_name_fa=order.plan_name_fa,
@@ -100,7 +107,13 @@ async def list_orders(
     orders, total = await scope.orders.search(
         state=state, user_id=user_id, number=number, limit=limit, offset=offset
     )
-    return OrderPage(items=[OrderResponse.of(o) for o in orders], total=total)
+    # One lookup for the page. Per row it is an extra round trip each, on a
+    # list an operator scans rather than reads.
+    people = await scope.users.people_by_telegram_ids(order.user_id for order in orders)
+    return OrderPage(
+        items=[OrderResponse.of(order, people.get(order.user_id)) for order in orders],
+        total=total,
+    )
 
 
 @router.get(
@@ -113,7 +126,8 @@ async def get_order(order_id: str, scope: ScopeDep) -> OrderResponse:
     order = await scope.orders.get(order_id)
     if order is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Order not found.")
-    return OrderResponse.of(order)
+    people = await scope.users.people_by_telegram_ids([order.user_id])
+    return OrderResponse.of(order, people.get(order.user_id))
 
 
 @router.post(

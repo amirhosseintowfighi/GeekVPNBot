@@ -128,7 +128,12 @@ export default function OrderDetailPage() {
             ) : null}
             <Row labelFa={'کاربر'}>
               <Link href={'/users/' + data.userId} className="text-primary hover:underline">
-                {faNumber(data.userId)}
+                {data.customerName ?? faNumber(data.userId)}
+                {data.customerUsername ? (
+                  <span dir="ltr" className="text-muted-foreground">
+                    {' (@' + data.customerUsername + ')'}
+                  </span>
+                ) : null}
               </Link>
             </Row>
           </CardContent>

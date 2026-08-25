@@ -162,8 +162,13 @@ export default function OrdersPage() {
 
                       <TableCell>
                         <Link href={'/users/' + order.userId} className="hover:underline">
-                          {order.userId}
+                          {order.customerName ?? order.userId}
                         </Link>
+                        {order.customerUsername ? (
+                          <span dir="ltr" className="block text-2xs text-muted-foreground">
+                            {'@' + order.customerUsername}
+                          </span>
+                        ) : null}
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">

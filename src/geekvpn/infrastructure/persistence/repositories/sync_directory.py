@@ -52,10 +52,10 @@ class SyncUserDirectory:
             .scalars()
             .all()
         )
-        return {row.telegram_id: _person(row) for row in rows}
+        return {row.telegram_id: person_of(row) for row in rows}
 
 
-def _person(row: UserModel) -> Person:
+def person_of(row: UserModel) -> Person:
     parts = [part for part in (row.first_name, row.last_name) if part]
     return Person(
         telegram_id=row.telegram_id,
@@ -66,4 +66,4 @@ def _person(row: UserModel) -> Person:
     )
 
 
-__all__ = ["Person", "SyncUserDirectory"]
+__all__ = ["Person", "SyncUserDirectory", "person_of"]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from geekvpn.domain.identity.enums import Language, UserStatus
 from geekvpn.domain.identity.user import User
 from geekvpn.infrastructure.persistence.models.identity import UserModel
+from geekvpn.infrastructure.persistence.repositories.sync_directory import (
+    Person,
+    person_of,
+)
 
 
 class SqlAlchemyUserRepository:
@@ -70,6 +74,23 @@ class SqlAlchemyUserRepository:
         stmt = select(UserModel).where(UserModel.telegram_id == telegram_id)
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return _to_domain(model) if model else None
+
+    async def people_by_telegram_ids(self, telegram_ids: Iterable[int]) -> dict[int, Person]:
+        """Names for a page of rows that only store an id.
+
+        The same shape as `SyncUserDirectory.by_telegram_ids`, and it builds
+        the `Person` through the same function, so the panel cannot show one
+        customer under two different names depending on which screen it is.
+        """
+        wanted = {int(value) for value in telegram_ids}
+        if not wanted:
+            return {}
+        rows = (
+            (await self._session.execute(select(UserModel).where(UserModel.telegram_id.in_(wanted))))
+            .scalars()
+            .all()
+        )
+        return {row.telegram_id: person_of(row) for row in rows}
 
     async def get_by_referral_code(self, code: str) -> User | None:
         stmt = select(UserModel).where(UserModel.referral_code == code)
