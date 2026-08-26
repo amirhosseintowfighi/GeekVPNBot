@@ -77,27 +77,26 @@ class PaymentLookup(Protocol):
     def get(self, payment_id: str) -> Any: ...
 
 
-class SubscriptionLinks(Protocol):
-    def subscription_url(self, subscription_id: str) -> str | None: ...
-
-
 class DeliveryNotifications:
     """Tells the customer their service is ready, and hands them the link."""
 
-    def __init__(self, *, engine: Any, links: SubscriptionLinks) -> None:
+    def __init__(self, *, engine: Any) -> None:
         self._engine = engine
-        self._links = links
 
-    def on_subscription_activated(self, event: Any) -> Any:
-        """The link matters more than the announcement.
+    def on_subscription_activated(self, event: Any, link: str | None) -> Any:
+        """The link is passed in, never looked up.
 
-        A "your service is ready" with no way to use it is a support ticket, so
-        the subscription is read back for its URL and the message carries it.
-        A subscription with no URL yet still gets the announcement - the
-        customer can fetch the config from "my services" - because silence is
-        worse than an incomplete message.
+        It was read back by id from a second session, and that read always
+        found nothing: this runs inside provisioning, before the transaction
+        that created the subscription has committed, so another connection
+        cannot see the row yet. Every delivery therefore announced itself
+        without the one thing the customer needed - and the row in the database
+        had the link in it the whole time.
+
+        A delivery with no link still gets the announcement: the account does
+        exist, "my services" will show it, and silence is worse than an
+        incomplete message.
         """
-        link = self._links.subscription_url(event.subscription_id)
 
         return self._engine.notify(
             user_id=event.user_id,

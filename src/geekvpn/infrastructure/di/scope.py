@@ -321,9 +321,11 @@ class RequestScope:
             on_activated=self._announce_delivery,
         )
 
-    async def _announce_delivery(self, event: SubscriptionActivated) -> None:
+    async def _announce_delivery(
+        self, event: SubscriptionActivated, link: str | None
+    ) -> None:
         def work(sync: SyncScope) -> None:
-            sync.delivery_notifications.on_subscription_activated(event)
+            sync.delivery_notifications.on_subscription_activated(event, link)
 
         def _call() -> None:
             with self.container.sync_sessions() as session:

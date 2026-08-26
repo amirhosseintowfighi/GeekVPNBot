@@ -315,7 +315,7 @@ class SyncScope:
 
     @cached_property
     def delivery_notifications(self) -> DeliveryNotifications:
-        return DeliveryNotifications(engine=self.engine, links=self.subscription_reader)
+        return DeliveryNotifications(engine=self.engine)
 
     @cached_property
     def receipt_alerts(self) -> ReceiptAlerts:

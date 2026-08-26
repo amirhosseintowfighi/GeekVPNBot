@@ -97,3 +97,16 @@ def test_the_re_read_cannot_fail_the_provision() -> None:
     start = source.index("if not account.subscription_url:")
 
     assert "except PanelError:" in source[start:]
+
+
+def test_the_link_travels_with_the_announcement() -> None:
+    """Nothing has committed when this fires.
+
+    The subscription row exists only inside the transaction that is still
+    open, so a second connection reading it by id finds nothing - which is
+    exactly what happened, on every delivery, while the link sat in the row
+    the whole time.
+    """
+    source = _function(SERVICE, "provision")
+
+    assert "subscription.subscription_url" in source

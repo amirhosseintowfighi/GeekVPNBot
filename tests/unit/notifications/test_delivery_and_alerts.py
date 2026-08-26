@@ -30,14 +30,6 @@ class Engine:
         return "sent"
 
 
-class Links:
-    def __init__(self, url: str | None) -> None:
-        self._url = url
-
-    def subscription_url(self, subscription_id: str) -> str | None:
-        return self._url
-
-
 class Sender:
     def __init__(self, *, breaks: bool = False) -> None:
         self.photos: list[dict[str, object]] = []
@@ -87,18 +79,28 @@ def payment(file_id: str | None = "photo-1") -> SimpleNamespace:
 
 def test_the_customer_is_sent_their_link() -> None:
     engine = Engine()
-    DeliveryNotifications(engine=engine, links=Links("https://sub/abc")).on_subscription_activated(
-        ACTIVATED
-    )
+    DeliveryNotifications(engine=engine).on_subscription_activated(ACTIVATED, "https://sub/abc")
 
     assert engine.calls[0]["template_key"] == "purchase.delivered"
     assert engine.calls[0]["fields"] == {"link": "https://sub/abc"}
 
 
+def test_the_link_is_handed_over_rather_than_looked_up() -> None:
+    """It used to be read back by id, from a second session, inside the
+    transaction that had just created the row - so the read always found
+    nothing and every delivery went out without the one thing the customer
+    needed. The notifier now has no way to look anything up."""
+    import inspect
+
+    signature = inspect.signature(DeliveryNotifications.__init__)
+
+    assert set(signature.parameters) == {"self", "engine"}
+
+
 def test_a_subscription_with_no_link_yet_is_still_announced() -> None:
     """Silence is worse than an incomplete message: the account exists."""
     engine = Engine()
-    DeliveryNotifications(engine=engine, links=Links(None)).on_subscription_activated(ACTIVATED)
+    DeliveryNotifications(engine=engine).on_subscription_activated(ACTIVATED, None)
 
     assert engine.calls[0]["template_key"] == "purchase.delivered_no_link"
 
@@ -106,7 +108,7 @@ def test_a_subscription_with_no_link_yet_is_still_announced() -> None:
 def test_it_is_deduped_per_subscription() -> None:
     """A retry that re-publishes must not send a second copy of the config."""
     engine = Engine()
-    DeliveryNotifications(engine=engine, links=Links("x")).on_subscription_activated(ACTIVATED)
+    DeliveryNotifications(engine=engine).on_subscription_activated(ACTIVATED, "x")
 
     assert engine.calls[0]["dedupe_key"] == "purchase.delivered:sub-1"
 

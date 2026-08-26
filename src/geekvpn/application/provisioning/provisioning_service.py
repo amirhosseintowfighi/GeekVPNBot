@@ -108,7 +108,8 @@ class ProvisioningService:
         #: the bot, an operator's retry, or the worker draining a stuck
         #: order. Wiring it at each of those three instead would be three
         #: chances to forget.
-        on_activated: Callable[[SubscriptionActivated], Awaitable[None]] | None = None,
+        on_activated: Callable[[SubscriptionActivated, str | None], Awaitable[None]]
+        | None = None,
     ) -> None:
         self._orders = orders
         self._subscriptions = subscriptions
@@ -221,7 +222,11 @@ class ProvisioningService:
         order.mark_active(subscription_id=subscription.id, at=now)
         await self._orders.update(order)
 
-        await self._announce(self._publish(order, subscription))
+        # The link goes with it rather than being looked up: nothing has
+        # committed yet, so a second connection would find no such row.
+        await self._announce(
+            self._publish(order, subscription), subscription.subscription_url
+        )
         return subscription
 
     # -- renewal -----------------------------------------------------------
@@ -351,7 +356,7 @@ class ProvisioningService:
             self._events.publish_all(events)
         return events
 
-    async def _announce(self, events: Sequence[object]) -> None:
+    async def _announce(self, events: Sequence[object], link: str | None) -> None:
         """Tell the customer their service exists.
 
         Deliberately after everything else and never fatal: the account is
@@ -365,7 +370,7 @@ class ProvisioningService:
         for event in events:
             if isinstance(event, SubscriptionActivated):
                 try:
-                    await self._on_activated(event)
+                    await self._on_activated(event, link)
                 except Exception:
                     _log.exception(
                         "provisioning.delivery_notice_failed subscription_id=%s",
