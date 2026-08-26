@@ -7,6 +7,7 @@ Telegram client, which is how we can assert RTL correctness in CI.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from geekvpn.application.bot.read_models import (
@@ -139,7 +140,7 @@ def product_card(product: ProductView) -> str:
         lines.append("")
         lines.append(rtl_line(T.PLAN_FROM.format(price=f"<b>{toman(cheapest)}</b>")))
     lines.append("")
-    lines.append(rtl_line(T.SHOP_INTRO))
+    lines.append(rtl_line(T.PRODUCT_PICK_PLAN))
     return "\n".join(lines)
 
 
@@ -160,7 +161,7 @@ def plan_button_label(plan: PlanView) -> str:
     return label
 
 
-def quote_breakdown(quote: QuoteView, *, plan_name: str) -> str:
+def quote_breakdown(quote: QuoteView, *, plan_name: str, compact: bool = False) -> str:
     """Itemised price breakdown.
 
     Every deduction is shown as its own line with a `−` sign, and cashback is
@@ -168,9 +169,14 @@ def quote_breakdown(quote: QuoteView, *, plan_name: str) -> str:
     customer must never be able to read the invoice as cheaper than what will
     actually leave their wallet.
     """
-    lines: list[str] = [rtl_line(f"{E.RECEIPT} <b>{T.REVIEW_TITLE}</b>"), ""]
-    lines.append(rtl_line(f"{E.CART} {plan_name}"))
-    lines.append("")
+    lines: list[str] = []
+    if not compact:
+        # `REVIEW_TITLE` carries its own receipt emoji; prefixing another one
+        # printed it twice.
+        lines.append(rtl_line(f"<b>{T.REVIEW_TITLE}</b>"))
+        lines.append("")
+        lines.append(rtl_line(f"{E.CART} {plan_name}"))
+        lines.append("")
 
     for line in quote.lines:
         if line.kind == "base":
@@ -199,13 +205,50 @@ def quote_breakdown(quote: QuoteView, *, plan_name: str) -> str:
     return "\n".join(lines)
 
 
-def plan_detail(plan: PlanView, *, product_name: str) -> str:
-    lines: list[str] = [rtl_line(f"{E.CART} <b>{product_name}</b> \u2014 {plan.name}"), ""]
-    lines.append(rtl_line(f"{E.CALENDAR} {T.LBL_DURATION}: {fa_duration(plan.duration_days)}"))
-    lines.append(rtl_line(f"{E.CHART} {T.LBL_TRAFFIC}: {gib(plan.quota_gib)}"))
-    lines.append(rtl_line(f"{E.DEVICE} {T.LBL_DEVICES}: {fa_digits(plan.device_limit)}"))
+def plan_detail(
+    plan: PlanView,
+    *,
+    product_name: str,
+    quote: QuoteView | None = None,
+    features: Sequence[str] = (),
+) -> str:
+    """The screen a customer reads before pressing pay.
+
+    It used to be a price breakdown and nothing else: a customer who tapped a
+    package saw a total, a discount and a cashback line, and not one word about
+    what they were buying - no volume, no duration, no device count, none of
+    the features the operator had written on the product. Those facts existed
+    and were rendered by this function, which nothing called.
+
+    `quote` overrides the plan's own price because the review screen re-quotes
+    with a coupon applied; without it the customer would read the pre-coupon
+    total on the screen where they confirm the discounted one.
+    """
+    lines: list[str] = [rtl_line(f"{E.CART} <b>{product_name}</b> \u2014 {plan.name}")]
+    if plan.badge:
+        lines.append(rtl_line(f"{E.DISCOUNT} {plan.badge}"))
+    if plan.description:
+        lines.append("")
+        lines.append(rtl_line(f"<i>{plan.description}</i>"))
+
     lines.append("")
-    lines.append(quote_breakdown(plan.price, plan_name=plan.name))
+    lines.append(rtl_line(f"{E.CALENDAR} {T.LBL_DURATION}: <b>{fa_duration(plan.duration_days)}</b>"))
+    lines.append(rtl_line(f"{E.CHART} {T.LBL_TRAFFIC}: <b>{gib(plan.quota_gib)}</b>"))
+    lines.append(rtl_line(f"{E.DEVICE} {T.LBL_DEVICES}: <b>{fa_digits(plan.device_limit)}</b>"))
+
+    # The product's selling points, on the screen where they are being sold.
+    # They were only ever shown one step earlier, on the page listing the
+    # packages, and vanished the moment the customer picked one.
+    for feature in features:
+        lines.append(rtl_line(f"{E.OK} {feature}"))
+
+    lines.append("")
+    # Compact: the header two lines up already names the package, and a
+    # heading reading "order review" above a screen titled with the package is
+    # one label too many.
+    lines.append(quote_breakdown(quote or plan.price, plan_name=plan.name, compact=True))
+    lines.append("")
+    lines.extend(rtl_line(line) for line in T.PLAN_TRUST.split("\n"))
     return "\n".join(lines)
 
 

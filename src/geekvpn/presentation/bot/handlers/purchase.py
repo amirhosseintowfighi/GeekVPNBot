@@ -157,7 +157,17 @@ async def _render_review(
     await state.set_state(Purchase.reviewing)
     await safe_edit(
         query,
-        R.quote_breakdown(quote, plan_name=name),
+        # The whole package, not just its price. This screen used to be the
+        # breakdown alone, so a customer confirming a purchase could not see
+        # the volume, the duration, the device count or a single one of the
+        # features the operator wrote - they were on the previous screen and
+        # disappeared the moment a package was picked.
+        R.plan_detail(
+            plan,
+            product_name=product.name,
+            quote=quote,
+            features=product.features,
+        ),
         markup=_review_keyboard(has_coupon=bool(coupon)),
     )
 

@@ -108,6 +108,25 @@ SHOP_EMPTY: Final = (
     "\u0628\u0647\u200c\u0632\u0648\u062f\u06cc \u0628\u0631\u0645\u06cc\u200c\u06af\u0631\u062f\u06cc\u0645. \u0627\u06af\u0631 \u0639\u062c\u0644\u0647 \u062f\u0627\u0631\u06cc\u062f\u060c \u0628\u0647 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u067e\u06cc\u0627\u0645 \u0628\u062f\u0647\u06cc\u062f."
 )
 PRODUCT_NO_PLANS: Final = "\u0628\u0631\u0627\u06cc \u0627\u06cc\u0646 \u0645\u062d\u0635\u0648\u0644 \u0641\u0639\u0644\u0627\u064b \u0628\u0633\u062a\u0647\u200c\u0627\u06cc \u0641\u0639\u0627\u0644 \u0646\u06cc\u0633\u062a."
+#: The last thing between reading a price and pressing pay.
+#:
+#: Every line here answers a question a first-time buyer actually has, in the
+#: order they ask it: will it work, how fast do I get it, what if it does not
+#: work, and who do I talk to. Written once and shown on every package, because
+#: the doubt is the same whichever one they picked.
+PLAN_TRUST: Final = (
+    "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+    "\u26a1 تحویل آنی و خودکار، بلافاصله بعد از پرداخت\n"
+    "\U0001f6e1\ufe0f بدون ثبت گزارش، بدون افت سرعت\n"
+    "\U0001f4f1 روی موبایل، لپ‌تاپ و تلویزیون\n"
+    "\U0001f4ac پشتیبانی فارسی، همین‌جا در ربات"
+)
+
+#: Shown on a product page under its packages, where "open a category" used to
+#: be - a leftover from the storefront screen that told the customer to do
+#: something they had already done two taps ago.
+PRODUCT_PICK_PLAN: Final = "\U0001f447 یکی از بسته‌های زیر را انتخاب کنید:"
+
 PLAN_FROM: Final = "\u0634\u0631\u0648\u0639 \u0627\u0632 {price}"
 PLAN_UNAVAILABLE: Final = "\u0627\u06cc\u0646 \u0628\u0633\u062a\u0647 \u062f\u06cc\u06af\u0631 \u062f\u0631 \u062f\u0633\u062a\u0631\u0633 \u0646\u06cc\u0633\u062a. \u0644\u0637\u0641\u0627\u064b \u0641\u0647\u0631\u0633\u062a \u0631\u0627 \u062f\u0648\u0628\u0627\u0631\u0647 \u0628\u0627\u0632 \u06a9\u0646\u06cc\u062f."
 BADGE_FEATURED: Final = "\u2b50 \u067e\u06cc\u0634\u0646\u0647\u0627\u062f \u0645\u0627"
@@ -152,8 +171,11 @@ COUPON_REMOVED: Final = (
 
 # -- Payment -----------------------------------------------------------------
 
-PAY_CHOOSE: Final = "\u0631\u0648\u0634 \u067e\u0631\u062f\u0627\u062e\u062a \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f:"
-PAY_WALLET: Final = "\U0001f45b \u067e\u0631\u062f\u0627\u062e\u062a \u0627\u0632 \u06a9\u06cc\u0641 \u067e\u0648\u0644"
+PAY_CHOOSE: Final = (
+    "\U0001f4b3 <b>یک قدم تا فعال شدن سرویس</b>\n\n"
+    "روش پرداخت را انتخاب کنید. هر کدام را بزنید، همان‌جا راهنمای کاملش می‌آید."
+)
+PAY_WALLET: Final = "\U0001f45b پرداخت از کیف پول (آنی)"
 PAY_CARD: Final = "\U0001f4b3 \u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a"
 PAY_CRYPTO: Final = (
     "\u20bf \u067e\u0631\u062f\u0627\u062e\u062a \u0628\u0627 \u0631\u0645\u0632\u0627\u0631\u0632"
