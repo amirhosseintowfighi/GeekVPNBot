@@ -84,7 +84,11 @@ services:
       timeout: 5s
       retries: 3
     depends_on: [prometheus]
-    networks: [monitoring]
+    # `backend` as well as `monitoring`, because nginx is on `backend` and
+    # could not reach this at all. `GF_SERVER_ROOT_URL` has always claimed it
+    # was served at /grafana/ on the admin host - a claim nothing implemented,
+    # so the address in the config was one nobody could open.
+    networks: [monitoring, backend]
 
   node-exporter:
     image: prom/node-exporter:v1.8.2

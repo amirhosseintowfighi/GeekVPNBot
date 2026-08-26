@@ -98,11 +98,15 @@ def _plan_keyboard(product: ProductView) -> Any:
     Packages carry three facts (volume, duration, price) and cramming two per
     row truncates all of them at the 32-character label cap.
     """
+    # Colour marks the recommendation, not the list. Every package blue
+    # would be a wall of blue that recommends nothing; the featured one blue
+    # is the shelf-edge label a customer actually reads.
     rows = [
         [
             K.btn(
                 R.plan_button_label(plan),
                 ShopCB(action="plan", ref=short_ref(plan.id)),
+                style=K.GO if plan.is_featured else None,
             )
         ]
         for plan in product.plans

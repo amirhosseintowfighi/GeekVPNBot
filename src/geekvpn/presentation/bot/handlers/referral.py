@@ -46,7 +46,7 @@ def _keyboard(link: str) -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.url_btn(T.BTN_SHARE_LINK, share_url)],
-            [K.btn(T.BTN_REF_STATS, RefCB(action="stats", ref="-"))],
+            [K.btn(T.BTN_REF_STATS, RefCB(action="stats", ref="-"), style=K.GO)],
             [K.home_button()],
         ]
     )

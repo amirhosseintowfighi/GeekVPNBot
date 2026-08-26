@@ -25,7 +25,7 @@ looking.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -50,6 +50,7 @@ from geekvpn.domain.provisioning.errors import (
     ProvisioningFailed,
     SubscriptionNotFound,
 )
+from geekvpn.domain.provisioning.events import SubscriptionActivated
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -81,6 +82,7 @@ class ProvisioningService:
         "_events",
         "_ids",
         "_nodes",
+        "_on_activated",
         "_orders",
         "_panels",
         "_subscriptions",
@@ -96,6 +98,17 @@ class ProvisioningService:
         clock: Clock,
         ids: IdGenerator,
         events: EventPublisher,
+        #: Awaited after a subscription is activated, with the event.
+        #:
+        #: `events` is synchronous and this service runs on the async side,
+        #: so the publisher it was given could only ever log. The customer's
+        #: delivery message lives on the other side of that split - it needs
+        #: the notification engine, which is synchronous - and this is the
+        #: one function every delivery passes through, whether it came from
+        #: the bot, an operator's retry, or the worker draining a stuck
+        #: order. Wiring it at each of those three instead would be three
+        #: chances to forget.
+        on_activated: Callable[[SubscriptionActivated], Awaitable[None]] | None = None,
     ) -> None:
         self._orders = orders
         self._subscriptions = subscriptions
@@ -104,6 +117,7 @@ class ProvisioningService:
         self._clock = clock
         self._ids = ids
         self._events = events
+        self._on_activated = on_activated
 
     # -- the main path -----------------------------------------------------
 
@@ -194,7 +208,7 @@ class ProvisioningService:
         order.mark_active(subscription_id=subscription.id, at=now)
         await self._orders.update(order)
 
-        self._publish(order, subscription)
+        await self._announce(self._publish(order, subscription))
         return subscription
 
     # -- renewal -----------------------------------------------------------
@@ -316,12 +330,34 @@ class ProvisioningService:
             await self._orders.update(order)
             self._publish(order)
 
-    def _publish(self, *aggregates: object) -> None:
+    def _publish(self, *aggregates: object) -> list[object]:
         events: list[object] = []
         for aggregate in aggregates:
             events.extend(aggregate.collect_events())  # type: ignore[attr-defined]
         if events:
             self._events.publish_all(events)
+        return events
+
+    async def _announce(self, events: Sequence[object]) -> None:
+        """Tell the customer their service exists.
+
+        Deliberately after everything else and never fatal: the account is
+        created, the order is active and the money is ours. Failing the whole
+        provision because a notification did not go out would turn a delivered
+        service into a failed order, and the retry would ask the panel for a
+        second account.
+        """
+        if self._on_activated is None:
+            return
+        for event in events:
+            if isinstance(event, SubscriptionActivated):
+                try:
+                    await self._on_activated(event)
+                except Exception:
+                    _log.exception(
+                        "provisioning.delivery_notice_failed subscription_id=%s",
+                        event.subscription_id,
+                    )
 
 
 def _quota_for(traffic_mib: int | None) -> TrafficQuota:

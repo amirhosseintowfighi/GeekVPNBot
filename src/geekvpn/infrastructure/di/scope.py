@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from functools import cached_property
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from geekvpn.application.catalog.catalog_admin import CatalogAdminService
 from geekvpn.application.catalog.duration_ladder import DurationLadderService
@@ -41,9 +42,15 @@ from geekvpn.application.provisioning.subscription_admin import (
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
+from geekvpn.domain.provisioning.events import SubscriptionActivated
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
 from geekvpn.infrastructure.di.container import Container
-from geekvpn.infrastructure.di.sync_scope import LoggingEventPublisher, Uuid4IdGenerator
+from geekvpn.infrastructure.di.sync_scope import (
+    LoggingEventPublisher,
+    SyncScope,
+    Uuid4IdGenerator,
+    build_sync_scope,
+)
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
 from geekvpn.infrastructure.persistence.repositories.audit import SqlAlchemyAuditLogRepository
@@ -292,6 +299,17 @@ class RequestScope:
 
     @cached_property
     def provisioning(self) -> ProvisioningService:
+        """Creates the account, and then says so.
+
+        `events` stays a logging publisher, and that is the whole reason the
+        delivery message never arrived: the dispatch table that carries
+        notifications lives in the synchronous scope, on a different session,
+        and a synchronous `publish_all` called from here could never reach it.
+
+        So the announcement crosses explicitly, in a threadpool, after the
+        provision has committed - the same crossing `OrderPaymentBridge` makes
+        in the other direction.
+        """
         return ProvisioningService(
             orders=self.orders,
             subscriptions=self.subscriptions,
@@ -300,7 +318,24 @@ class RequestScope:
             clock=self.container.clock,
             ids=Uuid4IdGenerator(),
             events=LoggingEventPublisher(),
+            on_activated=self._announce_delivery,
         )
+
+    async def _announce_delivery(self, event: SubscriptionActivated) -> None:
+        def work(sync: SyncScope) -> None:
+            sync.delivery_notifications.on_subscription_activated(event)
+
+        def _call() -> None:
+            with self.container.sync_sessions() as session:
+                scope = build_sync_scope(self.container, session)
+                try:
+                    work(scope)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    raise
+
+        await run_in_threadpool(_call)
 
     @cached_property
     def subscription_admin(self) -> SubscriptionAdminService:

@@ -64,9 +64,10 @@ def _wallet_keyboard() -> InlineKeyboardMarkup:
 
 def _preset_keyboard() -> InlineKeyboardMarkup:
     rows = [
-        [K.btn(toman(amount), WalletCB(action="amount", ref=str(amount)))] for amount in PRESETS
+        [K.btn(toman(amount), WalletCB(action="amount", ref=str(amount)), style=K.YES)]
+        for amount in PRESETS
     ]
-    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"))])
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
     return K.stack(rows)
 
 

@@ -42,7 +42,7 @@ def _list_keyboard(cards: list[Any]) -> InlineKeyboardMarkup:
         ]
         for card in cards
     ]
-    rows.append([K.btn(T.BTN_SHOP_NOW, NavCB(to="shop")), K.home_button()])
+    rows.append([K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO), K.home_button()])
     return K.stack(rows)
 
 
@@ -52,12 +52,15 @@ def _detail_keyboard(card: Any) -> InlineKeyboardMarkup:
     if card.subscription_url:
         rows.append(
             [
-                K.btn(T.BTN_GET_CONFIG, SubCB(action="config", ref=ref)),
+                # The config is what the customer opened this screen for.
+                K.btn(T.BTN_GET_CONFIG, SubCB(action="config", ref=ref), style=K.GO),
                 K.btn(T.BTN_GET_QR, SubCB(action="qr", ref=ref)),
             ]
         )
     if card.is_renewable:
-        rows.append([K.btn(T.BTN_RENEW, SubCB(action="renew", ref=ref))])
+        # Green: it keeps a service alive, and it is the one action here
+        # that ends with the customer paying us.
+        rows.append([K.btn(T.BTN_RENEW, SubCB(action="renew", ref=ref), style=K.YES)])
     if card.subscription_url:
         rows.append([K.btn(T.BTN_ROTATE, SubCB(action="rotate", ref=ref))])
     rows.append([K.btn(T.BTN_BACK, NavCB(to="dashboard")), K.home_button()])
@@ -82,7 +85,9 @@ async def on_services_command(
     cards = await _load(services, user)
     if not cards:
         await answer(
-            message, T.DASH_EMPTY, reply_markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop")))
+            message,
+            T.DASH_EMPTY,
+            reply_markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
         )
         return
     await answer(message, T.DASH_TITLE, reply_markup=_list_keyboard(cards))
@@ -99,7 +104,9 @@ async def on_dashboard(
     cards = await _load(services, user)
     if not cards:
         await safe_edit(
-            query, T.DASH_EMPTY, markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop")))
+            query,
+            T.DASH_EMPTY,
+            markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
         )
         return
     await safe_edit(query, T.DASH_TITLE, markup=_list_keyboard(cards))
@@ -178,7 +185,15 @@ async def on_rotate_confirm(query: CallbackQuery, callback_data: SubCB) -> None:
         T.ROTATE_CONFIRM,
         markup=K.stack(
             [
-                [K.btn(T.BTN_CONFIRM, SubCB(action="rotate_ok", ref=callback_data.ref))],
+                # Rotating invalidates the link the customer is using right
+                # now, so the confirm is the dangerous one here - not the cancel.
+                [
+                    K.btn(
+                        T.BTN_CONFIRM,
+                        SubCB(action="rotate_ok", ref=callback_data.ref),
+                        style=K.NO,
+                    )
+                ],
                 [K.btn(T.BTN_CANCEL, SubCB(action="view", ref=callback_data.ref))],
             ]
         ),
