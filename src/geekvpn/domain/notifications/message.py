@@ -365,7 +365,11 @@ CATALOG: dict[str, MessageTemplate] = {
                 "\u0031\ufe0f\u20e3 روی لینک بالا بزنید تا کپی شود\n"
                 "\u0032\ufe0f\u20e3 برنامه‌ی خود را باز کنید (v2rayNG، Streisand، v2box…)\n"
                 "\u0033\ufe0f\u20e3 گزینه‌ی افزودن از لینک را بزنید و وصل شوید\n\n"
-                "\U0001f4ac اگر جایی گیر کردید، از بخش پشتیبانی بپرسید — همین‌جا جواب می‌دهیم."
+                "💬 اگر جایی گیر کردید، از بخش پشتیبانی بپرسید — همین‌جا جواب می‌دهیم.\n"
+                # The one moment a customer is demonstrably happy with us. A
+                # referral asked for here costs nothing, and it is the only
+                # place in the bot where the answer is likely to be yes.
+                "🎁 دوستانتان را دعوت کنید و هر دو هدیه بگیرید."
             ),
             action="dashboard",
         ),

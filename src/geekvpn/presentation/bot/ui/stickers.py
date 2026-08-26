@@ -22,45 +22,14 @@ read a price.
 
 from __future__ import annotations
 
-from typing import Any, Final
+from typing import Any
 
 import structlog
 
+from geekvpn.application.notifications.sticker_sections import SECTION_EMOJI
+
 logger = structlog.stdlib.get_logger(__name__)
 
-#: Which sticker belongs to which screen, by the emoji the pack assigns it.
-#:
-#: Ordered candidates, not one choice. Packs disagree about which emoji they
-#: cover: UtyaDuck carries thirty-six and had none of `👀 😐 🤨` for the server
-#: status or `😇 😊 👤` for the profile, so those two screens opened bare while
-#: the other eight were decorated.
-#:
-#: The tail of each list is therefore a deliberate second-best - an emoji
-#: another section already proved this pack has. A sticker shared between two
-#: screens is worth more than one screen with nothing, and the first entries
-#: still win wherever a pack does cover them.
-SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
-    "welcome": ("👋", "🥰", "😊"),
-    # Money emoji last, and only as a last resort.
-    #
-    # UtyaDuck has no 🛒, so the shop fell through to 🤑 - a duck with dollar
-    # signs for eyes, on the screen where a customer decides whether to trust
-    # us with their money. It reads as "we want your money" where it needs to
-    # read as "you are about to get something good", and the difference is
-    # worth an emoji.
-    "shop": ("🛒", "🤩", "😍", "😎", "👍", "💸", "🤑"),
-    "dashboard": ("😎", "👍", "🤩"),
-    # The one screen where money is the subject rather than the motive.
-    "wallet": ("💰", "🤑", "💵"),
-    "referral": ("🎁", "🤝", "🥳"),
-    "support": ("🤔", "😢", "🙏"),
-    "faq": ("🤓", "🤔", "📚"),
-    "status": ("👀", "😐", "🤨", "😎", "👍", "🤩"),
-    "profile": ("😇", "😊", "👤", "👋", "🥰"),
-    "settings": ("🧐", "🤔", "😎", "👍"),
-    # Not a screen: sent once, when a purchase completes.
-    "delivered": ("🎉", "🥳", "🤩"),
-}
 
 
 class StickerBook:

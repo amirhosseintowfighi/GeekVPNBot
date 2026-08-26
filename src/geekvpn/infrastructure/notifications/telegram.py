@@ -27,6 +27,7 @@ from typing import Any
 
 import httpx
 
+from geekvpn.application.notifications.sticker_sections import SECTION_EMOJI
 from geekvpn.infrastructure.logging.setup import get_logger
 
 logger = get_logger(__name__)
@@ -49,9 +50,73 @@ class TelegramApiError(RuntimeError):
 class HttpTelegramSender:
     """`TelegramSender` over the Bot API."""
 
-    def __init__(self, token: str, *, parse_mode: str = "HTML") -> None:
+    def __init__(self, token: str, *, parse_mode: str = "HTML", sticker_set: str = "") -> None:
         self._token = token
         self._parse_mode = parse_mode
+        self._sticker_set = sticker_set.strip()
+        self._pack: dict[str, str] | None = None
+
+    def send_section_sticker(self, *, chat_id: int, section: str) -> None:
+        """A duck in front of good news.
+
+        The bot has its own copy of this because it decorates screens; this one
+        exists because an approved payment and a delivered service are pushed
+        from the API and worker processes, where there is no bot to ask.
+
+        Best effort throughout, and the caller treats a raised exception as a
+        missing decoration rather than a failed delivery. Nothing here may cost
+        somebody the message saying their money arrived.
+        """
+        file_id = self._sticker_for(section)
+        if not file_id:
+            return
+        httpx.post(
+            f"https://api.telegram.org/bot{self._token}/sendSticker",
+            json={"chat_id": chat_id, "sticker": file_id},
+            timeout=TIMEOUT_SECONDS,
+        )
+
+    def _sticker_for(self, section: str) -> str:
+        for emoji in SECTION_EMOJI.get(section, ()):
+            found = self._loaded().get(emoji)
+            if found:
+                return found
+        return ""
+
+    def _loaded(self) -> dict[str, str]:
+        """The pack, read once per process.
+
+        Cached even on failure: a wrong name would otherwise be one doomed
+        Telegram call for every notification the platform sends.
+        """
+        if self._pack is not None:
+            return self._pack
+
+        self._pack = {}
+        if not self._sticker_set:
+            return self._pack
+
+        try:
+            response = httpx.get(
+                f"https://api.telegram.org/bot{self._token}/getStickerSet",
+                params={"name": self._sticker_set},
+                timeout=TIMEOUT_SECONDS,
+            )
+            stickers = response.json()["result"]["stickers"]
+        except Exception:
+            logger.info("notify.stickers_unavailable", set_name=self._sticker_set)
+            return self._pack
+
+        for sticker in stickers:
+            emoji = sticker.get("emoji")
+            # First wins: packs repeat emoji, and the earlier one is usually
+            # the plainer drawing.
+            if emoji and emoji not in self._pack:
+                self._pack[emoji] = sticker["file_id"]
+        logger.info(
+            "notify.stickers_loaded", set_name=self._sticker_set, emoji=len(self._pack)
+        )
+        return self._pack
 
     def send_message(self, *, chat_id: int, text: str, action: str | None = None) -> None:
         # `action` is a logical destination the bot turns into a button. A

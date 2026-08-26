@@ -463,7 +463,12 @@ class SyncScope:
             InboxChannel(),
             TelegramChannel(
                 sender=HttpTelegramSender(
-                    token, parse_mode=self.container.settings.telegram.parse_mode
+                    token,
+                    parse_mode=self.container.settings.telegram.parse_mode,
+                    # The same pack the bot decorates its screens from, so an
+                    # approved payment and the screen it came from do not come
+                    # from two different sets of ducks.
+                    sticker_set=self.container.settings.telegram.sticker_set,
                 ),
                 chat_ids=TelegramIdIsTheUserId(),
             ),

@@ -16,12 +16,17 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+import structlog
+
 from geekvpn.application.notifications.ports import ChannelResult
+from geekvpn.application.notifications.sticker_sections import NOTIFICATION_STICKERS
 from geekvpn.domain.notifications.enums import (
     NotificationChannel,
     SuppressionReason,
 )
 from geekvpn.domain.notifications.message import RenderedMessage
+
+logger = structlog.stdlib.get_logger(__name__)
 
 # Substrings Telegram uses when the user is gone for good. Matching on these
 # lets us record BLOCKED (never retried) instead of a generic failure (retried
@@ -54,6 +59,12 @@ class TelegramSender(Protocol):
     """
 
     def send_message(self, *, chat_id: int, text: str, action: str | None = None) -> None: ...
+
+    def send_section_sticker(self, *, chat_id: int, section: str) -> None:
+        """Decoration. A default so a sender that cannot do it is still a
+        `TelegramSender`, and so no test fake has to grow a method to keep
+        working."""
+        return None
 
 
 class InboxChannel:
@@ -98,6 +109,15 @@ class TelegramChannel:
 
         if chat_id is None:
             return ChannelResult.refused(SuppressionReason.NO_CHAT_ID)
+
+        # Before the text, and never allowed to affect it. A sticker that fails
+        # to send must not turn a delivered payment approval into a retry.
+        section = NOTIFICATION_STICKERS.get(message.key)
+        if section is not None:
+            try:
+                self._sender.send_section_sticker(chat_id=chat_id, section=section)
+            except Exception:
+                logger.info("notify.sticker_failed", key=message.key)
 
         try:
             self._sender.send_message(

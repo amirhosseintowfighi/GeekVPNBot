@@ -13,7 +13,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from geekvpn.presentation.bot.ui.stickers import SECTION_EMOJI, StickerBook, send
+from geekvpn.application.notifications.sticker_sections import (
+    NOTIFICATION_STICKERS,
+    SECTION_EMOJI,
+)
+from geekvpn.presentation.bot.ui.stickers import StickerBook, send
 
 pytestmark = pytest.mark.unit
 
@@ -205,6 +209,10 @@ def _sections_sent() -> set[str]:
             last = node.args[-1] if node.args else None
             if isinstance(last, ast.Constant) and isinstance(last.value, str):
                 found.add(last.value)
+    # Some moments are not screens. An approved payment and a delivered
+    # service are pushed from the API and worker processes, where there is no
+    # bot handler to find - the template key is what names the sticker there.
+    found.update(NOTIFICATION_STICKERS.values())
     return found
 
 

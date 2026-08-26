@@ -42,6 +42,7 @@ from geekvpn.presentation.bot.handlers.purchase import (
 from geekvpn.presentation.bot.states import Wallet
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
+from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PageCB, WalletCB
 from geekvpn.presentation.bot.ui.fa import normalize_input, toman
@@ -245,7 +246,11 @@ async def on_topup_crypto(
 
 @router.message(Wallet.awaiting_receipt, F.photo)
 async def on_topup_receipt(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    **kwargs: Any,
 ) -> None:
     data = await state.get_data()
     payment_id = data.get("payment_id")
@@ -257,6 +262,7 @@ async def on_topup_receipt(
         user.id, payment_id=uuid.UUID(str(payment_id)), file_id=message.photo[-1].file_id
     )
     await state.clear()
+    await S.send(kwargs.get("bot"), message.chat.id, kwargs.get("stickers"), "receipt")
     await answer(
         message,
         T.PAY_RECEIPT_RECEIVED.format(ref=f"<code>{payment.reference}</code>"),
