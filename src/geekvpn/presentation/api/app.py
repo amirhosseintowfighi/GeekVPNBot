@@ -31,6 +31,7 @@ from geekvpn.presentation.api.routers import (
     admin_orders,
     admin_panels,
     admin_payments,
+    admin_resellers,
     admin_subscriptions,
     admin_support,
     admin_users,
@@ -211,6 +212,7 @@ def create_app(
     app.include_router(admin_subscriptions.router, prefix=API_V1_PREFIX)
     app.include_router(admin_customers.router, prefix=API_V1_PREFIX)
     app.include_router(admin_broadcasts.router, prefix=API_V1_PREFIX)
+    app.include_router(admin_resellers.router, prefix=API_V1_PREFIX)
     # No API_V1_PREFIX: the Mini App calls /api/miniapp/* and its own router
     # already carries that prefix.
     app.include_router(miniapp.router)

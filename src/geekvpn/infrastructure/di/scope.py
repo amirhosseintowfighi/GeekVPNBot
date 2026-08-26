@@ -40,6 +40,7 @@ from geekvpn.application.provisioning.subscription_admin import (
     SubscriptionAdminService,
 )
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
+from geekvpn.application.resellers.service import ResellerService
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.domain.provisioning.events import SubscriptionActivated
@@ -64,10 +65,14 @@ from geekvpn.infrastructure.persistence.repositories.catalog import (
 from geekvpn.infrastructure.persistence.repositories.nodes import (
     SqlAlchemyNodeRepository,
 )
+from geekvpn.infrastructure.persistence.repositories.plan_prices import SqlAlchemyPlanPrices
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     JalaliOrderNumbers,
     SqlAlchemyOrderRepository,
     SqlAlchemySubscriptionRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.resellers import (
+    SqlAlchemyResellerRepository,
 )
 from geekvpn.infrastructure.persistence.repositories.session import (
     SqlAlchemySessionRepository,
@@ -260,6 +265,31 @@ class RequestScope:
             totp_issuer=self.container.settings.app.name,
             clock=self.container.clock,
             audit=self.audit,
+        )
+
+    # -- resellers ---------------------------------------------------------
+
+    @cached_property
+    def resellers(self) -> SqlAlchemyResellerRepository:
+        return SqlAlchemyResellerRepository(self.session)
+
+    @cached_property
+    def plan_prices(self) -> SqlAlchemyPlanPrices:
+        return SqlAlchemyPlanPrices(self.session)
+
+    @cached_property
+    def reseller_service(self) -> ResellerService:
+        """One service for both audiences.
+
+        An operator creates a reseller and tops up their credit through it; the
+        reseller spends that credit through it. A balance can therefore only
+        move in one place, and every movement writes a ledger row on the way.
+        """
+        return ResellerService(
+            resellers=self.resellers,
+            admins=self.manage_admins,
+            prices=self.plan_prices,
+            clock=self.container.clock,
         )
 
     # -- orders and provisioning -------------------------------------------

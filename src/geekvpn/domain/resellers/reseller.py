@@ -54,10 +54,18 @@ class Reseller:
     #: strange reading of that.
     allowed_node_ids: frozenset[str] = frozenset()
     overrides: tuple[PriceOverride, ...] = ()
+    #: Whatever an operator needs to reach this person outside the platform.
+    #: Free text: a phone number, a Telegram handle, a name and a note.
+    contact_fa: str | None = None
 
     def __post_init__(self) -> None:
-        if not 0 <= self.discount_percent <= MAX_DISCOUNT_PERCENT:
+        self.set_discount(self.discount_percent)
+
+    def set_discount(self, percent: int) -> None:
+        """The one place the cap is enforced, so callers cannot each forget."""
+        if not 0 <= percent <= MAX_DISCOUNT_PERCENT:
             raise ValueError(f"discount must be between 0 and {MAX_DISCOUNT_PERCENT}")
+        self.discount_percent = percent
 
     # -- pricing -----------------------------------------------------------
 
