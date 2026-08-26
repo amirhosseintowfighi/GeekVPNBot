@@ -99,6 +99,10 @@ class OrderSource(StrEnum):
     MINIAPP = "miniapp"
     ADMIN = "admin"
     RENEWAL_JOB = "renewal_job"
+    #: Sold by a reseller, through their own bot or the panel. The
+    #: subscription also carries the reseller id; this is what makes the
+    #: *order* attributable without a join.
+    RESELLER = "reseller"
 
 
 __all__ = ["NodeState", "OrderSource", "OrderState", "SubscriptionState"]

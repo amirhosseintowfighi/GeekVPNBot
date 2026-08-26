@@ -152,6 +152,7 @@ class Subscription(AggregateRoot[str]):
         node_id: str | None = None,
         remote_id: str | None = None,
         subscription_url: str | None = None,
+        reseller_id: str | None = None,
     ) -> Subscription:
         subscription = cls(
             subscription_id,
@@ -161,6 +162,7 @@ class Subscription(AggregateRoot[str]):
             started_at=now,
             expires_at=now + timedelta(days=duration_days),
             remote_username=remote_username,
+            reseller_id=reseller_id,
             traffic_limit_mib=traffic_limit_mib,
             device_limit=device_limit,
             node_id=node_id,

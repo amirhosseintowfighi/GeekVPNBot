@@ -122,7 +122,14 @@ class ProvisioningService:
 
     # -- the main path -----------------------------------------------------
 
-    async def provision(self, order_id: str, *, country_code: str | None = None) -> Subscription:
+    async def provision(
+        self,
+        order_id: str,
+        *,
+        country_code: str | None = None,
+        reseller_id: str | None = None,
+        allowed_node_ids: frozenset[str] | None = None,
+    ) -> Subscription:
         """Deliver the service for one paid order.
 
         Idempotent: calling it twice for the same order returns the same
@@ -132,6 +139,12 @@ class ProvisioningService:
         :param order_id: the order to fulfil.
         :param country_code: restricts node selection when the plan promised a
             specific country.
+        :param reseller_id: who sold it, recorded on the subscription. ``None``
+            means the platform sold it directly.
+        :param allowed_node_ids: the only panels this sale may land on. An
+            empty set is not the same as ``None``: ``None`` means unrestricted,
+            and a reseller with no panels chosen is unrestricted too, because an
+            operator who has not decided has not said "nowhere".
         :raises OrderNotFound: no such order.
         :raises ProvisioningFailed: the panel refused or was unreachable. The
             order is left in FAILED for the retry queue.
@@ -167,7 +180,10 @@ class ProvisioningService:
 
         now = self._clock.now()
         try:
-            node = select_node(await self._nodes.list_sellable(), country_code=country_code)
+            sellable = await self._nodes.list_sellable()
+            if allowed_node_ids:
+                sellable = [node for node in sellable if node.id in allowed_node_ids]
+            node = select_node(sellable, country_code=country_code)
         except NoCapacityAvailable:
             # Not a panel failure, and worth a distinct reason on the order so
             # the operator sees "add capacity", not "debug the adapter".
@@ -216,6 +232,7 @@ class ProvisioningService:
             node_id=node.id,
             remote_id=account.ref.external_id,
             subscription_url=account.subscription_url,
+            reseller_id=reseller_id,
         )
         await self._subscriptions.add(subscription)
 

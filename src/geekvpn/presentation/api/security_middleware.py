@@ -329,6 +329,16 @@ DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     # of the hour. Telegram enforces its own send rate, and the send loop is
     # batched, so the protection this was carrying was mostly theoretical.
     ("/api/v1/admin", "admin.mutation"),
+    # Resellers are operators, and their own router mutates: creating a service
+    # spends credit and creates an account on a panel. The admin ceiling is the
+    # right shape - a reseller working through a batch of customers is doing
+    # the same thing an operator does from the panel.
+    #
+    # `/sell` is tightened beyond it. It is the one endpoint here that spends
+    # money and touches a remote panel on every call, and a loop hitting it is
+    # the difference between a mistake and an outage on somebody's node.
+    ("/api/v1/reseller", "admin.mutation"),
+    ("/api/v1/reseller/sell", "payments.checkout"),
     ("/api/v1/payments/receipt", "payments.receipt"),
     ("/api/v1/payments", "payments.checkout"),
     ("/api/v1/wallet", "wallet.read"),

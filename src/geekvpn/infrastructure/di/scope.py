@@ -41,7 +41,9 @@ from geekvpn.application.provisioning.subscription_admin import (
 )
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
+from geekvpn.application.resellers.sales import ResellerSalesService
 from geekvpn.application.resellers.service import ResellerService
+from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.domain.provisioning.events import SubscriptionActivated
@@ -292,6 +294,24 @@ class RequestScope:
             prices=self.plan_prices,
             clock=self.container.clock,
             arrears=self.arrears,
+        )
+
+    @cached_property
+    def reseller_sales(self) -> ResellerSalesService:
+        """One reseller selling one package, through the same provisioning the
+        platform's own sales use.
+
+        The same path on purpose: a second way to create an account on a panel
+        would be a second place for the retry queue, the idempotency key and
+        the node selector to be got wrong.
+        """
+        year, _, _ = to_jalali(self.container.clock.now().date())
+        return ResellerSalesService(
+            resellers=self.reseller_service,
+            plans=self.catalog_plans,
+            orders=self.order_service,
+            provisioning=self.provisioning,
+            jalali_year=year,
         )
 
     @cached_property
