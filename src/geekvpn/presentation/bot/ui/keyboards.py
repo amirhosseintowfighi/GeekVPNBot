@@ -79,8 +79,14 @@ def btn(text: str, callback: Any, *, style: str | None = None) -> InlineKeyboard
     return InlineKeyboardButton(text=_label(text), callback_data=data, style=style)
 
 
-def url_btn(text: str, url: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text=_label(text), url=url)
+def url_btn(text: str, url: str, *, style: str | None = None) -> InlineKeyboardButton:
+    """A link button, colourable like any other.
+
+    It takes `style` because a link is often the primary action on its screen -
+    sharing a referral link, opening the Mini App - and a plain button beside a
+    coloured secondary one points the customer at the wrong thing.
+    """
+    return InlineKeyboardButton(text=_label(text), url=url, style=style)
 
 
 def noop_btn(text: str, *, tag: str = "") -> InlineKeyboardButton:

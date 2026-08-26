@@ -24,6 +24,10 @@ from geekvpn.domain.notifications.message import (
 
 LATIN = set("abcdefghijklmnopqrstuvwxyz")
 
+#: Client apps a customer is told to install. Proper nouns, and the only Latin
+#: a reader is meant to see - a store search for "وی‌تو‌ری" finds nothing.
+APP_NAMES = ("v2rayNG", "Streisand", "v2box")
+
 
 def test_digits_become_persian():
     assert fa_digits(2026) == "\u06f2\u06f0\u06f2\u06f6"
@@ -88,6 +92,12 @@ def test_every_template_body_is_persian():
     the reader never sees it. Both are stripped: what is being checked is that
     no English *word* reaches a Persian speaker, not that the string contains
     no Latin bytes.
+
+    App names are the third exception, and the only one a reader does see. A
+    customer holding a subscription link has to type "v2rayNG" into a store
+    search box to get anywhere; transliterating it into Persian would leave
+    them with a name that finds nothing. The list is explicit so that adding
+    an English *sentence* still fails here.
     """
     import re
 
@@ -95,6 +105,8 @@ def test_every_template_body_is_persian():
         for text in (template.title_fa, template.body_fa):
             stripped = re.sub(r"\{[a-z_]+\}", "", text)
             stripped = re.sub(r"</?[a-z]+>", "", stripped)
+            for app in APP_NAMES:
+                stripped = stripped.replace(app, "")
             assert not (set(stripped.lower()) & LATIN), f"{key}: {stripped}"
 
 
@@ -162,3 +174,29 @@ def test_inbox_payload_is_serialisable_and_persian():
 def test_catalogue_keys_are_sorted_and_unique():
     keys = template_keys()
     assert list(keys) == sorted(set(keys))
+
+
+def test_the_delivery_message_says_what_to_do_with_the_link():
+    """The one message a paying customer has to act on.
+
+    It used to hand over a link and one sentence. A first-time buyer who has
+    never seen a subscription URL pastes it into a browser, gets a page of
+    JSON, and opens a ticket - so the steps are spelled out, app names and all,
+    on the message that arrives at the moment they are looking.
+    """
+    body = render("purchase.delivered", link="https://sub.example/x").body_fa
+
+    assert "https://sub.example/x" in body
+    assert "<code>" in body
+    assert any(app in body for app in APP_NAMES)
+
+
+def test_both_delivery_messages_celebrate():
+    """Somebody just paid. The two variants differ only in whether the link
+    was ready, which is our problem and not something to be glum at the
+    customer about."""
+    with_link = render("purchase.delivered", link="x")
+    without = render("purchase.delivered_no_link")
+
+    assert with_link.title_fa == without.title_fa
+    assert "🎉" in with_link.title_fa

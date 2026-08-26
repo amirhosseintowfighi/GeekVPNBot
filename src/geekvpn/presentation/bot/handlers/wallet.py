@@ -63,20 +63,32 @@ def _wallet_keyboard() -> InlineKeyboardMarkup:
 
 
 def _preset_keyboard() -> InlineKeyboardMarkup:
-    rows = [
-        [K.btn(toman(amount), WalletCB(action="amount", ref=str(amount)), style=K.YES)]
+    """Two per row, and none of them coloured.
+
+    They were a single column of four, each one green. Both were wrong for the
+    same reason: the labels are short enough that a column wastes most of the
+    width and pushes the cancel button off the first screen, and colouring
+    every option green recommends none of them. This screen is a choice
+    between four equals - the colour belongs on the confirm that follows.
+    """
+    presets = [
+        K.btn(toman(amount), WalletCB(action="amount", ref=str(amount)))
         for amount in PRESETS
     ]
-    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
-    return K.stack(rows)
+    builder = K.grid(presets, width=2)
+    builder.inline_keyboard.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
+    return builder
 
 
 def _method_keyboard() -> InlineKeyboardMarkup:
+    # The same colours as the purchase screen's methods. A customer topping up
+    # and a customer buying are looking at the same two choices, and the bot
+    # should not paint them differently depending on which door they came in.
     return K.stack(
         [
-            [K.btn(T.PAY_CARD, WalletCB(action="m_card", ref="-"))],
+            [K.btn(T.PAY_CARD, WalletCB(action="m_card", ref="-"), style=K.GO)],
             [K.btn(T.PAY_CRYPTO, WalletCB(action="m_crypto", ref="-"))],
-            [K.btn(T.BTN_CANCEL, NavCB(to="wallet"))],
+            [K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)],
         ]
     )
 

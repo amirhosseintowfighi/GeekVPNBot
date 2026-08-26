@@ -353,11 +353,19 @@ CATALOG: dict[str, MessageTemplate] = {
             # A preference that could silence it would silence the delivery,
             # not an announcement about it.
             category=_C.CRITICAL,
-            title_fa="سرویس شما آماده است",
+            title_fa="\U0001f389 سرویس شما فعال شد!",
             body_fa=(
-                "لینک اشتراک شما:\n\n"
+                "خرید شما کامل شد و اشتراکتان همین حالا آماده‌ی استفاده است.\n\n"
+                "\U0001f517 <b>لینک اشتراک شما:</b>\n"
                 "<code>{link}</code>\n\n"
-                "روی لینک بزنید تا کپی شود، بعد در برنامه‌ی خود واردش کنید."
+                # Numbered, because this is where a first-time customer gets
+                # stuck: they have a link and no idea that it goes into an app
+                # rather than a browser. Three lines here are cheaper than the
+                # support ticket that follows their absence.
+                "\u0031\ufe0f\u20e3 روی لینک بالا بزنید تا کپی شود\n"
+                "\u0032\ufe0f\u20e3 برنامه‌ی خود را باز کنید (v2rayNG، Streisand، v2box…)\n"
+                "\u0033\ufe0f\u20e3 گزینه‌ی افزودن از لینک را بزنید و وصل شوید\n\n"
+                "\U0001f4ac اگر جایی گیر کردید، از بخش پشتیبانی بپرسید — همین‌جا جواب می‌دهیم."
             ),
             action="dashboard",
         ),
@@ -367,10 +375,11 @@ CATALOG: dict[str, MessageTemplate] = {
             # Saying so beats saying nothing: the customer can open "my
             # services" and the link will be there.
             category=_C.CRITICAL,
-            title_fa="سرویس شما آماده است",
+            title_fa="\U0001f389 سرویس شما فعال شد!",
             body_fa=(
-                "اکانت شما ساخته شد.\n\n"
-                "لینک اتصال را از بخش «سرویس‌های من» بردارید."
+                "خرید شما کامل شد و اکانتتان ساخته شد \u2705\n\n"
+                "\U0001f4ca لینک اتصال را از بخش «سرویس‌های من» بردارید.\n\n"
+                "\U0001f4ac اگر جایی گیر کردید، از بخش پشتیبانی بپرسید."
             ),
             action="dashboard",
         ),

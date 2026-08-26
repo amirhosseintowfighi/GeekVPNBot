@@ -43,10 +43,12 @@ def _keyboard(link: str) -> InlineKeyboardMarkup:
         + "&text="
         + quote(T.REF_SHARE_TEXT, safe="")
     )
+    # Sharing is what this screen is for; the stats are for coming back to it
+    # later. The colour was on the wrong one.
     return K.stack(
         [
-            [K.url_btn(T.BTN_SHARE_LINK, share_url)],
-            [K.btn(T.BTN_REF_STATS, RefCB(action="stats", ref="-"), style=K.GO)],
+            [K.url_btn(T.BTN_SHARE_LINK, share_url, style=K.GO)],
+            [K.btn(T.BTN_REF_STATS, RefCB(action="stats", ref="-"))],
             [K.home_button()],
         ]
     )
