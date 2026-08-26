@@ -46,6 +46,7 @@ from geekvpn.presentation.bot.handlers.shop import load_storefront
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
+from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
 from geekvpn.presentation.bot.ui.fa import fa_relative, normalize_input, toman
@@ -332,6 +333,7 @@ async def on_pay(
     state: FSMContext,
     services: BotServices,
     user: Any = None,
+    **kwargs: Any,
 ) -> None:
     await toast(query)
     if user is None:
@@ -368,6 +370,16 @@ async def on_pay(
                 markup=K.single(
                     K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"), style=K.YES)
                 ),
+            )
+            # The one moment in the bot worth celebrating, and the only
+            # `SECTION_EMOJI` entry nothing sent. Sent after the screen rather
+            # than before it, unlike every other section: this one is not
+            # navigation, it is applause for something that just happened.
+            await S.send(
+                kwargs.get("bot"),
+                query.message.chat.id if query.message else user.id,
+                kwargs.get("stickers"),
+                "delivered",
             )
             return
 

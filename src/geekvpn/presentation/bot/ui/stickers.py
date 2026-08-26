@@ -57,6 +57,8 @@ SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
     "faq": ("🤓", "🤔", "📚"),
     "status": ("👀", "😐", "🤨", "😎", "👍", "🤩"),
     "profile": ("😇", "😊", "👤", "👋", "🥰"),
+    "settings": ("🧐", "🤔", "😎", "👍"),
+    # Not a screen: sent once, when a purchase completes.
     "delivered": ("🎉", "🥳", "🤩"),
 }
 

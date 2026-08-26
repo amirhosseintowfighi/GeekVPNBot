@@ -129,8 +129,13 @@ async def tap_faq(
 
 @router.message(F.text == K.TAP_SETTINGS)
 async def tap_settings(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    **kwargs: Any,
 ) -> None:
+    await _decorate(message, kwargs.get("bot"), kwargs.get("stickers"), "settings")
     await settings.on_settings_command(message, state, services, user)
 
 
