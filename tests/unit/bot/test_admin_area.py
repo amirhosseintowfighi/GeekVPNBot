@@ -86,7 +86,21 @@ async def test_an_admin_who_cannot_sign_in_cannot_use_the_bot(status: AdminStatu
 async def test_the_bot_cannot_hand_out_the_role_that_hands_out_roles() -> None:
     """A super admin created from a chat is an audit trail nobody reads."""
     assert AdminRole.SUPER_ADMIN not in bot_admin.OFFERABLE_ROLES
-    assert set(bot_admin.OFFERABLE_ROLES) == set(AdminRole) - {AdminRole.SUPER_ADMIN}
+
+
+async def test_the_bot_cannot_hand_out_a_role_that_needs_more_than_a_login() -> None:
+    """RESELLER is not a staff role. It needs a reseller record beside the
+    account - prices, credit, panels - and an account holding the role with
+    none of that would sign in successfully and then be unable to sell
+    anything, which is a worse failure than not offering it."""
+    assert AdminRole.RESELLER not in bot_admin.OFFERABLE_ROLES
+
+
+async def test_every_other_role_is_offered() -> None:
+    """So a role added later is not silently missing from this menu."""
+    expected = set(AdminRole) - {AdminRole.SUPER_ADMIN, AdminRole.RESELLER}
+
+    assert set(bot_admin.OFFERABLE_ROLES) == expected
 
 
 async def test_every_offerable_role_has_a_persian_label() -> None:

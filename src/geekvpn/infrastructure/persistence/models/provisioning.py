@@ -130,6 +130,15 @@ class SubscriptionModel(TimestampMixin, Base):
     node_id: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("nodes.id", ondelete="SET NULL"), index=True
     )
+    #: Which reseller sold this, if any. NULL means the platform sold it
+    #: directly - which is every row that predates resellers, and a default of
+    #: any particular reseller would have been a lie about history.
+    #:
+    #: SET NULL rather than CASCADE on purpose: closing a reseller account must
+    #: not delete the services their customers paid for.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL"), index=True
+    )
     #: Identity on the remote panel. ``remote_id`` is authoritative; the
     #: username is a convenience for operators reading panel logs.
     remote_id: Mapped[str | None] = mapped_column(String(128), index=True)

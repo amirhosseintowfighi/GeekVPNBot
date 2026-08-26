@@ -55,6 +55,11 @@ QUEUE_LIMIT = 10
 #: Roles offerable from the bot. `SUPER_ADMIN` is deliberately absent: handing
 #: out the role that can hand out roles belongs somewhere with an audit trail
 #: an operator cannot scroll past.
+#: Roles this menu may hand out. Not every role: SUPER_ADMIN is excluded
+#: because it can create administrators, and RESELLER because it is not a
+#: staff role at all - a reseller needs a reseller record beside the login,
+#: with prices, credit and panels, and an account with the role and none of
+#: that would sign in successfully and then be unable to sell anything.
 OFFERABLE_ROLES: tuple[AdminRole, ...] = (
     AdminRole.ADMIN,
     AdminRole.FINANCE,
@@ -68,6 +73,10 @@ ROLE_LABEL_FA: dict[AdminRole, str] = {
     AdminRole.FINANCE: "مالی",
     AdminRole.SUPPORT: "پشتیبانی",
     AdminRole.VIEWER: "فقط مشاهده",
+    # Listed even though it is not offered: the admin list renders whatever
+    # roles exist, and a reseller account showing as "reseller" in Latin among
+    # five Persian labels is the kind of thing nobody fixes for a year.
+    AdminRole.RESELLER: "نماینده",
 }
 
 

@@ -27,7 +27,17 @@
  * fails if the two drift apart again.
  */
 
-export const ROLES = ['super_admin', 'admin', 'finance', 'support', 'viewer'] as const
+export const ROLES = [
+  'super_admin',
+  'admin',
+  'finance',
+  'support',
+  'viewer',
+  // Not a member of staff. A reseller signs in through the same door with
+  // a role that resolves to almost nothing, and every endpoint they reach
+  // additionally scopes its query to their own rows.
+  'reseller',
+] as const
 
 export type Role = (typeof ROLES)[number]
 
@@ -70,6 +80,9 @@ export const PERMISSIONS = [
   'analytics.view',
   'analytics.export',
 
+  'resellers.read',
+  'resellers.write',
+
   'audit.read',
   'settings.read',
   'settings.write',
@@ -84,6 +97,7 @@ export const ROLE_LABEL_FA: Record<Role, string> = {
   finance: 'مالی',
   support: 'پشتیبانی',
   viewer: 'ناظر',
+  reseller: 'نماینده',
 }
 
 export const ROLE_DESCRIPTION_FA: Record<Role, string> = {
@@ -97,6 +111,8 @@ export const ROLE_DESCRIPTION_FA: Record<Role, string> = {
     'تیکت‌ها، سرویس‌ها و مشاهده‌ی اطلاعات کاربر',
   viewer:
     'فقط خواندن، بدون هیچ تغییری',
+  reseller:
+    'فقط مشتری‌ها و سرویس‌های خودش، با قیمت و اعتبار اختصاصی',
 }
 
 /**
@@ -142,6 +158,21 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   // Derived from the `.read` suffix, minus the audit trail, plus analytics -
   // which does not end in `.read` and would otherwise be missing.
   viewer: [...READ_ONLY.filter((p) => p !== 'audit.read'), 'analytics.view'],
+  // Deliberately small, and deliberately not derived from the `.read` suffix:
+  // a reseller must not pick up `admins.read` or `settings.read` by the
+  // accident of a naming convention. Every one of these is additionally scoped
+  // to their own rows by the API - `users.read` means "the customers I
+  // created", which a permission list cannot express.
+  reseller: [
+    'users.read',
+    'packages.read',
+    'subscriptions.read',
+    'subscriptions.write',
+    'orders.read',
+    'wallet.read',
+    'tickets.read',
+    'tickets.reply',
+  ],
 }
 
 /**
@@ -190,6 +221,11 @@ export const ROLE_RANK: Record<Role, number> = {
   finance: 2,
   support: 2,
   viewer: 1,
+  // Zero, so nobody can be promoted *to* reseller from the admins screen and
+  // no reseller can assign anything. A reseller account is created through the
+  // resellers screen, which also creates the prices, credit and panels that
+  // make the role mean anything.
+  reseller: 0,
 }
 
 /**
@@ -205,6 +241,10 @@ export function canAssignRole(
   target: Role,
   held: readonly string[] | null | undefined,
 ): boolean {
+  // `reseller` is never assignable here whoever is asking: the role without a
+  // reseller record beside it is an account that signs in and can then do
+  // nothing, which is a worse outcome than refusing.
+  if (target === 'reseller') return false
   if (actor === 'super_admin') return target !== 'super_admin'
   if (!can(held, 'admins.write')) return false
   return ROLE_RANK[actor] > ROLE_RANK[target]

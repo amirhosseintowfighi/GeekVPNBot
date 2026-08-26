@@ -1,0 +1,152 @@
+"""Reseller tables.
+
+Four of them, and the split is deliberate:
+
+* `resellers` is the account - who they are, what they are allowed, what they
+  have left to spend.
+* `reseller_plan_prices` holds the per-package exceptions, because a
+  percentage is right for most of a catalogue and wrong at the edges.
+* `reseller_nodes` is which panels are theirs. A join table rather than a JSON
+  array so the provisioning query can filter in SQL.
+* `reseller_ledger` is every movement of credit, because "where did my balance
+  go" is the first question a reseller asks and a balance alone cannot answer
+  it.
+"""
+
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from geekvpn.domain.resellers.enums import ResellerStatus
+from geekvpn.infrastructure.persistence.base import Base, TimestampMixin
+from geekvpn.infrastructure.persistence.types import EncryptedString
+
+
+def _values(enum_type: type[enum.Enum]) -> str:
+    return ", ".join(f"'{member.value}'" for member in enum_type)
+
+
+class ResellerModel(TimestampMixin, Base):
+    __tablename__ = "resellers"
+
+    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    #: Their login. One admin account, one reseller - the account is how they
+    #: authenticate and this row is what they are allowed to do once they have.
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="CASCADE"), nullable=False,
+        unique=True,
+    )
+    name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ResellerStatus.ACTIVE.value, index=True
+    )
+    discount_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Toman, never negative. Debt is a policy decision with a limit and a
+    #: settlement process behind it, and this platform has neither yet.
+    balance: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    #: Their own Telegram bot. Encrypted with its own AEAD context, like panel
+    #: passwords: a token is a full credential, and one leaked from a database
+    #: dump lets somebody impersonate the reseller to all of their customers.
+    bot_token_encrypted: Mapped[str | None] = mapped_column(EncryptedString("reseller.bot_token"))
+    #: Readable, so the panel can show "@theirbot" without decrypting anything.
+    bot_username: Mapped[str | None] = mapped_column(String(64), unique=True)
+
+    contact_fa: Mapped[str | None] = mapped_column(String(256))
+    note_fa: Mapped[str | None] = mapped_column(String(512))
+
+    __table_args__ = (
+        CheckConstraint(f"status IN ({_values(ResellerStatus)})", name="resellers_status"),
+        # 90 rather than 100: a package that costs a reseller nothing is a
+        # mistake in a form, and it would drain panel capacity for free.
+        CheckConstraint(
+            "discount_percent >= 0 AND discount_percent <= 90", name="resellers_discount"
+        ),
+        CheckConstraint("balance >= 0", name="resellers_balance_non_negative"),
+    )
+
+
+class ResellerPlanPriceModel(Base):
+    __tablename__ = "reseller_plan_prices"
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), primary_key=True
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("catalog_plans.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    price: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        # Zero is allowed here and only here: a giveaway a human typed on
+        # purpose, for one package, for one reseller.
+        CheckConstraint("price >= 0", name="reseller_plan_prices_non_negative"),
+    )
+
+
+class ResellerNodeModel(Base):
+    __tablename__ = "reseller_nodes"
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), primary_key=True
+    )
+    node_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ResellerLedgerModel(Base):
+    """Every movement of a reseller's credit.
+
+    Append-only. A balance is a number somebody will eventually dispute, and
+    the only useful answer is the list of things that changed it.
+    """
+
+    __tablename__ = "reseller_ledger"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Signed Toman: negative for a sale, positive for a top-up or a refund.
+    amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    balance_after: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    description_fa: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    #: The subscription, order or payment this entry is about, when there is
+    #: one. A string because the ids on the synchronous side are hex, not UUID.
+    reference: Mapped[str | None] = mapped_column(String(64), index=True)
+    #: Which operator did it, for a manual adjustment. Null for a sale, which
+    #: the reseller did themselves.
+    actor_id: Mapped[int | None] = mapped_column(BigInteger)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("id", name="reseller_ledger_id_unique"),
+        Index("ix_reseller_ledger_reseller_time", "reseller_id", "occurred_at"),
+    )
+
+
+__all__ = [
+    "ResellerLedgerModel",
+    "ResellerModel",
+    "ResellerNodeModel",
+    "ResellerPlanPriceModel",
+]
