@@ -161,3 +161,15 @@ async def test_the_wallet_may_still_use_money() -> None:
     bot = Bot(emoji=["💰", "🤩"])
 
     assert await StickerBook("Pack").for_section(bot, "wallet") == "file-💰"
+
+
+def test_the_default_pack_is_the_full_one() -> None:
+    """The larger set covers more emoji, so more screens get a sticker that is
+    about them rather than a shared fallback.
+
+    Pinned because the default is what every install without an explicit
+    setting gets, and it is a one-word change with a visible effect.
+    """
+    from geekvpn.infrastructure.config.settings import TelegramSettings
+
+    assert TelegramSettings().sticker_set == "UtyaDuckFull"

@@ -165,7 +165,10 @@ class TelegramSettings(Section):
     #: Telegram and cannot be written down in advance; the bot reads the
     #: pack once and matches each screen to the sticker whose own emoji
     #: fits it. Swapping packs is then a settings change.
-    sticker_set: str = "UtyaDuck"
+    #: `UtyaDuckFull` rather than `UtyaDuck`: the larger set covers far more
+    #: emoji, so more screens get a sticker that is actually about them
+    #: instead of falling through to a shared second choice.
+    sticker_set: str = "UtyaDuckFull"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
