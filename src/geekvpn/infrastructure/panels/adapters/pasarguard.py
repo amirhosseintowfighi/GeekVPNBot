@@ -352,6 +352,25 @@ class PasarGuardAdapter(HttpPanelAdapter):
 
     # -- mapping -----------------------------------------------------------
 
+    def _absolute(self, value: Any) -> str | None:
+        """Panels return this relative as often as absolute.
+
+        PasarGuard answers with `/sub/<token>` on some versions and a full URL
+        on others. A relative one handed to a customer is a link that opens
+        nothing, and it is the kind of failure they report as "the VPN is
+        broken" rather than "the link is malformed" - so it is joined onto the
+        panel's own base URL here, once, rather than at each of the four places
+        that read it.
+        """
+        if not value:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.startswith(("http://", "https://")):
+            return text
+        return f"{self._config.base_url.rstrip('/')}/{text.lstrip('/')}"
+
     def _to_usage(self, item: Mapping[str, Any]) -> AccountUsage:
         return AccountUsage(
             used_bytes=to_int(
@@ -375,6 +394,6 @@ class PasarGuardAdapter(HttpPanelAdapter):
             state=_STATE_MAP.get(raw_status, AccountState.UNKNOWN),
             usage=self._to_usage(item),
             expires_at=to_utc(item.get("expire"), panel=self.kind.value, field="expire"),
-            subscription_url=item.get("subscription_url"),
+            subscription_url=self._absolute(item.get("subscription_url")),
             links=tuple(str(link) for link in links) if isinstance(links, list) else (),
         )

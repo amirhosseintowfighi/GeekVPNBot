@@ -185,6 +185,19 @@ class ProvisioningService:
         try:
             adapter = await self._panels.for_node(node)
             account = await adapter.create_account(spec, idempotency_key=order.id)
+            # Some panels answer a create with the account but not its
+            # subscription link, and only fill that in on a read. Without the
+            # link the customer is delivered an account they cannot use, so it
+            # is worth one extra call - failing softly, because an account that
+            # exists is still better than a failed order.
+            if not account.subscription_url:
+                try:
+                    account = await adapter.get_account(account.ref)
+                except PanelError:
+                    _log.info(
+                        "provisioning.subscription_url_unavailable username=%s",
+                        account.ref.username,
+                    )
         except PanelError as error:
             await self._fail(order, reason=error.code)
             raise ProvisioningFailed(error.code, retryable=error.retryable) from error

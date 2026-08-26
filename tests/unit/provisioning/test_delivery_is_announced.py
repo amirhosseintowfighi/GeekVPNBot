@@ -76,3 +76,24 @@ def test_the_service_is_given_the_callback() -> None:
     source = _function(SCOPE, "provisioning")
 
     assert "on_activated=self._announce_delivery" in source
+
+
+def test_a_create_without_a_link_is_read_back_once() -> None:
+    """Some panels fill the subscription link in on a read, not on the create.
+
+    Delivering an account with no link is delivering something the customer
+    cannot use - and they will not know the difference between that and a
+    broken server.
+    """
+    source = _function(SERVICE, "provision")
+
+    assert "if not account.subscription_url:" in source
+    assert "get_account" in source
+
+
+def test_the_re_read_cannot_fail_the_provision() -> None:
+    """An account that exists beats a failed order, every time."""
+    source = _function(SERVICE, "provision")
+    start = source.index("if not account.subscription_url:")
+
+    assert "except PanelError:" in source[start:]
