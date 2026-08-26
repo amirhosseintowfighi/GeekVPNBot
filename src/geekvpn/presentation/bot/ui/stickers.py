@@ -96,6 +96,19 @@ class StickerBook:
             if emoji and emoji not in found:
                 found[emoji] = sticker.file_id
         self._by_emoji = found
+        # Logged on success too, not only on failure. Silence used to mean
+        # either "the pack loaded" or "this never ran", and telling those apart
+        # cost a round trip to the server and back.
+        logger.info(
+            "stickers.loaded",
+            set_name=self._set_name,
+            emoji=len(found),
+            covered=sorted(
+                section
+                for section, candidates in SECTION_EMOJI.items()
+                if any(candidate in found for candidate in candidates)
+            ),
+        )
         return found
 
 
