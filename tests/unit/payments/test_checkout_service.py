@@ -11,6 +11,7 @@ from datetime import timedelta
 import pytest
 
 from geekvpn.application.payments.adapters import (
+    CARD_STATED_WINDOW,
     CARD_WINDOW,
     CRYPTO_WINDOW,
     CardTransferGateway,
@@ -130,18 +131,33 @@ def test_a_card_checkout_waits_for_a_receipt_with_a_deadline():
     assert not result.settled
 
 
-def test_a_card_invoice_expires_soonest_of_all():
-    """It used to have the longest window, on the reasoning that a receipt may
-    arrive after a night's sleep.
+def test_a_card_payment_is_given_more_time_than_it_is_promised():
+    """The customer is told half an hour; the clock allows longer.
 
-    But a card transfer is identified by its amount, and an amount only
-    identifies it among the invoices open at the same moment. The longer they
-    stay open the more of them share a price, so the window is what keeps the
-    identifier meaningful. The customer is told the figure rather than
-    discovering it."""
-    assert timedelta(minutes=30) == CARD_WINDOW
-    assert CARD_WINDOW < CRYPTO_WINDOW
+    It used to be six hours flat, on the reasoning that a receipt may arrive
+    after a night's sleep. But a card transfer is identified by its amount, and
+    an amount only identifies it among the invoices open at the same moment -
+    so a deadline is what keeps the identifier meaningful, and what gets the
+    receipt sent while the customer is still on the screen.
+
+    Enforcing that deadline to the second would be a different thing: a
+    transfer made at minute twenty five and photographed at minute thirty five
+    is money already sent against an invoice that will not take it. So the half
+    hour is a promise and the two hours are the clock.
+    """
+    assert timedelta(minutes=30) == CARD_STATED_WINDOW
+    assert CARD_WINDOW > CARD_STATED_WINDOW
+
+    result = World().buy(gateway_key="card")
+    assert result.payment.expires_at == EPOCH + CARD_WINDOW
+
+
+def test_a_crypto_payment_expires_on_its_own_clock():
+    """A quoted rate cannot be honoured indefinitely, and unlike a card
+    transfer the customer is held to this one: the chain says when the money
+    arrived, so there is no receipt to arrive late."""
     result = World().buy(gateway_key="crypto")
+
     assert result.payment.expires_at == EPOCH + CRYPTO_WINDOW
 
 

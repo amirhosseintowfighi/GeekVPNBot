@@ -35,21 +35,37 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 
-CARD_WINDOW: Final[timedelta] = timedelta(minutes=30)
-"""Half an hour, and the customer is told so.
+CARD_STATED_WINDOW: Final[timedelta] = timedelta(minutes=30)
+"""What the customer is told: half an hour.
 
-It used to be six hours, on the reasoning that a receipt may arrive after a
-night's sleep. But the amount is what identifies a transfer, and an amount only
-identifies it among the invoices open at the same moment: the longer invoices
-stay open, the more of them share a price and the likelier two customers pick
-the same remainder. A short window is what keeps the identifier meaningful, and
-a stated deadline is also what gets a receipt sent while the customer is still
-looking at the screen.
+A card transfer is identified by its amount, and an amount only identifies it
+among the invoices open at the same moment - the longer they stay open, the
+more of them share a price and the likelier two customers draw the same
+remainder. A stated deadline is also what gets a receipt sent while the
+customer is still looking at the screen, rather than tomorrow.
+"""
 
-The cost is real and belongs written down: a transfer made at minute twenty
-five and photographed at minute thirty five cannot be submitted, and that
-customer needs an operator. Hence the warning in the instructions rather than a
-silent clock."""
+CARD_WINDOW: Final[timedelta] = timedelta(hours=2)
+"""What is actually enforced: rather more than half an hour.
+
+Deliberately longer than what we say, and this gap is the point.
+
+Enforcing the stated thirty minutes exactly would mean a customer who
+transferred at minute twenty five and photographed the receipt at minute
+thirty five cannot submit it - money already sent, against an invoice that
+will not take it, and a support conversation to undo by hand. That is a real
+cost paid by people who did nothing wrong, in exchange for a promise nobody
+would have noticed us keeping.
+
+So the deadline is a deadline in the copy, where its job is to hurry the
+customer along, and a grace period in the code, where its job is not to lose
+anyone's money. Two hours still keeps the identifier meaningful: a shop would
+have to sell the same plan dozens of times in one window before two remainders
+collided.
+
+`CARD_STATED_WINDOW` is what the screen says. Change them together or the
+promise and the clock drift apart.
+"""
 
 CRYPTO_WINDOW: Final[timedelta] = timedelta(minutes=90)
 """Much shorter, because a quoted crypto rate cannot be honoured for hours.
@@ -238,6 +254,7 @@ class WalletGateway:
 
 
 __all__ = [
+    "CARD_STATED_WINDOW",
     "CARD_WINDOW",
     "CRYPTO_WINDOW",
     "CardTransferGateway",

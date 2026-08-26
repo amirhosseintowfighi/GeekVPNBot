@@ -32,6 +32,7 @@ from geekvpn.application.bot.read_models import (
 )
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import PlanView, ProductView
+from geekvpn.application.payments.adapters import CARD_STATED_WINDOW
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -47,7 +48,7 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
-from geekvpn.presentation.bot.ui.fa import normalize_input, toman
+from geekvpn.presentation.bot.ui.fa import fa_relative, normalize_input, toman
 
 logger = get_logger("bot.purchase")
 
@@ -414,6 +415,11 @@ def _card_body(details: CardPaymentDetails, *, amount: int) -> str:
         card_number=details.card_number,
         card_holder=details.card_holder_fa,
         bank=details.bank_fa,
+        # The stated window, not the enforced one. They differ on purpose:
+        # `CARD_WINDOW` is longer, so a customer who transfers just before the
+        # deadline and photographs the receipt just after does not lose money
+        # to a promise we had no reason to keep to the second.
+        window=fa_relative(CARD_STATED_WINDOW),
         sla=details.review_sla_fa,
     )
 

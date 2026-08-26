@@ -11,8 +11,11 @@ A few Toman of remainder on the invoice makes each amount its own name.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 
+from geekvpn.application.bot.read_models import CardPaymentDetails
 from geekvpn.application.payments.checkout_service import (
     IDENTIFIER_CEILING,
     IDENTIFIER_LINE_FA,
@@ -98,7 +101,7 @@ def test_the_screen_the_customer_actually_reads_forbids_rounding():
     from geekvpn.presentation.bot.ui.text import PAY_CARD_INSTRUCTIONS
 
     assert "رند نکنید" in PAY_CARD_INSTRUCTIONS
-    assert "۳۰ دقیقه" in PAY_CARD_INSTRUCTIONS
+    assert "{window}" in PAY_CARD_INSTRUCTIONS
     # The figure alone, in a block Telegram lets the customer tap to copy -
     # what stops them retyping it and dropping the identifier.
     assert "<code>{amount_plain}</code>" in PAY_CARD_INSTRUCTIONS
@@ -111,3 +114,41 @@ def test_the_card_the_customer_is_shown_is_the_one_the_payment_records():
     result = World().buy(gateway_key="card")
 
     assert result.payment.metadata["card_number"] == result.instruction.metadata["card_number"]
+
+
+def test_the_deadline_is_stricter_in_the_copy_than_on_the_clock():
+    """Deliberately, and the gap is the feature.
+
+    Enforcing the stated half hour exactly would mean a customer who
+    transferred at minute twenty five and photographed the receipt at minute
+    thirty five cannot submit it - money already sent, against an invoice that
+    will not take it. The deadline hurries them along; the grace period is what
+    stops it costing anyone their money.
+    """
+    from geekvpn.application.payments.adapters import CARD_STATED_WINDOW, CARD_WINDOW
+
+    assert timedelta(minutes=30) == CARD_STATED_WINDOW
+    assert CARD_WINDOW > CARD_STATED_WINDOW
+
+
+def test_the_screen_says_the_stated_window_not_the_enforced_one():
+    """The two constants are a promise and a clock, and they are easy to wire
+    up backwards - telling the customer they have two hours would throw away
+    the urgency the deadline exists for."""
+    from geekvpn.application.payments.adapters import CARD_STATED_WINDOW
+    from geekvpn.presentation.bot.handlers.purchase import _card_body
+    from geekvpn.presentation.bot.ui.fa import fa_relative
+
+    body = _card_body(
+        CardPaymentDetails(
+            card_number="6037-9911",
+            card_holder_fa="علی",
+            bank_fa="ملی",
+            review_sla_fa="۳۰ دقیقه",
+        ),
+        amount=200_543,
+    )
+
+    assert fa_relative(CARD_STATED_WINDOW) in body
+    # The figure itself, unrounded and copyable.
+    assert "200543" in body
