@@ -100,3 +100,25 @@ def test_every_section_offers_a_fallback() -> None:
     """One emoji is one chance for a pack to not have it."""
     for section, candidates in SECTION_EMOJI.items():
         assert len(candidates) >= 2, section
+
+
+async def test_a_pack_covering_only_the_common_emoji_still_reaches_every_screen() -> None:
+    """UtyaDuck had none of the status or profile emoji, so those two screens
+    opened bare while the other eight were decorated.
+
+    The tail of each list is an emoji some other section proved the pack has -
+    a shared sticker beats a blank screen, and the first choices still win
+    wherever a pack covers them.
+    """
+    bot = Bot(emoji=["👋", "🛒", "😎", "💰", "🎁", "🤔", "🤓", "🎉"])
+    book = StickerBook("Pack")
+
+    for section in SECTION_EMOJI:
+        assert await book.for_section(bot, section) is not None, section
+
+
+async def test_the_first_choice_still_wins_when_it_exists() -> None:
+    """The fallbacks must not quietly take over a pack that has the right one."""
+    bot = Bot(emoji=["👀", "😎"])
+
+    assert await StickerBook("Pack").for_section(bot, "status") == "file-👀"

@@ -30,9 +30,15 @@ logger = structlog.stdlib.get_logger(__name__)
 
 #: Which sticker belongs to which screen, by the emoji the pack assigns it.
 #:
-#: Several candidates each, in order: packs disagree about which emoji they
-#: cover, and the second choice is better than nothing. Chosen to read as the
-#: section's own subject - money for the wallet, a question for support.
+#: Ordered candidates, not one choice. Packs disagree about which emoji they
+#: cover: UtyaDuck carries thirty-six and had none of `👀 😐 🤨` for the server
+#: status or `😇 😊 👤` for the profile, so those two screens opened bare while
+#: the other eight were decorated.
+#:
+#: The tail of each list is therefore a deliberate second-best - an emoji
+#: another section already proved this pack has. A sticker shared between two
+#: screens is worth more than one screen with nothing, and the first entries
+#: still win wherever a pack does cover them.
 SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
     "welcome": ("👋", "🥰", "😊"),
     "shop": ("🛒", "🤑", "💸"),
@@ -41,8 +47,8 @@ SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
     "referral": ("🎁", "🤝", "🥳"),
     "support": ("🤔", "😢", "🙏"),
     "faq": ("🤓", "🤔", "📚"),
-    "status": ("👀", "😐", "🤨"),
-    "profile": ("😇", "😊", "👤"),
+    "status": ("👀", "😐", "🤨", "😎", "👍", "🤩"),
+    "profile": ("😇", "😊", "👤", "👋", "🥰"),
     "delivered": ("🎉", "🥳", "🤩"),
 }
 
@@ -103,6 +109,9 @@ class StickerBook:
             "stickers.loaded",
             set_name=self._set_name,
             emoji=len(found),
+            # The list itself, not just the count: choosing an emoji for a
+            # screen is otherwise guesswork against a pack nobody can see.
+            available="".join(sorted(found)),
             covered=sorted(
                 section
                 for section, candidates in SECTION_EMOJI.items()
