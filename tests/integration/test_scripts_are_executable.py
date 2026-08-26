@@ -13,6 +13,7 @@ actually receives.
 from __future__ import annotations
 
 import pathlib
+import shutil
 import subprocess
 
 import pytest
@@ -23,8 +24,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def _indexed_modes() -> dict[str, str]:
-    out = subprocess.run(
-        ["git", "ls-files", "-s"],
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH")
+    out = subprocess.run(  # noqa: S603
+        [git, "ls-files", "-s"],
         cwd=ROOT,
         capture_output=True,
         text=True,
