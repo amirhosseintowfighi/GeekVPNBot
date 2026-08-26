@@ -41,8 +41,16 @@ logger = structlog.stdlib.get_logger(__name__)
 #: still win wherever a pack does cover them.
 SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
     "welcome": ("👋", "🥰", "😊"),
-    "shop": ("🛒", "🤑", "💸"),
+    # Money emoji last, and only as a last resort.
+    #
+    # UtyaDuck has no 🛒, so the shop fell through to 🤑 - a duck with dollar
+    # signs for eyes, on the screen where a customer decides whether to trust
+    # us with their money. It reads as "we want your money" where it needs to
+    # read as "you are about to get something good", and the difference is
+    # worth an emoji.
+    "shop": ("🛒", "🤩", "😍", "😎", "👍", "💸", "🤑"),
     "dashboard": ("😎", "👍", "🤩"),
+    # The one screen where money is the subject rather than the motive.
     "wallet": ("💰", "🤑", "💵"),
     "referral": ("🎁", "🤝", "🥳"),
     "support": ("🤔", "😢", "🙏"),

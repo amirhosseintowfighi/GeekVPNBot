@@ -89,8 +89,12 @@ async def test_sending_never_raises() -> None:
     await send(Bot(), 1, None, "shop")
 
 
-async def test_the_second_choice_is_used_when_the_first_is_absent() -> None:
-    """Packs disagree about which emoji they cover."""
+async def test_a_later_choice_is_used_when_the_earlier_ones_are_absent() -> None:
+    """Packs disagree about which emoji they cover.
+
+    A money duck is the shop's last resort rather than its second choice, but
+    it stays in the list: an odd sticker beats a bare screen.
+    """
     bot = Bot(emoji=["🤑"])
 
     assert await StickerBook("Pack").for_section(bot, "shop") == "file-🤑"
@@ -122,3 +126,38 @@ async def test_the_first_choice_still_wins_when_it_exists() -> None:
     bot = Bot(emoji=["👀", "😎"])
 
     assert await StickerBook("Pack").for_section(bot, "status") == "file-👀"
+
+
+async def test_the_shop_does_not_reach_for_a_money_sticker_first() -> None:
+    """UtyaDuck has no 🛒, so the shop fell through to 🤑 - a duck with dollar
+    signs for eyes, on the screen where a customer decides whether to trust us
+    with their money.
+
+    Money emoji stay in the list as a last resort, behind every friendly one,
+    because a shop with no sticker is worse than an odd sticker. But they must
+    not be the first thing reached for.
+    """
+    friendly = {"🤩", "😍", "😎", "👍"}
+    money = {"🤑", "💸", "💰"}
+    order = SECTION_EMOJI["shop"]
+
+    first_money = next((i for i, e in enumerate(order) if e in money), len(order))
+    last_friendly = max(
+        (i for i, e in enumerate(order) if e in friendly), default=-1
+    )
+
+    assert last_friendly < first_money, "a money emoji is reached before a friendly one"
+
+
+async def test_a_pack_without_a_trolley_gets_a_cheerful_duck_instead() -> None:
+    """The real UtyaDuck case, pinned."""
+    bot = Bot(emoji=["🤑", "🤩", "💰", "👋"])
+
+    assert await StickerBook("Pack").for_section(bot, "shop") == "file-🤩"
+
+
+async def test_the_wallet_may_still_use_money() -> None:
+    """The one screen where money is the subject, not the motive."""
+    bot = Bot(emoji=["💰", "🤩"])
+
+    assert await StickerBook("Pack").for_section(bot, "wallet") == "file-💰"
