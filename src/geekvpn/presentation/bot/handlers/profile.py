@@ -103,7 +103,7 @@ async def on_edit_name(query: CallbackQuery, state: FSMContext) -> None:
     await safe_edit(
         query,
         T.ASK_DISPLAY_NAME,
-        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="profile"))),
+        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="profile"), style=K.NO)),
     )
 
 

@@ -34,7 +34,11 @@ from geekvpn.presentation.bot.handlers.common import (
     tier_of,
     toast,
 )
-from geekvpn.presentation.bot.handlers.purchase import _card_body, _crypto_body
+from geekvpn.presentation.bot.handlers.purchase import (
+    _card_body,
+    _crypto_body,
+    card_keyboard,
+)
 from geekvpn.presentation.bot.states import Wallet
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
@@ -56,7 +60,7 @@ def _wallet_keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.btn(T.BTN_TOPUP, WalletCB(action="topup", ref="-"), style=K.YES)],
-            [K.btn(T.BTN_WALLET_HISTORY, WalletCB(action="history", ref="-"))],
+            [K.btn(T.BTN_WALLET_HISTORY, WalletCB(action="history", ref="-"), style=K.GO)],
             [K.home_button()],
         ]
     )
@@ -87,7 +91,7 @@ def _method_keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.btn(T.PAY_CARD, WalletCB(action="m_card", ref="-"), style=K.GO)],
-            [K.btn(T.PAY_CRYPTO, WalletCB(action="m_crypto", ref="-"))],
+            [K.btn(T.PAY_CRYPTO, WalletCB(action="m_crypto", ref="-"), style=K.GO)],
             [K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)],
         ]
     )
@@ -209,11 +213,16 @@ async def _begin_topup(
     if isinstance(details, CardPaymentDetails):
         await state.set_state(Wallet.awaiting_receipt)
         body = _card_body(details, amount=payment.amount)
+        # The same copy buttons as a purchase. Somebody topping up is holding
+        # the same banking app open as somebody buying, and the digits are just
+        # as easy to clip.
+        markup = card_keyboard(details, amount=payment.amount, cancel_to="wallet")
     else:
         await state.set_state(Wallet.awaiting_crypto_txid)
         body = _crypto_body(details, amount=payment.amount)
+        markup = K.single(K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO))
 
-    await safe_edit(query, body, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="wallet"))))
+    await safe_edit(query, body, markup=markup)
 
 
 @router.callback_query(WalletCB.filter(F.action == "m_card"))

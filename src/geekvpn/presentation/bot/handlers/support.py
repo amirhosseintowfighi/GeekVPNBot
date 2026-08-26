@@ -47,8 +47,11 @@ def _menu_keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.btn(f"\u2753 {T.MENU_FAQ}", NavCB(to="faq"))],
-            [K.btn(T.BTN_NEW_TICKET, TicketCB(action="new", ref="-"), style=K.GO)],
-            [K.btn(T.BTN_MY_TICKETS, TicketCB(action="list", ref="-"))],
+            # Green: opening a ticket is what somebody came to this screen to
+            # do. Reading the old ones is blue - a way further in, not the
+            # thing itself.
+            [K.btn(T.BTN_NEW_TICKET, TicketCB(action="new", ref="-"), style=K.YES)],
+            [K.btn(T.BTN_MY_TICKETS, TicketCB(action="list", ref="-"), style=K.GO)],
             [K.home_button()],
         ]
     )
@@ -56,7 +59,7 @@ def _menu_keyboard() -> InlineKeyboardMarkup:
 
 def _topic_keyboard() -> InlineKeyboardMarkup:
     rows = [[K.btn(label, TicketCB(action="topic", ref=key))] for key, label in TOPICS]
-    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="support"))])
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="support"), style=K.NO)])
     return K.stack(rows)
 
 
@@ -89,7 +92,7 @@ async def on_topic(query: CallbackQuery, callback_data: TicketCB, state: FSMCont
     await safe_edit(
         query,
         f"{label}\n\n{T.TICKET_ASK_MESSAGE}",
-        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="support"))),
+        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="support"), style=K.NO)),
     )
 
 

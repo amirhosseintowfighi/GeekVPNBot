@@ -92,24 +92,53 @@ def test_the_captions_carry_their_emoji() -> None:
 # -- colour ----------------------------------------------------------------
 
 
-def test_the_two_buttons_a_customer_came_for_are_coloured() -> None:
+def test_the_menu_is_coloured_at_all() -> None:
     """Bot API 9.4 button styles. Older clients render them plain, so this is
     an enhancement rather than a requirement - but a silently dropped `style`
-    would be invisible, hence the check."""
-    styled = {
-        button.text: button.style
+    would be invisible, and this keyboard is on screen under every message."""
+    coloured = [
+        button
+        for row in K.main_menu().keyboard
+        for button in row
+        if button.style is not None
+    ]
+
+    assert len(coloured) >= 5
+
+
+def test_buying_is_the_first_coloured_thing() -> None:
+    """Whatever else moves around, the shop stays the one a customer's eye
+    lands on first."""
+    first_row = K.main_menu().keyboard[0]
+
+    assert first_row[0].text == K.TAP_SHOP
+    assert first_row[0].style == "primary"
+
+
+def test_the_help_row_does_not_compete() -> None:
+    """Profile, FAQ and settings are where somebody goes when something is
+    already wrong. Colouring them puts them in the same visual rank as buying,
+    which is what a wall of uniform colour does - it stops meaning anything.
+
+    So the rule is not "few coloured buttons", it is "one row that is not".
+    """
+    last_row = K.main_menu().keyboard[-1]
+
+    assert {button.text for button in last_row} == {
+        K.TAP_PROFILE,
+        K.TAP_FAQ,
+        K.TAP_SETTINGS,
+    }
+    assert all(button.style is None for button in last_row)
+
+
+def test_only_the_three_known_colours_are_used() -> None:
+    """A fourth value would be a typo Telegram accepts and renders as nothing."""
+    used = {
+        button.style
         for row in K.main_menu().keyboard
         for button in row
         if button.style is not None
     }
 
-    assert styled == {K.TAP_SHOP: "primary", K.TAP_WALLET: "success"}
-
-
-def test_colour_stays_a_signal() -> None:
-    """Nine coloured buttons say the same thing as none."""
-    coloured = sum(
-        1 for row in K.main_menu().keyboard for button in row if button.style is not None
-    )
-
-    assert coloured <= 3
+    assert used <= {"primary", "success", "danger"}

@@ -162,3 +162,54 @@ def test_a_product_page_does_not_tell_the_customer_to_open_a_category():
 
     assert T.PRODUCT_PICK_PLAN in body
     assert T.SHOP_INTRO not in body
+
+
+def test_the_card_screen_hands_over_both_numbers_to_copy():
+    """A customer on this screen has to get a sixteen-digit card number and an
+    unrounded amount into a banking app.
+
+    Long-pressing a `<code>` block and dragging two handles is where digits get
+    lost, and the three that identify the transfer are the last three - the
+    easiest to clip off the end of a selection. Telegram copies these
+    client-side, so neither depends on the bot answering while somebody has
+    their bank open.
+    """
+    from geekvpn.application.bot.read_models import CardPaymentDetails
+    from geekvpn.presentation.bot.handlers.purchase import card_keyboard
+
+    details = CardPaymentDetails(
+        card_number="6037991199119911",
+        card_holder_fa="علی",
+        bank_fa="ملی",
+        review_sla_fa="۳۰ دقیقه",
+    )
+
+    copied = [
+        button.copy_text.text
+        for row in card_keyboard(details, amount=200_543).inline_keyboard
+        for button in row
+        if button.copy_text is not None
+    ]
+
+    assert "6037991199119911" in copied
+    # Latin digits, no separators: it is pasted into an amount field.
+    assert "200543" in copied
+
+
+def test_leaving_the_card_screen_is_the_red_one():
+    """Three buttons, and the customer must never mistake cancel for copy."""
+    from geekvpn.application.bot.read_models import CardPaymentDetails
+    from geekvpn.presentation.bot.handlers.purchase import card_keyboard
+
+    details = CardPaymentDetails(
+        card_number="6037991199119911",
+        card_holder_fa="علی",
+        bank_fa="ملی",
+        review_sla_fa="۳۰ دقیقه",
+    )
+
+    rows = card_keyboard(details, amount=200_543).inline_keyboard
+    danger = [b for row in rows for b in row if b.style == "danger"]
+
+    assert len(danger) == 1
+    assert danger[0].copy_text is None

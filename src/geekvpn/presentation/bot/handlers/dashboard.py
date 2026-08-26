@@ -194,7 +194,7 @@ async def on_rotate_confirm(query: CallbackQuery, callback_data: SubCB) -> None:
                         style=K.NO,
                     )
                 ],
-                [K.btn(T.BTN_CANCEL, SubCB(action="view", ref=callback_data.ref))],
+                [K.btn(T.BTN_CANCEL, SubCB(action="view", ref=callback_data.ref), style=K.NO)],
             ]
         ),
     )

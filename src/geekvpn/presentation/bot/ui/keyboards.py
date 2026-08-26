@@ -24,6 +24,7 @@ from typing import Any, Final
 
 from aiogram.enums import ButtonStyle
 from aiogram.types import (
+    CopyTextButton,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -47,23 +48,33 @@ from geekvpn.presentation.bot.ui.fa import fa_digits, truncate
 MAX_LABEL = 32
 
 
-def _label(value: str) -> str:
-    return truncate(value, MAX_LABEL)
-
-
 #: What the three colours mean here. Bot API 9.4 offers exactly these, and the
 #: value of a colour is entirely in its consistency - a green that sometimes
 #: means "confirm" and sometimes means "back" is worse than no colour at all.
 #:
-#: PRIMARY  the one thing this screen is for: buy, continue, open.
-#: SUCCESS  money arriving or a service starting: top up, renew, approve.
-#: DANGER   anything that ends something: cancel, reject, revoke, delete.
+#: PRIMARY  a choice among options, or a way further in: a payment method, a
+#:          category, the main menu.
+#: SUCCESS  the thing this screen exists for: pay, confirm, top up, renew,
+#:          copy the card number, share the link.
+#: DANGER   leaving without doing it: cancel, back, close - and anything that
+#:          ends something: reject, revoke, delete.
 #:
-#: Everything else stays plain. A screen where every button is coloured has
-#: told the reader nothing about which one to press.
+#: The earlier rule here was that most buttons stay plain, on the reasoning
+#: that a screen of uniform colour recommends nothing. That is true of a screen
+#: where every button is the *same* colour, and it was read as an argument for
+#: colouring almost nothing - most screens ended up a wall of grey with one
+#: blue button, which is not obviously better at pointing anywhere.
+#:
+#: Three colours used consistently do point: the reader learns that red always
+#: means "this takes me back out" and green always means "this is the button",
+#: and stops reading labels on the buttons they were not going to press.
 GO = ButtonStyle.PRIMARY
 YES = ButtonStyle.SUCCESS
 NO = ButtonStyle.DANGER
+
+
+def _label(value: str) -> str:
+    return truncate(value, MAX_LABEL)
 
 
 def btn(text: str, callback: Any, *, style: str | None = None) -> InlineKeyboardButton:
@@ -77,6 +88,18 @@ def btn(text: str, callback: Any, *, style: str | None = None) -> InlineKeyboard
     """
     data = callback if isinstance(callback, str) else callback.pack()
     return InlineKeyboardButton(text=_label(text), callback_data=data, style=style)
+
+
+def copy_btn(text: str, value: str, *, style: str | None = None) -> InlineKeyboardButton:
+    """A button that puts `value` on the customer's clipboard.
+
+    Telegram copies it client-side - no callback, no round trip, no chance of
+    the bot being slow at the moment somebody is holding their banking app
+    open. It exists because the alternative is asking a customer to long-press
+    a `<code>` block and drag two handles over a sixteen-digit number, and the
+    digits they mistype are the ones that make a transfer unmatchable.
+    """
+    return InlineKeyboardButton(text=_label(text), copy_text=CopyTextButton(text=value), style=style)
 
 
 def url_btn(text: str, url: str, *, style: str | None = None) -> InlineKeyboardButton:
@@ -94,11 +117,13 @@ def noop_btn(text: str, *, tag: str = "") -> InlineKeyboardButton:
 
 
 def back_button(to: str = "home") -> InlineKeyboardButton:
-    return btn(T.BTN_BACK, NavCB(to=to))
+    """Red, because it leaves this screen without doing what it was for."""
+    return btn(T.BTN_BACK, NavCB(to=to), style=NO)
 
 
 def home_button() -> InlineKeyboardButton:
-    return btn(T.BTN_HOME, NavCB(to="home"))
+    """Blue: not an escape but a destination, and the one every screen offers."""
+    return btn(T.BTN_HOME, NavCB(to="home"), style=GO)
 
 
 #: What the persistent keyboard's buttons actually say.
@@ -132,19 +157,29 @@ def main_menu() -> ReplyKeyboardMarkup:
     matching the inline convention above.
     """
     builder = ReplyKeyboardBuilder()
-    # Colour is a signal, not decoration. Buying and topping up are the two
-    # things a customer came here to do, so those are the coloured ones; making
-    # all nine primary would say nothing at all. Requires Bot API 9.4 - older
-    # clients render the same buttons uncoloured rather than failing.
+    # Coloured top to bottom in descending order of what a customer came for.
+    # Only two were coloured before, on the reasoning that colouring all nine
+    # says nothing - but nine buttons in one uniform grey say nothing either,
+    # and this keyboard is on screen permanently, under every message.
+    #
+    # The bottom row stays plain on purpose: profile, help and settings are
+    # where a customer goes when something is already wrong, and they are the
+    # one part of this keyboard that should not compete.
+    #
+    # Requires Bot API 9.4 - older clients render the same buttons uncoloured
+    # rather than failing.
     builder.row(
         KeyboardButton(text=TAP_SHOP, style=ButtonStyle.PRIMARY),
-        KeyboardButton(text=TAP_DASHBOARD),
+        KeyboardButton(text=TAP_DASHBOARD, style=ButtonStyle.PRIMARY),
     )
     builder.row(
         KeyboardButton(text=TAP_WALLET, style=ButtonStyle.SUCCESS),
-        KeyboardButton(text=TAP_REFERRAL),
+        KeyboardButton(text=TAP_REFERRAL, style=ButtonStyle.SUCCESS),
     )
-    builder.row(KeyboardButton(text=TAP_SUPPORT), KeyboardButton(text=TAP_STATUS))
+    builder.row(
+        KeyboardButton(text=TAP_SUPPORT, style=ButtonStyle.PRIMARY),
+        KeyboardButton(text=TAP_STATUS),
+    )
     builder.row(
         KeyboardButton(text=TAP_PROFILE),
         KeyboardButton(text=TAP_FAQ),

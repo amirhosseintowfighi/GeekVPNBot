@@ -78,10 +78,14 @@ def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
         rows.append(
             [K.btn(T.PAY_WALLET, PayCB(action="pay", method="wallet", ref="-"), style=K.YES)]
         )
+    # Both blue: this is a choice between two equals, and leaving one grey
+    # reads as "not this one" rather than "either is fine".
     rows.append(
         [K.btn(T.PAY_CARD, PayCB(action="pay", method="card", ref="-"), style=K.GO)]
     )
-    rows.append([K.btn(T.PAY_CRYPTO, PayCB(action="pay", method="crypto", ref="-"))])
+    rows.append(
+        [K.btn(T.PAY_CRYPTO, PayCB(action="pay", method="crypto", ref="-"), style=K.GO)]
+    )
     rows.append([K.btn(T.BTN_CANCEL, NavCB(to="home"), style=K.NO)])
     return K.stack(rows)
 
@@ -206,7 +210,7 @@ async def on_select_plan(
 async def on_ask_coupon(query: CallbackQuery, state: FSMContext) -> None:
     await toast(query)
     await state.set_state(Purchase.entering_coupon)
-    await safe_edit(query, T.ASK_COUPON, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="review"))))
+    await safe_edit(query, T.ASK_COUPON, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="review"), style=K.NO)))
 
 
 @router.callback_query(PayCB.filter(F.action == "uncoupon"))
@@ -395,7 +399,7 @@ async def on_pay(
             await safe_edit(
                 query,
                 _card_body(details, amount=details.payment.amount),
-                markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
+                markup=card_keyboard(details, amount=details.payment.amount),
             )
             return
 
@@ -411,7 +415,7 @@ async def on_pay(
             await safe_edit(
                 query,
                 _crypto_body(crypto, amount=crypto.payment.amount),
-                markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"))),
+                markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="home"), style=K.NO)),
             )
             return
 
@@ -424,6 +428,29 @@ async def on_pay(
         # attempt to diagnose it from the outside came back empty.
         logger.exception("bot.payment_failed", method=method, plan_id=str(plan_uuid))
         await safe_edit(query, customer_message(failure), markup=K.single(K.home_button()))
+
+
+def card_keyboard(
+    details: CardPaymentDetails, *, amount: int, cancel_to: str = "home"
+) -> InlineKeyboardMarkup:
+    """Two taps instead of two drag handles.
+
+    A customer reading this screen has to get a sixteen-digit card number and
+    an unrounded amount into a banking app. Long-pressing a `<code>` block and
+    dragging a selection over either of them is where digits get lost - and the
+    three that identify the transfer are the last three, the easiest to clip.
+
+    Copy buttons carry the value client-side, so neither depends on the bot
+    answering quickly while somebody has their bank open.
+    """
+    return K.stack(
+        [
+            [K.copy_btn(T.BTN_COPY_CARD, details.card_number, style=K.YES)],
+            # Latin digits, no separators: this is pasted into an amount field.
+            [K.copy_btn(T.BTN_COPY_AMOUNT, str(amount), style=K.GO)],
+            [K.btn(T.BTN_CANCEL, NavCB(to=cancel_to), style=K.NO)],
+        ]
+    )
 
 
 def _card_body(details: CardPaymentDetails, *, amount: int) -> str:
