@@ -17,6 +17,7 @@ queue does not pay for constructing a notification engine.
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -212,9 +213,20 @@ def build_gateway_registry(session: Session) -> GatewayRegistry:
     cards rotate constantly in the Iranian market, and a rotation must be
     something support can do in the panel, not a deployment.
 
-    Only the highest-priority active card is registered under the key
-    ``"card"``. Gateway keys are persisted on payment rows forever, so they
-    cannot vary per card without making old rows unreadable.
+    One card is registered under the key ``"card"``, chosen at random from
+    those active. Gateway keys are persisted on payment rows forever, so they
+    cannot vary per card without making old rows unreadable - but which card
+    sits behind the key can, and spreading transfers across several accounts is
+    the point of having more than one.
+
+    Random rather than round-robin: this is built per request, in a process
+    that may be one of several, so there is nowhere to keep a turn counter that
+    all of them would agree on. Random needs no shared state and spreads just
+    as well over a day's transfers.
+
+    `sort_order` still decides when only one card should be used - an operator
+    who wants that deactivates the others, which is the same control they
+    already have.
     """
     registry = GatewayRegistry()
     registry.register(WalletGateway())
@@ -223,9 +235,9 @@ def build_gateway_registry(session: Session) -> GatewayRegistry:
         select(CardAccountModel)
         .where(CardAccountModel.active.is_(True))
         .order_by(CardAccountModel.sort_order, CardAccountModel.id)
-        .limit(1)
     )
-    card = session.execute(stmt).scalars().first()
+    cards = list(session.execute(stmt).scalars().all())
+    card = secrets.choice(cards) if cards else None
     if card is not None:
         registry.register(
             CardTransferGateway(

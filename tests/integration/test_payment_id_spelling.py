@@ -35,6 +35,7 @@ def _payment() -> SimpleNamespace:
         state=PaymentState.AWAITING_PROOF,
         created_at=datetime(2026, 8, 25, tzinfo=UTC),
         expires_at=None,
+        metadata={},
     )
 
 

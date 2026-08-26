@@ -125,22 +125,47 @@ def _message_view(message: MessageView) -> dict[str, Any]:
     }
 
 
+def _card_for(payment: Payment, scope: SyncScope) -> dict[str, str] | None:
+    """Which card this particular transfer was told to go to.
+
+    The card chosen when the payment started is kept on the payment, and this
+    prefers it. A deployment may hold several destination cards and the
+    registry hands out one at random to spread transfers across accounts, so
+    re-deriving the card here would show a different one every time the screen
+    was reopened - for a transfer the customer may already have made.
+
+    The registry is the fallback, for payments started before the card was
+    pinned. Showing the active card beats showing none.
+    """
+    if payment.method is not PaymentMethod.CARD:
+        return None
+
+    pinned = payment.metadata.get("card_number")
+    if pinned:
+        return {
+            "card_number": pinned,
+            "card_holder_fa": payment.metadata.get("card_holder_fa", ""),
+            "bank_fa": payment.metadata.get("bank_name_fa", ""),
+        }
+
+    if not scope.gateways.has(CARD):
+        return None
+    gateway = scope.gateways.get(CARD)
+    return {
+        "card_number": getattr(gateway, "card_number", ""),
+        "card_holder_fa": getattr(gateway, "card_holder_fa", ""),
+        "bank_fa": getattr(gateway, "bank_name_fa", ""),
+    }
+
+
 def _payment_view(payment: Payment, scope: SyncScope) -> dict[str, Any]:
     """The receipt digest stays server-side. The destination card does not.
 
     This is the screen a customer reads the card number off before making
     the transfer. Sending the payment without it left them on a page asking
     for a receipt for a transfer they were never told how to make.
-
-    The card is registry configuration rather than something stored on the
-    payment, which is deliberate: cards rotate, and a customer who is still
-    mid-transfer should be shown the card that is active now.
     """
-    card = (
-        scope.gateways.get(CARD)
-        if payment.method is PaymentMethod.CARD and scope.gateways.has(CARD)
-        else None
-    )
+    card = _card_for(payment, scope)
     return {
         # The same spelling `/checkout/card` returns, because the Mini App
         # navigates with that one and looks the payment up in this list.
@@ -153,9 +178,9 @@ def _payment_view(payment: Payment, scope: SyncScope) -> dict[str, Any]:
         "expires_at": payment.expires_at,
         "card": (
             {
-                "card_number": getattr(card, "card_number", ""),
-                "card_holder_fa": getattr(card, "card_holder_fa", ""),
-                "bank_fa": getattr(card, "bank_name_fa", ""),
+                "card_number": card["card_number"],
+                "card_holder_fa": card["card_holder_fa"],
+                "bank_fa": card["bank_fa"],
                 "review_sla_fa": REVIEW_SLA_FA,
             }
             if card is not None

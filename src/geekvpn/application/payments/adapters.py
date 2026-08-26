@@ -35,8 +35,21 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 
-CARD_WINDOW: Final[timedelta] = timedelta(hours=6)
-"""A card receipt may arrive after a night's sleep."""
+CARD_WINDOW: Final[timedelta] = timedelta(minutes=30)
+"""Half an hour, and the customer is told so.
+
+It used to be six hours, on the reasoning that a receipt may arrive after a
+night's sleep. But the amount is what identifies a transfer, and an amount only
+identifies it among the invoices open at the same moment: the longer invoices
+stay open, the more of them share a price and the likelier two customers pick
+the same remainder. A short window is what keeps the identifier meaningful, and
+a stated deadline is also what gets a receipt sent while the customer is still
+looking at the screen.
+
+The cost is real and belongs written down: a transfer made at minute twenty
+five and photographed at minute thirty five cannot be submitted, and that
+customer needs an operator. Hence the warning in the instructions rather than a
+silent clock."""
 
 CRYPTO_WINDOW: Final[timedelta] = timedelta(minutes=90)
 """Much shorter, because a quoted crypto rate cannot be honoured for hours.
@@ -71,9 +84,17 @@ class CardTransferGateway:
     ) -> CheckoutInstruction:
         # The invoice number goes in the transfer description so a reviewer
         # can match a receipt to an order without asking the customer.
+        #
+        # The exact-amount warning is the load-bearing sentence on this screen.
+        # The last three digits are what tell this transfer apart from every
+        # other one at the same price, so a customer who helpfully rounds them
+        # off hands the reviewer an unmatchable receipt.
         instructions = (
-            "\u0645\u0628\u0644\u063a \u0631\u0627 \u0628\u0647 \u06a9\u0627\u0631\u062a \u0632\u06cc\u0631 \u0648\u0627\u0631\u06cc\u0632 \u06a9\u0646\u06cc\u062f \u0648 "
-            "\u0633\u067e\u0633 \u062a\u0635\u0648\u06cc\u0631 \u0631\u0633\u06cc\u062f \u0631\u0627 \u0627\u0631\u0633\u0627\u0644 \u06a9\u0646\u06cc\u062f."
+            f"دقیقاً مبلغ {amount.amount:,} تومان را به کارت زیر واریز "
+            "کنید و سپس تصویر رسید را ارسال کنید.\n\n"
+            "⚠️ مبلغ را روند نکنید. سه رقم آخر شناسهٔ فاکتور شماست و "
+            "با آن رسید شما شناخته می‌شود.\n"
+            "⏳ این فاکتور فقط ۳۰ دقیقه اعتبار دارد."
         )
         return CheckoutInstruction(
             payment_id=payment_id,

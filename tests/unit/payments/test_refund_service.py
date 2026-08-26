@@ -95,6 +95,16 @@ def _paid_by_card(world: World, amount: int = 680_000):
     return result
 
 
+def _paid(result) -> int:
+    """What the card invoice actually asked for.
+
+    Not the quoted price: a card invoice carries a few Toman of identifier so
+    a reviewer can tell two transfers at the same price apart. Refund
+    arithmetic is about the sum that was captured, whatever it came to.
+    """
+    return result.payment.amount.amount
+
+
 def _request(payment_id: str, **overrides) -> RefundRequest:
     data = {
         "payment_id": payment_id,
@@ -112,7 +122,7 @@ def test_a_full_refund_returns_the_money_to_the_wallet():
     outcome = world.refunds.refund(_request(result.payment.id))
     assert outcome.fully_refunded
     assert outcome.wallet_credited
-    assert world.balance() == 680_000
+    assert world.balance() == _paid(result)
 
 
 def test_omitting_the_amount_refunds_whatever_is_left():
@@ -121,8 +131,8 @@ def test_omitting_the_amount_refunds_whatever_is_left():
     result = _paid_by_card(world)
     world.refunds.refund(_request(result.payment.id, amount=200_000))
     outcome = world.refunds.refund(_request(result.payment.id))
-    assert outcome.entry.amount == 480_000
-    assert world.balance() == 680_000
+    assert outcome.entry.amount == _paid(result) - 200_000
+    assert world.balance() == _paid(result)
 
 
 def test_a_partial_refund_keeps_the_payment_alive():
@@ -131,7 +141,7 @@ def test_a_partial_refund_keeps_the_payment_alive():
     outcome = world.refunds.refund(_request(result.payment.id, amount=200_000))
     assert not outcome.fully_refunded
     assert outcome.payment.state is PaymentState.PARTIALLY_REFUNDED
-    assert outcome.payment.refundable == Money(480_000)
+    assert outcome.payment.refundable == Money(_paid(result) - 200_000)
 
 
 def test_the_invoice_is_marked_refunded_only_once_nothing_is_left():
@@ -149,7 +159,7 @@ def test_the_refund_appears_in_the_customers_transaction_history():
     world.refunds.refund(_request(result.payment.id))
     entries = world.wallets.get_or_create(USER).history(kind=TransactionKind.REFUND)
     assert len(entries) == 1
-    assert entries[0].amount == 680_000
+    assert entries[0].amount == _paid(result)
     assert entries[0].actor_id == OPERATOR
 
 
@@ -157,7 +167,7 @@ def test_refunding_more_than_was_captured_is_refused():
     world = World()
     result = _paid_by_card(world)
     with pytest.raises(RefundExceedsPayment):
-        world.refunds.refund(_request(result.payment.id, amount=680_001))
+        world.refunds.refund(_request(result.payment.id, amount=_paid(result) + 1))
     assert world.balance() == 0
 
 
@@ -168,7 +178,7 @@ def test_a_second_operator_finds_nothing_left_to_refund():
     world.refunds.refund(_request(result.payment.id))
     with pytest.raises(RefundNotAllowed):
         world.refunds.refund(_request(result.payment.id))
-    assert world.balance() == 680_000
+    assert world.balance() == _paid(result)
 
 
 def test_an_unsettled_payment_cannot_be_refunded():
@@ -198,7 +208,7 @@ def test_refunding_to_the_original_card_downgrades_to_the_wallet():
         _request(result.payment.id, destination=RefundDestination.ORIGINAL)
     )
     assert outcome.destination is RefundDestination.WALLET
-    assert world.balance() == 680_000
+    assert world.balance() == _paid(result)
 
 
 def test_a_capable_gateway_keeps_the_original_destination():
@@ -222,7 +232,7 @@ def test_every_refund_is_audited_with_what_remains():
     world.refunds.refund(_request(result.payment.id, amount=200_000))
     entry = next(e for e in world.audit.entries if e["action"] == "payment.refund")
     assert entry["actor_id"] == OPERATOR
-    assert entry["details"]["remaining"] == 480_000
+    assert entry["details"]["remaining"] == _paid(result) - 200_000
 
 
 def test_a_refund_publishes_the_event_provisioning_listens_for():

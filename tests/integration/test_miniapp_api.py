@@ -150,11 +150,15 @@ def test_a_pending_payment_never_exposes_the_receipt_or_card() -> None:
         expires_at=None,
         proof="secret-receipt",
         gateway_reference="gw-ref",
+        # No pinned card: this payment predates the card being written onto the
+        # payment, which is the case that has to fall back to the registry.
+        metadata={},
     )
 
     # The destination card is the one thing here the customer must see - it is
-    # what they transfer to. It comes from the gateway registry, never from the
-    # payment row, so a stub registry is the whole dependency.
+    # what they transfer to. It is read off the payment when it is recorded
+    # there and off the registry otherwise, so a stub registry is the whole
+    # dependency for this older shape.
     scope = SimpleNamespace(
         gateways=SimpleNamespace(
             has=lambda key: True,

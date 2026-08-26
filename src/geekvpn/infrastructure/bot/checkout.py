@@ -172,14 +172,7 @@ class BotCheckoutAdapter:
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> CardPaymentDetails:
         result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=CARD)
-        gateway = await self._bridge.run(lambda scope: scope.gateways.get(CARD))
-        return CardPaymentDetails(
-            card_number=getattr(gateway, "card_number", ""),
-            card_holder_fa=getattr(gateway, "card_holder_fa", ""),
-            bank_fa=getattr(gateway, "bank_name_fa", ""),
-            review_sla_fa=REVIEW_SLA_FA,
-            payment=_to_pending(result),
-        )
+        return _card_details(result)
 
     async def begin_crypto(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
@@ -219,14 +212,7 @@ class BotCheckoutAdapter:
                 address=result.instruction.address or "",
                 payment=_to_pending(result),
             )
-        gateway = await self._bridge.run(lambda scope: scope.gateways.get(CARD))
-        return CardPaymentDetails(
-            card_number=getattr(gateway, "card_number", ""),
-            card_holder_fa=getattr(gateway, "card_holder_fa", ""),
-            bank_fa=getattr(gateway, "bank_name_fa", ""),
-            review_sla_fa=REVIEW_SLA_FA,
-            payment=_to_pending(result),
-        )
+        return _card_details(result)
 
     # -- proof -------------------------------------------------------------
 
@@ -451,6 +437,26 @@ def _lines_for(plan_name_fa: str, quote: PriceQuote) -> list[InvoiceLine]:
     if discount > 0:
         lines.append(InvoiceLine(title_fa="تخفیف", amount=-discount))
     return lines
+
+
+def _card_details(result: CheckoutResult) -> CardPaymentDetails:
+    """The card this payment was actually told to use.
+
+    Read off the instruction rather than asked of the registry a second time.
+    A deployment may hold several destination cards and the registry hands out
+    one at random to spread transfers across accounts, so a second lookup was a
+    second draw: the customer could be shown a card the payment does not
+    record, and the reviewer would then be looking for a transfer to the other
+    one.
+    """
+    card = result.instruction.metadata
+    return CardPaymentDetails(
+        card_number=card.get("card_number", ""),
+        card_holder_fa=card.get("card_holder_fa", ""),
+        bank_fa=card.get("bank_name_fa", ""),
+        review_sla_fa=REVIEW_SLA_FA,
+        payment=_to_pending(result),
+    )
 
 
 def _to_pending(result: CheckoutResult) -> PendingPayment:

@@ -406,7 +406,12 @@ async def on_pay(
 def _card_body(details: CardPaymentDetails, *, amount: int) -> str:
     return T.PAY_CARD_INSTRUCTIONS.format(
         amount=f"<b>{toman(amount)}</b>",
-        card_number=f"<code>{details.card_number}</code>",
+        # Latin digits, no separators, nothing but the number: this one is for
+        # tapping to copy and pasting straight into a banking app, which is
+        # what stops a customer retyping it and dropping the last three digits
+        # that identify their receipt.
+        amount_plain=amount,
+        card_number=details.card_number,
         card_holder=details.card_holder_fa,
         bank=details.bank_fa,
         sla=details.review_sla_fa,

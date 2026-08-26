@@ -20,9 +20,11 @@ the payment system is a free order that never provisions.
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Final
 
 from geekvpn.application.payments.loaders import require_payment
 from geekvpn.application.payments.ports import (
@@ -57,6 +59,39 @@ from geekvpn.domain.payments.invoice import (
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.proof import PaymentProof
 from geekvpn.domain.payments.wallet import MIN_TOPUP
+
+#: How far the identifying remainder reaches. Under a thousand Toman, so it is
+#: a rounding error to the customer and still leaves a reviewer a thousand
+#: distinguishable amounts at any one price.
+IDENTIFIER_CEILING: Final = 999
+
+IDENTIFIER_LINE_FA: Final = "شناسه پرداخت (برای تطبیق فیش)"
+
+
+def _identifying_line() -> InvoiceLine:
+    """A few Toman that make one transfer tell itself apart from another.
+
+    A manually reviewed method is matched by a human reading an amount off a
+    receipt. Two customers buying the same plan in the same hour transfer the
+    same number, and the reviewer then holds two identical receipts with no way
+    to say which invoice each belongs to - so one of them waits, or the wrong
+    one is approved.
+
+    It is an invoice *line* rather than a nudge to the price: the invoice total
+    must stay the sum of its lines, and the customer is owed a view of the
+    figure they were quoted next to the figure they must transfer.
+
+    `secrets` rather than `random`, because the remainder is the thing that
+    tells two payments apart, and a predictable one lets somebody aim a receipt
+    at another customer's invoice.
+    """
+    # Never zero: a zero remainder is the collision this exists to avoid.
+    return InvoiceLine(
+        title_fa=IDENTIFIER_LINE_FA,
+        # Added, never subtracted - subtracting could drop a small invoice
+        # under a gateway's minimum.
+        amount=secrets.randbelow(IDENTIFIER_CEILING) + 1,
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -132,13 +167,21 @@ class CheckoutService:
         now = self._clock.now()
         gateway = self._gateways.get(request.gateway_key)
 
+        lines = tuple(request.lines)
+        # Not on a free invoice: a 100% coupon must stay free, and asking for
+        # 500 Toman to prove it would be worse than any collision.
+        if gateway.capabilities.requires_manual_review and sum(
+            line.amount for line in lines
+        ) > 0:
+            lines = (*lines, _identifying_line())
+
         sequence = self._invoices.next_sequence(year=request.jalali_year)
         invoice = Invoice.issue(
             self._ids.new_id(),
             number=format_invoice_number(year=request.jalali_year, sequence=sequence),
             user_id=request.user_id,
             subject_fa=request.subject_fa,
-            lines=request.lines,
+            lines=lines,
             issued_at=now,
             metadata=dict(request.metadata or {}),
         )
@@ -170,6 +213,14 @@ class CheckoutService:
             user_id=request.user_id,
             invoice_number=invoice.number,
         )
+        # Kept on the payment, not re-derived when the screen is reopened.
+        #
+        # A deployment can have several destination cards and the registry hands
+        # out one of them at random, to spread transfers across accounts. That
+        # made the card the customer saw depend on when they looked: the bot
+        # showed one, and the Mini App payment screen an hour later showed
+        # another, for the same transfer.
+        payment.metadata.update(instruction.metadata)
 
         if invoice.is_free:
             self._settle_free(invoice=invoice, payment=payment)

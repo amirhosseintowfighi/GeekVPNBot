@@ -130,9 +130,17 @@ def test_a_card_checkout_waits_for_a_receipt_with_a_deadline():
     assert not result.settled
 
 
-def test_crypto_gets_a_shorter_window_than_card():
-    """A quoted crypto rate cannot be honoured for six hours."""
-    assert CRYPTO_WINDOW < CARD_WINDOW
+def test_a_card_invoice_expires_soonest_of_all():
+    """It used to have the longest window, on the reasoning that a receipt may
+    arrive after a night's sleep.
+
+    But a card transfer is identified by its amount, and an amount only
+    identifies it among the invoices open at the same moment. The longer they
+    stay open the more of them share a price, so the window is what keeps the
+    identifier meaningful. The customer is told the figure rather than
+    discovering it."""
+    assert timedelta(minutes=30) == CARD_WINDOW
+    assert CARD_WINDOW < CRYPTO_WINDOW
     result = World().buy(gateway_key="crypto")
     assert result.payment.expires_at == EPOCH + CRYPTO_WINDOW
 
@@ -319,10 +327,15 @@ def test_a_wallet_cannot_be_topped_up_from_itself():
 
 
 def test_a_topup_produces_an_ordinary_invoice():
+    """A round 500,000 top-up is billed at 500,0xx.
+
+    The remainder is what tells this customer's receipt apart from the next
+    one who also asked for 500,000. It is carried on the invoice, so the wallet
+    is credited whatever was actually asked for."""
     world = World()
     result = world.service.begin_topup(
         user_id=1001, amount=Money(500_000), gateway_key="card", jalali_year=1405
     )
-    assert result.invoice.total.amount == 500_000
+    assert 500_000 < result.invoice.total.amount <= 500_999
     assert result.invoice.metadata["kind"] == "topup"
     assert result.payment.state is PaymentState.AWAITING_PROOF

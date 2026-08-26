@@ -88,7 +88,7 @@ def test_an_overpayment_is_credited_to_the_wallet_not_pocketed():
     world.review.approve(
         ApprovalRequest(payment_id=result.payment.id, actor_id=OPERATOR, actual_amount=700_000)
     )
-    assert world.balance() == 20_000
+    assert world.balance() == 700_000 - result.payment.amount.amount
     entries = world.wallets.get_or_create(USER).history(kind=TransactionKind.OVERPAYMENT)
     assert len(entries) == 1
 

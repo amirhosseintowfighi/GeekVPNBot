@@ -164,15 +164,32 @@ PAY_WALLET_SHORT: Final = (
     "\u0645\u0628\u0644\u063a \u0644\u0627\u0632\u0645: {needed}\n"
     "\u06a9\u0633\u0631\u06cc: {shortfall}"
 )
+#: The exact-amount warning is the load-bearing sentence on this screen.
+#:
+#: A card receipt cannot be verified by machine - a person reads the figure off
+#: a photograph and looks for an open invoice with that total. The last three
+#: digits are what tell this customer's transfer apart from everyone else who
+#: bought the same plan in the same hour, so a customer who helpfully rounds
+#: them off hands the reviewer an unmatchable receipt and waits.
+#:
+#: Hence the amount three times over: once in the sentence, once alone in a
+#: copyable block, and once as a warning not to touch it.
 PAY_CARD_INSTRUCTIONS: Final = (
-    "\U0001f4b3 \u067e\u0631\u062f\u0627\u062e\u062a \u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a\n\n"
-    "\u0645\u0628\u0644\u063a {amount} \u0631\u0627 \u0628\u0647 \u06a9\u0627\u0631\u062a \u0632\u06cc\u0631 \u0648\u0627\u0631\u06cc\u0632 \u06a9\u0646\u06cc\u062f:\n\n"
-    "{card_number}\n"
-    "\u0628\u0647 \u0646\u0627\u0645: {card_holder}\n"
-    "\u0628\u0627\u0646\u06a9: {bank}\n\n"
-    "\u067e\u0633 \u0627\u0632 \u0648\u0627\u0631\u06cc\u0632\u060c \u0639\u06a9\u0633 \u0631\u0633\u06cc\u062f \u0631\u0627 \u0647\u0645\u06cc\u0646\u062c\u0627 \u0628\u0641\u0631\u0633\u062a\u06cc\u062f.\n\n"
-    "\u2139\ufe0f \u0631\u0633\u06cc\u062f \u0634\u0645\u0627 \u062a\u0648\u0633\u0637 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f \u0648 \u0645\u0639\u0645\u0648\u0644\u0627\u064b \u06a9\u0645\u062a\u0631 \u0627\u0632 {sla} \u0637\u0648\u0644 \u0645\u06cc\u200c\u06a9\u0634\u062f."
+    "\U0001f4b3 <b>پرداخت کارت به کارت</b>\n\n"
+    "مبلغ زیر را <b>دقیقاً</b> به این کارت واریز کنید:\n\n"
+    "\U0001f4b3 <code>{card_number}</code>\n"
+    "\U0001f464 به نام: {card_holder}\n"
+    "\U0001f3e6 بانک: {bank}\n\n"
+    "\U0001f4b0 مبلغ: {amount}\n"
+    "\U0001f522 برای کپی: <code>{amount_plain}</code>\n\n"
+    "\u26a0\ufe0f <b>مبلغ را رند نکنید.</b> سه رقم آخر، شناسهٔ اختصاصی فاکتور "
+    "شماست و رسید شما با همین عدد شناسایی می\u200cشود. حتی ۱۰۰ تومان کم یا "
+    "زیاد، تأیید را به تعویق می\u200cاندازد.\n"
+    "\u23f3 این فاکتور فقط <b>۳۰ دقیقه</b> اعتبار دارد.\n\n"
+    "\U0001f4f8 پس از واریز، عکس رسید را همینجا بفرستید.\n"
+    "\u2139\ufe0f رسید شما توسط پشتیبانی بررسی می\u200cشود و معمولاً کمتر از {sla} طول می\u200cکشد."
 )
+
 PAY_CARD_ASK_RECEIPT: Final = (
     "\U0001f4f8 \u0639\u06a9\u0633 \u06cc\u0627 \u0627\u0633\u06a9\u0631\u06cc\u0646\u200c\u0634\u0627\u062a \u0631\u0633\u06cc\u062f \u0631\u0627 \u0628\u0641\u0631\u0633\u062a\u06cc\u062f.\n\n"
     "\u0645\u0637\u0645\u0626\u0646 \u0634\u0648\u06cc\u062f \u0645\u0628\u0644\u063a\u060c \u062a\u0627\u0631\u06cc\u062e \u0648 \u0686\u0647\u0627\u0631 \u0631\u0642\u0645 \u0622\u062e\u0631 \u06a9\u0627\u0631\u062a \u062e\u0648\u0627\u0646\u0627 \u0628\u0627\u0634\u062f."
