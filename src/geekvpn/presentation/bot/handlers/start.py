@@ -29,6 +29,7 @@ from geekvpn.presentation.bot.handlers.common import (
 from geekvpn.presentation.bot.handlers.menu import render_home
 from geekvpn.presentation.bot.states import Registration
 from geekvpn.presentation.bot.ui import keyboards as K
+from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB
 from geekvpn.presentation.bot.ui.fa import isolate, normalize_input
@@ -48,6 +49,8 @@ async def on_start(
     user: Any = None,
     is_new_user: bool = False,
     suspended: bool = False,
+    bot: Any = None,
+    stickers: Any = None,
 ) -> None:
     """`/start`, including `/start ref_XXXX` deep links.
 
@@ -63,6 +66,11 @@ async def on_start(
     if user is None:
         await answer(message, T.ERR_GENERIC)
         return
+
+    # The first thing a new customer sees. Best effort, and before the text
+    # rather than after: a greeting that arrives under its own sticker reads
+    # as a greeting, one that arrives above it reads as an afterthought.
+    await S.send(bot, message.chat.id, stickers, "welcome")
 
     if is_new_user:
         name = display_name_of(user)

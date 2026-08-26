@@ -32,14 +32,25 @@ from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import answer, toast
 from geekvpn.presentation.bot.handlers.menu import render_home
 from geekvpn.presentation.bot.ui import keyboards as K
+from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 
 router = Router(name="fallback")
 
 
+async def _decorate(message: Message, bot: Any, book: Any, section: str) -> None:
+    """A sticker before the screen, never instead of it.
+
+    Best effort by construction: `stickers.send` swallows its own failures, so
+    a deleted pack or a Telegram hiccup costs a decoration and nothing else.
+    """
+    await S.send(bot, message.chat.id, book, section)
+
+
 @router.message(F.text == K.TAP_SHOP)
 async def tap_shop(message: Message, state: FSMContext, **kwargs: Any) -> None:
     await state.clear()
+    await _decorate(message, kwargs.get("bot"), kwargs.get("stickers"), "shop")
     await shop.open_storefront(
         message,
         user=kwargs.get("user"),
@@ -50,15 +61,27 @@ async def tap_shop(message: Message, state: FSMContext, **kwargs: Any) -> None:
 
 @router.message(F.text == K.TAP_DASHBOARD)
 async def tap_dashboard(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    bot: Any = None,
+    stickers: Any = None,
 ) -> None:
+    await _decorate(message, bot, stickers, "dashboard")
     await dashboard.on_services_command(message, state, services, user)
 
 
 @router.message(F.text == K.TAP_WALLET)
 async def tap_wallet(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    bot: Any = None,
+    stickers: Any = None,
 ) -> None:
+    await _decorate(message, bot, stickers, "wallet")
     await wallet.on_wallet_command(message, state, services, user)
 
 
@@ -69,24 +92,38 @@ async def tap_referral(
     services: BotServices,
     bot: Any = None,
     user: Any = None,
+    stickers: Any = None,
 ) -> None:
+    await _decorate(message, bot, stickers, "referral")
     await referral.on_referral_command(message, state, services, bot, user)
 
 
 @router.message(F.text == K.TAP_SUPPORT)
-async def tap_support(message: Message, state: FSMContext) -> None:
+async def tap_support(
+    message: Message, state: FSMContext, bot: Any = None, stickers: Any = None
+) -> None:
+    await _decorate(message, bot, stickers, "support")
     await support.on_support_command(message, state)
 
 
 @router.message(F.text == K.TAP_PROFILE)
 async def tap_profile(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    bot: Any = None,
+    stickers: Any = None,
 ) -> None:
+    await _decorate(message, bot, stickers, "profile")
     await profile.on_profile_command(message, state, services, user)
 
 
 @router.message(F.text == K.TAP_FAQ)
-async def tap_faq(message: Message, state: FSMContext) -> None:
+async def tap_faq(
+    message: Message, state: FSMContext, bot: Any = None, stickers: Any = None
+) -> None:
+    await _decorate(message, bot, stickers, "faq")
     await faq.on_faq_command(message, state)
 
 
@@ -98,7 +135,14 @@ async def tap_settings(
 
 
 @router.message(F.text == K.TAP_STATUS)
-async def tap_status(message: Message, state: FSMContext, services: BotServices) -> None:
+async def tap_status(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    bot: Any = None,
+    stickers: Any = None,
+) -> None:
+    await _decorate(message, bot, stickers, "status")
     await server_status.on_status_command(message, state, services)
 
 

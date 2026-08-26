@@ -158,6 +158,14 @@ class TelegramSettings(Section):
     #: the Mini App could only be reached by whatever URL happened to be typed
     #: into BotFather by hand. Empty leaves the menu button alone.
     mini_app_url: str = ""
+    #: Sticker pack the bot decorates its screens from, by set name - the
+    #: part after `t.me/addstickers/`. Empty disables stickers entirely.
+    #:
+    #: A name rather than a list of file ids because ids are issued by
+    #: Telegram and cannot be written down in advance; the bot reads the
+    #: pack once and matches each screen to the sticker whose own emoji
+    #: fits it. Swapping packs is then a settings change.
+    sticker_set: str = "UtyaDuck"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

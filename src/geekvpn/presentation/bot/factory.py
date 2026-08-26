@@ -45,6 +45,7 @@ from geekvpn.presentation.bot.middlewares import (
     LoggingMiddleware,
 )
 from geekvpn.presentation.bot.throttle import ThrottlingMiddleware
+from geekvpn.presentation.bot.ui.stickers import StickerBook
 
 #: Registration order matters. Aiogram walks routers in order and stops at the
 #: first handler whose filters match, so anything with broad filters must come
@@ -110,6 +111,10 @@ def create_dispatcher(
         observer.outer_middleware(LoggingMiddleware())
         observer.outer_middleware(IdentityMiddleware(container, fetch_receipt=fetch_receipt))
         observer.outer_middleware(ThrottlingMiddleware())
+
+    # Available to every handler as `stickers`, the same way `services`
+    # is. Handlers that do not decorate simply never declare it.
+    dispatcher["stickers"] = StickerBook(settings.telegram.sticker_set)
 
     for module in ROUTERS:
         dispatcher.include_router(module.router)
