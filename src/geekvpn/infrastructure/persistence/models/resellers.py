@@ -77,7 +77,11 @@ class ResellerModel(TimestampMixin, Base):
         CheckConstraint(
             "discount_percent >= 0 AND discount_percent <= 90", name="resellers_discount"
         ),
-        CheckConstraint("balance >= 0", name="resellers_balance_non_negative"),
+        # No non-negative constraint. A balance may go under through an
+        # operator settlement, and the consequence is that the reseller's
+        # customers are suspended until it is positive again - which is the
+        # credit limit this platform enforces, in place of a number nobody
+        # would keep up to date.
     )
 
 
@@ -92,12 +96,25 @@ class ResellerPlanPriceModel(Base):
         ForeignKey("catalog_plans.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    price: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    #: What the platform charges this reseller. NULL means their percentage
+    #: applies, which is the usual case - the exceptions are the edges where a
+    #: percentage is the wrong shape.
+    price: Mapped[int | None] = mapped_column(BigInteger)
+    #: What the reseller charges their own customer. NULL means they have not
+    #: decided and the platform's list price stands. Theirs to set to anything,
+    #: including below what it costs them.
+    retail_price: Mapped[int | None] = mapped_column(BigInteger)
 
     __table_args__ = (
         # Zero is allowed here and only here: a giveaway a human typed on
         # purpose, for one package, for one reseller.
-        CheckConstraint("price >= 0", name="reseller_plan_prices_non_negative"),
+        CheckConstraint(
+            "price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"
+        ),
+        CheckConstraint(
+            "retail_price IS NULL OR retail_price >= 0",
+            name="reseller_plan_prices_retail_non_negative",
+        ),
     )
 
 

@@ -119,7 +119,7 @@ class World:
             username="north", name_fa="نمایندگی شمال", discount_percent=discount
         )
         reseller = created.reseller
-        reseller.balance = Money(balance)
+        reseller.balance_amount = balance
         await self.repo.save(reseller)
         return reseller
 
@@ -179,7 +179,7 @@ async def test_a_top_up_is_recorded():
         reseller.id, amount=1_000_000, description_fa="شارژ اولیه"
     )
 
-    assert world.repo.rows[reseller.id].balance == Money(1_000_000)
+    assert world.repo.rows[reseller.id].balance_amount == 1_000_000
     assert world.repo.ledger[-1].kind == TOPUP
     assert world.repo.ledger[-1].balance_after == 1_000_000
 
@@ -211,7 +211,7 @@ async def test_a_sale_beyond_the_balance_changes_nothing():
             reseller.id, amount=Money(476_000), description_fa="سه ماهه"
         )
 
-    assert world.repo.rows[reseller.id].balance == Money(100_000)
+    assert world.repo.rows[reseller.id].balance_amount == 100_000
     assert world.repo.ledger == []
 
 
@@ -229,7 +229,7 @@ async def test_a_failed_provision_gives_the_credit_back():
         reseller.id, amount=Money(476_000), description_fa="پنل جواب نداد", reference="sub-1"
     )
 
-    assert world.repo.rows[reseller.id].balance == Money(1_000_000)
+    assert world.repo.rows[reseller.id].balance_amount == 1_000_000
     assert world.repo.ledger[-1].kind == REFUND
     # Both halves are visible, rather than the charge disappearing.
     assert len(world.repo.ledger) == 2
@@ -243,16 +243,40 @@ async def test_an_operator_can_deduct_by_hand():
         reseller.id, amount=-200_000, description_fa="تسویه"
     )
 
-    assert world.repo.rows[reseller.id].balance == Money(800_000)
+    assert world.repo.rows[reseller.id].balance_amount == 800_000
 
 
-async def test_a_deduction_below_zero_is_refused():
+async def test_a_deduction_may_take_a_reseller_into_arrears():
+    """Deliberately allowed, and the consequence is not a refusal.
+
+    A reseller whose balance has gone under has their customers' services
+    suspended until it is positive again - that suspension is the credit limit
+    this platform enforces, in place of a number nobody would keep up to date.
+    Refusing the deduction instead would leave an operator unable to record a
+    settlement that has already happened.
+    """
+    world = World()
+    reseller = await world.make(balance=100_000)
+
+    await world.service.adjust_credit(
+        reseller.id, amount=-200_000, description_fa="تسویه"
+    )
+
+    assert world.repo.rows[reseller.id].balance_amount == -100_000
+    assert world.repo.rows[reseller.id].in_arrears
+    # And it is on the record, with the balance it left behind.
+    assert world.repo.ledger[-1].balance_after == -100_000
+
+
+async def test_a_new_sale_is_still_refused_without_credit():
+    """The two are different questions. An operator may record a debt; a
+    reseller may not create one by buying something."""
     world = World()
     reseller = await world.make(balance=100_000)
 
     with pytest.raises(InsufficientCredit):
-        await world.service.adjust_credit(
-            reseller.id, amount=-200_000, description_fa="تسویه"
+        await world.service.charge_for_sale(
+            reseller.id, amount=Money(476_000), description_fa="سه ماهه"
         )
 
 
@@ -268,7 +292,7 @@ async def test_a_suspended_reseller_can_still_have_their_balance_corrected():
         reseller.id, amount=-50_000, description_fa="اصلاح"
     )
 
-    assert world.repo.rows[reseller.id].balance == Money(50_000)
+    assert world.repo.rows[reseller.id].balance_amount == 50_000
 
 
 # -- pricing ----------------------------------------------------------------
@@ -301,3 +325,61 @@ async def test_the_discount_cap_is_enforced_on_update_too():
 
     with pytest.raises(ValueError):
         await world.service.update(reseller.id, discount_percent=99)
+
+
+# -- the consequence actually runs ------------------------------------------
+
+
+class Arrears:
+    def __init__(self) -> None:
+        self.calls: list[tuple[uuid.UUID, bool]] = []
+
+    async def apply(self, *, reseller_id: uuid.UUID, in_arrears: bool):
+        self.calls.append((reseller_id, in_arrears))
+        return None
+
+
+async def test_a_deduction_into_arrears_suspends_the_customers():
+    """The consequence is the credit limit. A balance that can go under with
+    nothing watching is not a limit at all."""
+    world = World()
+    arrears = Arrears()
+    world.service._arrears = arrears
+    reseller = await world.make(balance=100_000)
+
+    await world.service.adjust_credit(
+        reseller.id, amount=-200_000, description_fa="تسویه"
+    )
+
+    assert arrears.calls == [(reseller.id, True)]
+
+
+async def test_a_top_up_out_of_arrears_brings_them_back():
+    world = World()
+    arrears = Arrears()
+    world.service._arrears = arrears
+    reseller = await world.make(balance=-100_000)
+
+    await world.service.adjust_credit(
+        reseller.id, amount=300_000, description_fa="شارژ"
+    )
+
+    assert arrears.calls == [(reseller.id, False)]
+
+
+async def test_it_runs_after_every_movement_not_only_a_crossing():
+    """Crossing zero is not something this can detect reliably: a previous run
+    may have failed on a node that was down, and re-reading the truth each time
+    is what makes that self-healing rather than permanent."""
+    world = World()
+    arrears = Arrears()
+    world.service._arrears = arrears
+    reseller = await world.make(balance=1_000_000)
+
+    await world.service.charge_for_sale(
+        reseller.id, amount=Money(1), description_fa="x"
+    )
+    await world.service.refund_sale(reseller.id, amount=Money(1), description_fa="x")
+
+    assert len(arrears.calls) == 2
+    assert all(in_arrears is False for _, in_arrears in arrears.calls)

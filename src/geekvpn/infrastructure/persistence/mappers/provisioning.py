@@ -120,6 +120,7 @@ def subscription_to_domain(model: SubscriptionModel) -> Subscription:
         state=SubscriptionState(model.state),
         node_id=model.node_id,
         remote_id=model.remote_id,
+        reseller_id=None if model.reseller_id is None else str(model.reseller_id),
         # The column is nullable because a row can exist for a split second
         # before the panel answers; the aggregate wants a string.
         remote_username=model.remote_username or "",
@@ -135,12 +136,16 @@ def subscription_to_domain(model: SubscriptionModel) -> Subscription:
         notified_traffic_percents=model.notified_traffic_percents or [],
         revoked_at=model.revoked_at,
         revoke_reason_fa=model.revoke_reason_fa,
+        suspend_reason_fa=model.suspend_reason_fa,
     )
 
 
 def subscription_apply(model: SubscriptionModel, subscription: Subscription) -> SubscriptionModel:
     model.state = subscription.state.value
     model.node_id = subscription.node_id
+    model.reseller_id = (
+        None if subscription.reseller_id is None else uuid.UUID(subscription.reseller_id)
+    )
     model.remote_id = subscription.remote_id
     model.remote_username = subscription.remote_username
     model.subscription_url = subscription.subscription_url
@@ -156,6 +161,7 @@ def subscription_apply(model: SubscriptionModel, subscription: Subscription) -> 
     model.notified_traffic_percents = sorted(subscription.notified_traffic_percents)
     model.revoked_at = subscription.revoked_at
     model.revoke_reason_fa = subscription.revoke_reason_fa
+    model.suspend_reason_fa = subscription.suspend_reason_fa
     return model
 
 

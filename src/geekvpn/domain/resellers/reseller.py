@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.resellers.enums import ResellerStatus
@@ -21,16 +21,26 @@ MAX_DISCOUNT_PERCENT = 90
 
 @dataclass(frozen=True, slots=True)
 class PriceOverride:
-    """One package priced by hand for one reseller.
+    """What one package costs a reseller, and what they sell it for.
 
-    A percentage is the right shape for most of a catalogue and the wrong shape
-    for the edges: a loss-leader trial that must not be discounted at all, or a
-    long plan sold at a negotiated flat rate. Overrides are those edges, so
-    there are few of them and each one is deliberate.
+    Two different decisions by two different people, so two fields:
+
+    ``cost`` is what the platform charges this reseller, set by an operator.
+    ``None`` means the reseller's percentage applies - which is the usual
+    case, because a percentage is the right shape for most of a catalogue and
+    the wrong shape only at the edges: a trial that must not be discounted,
+    a long plan at a negotiated flat rate.
+
+    ``retail`` is what the reseller charges their own customer, set by the
+    reseller. ``None`` means they have not decided and the platform's list
+    price stands. It is theirs to set to anything, including below cost - a
+    reseller running a loss-leader is doing business, not making a mistake,
+    and this platform is not their accountant.
     """
 
     plan_id: uuid.UUID
-    price: Money
+    cost: Money | None = None
+    retail: Money | None = None
 
 
 @dataclass(eq=False)
@@ -48,7 +58,15 @@ class Reseller:
     name_fa: str
     status: ResellerStatus = ResellerStatus.ACTIVE
     discount_percent: int = 0
-    balance: Money = field(default_factory=lambda: Money(0))
+    #: Signed Toman, and deliberately not `Money`.
+    #:
+    #: `Money` forbids negative amounts, which is right for a price and wrong
+    #: for a ledger position. A reseller's balance can go under zero through an
+    #: operator settlement, and the consequence is that their customers'
+    #: services are suspended until it is positive again - that suspension is
+    #: the credit limit this platform enforces, in place of a number nobody
+    #: would keep up to date.
+    balance_amount: int = 0
     #: Empty means every node. An operator who has not restricted anything has
     #: not yet made a decision, and refusing to provision at all would be a
     #: strange reading of that.
@@ -69,15 +87,21 @@ class Reseller:
 
     # -- pricing -----------------------------------------------------------
 
+    def _override(self, plan_id: uuid.UUID) -> PriceOverride | None:
+        for override in self.overrides:
+            if override.plan_id == plan_id:
+                return override
+        return None
+
     def price_for(self, plan_id: uuid.UUID, list_price: Money) -> Money:
         """What this package costs this reseller.
 
-        An override wins outright, including an override that is higher than
-        the list price: that is a negotiated rate, not an error to correct.
+        A cost override wins outright, including one higher than the list
+        price: that is a negotiated rate, not an error to correct.
         """
-        for override in self.overrides:
-            if override.plan_id == plan_id:
-                return override.price
+        override = self._override(plan_id)
+        if override is not None and override.cost is not None:
+            return override.cost
 
         # Integer arithmetic, rounded down, in Toman. Rounding down means the
         # reseller is never charged a Toman more than the percentage promised,
@@ -85,25 +109,59 @@ class Reseller:
         discounted = list_price.amount * (100 - self.discount_percent) // 100
         return Money(discounted)
 
+    def retail_price_for(self, plan_id: uuid.UUID, list_price: Money) -> Money:
+        """What this reseller charges their own customer.
+
+        Theirs to decide. Until they do, the platform's list price stands -
+        which is a reasonable default and, more importantly, is a number rather
+        than a blank on the screen where their customer is choosing.
+        """
+        override = self._override(plan_id)
+        if override is not None and override.retail is not None:
+            return override.retail
+        return list_price
+
     # -- credit ------------------------------------------------------------
 
     def charge(self, amount: Money) -> None:
-        """Draw a sale down against the balance.
+        """Draw a *new sale* down against the balance.
 
-        Raises rather than going negative. Debt is a policy decision with a
-        limit and a settlement process behind it, and pretending a balance can
-        be negative is how a platform discovers it has extended a hundred
-        million Toman of credit by accident.
+        Refuses rather than going under. A reseller who cannot pay for a
+        package should not be handed one - that is a different situation from
+        an existing balance that has gone negative, which is handled by
+        `in_arrears` below.
         """
         if not self.status.may_provision:
             raise ResellerSuspended("This reseller account cannot provision.")
-        if amount.amount > self.balance.amount:
-            raise InsufficientCredit(needed=amount.amount, available=self.balance.amount)
-        self.balance = Money(self.balance.amount - amount.amount)
+        if amount.amount > self.balance_amount:
+            raise InsufficientCredit(needed=amount.amount, available=self.balance_amount)
+        self.balance_amount -= amount.amount
+
+    @property
+    def balance(self) -> Money:
+        """The balance as `Money`, for the common case of showing a positive
+        one. Clamped at zero: a negative balance is a signed number and callers
+        that need it must say so by reading `balance_amount`."""
+        return Money(max(0, self.balance_amount))
 
     def credit(self, amount: Money) -> None:
         """A top-up, or a refund of a sale that failed to provision."""
-        self.balance = Money(self.balance.amount + amount.amount)
+        self.balance_amount += amount.amount
+
+    def settle(self, amount: int) -> None:
+        """Move the balance by a signed amount, including below zero.
+
+        The one path that may go negative, and only an operator reaches it: a
+        correction, a disputed charge, an agreed settlement. What happens next
+        is not a refusal but a consequence - a reseller in arrears has their
+        customers' services suspended until the balance is positive again,
+        which is the credit limit this platform actually enforces.
+        """
+        self.balance_amount += amount
+
+    @property
+    def in_arrears(self) -> bool:
+        return self.balance_amount < 0
 
     # -- panels ------------------------------------------------------------
 

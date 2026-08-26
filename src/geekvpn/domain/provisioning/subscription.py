@@ -55,10 +55,12 @@ class Subscription(AggregateRoot[str]):
         "plan_id",
         "remote_id",
         "remote_username",
+        "reseller_id",
         "revoke_reason_fa",
         "revoked_at",
         "started_at",
         "subscription_url",
+        "suspend_reason_fa",
         "traffic_limit_mib",
         "traffic_used_mib",
         "user_id",
@@ -77,6 +79,7 @@ class Subscription(AggregateRoot[str]):
         state: SubscriptionState = SubscriptionState.ACTIVE,
         node_id: str | None = None,
         remote_id: str | None = None,
+        reseller_id: str | None = None,
         subscription_url: str | None = None,
         traffic_limit_mib: int | None = None,
         traffic_used_mib: int = 0,
@@ -87,6 +90,7 @@ class Subscription(AggregateRoot[str]):
         notified_traffic_percents: Iterable[int] = (),
         revoked_at: datetime | None = None,
         revoke_reason_fa: str | None = None,
+        suspend_reason_fa: str | None = None,
     ) -> None:
         super().__init__(subscription_id)
         if expires_at <= started_at:
@@ -105,6 +109,17 @@ class Subscription(AggregateRoot[str]):
         self._state = state
         self.node_id = node_id
         self.remote_id = remote_id
+        #: Who sold this. ``None`` means the platform did, directly, which
+        #: is every subscription that predates resellers.
+        self.reseller_id = reseller_id
+        #: Why this is suspended, when it is.
+        #:
+        #: The reason used to exist only on the event, which meant nothing
+        #: could ever tell two suspensions apart afterwards - and the
+        #: difference matters: a subscription stopped because a reseller
+        #: owes us money should come back when they pay, and one stopped
+        #: by an operator for abuse must not.
+        self.suspend_reason_fa = suspend_reason_fa
         self.remote_username = remote_username
         self.subscription_url = subscription_url
         self.started_at = started_at
@@ -323,6 +338,7 @@ class Subscription(AggregateRoot[str]):
         if self._state is SubscriptionState.SUSPENDED:
             return
         self._state = SubscriptionState.SUSPENDED
+        self.suspend_reason_fa = reason_fa
         self.record(
             SubscriptionSuspended(
                 subscription_id=self.id, user_id=self.user_id, reason_fa=reason_fa
@@ -331,6 +347,9 @@ class Subscription(AggregateRoot[str]):
 
     def resume(self, *, now: datetime) -> None:
         """Lift a suspension, landing in whatever state reality dictates."""
+        # Cleared here rather than left behind: a stale reason on an active
+        # subscription would resume it a second time on the next sweep.
+        self.suspend_reason_fa = None
         self._guard_changeable()
         if self._state is not SubscriptionState.SUSPENDED:
             raise IllegalSubscriptionTransition(

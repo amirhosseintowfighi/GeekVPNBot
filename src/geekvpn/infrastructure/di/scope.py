@@ -40,6 +40,7 @@ from geekvpn.application.provisioning.subscription_admin import (
     SubscriptionAdminService,
 )
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
+from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
@@ -290,6 +291,21 @@ class RequestScope:
             admins=self.manage_admins,
             prices=self.plan_prices,
             clock=self.container.clock,
+            arrears=self.arrears,
+        )
+
+    @cached_property
+    def arrears(self) -> ArrearsEnforcer:
+        """The credit limit, as a consequence rather than a refusal.
+
+        A reseller whose balance is negative has their customers' services
+        suspended until it is positive again. Wired here rather than left
+        optional: a balance that can go under with nothing watching is a credit
+        limit that does not exist.
+        """
+        return ArrearsEnforcer(
+            subscriptions=self.subscriptions,
+            access=self.subscription_admin,
         )
 
     # -- orders and provisioning -------------------------------------------

@@ -13,6 +13,7 @@ reason a customer never ends up paid-but-serviceless.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
@@ -209,6 +210,23 @@ class SqlAlchemySubscriptionRepository:
         if active_only:
             stmt = stmt.where(SubscriptionModel.state == SubscriptionState.ACTIVE.value)
         stmt = stmt.order_by(SubscriptionModel.expires_at.desc())
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows]
+
+    async def list_for_reseller(
+        self, reseller_id: uuid.UUID
+    ) -> Sequence[Subscription]:
+        """Everything one reseller has sold.
+
+        Read whole rather than filtered by state: arrears enforcement needs
+        both the active ones to suspend and the suspended ones to bring back,
+        and asking twice is two queries for one decision.
+        """
+        stmt = (
+            select(SubscriptionModel)
+            .where(SubscriptionModel.reseller_id == reseller_id)
+            .order_by(SubscriptionModel.expires_at.desc())
+        )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 

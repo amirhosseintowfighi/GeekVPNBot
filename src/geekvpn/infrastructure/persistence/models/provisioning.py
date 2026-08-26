@@ -165,6 +165,10 @@ class SubscriptionModel(TimestampMixin, Base):
     )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoke_reason_fa: Mapped[str | None] = mapped_column(String(512))
+    #: Why a suspended subscription is suspended. Null whenever it is not.
+    #: What tells an arrears suspension apart from an operator's decision,
+    #: so paying a debt does not undo somebody's ban.
+    suspend_reason_fa: Mapped[str | None] = mapped_column(String(512))
 
     __table_args__ = (
         CheckConstraint(f"state IN ({_quoted(SUBSCRIPTION_STATES)})", name="subscriptions_state"),

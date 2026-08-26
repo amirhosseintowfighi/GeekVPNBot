@@ -53,7 +53,11 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "discount_percent >= 0 AND discount_percent <= 90", name="resellers_discount"
         ),
-        sa.CheckConstraint("balance >= 0", name="resellers_balance_non_negative"),
+        # No non-negative constraint on the balance. It may go under through an
+        # operator settlement, and the consequence is that the reseller's
+        # customers are suspended until it is positive again - which is the
+        # credit limit this platform enforces, in place of a number nobody
+        # would keep up to date.
     )
     op.create_index("ix_resellers_status", "resellers", ["status"])
 
@@ -71,8 +75,20 @@ def upgrade() -> None:
             sa.ForeignKey("catalog_plans.id", ondelete="CASCADE"),
             primary_key=True,
         ),
-        sa.Column("price", sa.BigInteger(), nullable=False),
-        sa.CheckConstraint("price >= 0", name="reseller_plan_prices_non_negative"),
+        # Two prices, set by two different people. `price` is what the platform
+        # charges this reseller, set by an operator; `retail_price` is what the
+        # reseller charges their own customer, set by the reseller. Either may
+        # be NULL, meaning "not decided" - the percentage applies for one, the
+        # platform's list price for the other.
+        sa.Column("price", sa.BigInteger(), nullable=True),
+        sa.Column("retail_price", sa.BigInteger(), nullable=True),
+        sa.CheckConstraint(
+            "price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"
+        ),
+        sa.CheckConstraint(
+            "retail_price IS NULL OR retail_price >= 0",
+            name="reseller_plan_prices_retail_non_negative",
+        ),
     )
 
     op.create_table(
@@ -133,8 +149,16 @@ def upgrade() -> None:
     # they open and would otherwise scan the whole table.
     op.create_index("ix_subscriptions_reseller", "subscriptions", ["reseller_id"])
 
+    # Why a suspended subscription is suspended. The reason previously existed
+    # only on the event, so nothing could tell two suspensions apart afterwards
+    # - and the difference decides whether paying a debt brings a service back.
+    op.add_column(
+        "subscriptions", sa.Column("suspend_reason_fa", sa.String(512), nullable=True)
+    )
+
 
 def downgrade() -> None:
+    op.drop_column("subscriptions", "suspend_reason_fa")
     op.drop_index("ix_subscriptions_reseller", table_name="subscriptions")
     op.drop_constraint("fk_subscriptions_reseller", "subscriptions", type_="foreignkey")
     op.drop_column("subscriptions", "reseller_id")

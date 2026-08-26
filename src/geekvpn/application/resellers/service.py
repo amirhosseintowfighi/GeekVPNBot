@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from geekvpn.application.identity.manage_admins import ManageAdmins
+from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.ports import (
     Clock,
     LedgerEntry,
@@ -32,6 +33,36 @@ TOPUP = "topup"
 SALE = "sale"
 REFUND = "refund"
 ADJUSTMENT = "adjustment"
+
+
+def _merged(
+    existing: tuple[PriceOverride, ...],
+    changes: dict[uuid.UUID, Money],
+    *,
+    field: str,
+) -> tuple[PriceOverride, ...]:
+    """Apply one half of a plan's pricing, leaving the other half alone.
+
+    Cost is an operator's decision and retail is the reseller's, so a write to
+    either must not erase the other. Sent whole within its own half: a plan
+    missing from `changes` has that half cleared, which is how somebody removes
+    an override rather than needing a second endpoint to do it.
+    """
+    by_plan = {override.plan_id: override for override in existing}
+    plan_ids = set(by_plan) | set(changes)
+    merged: list[PriceOverride] = []
+    for plan_id in plan_ids:
+        current = by_plan.get(plan_id)
+        cost = current.cost if current else None
+        retail = current.retail if current else None
+        if field == "cost":
+            cost = changes.get(plan_id)
+        else:
+            retail = changes.get(plan_id)
+        if cost is None and retail is None:
+            continue
+        merged.append(PriceOverride(plan_id=plan_id, cost=cost, retail=retail))
+    return tuple(sorted(merged, key=lambda o: str(o.plan_id)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,11 +98,30 @@ class ResellerService:
         admins: ManageAdmins,
         prices: PlanPrices,
         clock: Clock,
+        arrears: ArrearsEnforcer | None = None,
     ) -> None:
         self._resellers = resellers
         self._admins = admins
         self._prices = prices
         self._clock = clock
+        # Optional so the service is testable without a panel behind it. In
+        # the container it is always present - a balance that can go under with
+        # nothing watching is a credit limit that does not exist.
+        self._arrears = arrears
+
+    async def _enforce(self, reseller: Reseller) -> None:
+        """Bring this reseller's customers in line with their balance.
+
+        After every movement, not only the ones that cross zero. Crossing is
+        not something this can detect reliably: a previous run may have failed
+        on a node that was down, and re-reading the truth each time is what
+        makes that self-healing rather than permanent.
+        """
+        if self._arrears is None:
+            return
+        await self._arrears.apply(
+            reseller_id=reseller.id, in_arrears=reseller.in_arrears
+        )
 
     # -- administration ----------------------------------------------------
 
@@ -161,13 +211,38 @@ class ResellerService:
         await self._resellers.save(reseller)
         return reseller
 
-    async def set_overrides(
-        self, reseller_id: uuid.UUID, overrides: dict[uuid.UUID, int]
+    async def set_costs(
+        self, reseller_id: uuid.UUID, costs: dict[uuid.UUID, int]
     ) -> Reseller:
+        """What the platform charges this reseller, package by package.
+
+        An operator's decision. Sent whole, and it leaves the reseller's own
+        retail prices alone - the two are set by two different people and
+        neither should be able to erase the other by omission.
+        """
         reseller = await self.get(reseller_id)
-        reseller.overrides = tuple(
-            PriceOverride(plan_id=plan_id, price=Money(price))
-            for plan_id, price in overrides.items()
+        reseller.overrides = _merged(
+            reseller.overrides,
+            {plan_id: Money(price) for plan_id, price in costs.items()},
+            field="cost",
+        )
+        await self._resellers.save(reseller)
+        return reseller
+
+    async def set_retail(
+        self, reseller_id: uuid.UUID, prices: dict[uuid.UUID, int]
+    ) -> Reseller:
+        """What this reseller charges their own customers.
+
+        Theirs, not ours. Any number they like, including below what it costs
+        them - a reseller running a loss-leader is doing business, and this
+        platform is not their accountant.
+        """
+        reseller = await self.get(reseller_id)
+        reseller.overrides = _merged(
+            reseller.overrides,
+            {plan_id: Money(price) for plan_id, price in prices.items()},
+            field="retail",
         )
         await self._resellers.save(reseller)
         return reseller
@@ -191,32 +266,24 @@ class ResellerService:
         a message nobody can read.
         """
         reseller = await self.get(reseller_id)
-        if amount >= 0:
-            reseller.credit(Money(amount))
-        else:
-            # `charge` refuses on a suspended account, which is right for a
-            # sale and wrong for an operator correcting a mistake. Suspended
-            # resellers still have balances that need fixing.
-            debit = Money(-amount)
-            if debit.amount > reseller.balance.amount:
-                from geekvpn.domain.resellers.errors import InsufficientCredit
-
-                raise InsufficientCredit(
-                    needed=debit.amount, available=reseller.balance.amount
-                )
-            reseller.balance = Money(reseller.balance.amount - debit.amount)
+        # `settle` rather than `charge`: an operator correcting a balance is
+        # not making a sale, and this is the one path allowed to go below zero.
+        # A reseller in arrears has their customers suspended until it is
+        # positive again, which is the credit limit this platform enforces.
+        reseller.settle(amount)
 
         await self._resellers.save(reseller)
         await self._resellers.record(
             reseller_id=reseller.id,
             entry_id=uuid.uuid4().hex,
             amount=amount,
-            balance_after=reseller.balance.amount,
+            balance_after=reseller.balance_amount,
             kind=kind if amount < 0 else (TOPUP if kind == ADJUSTMENT else kind),
             description_fa=description_fa,
             occurred_at=self._clock.now(),
             actor_id=actor_id,
         )
+        await self._enforce(reseller)
         return reseller
 
     async def charge_for_sale(
@@ -235,12 +302,13 @@ class ResellerService:
             reseller_id=reseller.id,
             entry_id=uuid.uuid4().hex,
             amount=-amount.amount,
-            balance_after=reseller.balance.amount,
+            balance_after=reseller.balance_amount,
             kind=SALE,
             description_fa=description_fa,
             occurred_at=self._clock.now(),
             reference=reference,
         )
+        await self._enforce(reseller)
         return reseller
 
     async def refund_sale(
@@ -264,12 +332,13 @@ class ResellerService:
             reseller_id=reseller.id,
             entry_id=uuid.uuid4().hex,
             amount=amount.amount,
-            balance_after=reseller.balance.amount,
+            balance_after=reseller.balance_amount,
             kind=REFUND,
             description_fa=description_fa,
             occurred_at=self._clock.now(),
             reference=reference,
         )
+        await self._enforce(reseller)
         return reseller
 
     async def history(

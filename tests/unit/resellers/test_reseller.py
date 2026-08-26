@@ -65,7 +65,7 @@ def test_an_override_beats_the_percentage():
     rate - the edges where a percentage is the wrong shape."""
     reseller = _reseller(
         discount_percent=50,
-        overrides=(PriceOverride(plan_id=PLAN, price=Money(600_000)),),
+        overrides=(PriceOverride(plan_id=PLAN, cost=Money(600_000)),),
     )
 
     assert reseller.price_for(PLAN, Money(680_000)) == Money(600_000)
@@ -74,7 +74,7 @@ def test_an_override_beats_the_percentage():
 def test_an_override_above_the_list_price_is_honoured():
     """That is a negotiated rate, not an error to be corrected. Silently
     clamping it would sell at a price nobody agreed to."""
-    reseller = _reseller(overrides=(PriceOverride(plan_id=PLAN, price=Money(900_000)),))
+    reseller = _reseller(overrides=(PriceOverride(plan_id=PLAN, cost=Money(900_000)),))
 
     assert reseller.price_for(PLAN, Money(680_000)) == Money(900_000)
 
@@ -82,7 +82,7 @@ def test_an_override_above_the_list_price_is_honoured():
 def test_an_override_applies_only_to_its_own_package():
     reseller = _reseller(
         discount_percent=50,
-        overrides=(PriceOverride(plan_id=PLAN, price=Money(1)),),
+        overrides=(PriceOverride(plan_id=PLAN, cost=Money(1)),),
     )
 
     assert reseller.price_for(OTHER_PLAN, Money(680_000)) == Money(340_000)
@@ -107,28 +107,31 @@ def test_a_negative_discount_is_refused():
 
 
 def test_a_sale_comes_off_the_balance():
-    reseller = _reseller(balance=Money(1_000_000))
+    reseller = _reseller(balance_amount=1_000_000)
     reseller.charge(Money(476_000))
 
-    assert reseller.balance == Money(524_000)
+    assert reseller.balance_amount == 524_000
 
 
-def test_a_balance_cannot_go_negative():
-    """Debt is a policy decision with a limit and a settlement process behind
-    it, and this platform has neither. Discovering you have extended a hundred
-    million Toman of credit by accident is not a thing to build towards."""
-    reseller = _reseller(balance=Money(100_000))
+def test_a_new_sale_is_refused_rather_than_going_under():
+    """A reseller who cannot pay for a package should not be handed one.
+
+    That is a different situation from a balance that has already gone
+    negative, which an operator creates deliberately and which suspends their
+    customers instead of refusing them.
+    """
+    reseller = _reseller(balance_amount=100_000)
 
     with pytest.raises(InsufficientCredit):
         reseller.charge(Money(476_000))
 
-    assert reseller.balance == Money(100_000)
+    assert reseller.balance_amount == 100_000
 
 
 def test_the_refusal_says_how_much_is_missing():
     """The reseller's screen has to say how much to top up by, and computing
     that twice is how the two numbers drift."""
-    reseller = _reseller(balance=Money(100_000))
+    reseller = _reseller(balance_amount=100_000)
 
     with pytest.raises(InsufficientCredit) as caught:
         reseller.charge(Money(476_000))
@@ -138,24 +141,50 @@ def test_the_refusal_says_how_much_is_missing():
 
 def test_spending_exactly_the_balance_is_allowed():
     """Off-by-one at the boundary would refuse a legitimate sale."""
-    reseller = _reseller(balance=Money(476_000))
+    reseller = _reseller(balance_amount=476_000)
     reseller.charge(Money(476_000))
 
-    assert reseller.balance == Money(0)
+    assert reseller.balance_amount == 0
 
 
 def test_a_suspended_reseller_cannot_sell():
-    reseller = _reseller(balance=Money(1_000_000), status=ResellerStatus.SUSPENDED)
+    reseller = _reseller(balance_amount=1_000_000, status=ResellerStatus.SUSPENDED)
 
     with pytest.raises(ResellerSuspended):
         reseller.charge(Money(1))
 
 
+def test_an_operator_settlement_may_take_a_balance_under():
+    """The one path allowed to. A correction, a disputed charge, an agreed
+    settlement - and what follows is a consequence rather than a refusal."""
+    reseller = _reseller(balance_amount=100_000)
+
+    reseller.settle(-300_000)
+
+    assert reseller.balance_amount == -200_000
+    assert reseller.in_arrears
+
+
+def test_a_reseller_in_credit_is_not_in_arrears():
+    """Including at exactly zero, which is settled rather than owing."""
+    assert not _reseller(balance_amount=0).in_arrears
+    assert not _reseller(balance_amount=1).in_arrears
+
+
+def test_a_negative_balance_reads_as_zero_where_money_is_expected():
+    """`Money` cannot be negative, so the property clamps and callers that
+    need the real figure read `balance_amount` and say so."""
+    reseller = _reseller(balance_amount=-200_000)
+
+    assert reseller.balance == Money(0)
+    assert reseller.balance_amount == -200_000
+
+
 def test_credit_goes_back_on_a_refund():
-    reseller = _reseller(balance=Money(100_000))
+    reseller = _reseller(balance_amount=100_000)
     reseller.credit(Money(50_000))
 
-    assert reseller.balance == Money(150_000)
+    assert reseller.balance_amount == 150_000
 
 
 # -- panels -----------------------------------------------------------------
@@ -182,3 +211,48 @@ def test_the_refusal_names_the_panel():
         reseller.require_node("tr-9")
 
     assert caught.value.node_id == "tr-9"
+
+
+# -- what the reseller charges their own customers --------------------------
+
+
+def test_a_reseller_sets_their_own_selling_price():
+    """Two prices per package, decided by two different people: what the
+    platform charges them, and what they charge their customer."""
+    reseller = _reseller(
+        discount_percent=30,
+        overrides=(PriceOverride(plan_id=PLAN, retail=Money(900_000)),),
+    )
+
+    assert reseller.price_for(PLAN, Money(680_000)) == Money(476_000)
+    assert reseller.retail_price_for(PLAN, Money(680_000)) == Money(900_000)
+
+
+def test_an_undecided_retail_price_falls_back_to_the_list_price():
+    """A reasonable default, and more importantly a number rather than a blank
+    on the screen where their customer is choosing."""
+    assert _reseller(discount_percent=30).retail_price_for(PLAN, Money(680_000)) == Money(
+        680_000
+    )
+
+
+def test_a_reseller_may_sell_below_what_it_costs_them():
+    """A loss-leader is doing business, not a mistake to be corrected. This
+    platform is not their accountant."""
+    reseller = _reseller(
+        discount_percent=30,
+        overrides=(PriceOverride(plan_id=PLAN, retail=Money(1_000)),),
+    )
+
+    assert reseller.retail_price_for(PLAN, Money(680_000)) == Money(1_000)
+
+
+def test_setting_one_price_does_not_disturb_the_other():
+    """An operator setting cost must not wipe the reseller's retail price, and
+    the reverse."""
+    reseller = _reseller(
+        overrides=(PriceOverride(plan_id=PLAN, cost=Money(400_000), retail=Money(900_000)),)
+    )
+
+    assert reseller.price_for(PLAN, Money(680_000)) == Money(400_000)
+    assert reseller.retail_price_for(PLAN, Money(680_000)) == Money(900_000)

@@ -24,7 +24,7 @@ from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.resellers.enums import ResellerStatus
-from geekvpn.domain.resellers.errors import InsufficientCredit, ResellerNotFound
+from geekvpn.domain.resellers.errors import ResellerNotFound
 from geekvpn.domain.resellers.reseller import MAX_DISCOUNT_PERCENT, Reseller
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
@@ -42,8 +42,17 @@ class ResellerResponse(ApiModel):
     contact_fa: str | None
     allowed_node_ids: list[str]
     #: Plan id to the price this reseller pays, where a percentage was the
-    #: wrong shape and somebody typed a number instead.
-    overrides: dict[str, int]
+    #: wrong shape and an operator typed a number instead.
+    costs: dict[str, int]
+    #: Plan id to what this reseller charges their own customers. Theirs, not
+    #: ours - absent means they have not decided and the list price stands.
+    retail: dict[str, int]
+    #: Whether their own Telegram bot is configured. Never the token itself.
+    has_bot: bool = False
+    bot_username: str | None = None
+    #: A reseller whose balance has gone under. Their customers' services are
+    #: suspended until it is positive again.
+    in_arrears: bool = False
 
     @classmethod
     def of(cls, reseller: Reseller) -> ResellerResponse:
@@ -53,13 +62,20 @@ class ResellerResponse(ApiModel):
             name_fa=reseller.name_fa,
             status=reseller.status,
             discount_percent=reseller.discount_percent,
-            balance=reseller.balance.amount,
+            balance=reseller.balance_amount,
             contact_fa=reseller.contact_fa,
             allowed_node_ids=sorted(reseller.allowed_node_ids),
-            overrides={
-                str(override.plan_id): override.price.amount
+            costs={
+                str(override.plan_id): override.cost.amount
                 for override in reseller.overrides
+                if override.cost is not None
             },
+            retail={
+                str(override.plan_id): override.retail.amount
+                for override in reseller.overrides
+                if override.retail is not None
+            },
+            in_arrears=reseller.in_arrears,
         )
 
 
@@ -112,19 +128,23 @@ class PanelsRequest(ApiModel):
     node_ids: list[str] = Field(default_factory=list)
 
 
-class OverridesRequest(ApiModel):
+class PricesRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
-    #: Plan id to price in Toman. Sent whole: the list replaces what was there,
-    #: so removing an override is sending the map without it.
+    #: Plan id to price in Toman. Sent whole within its own half: the map
+    #: replaces what was there, so removing a price is sending the map without
+    #: it. The other half - cost or retail - is left alone, because the two are
+    #: set by two different people and neither may erase the other.
     prices: dict[uuid.UUID, int] = Field(default_factory=dict)
 
 
 class CreditRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
-    #: Signed. Negative deducts, and is refused rather than allowed to take a
-    #: balance below zero.
+    #: Signed. Negative deducts, and may take the balance below zero - a
+    #: settlement, a disputed charge, a correction. A reseller in arrears has
+    #: their customers' services suspended until it is positive again, which is
+    #: how the credit limit is enforced.
     amount: int
     description_fa: str = Field(min_length=1, max_length=256)
 
@@ -225,15 +245,37 @@ async def set_panels(
 
 
 @router.put(
-    "/{reseller_id}/prices",
+    "/{reseller_id}/costs",
     response_model=ResellerResponse,
     dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
 )
-async def set_prices(
-    reseller_id: uuid.UUID, payload: OverridesRequest, scope: ScopeDep
+async def set_costs(
+    reseller_id: uuid.UUID, payload: PricesRequest, scope: ScopeDep
 ) -> ResellerResponse:
+    """What the platform charges this reseller. An operator's decision."""
     try:
-        reseller = await scope.reseller_service.set_overrides(reseller_id, payload.prices)
+        reseller = await scope.reseller_service.set_costs(reseller_id, payload.prices)
+    except ResellerNotFound as failure:
+        raise _not_found() from failure
+    return ResellerResponse.of(reseller)
+
+
+@router.put(
+    "/{reseller_id}/retail",
+    response_model=ResellerResponse,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def set_retail(
+    reseller_id: uuid.UUID, payload: PricesRequest, scope: ScopeDep
+) -> ResellerResponse:
+    """What this reseller charges their own customers.
+
+    Reachable by an operator as well as by the reseller, because the first
+    thing a reseller asks support is to set their prices for them while they
+    work out the panel.
+    """
+    try:
+        reseller = await scope.reseller_service.set_retail(reseller_id, payload.prices)
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)
@@ -261,11 +303,6 @@ async def adjust_credit(
         )
     except ResellerNotFound as failure:
         raise _not_found() from failure
-    except InsufficientCredit as failure:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Balance is {failure.available}; that deduction needs {failure.needed}.",
-        ) from failure
     return ResellerResponse.of(reseller)
 
 

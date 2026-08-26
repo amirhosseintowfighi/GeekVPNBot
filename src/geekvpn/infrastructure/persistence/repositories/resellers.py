@@ -73,11 +73,19 @@ class SqlAlchemyResellerRepository:
             name_fa=row.name_fa,
             status=ResellerStatus(row.status),
             discount_percent=row.discount_percent,
-            balance=Money(row.balance),
+            balance_amount=row.balance,
             allowed_node_ids=frozenset(nodes),
             overrides=tuple(
-                PriceOverride(plan_id=price.plan_id, price=Money(price.price))
-                for price in prices
+                PriceOverride(
+                    plan_id=row_price.plan_id,
+                    cost=None if row_price.price is None else Money(row_price.price),
+                    retail=(
+                        None
+                        if row_price.retail_price is None
+                        else Money(row_price.retail_price)
+                    ),
+                )
+                for row_price in prices
             ),
             contact_fa=row.contact_fa,
         )
@@ -92,7 +100,7 @@ class SqlAlchemyResellerRepository:
                 name_fa=reseller.name_fa,
                 status=reseller.status.value,
                 discount_percent=reseller.discount_percent,
-                balance=reseller.balance.amount,
+                balance=reseller.balance_amount,
                 contact_fa=reseller.contact_fa,
             )
         )
@@ -107,7 +115,7 @@ class SqlAlchemyResellerRepository:
         row.name_fa = reseller.name_fa
         row.status = reseller.status.value
         row.discount_percent = reseller.discount_percent
-        row.balance = reseller.balance.amount
+        row.balance = reseller.balance_amount
         row.contact_fa = reseller.contact_fa
         await self._write_children(reseller)
 
@@ -126,11 +134,19 @@ class SqlAlchemyResellerRepository:
             )
         )
         for override in reseller.overrides:
+            # A row with neither number is a row that says nothing. It would
+            # round-trip as an override that changes no price, which is worse
+            # than absent because it looks deliberate on the screen.
+            if override.cost is None and override.retail is None:
+                continue
             self._session.add(
                 ResellerPlanPriceModel(
                     reseller_id=reseller.id,
                     plan_id=override.plan_id,
-                    price=override.price.amount,
+                    price=None if override.cost is None else override.cost.amount,
+                    retail_price=(
+                        None if override.retail is None else override.retail.amount
+                    ),
                 )
             )
         await self._session.flush()
