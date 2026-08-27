@@ -28,6 +28,7 @@ from geekvpn.domain.resellers.errors import (
 )
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
+from geekvpn.presentation.bot.ui import copy as C
 
 router = APIRouter(prefix="/reseller", tags=["reseller"])
 
@@ -102,6 +103,27 @@ class BroadcastResult(ApiModel):
     sent: int
     failed: int
     total: int
+
+
+class TextRow(ApiModel):
+    key: str
+    label_fa: str
+    #: What the platform says. Shown beside theirs, because an edit is a
+    #: comparison and a form that hides the default makes it blind.
+    default_fa: str
+    #: Their override, or None when they follow ours.
+    body_fa: str | None
+    #: Fields the text must keep, like `{brand}` or `{amount}`.
+    placeholders: list[str]
+
+
+class TextRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Empty restores the platform's wording rather than showing a blank
+    #: screen: clearing a message means "use the normal one", never "say
+    #: nothing".
+    body_fa: str = Field(default="", max_length=2000)
 
 
 class CustomerRow(ApiModel):
@@ -427,6 +449,62 @@ async def broadcast(
             # error worth failing a broadcast over.
             failed += 1
     return BroadcastResult(sent=sent, failed=failed, total=len(rows))
+
+
+@router.get(
+    "/texts",
+    response_model=list[TextRow],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def texts(scope: ScopeDep, admin: CurrentAdmin) -> list[TextRow]:
+    """Every screen a reseller may rewrite, with theirs and ours side by side.
+
+    Both, because an edit is a comparison: a reseller changing the welcome is
+    deciding whether their words beat the ones already there, and a form that
+    hides the default makes that decision blind.
+    """
+    reseller = await _me(scope, admin)
+    overrides = await scope.resellers.texts(reseller.id)
+    return [
+        TextRow(
+            key=key,
+            label_fa=label,
+            default_fa=C.default_for(key),
+            body_fa=overrides.get(key),
+            placeholders=list(C.placeholders(key)),
+        )
+        for key, label in C.EDITABLE.items()
+    ]
+
+
+@router.put(
+    "/texts/{key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def set_text(
+    key: str, payload: TextRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> None:
+    """Rewrite one screen, or empty it to go back to ours."""
+    if key not in C.EDITABLE:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such screen.")
+
+    body = payload.body_fa.strip()
+    if body:
+        missing = [
+            field for field in C.placeholders(key) if "{" + field + "}" not in body
+        ]
+        if missing:
+            # Refused rather than accepted and discovered later. A welcome
+            # without `{brand}` is the reseller's business; a payment screen
+            # without `{amount}` is a customer who does not know what to send.
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "این متن باید شامل " + "، ".join("{" + f + "}" for f in missing) + " باشد.",
+            )
+
+    reseller = await _me(scope, admin)
+    await scope.resellers.set_text(reseller.id, key=key, body_fa=body)
 
 
 @router.get(

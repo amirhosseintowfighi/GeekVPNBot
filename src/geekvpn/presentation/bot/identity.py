@@ -90,6 +90,10 @@ class IdentityMiddleware(BaseMiddleware):
             # forgotten argument at any of them is a reseller's customer shown
             # our prices - which looks exactly like a working screen.
             scope.reseller = await _shop(scope, data.get("reseller_id"))
+            # Loaded with the shop, once per update. A lookup per screen would
+            # be a query every time a customer taps a button.
+            if scope.reseller is not None:
+                scope.reseller_texts = await scope.resellers.texts(scope.reseller.id)
             data["reseller"] = scope.reseller
             data["is_new_user"] = result.is_new_user
             # Built here, not in `create_dispatcher`: the bundle needs this

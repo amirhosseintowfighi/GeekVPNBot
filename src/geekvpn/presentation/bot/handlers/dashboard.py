@@ -24,6 +24,7 @@ from geekvpn.presentation.bot.handlers.common import (
     short_ref,
     toast,
 )
+from geekvpn.presentation.bot.ui import copy as C
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
@@ -76,7 +77,11 @@ async def _load(services: BotServices, user: Any) -> list[Any]:
 
 @router.message(Command("services"))
 async def on_services_command(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.clear()
     if user is None:
@@ -86,7 +91,7 @@ async def on_services_command(
     if not cards:
         await answer(
             message,
-            T.DASH_EMPTY,
+            C.resolve(scope, "DASH_EMPTY"),
             reply_markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
         )
         return
@@ -95,7 +100,11 @@ async def on_services_command(
 
 @router.callback_query(NavCB.filter(F.to == "dashboard"))
 async def on_dashboard(
-    query: CallbackQuery, state: FSMContext, services: BotServices, user: Any = None
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.clear()
     await toast(query)
@@ -105,7 +114,7 @@ async def on_dashboard(
     if not cards:
         await safe_edit(
             query,
-            T.DASH_EMPTY,
+            C.resolve(scope, "DASH_EMPTY"),
             markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
         )
         return
@@ -118,6 +127,7 @@ async def on_view(
     callback_data: SubCB,
     services: BotServices,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     await toast(query)
     if user is None:
@@ -137,6 +147,7 @@ async def on_config(
     callback_data: SubCB,
     services: BotServices,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     await toast(query, T.TOAST_COPIED)
     if user is None or query.message is None:
@@ -158,6 +169,7 @@ async def on_qr(
     callback_data: SubCB,
     services: BotServices,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     """QR rendering is a Phase 6 concern (it needs an image pipeline).
 
@@ -206,6 +218,7 @@ async def on_rotate(
     callback_data: SubCB,
     services: BotServices,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     await toast(query)
     if user is None:

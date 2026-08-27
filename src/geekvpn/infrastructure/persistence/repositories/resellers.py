@@ -28,6 +28,7 @@ from geekvpn.infrastructure.persistence.models.resellers import (
     ResellerModel,
     ResellerNodeModel,
     ResellerPlanPriceModel,
+    ResellerTextModel,
 )
 
 
@@ -194,6 +195,39 @@ class SqlAlchemyResellerRepository:
             .limit(limit)
         )
         return list((await self._session.execute(stmt)).scalars().all())
+
+    # -- the words their bot says ------------------------------------------
+
+    async def texts(self, reseller_id: uuid.UUID) -> dict[str, str]:
+        """Only the screens this shop has rewritten.
+
+        Everything absent follows the platform's copy, so improving a message
+        improves it in every shop that has not deliberately taken it over.
+        """
+        stmt = select(ResellerTextModel).where(
+            ResellerTextModel.reseller_id == reseller_id
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return {row.key: row.body_fa for row in rows}
+
+    async def set_text(self, reseller_id: uuid.UUID, *, key: str, body_fa: str) -> None:
+        """Store an override, or drop it when the text is emptied.
+
+        Emptying restores ours rather than showing a blank screen - a shop that
+        clears a message means "use the normal one", never "say nothing".
+        """
+        row = await self._session.get(ResellerTextModel, (reseller_id, key))
+        if not body_fa.strip():
+            if row is not None:
+                await self._session.delete(row)
+            return
+        if row is None:
+            self._session.add(
+                ResellerTextModel(reseller_id=reseller_id, key=key, body_fa=body_fa)
+            )
+        else:
+            row.body_fa = body_fa
+        await self._session.flush()
 
     # -- the reseller's own bot -------------------------------------------
 

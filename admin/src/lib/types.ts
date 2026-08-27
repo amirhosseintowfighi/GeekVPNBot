@@ -880,3 +880,25 @@ export interface CryptoRow {
   /** Whose address. Null is the platform's own. */
   resellerId: string | null
 }
+
+/** One of a reseller's own customers. */
+export interface ResellerCustomerRow {
+  id: string
+  telegramId: number
+  username: string | null
+  displayName: string
+  status: string
+  createdAt: string
+}
+
+export interface ResellerCustomers {
+  total: number
+  items: ResellerCustomerRow[]
+}
+
+/** What one broadcast reached. */
+export interface BroadcastResult {
+  sent: number
+  failed: number
+  total: number
+}

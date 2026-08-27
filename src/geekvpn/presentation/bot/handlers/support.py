@@ -21,6 +21,7 @@ from geekvpn.application.bot.read_models import TicketState as CardTicketState
 from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.states import Support
+from geekvpn.presentation.bot.ui import copy as C
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
@@ -64,16 +65,20 @@ def _topic_keyboard() -> InlineKeyboardMarkup:
 
 
 @router.message(Command("support"))
-async def on_support_command(message: Message, state: FSMContext) -> None:
+async def on_support_command(
+    message: Message, state: FSMContext, scope: Any = None
+) -> None:
     await state.clear()
-    await answer(message, f"{T.SUPPORT_TITLE}\n\n{T.SUPPORT_INTRO}", reply_markup=_menu_keyboard())
+    await answer(message, f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, "SUPPORT_INTRO")}", reply_markup=_menu_keyboard())
 
 
 @router.callback_query(NavCB.filter(F.to == "support"))
-async def on_support(query: CallbackQuery, state: FSMContext) -> None:
+async def on_support(
+    query: CallbackQuery, state: FSMContext, scope: Any = None
+) -> None:
     await state.clear()
     await toast(query)
-    await safe_edit(query, f"{T.SUPPORT_TITLE}\n\n{T.SUPPORT_INTRO}", markup=_menu_keyboard())
+    await safe_edit(query, f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, "SUPPORT_INTRO")}", markup=_menu_keyboard())
 
 
 @router.callback_query(TicketCB.filter(F.action == "new"))

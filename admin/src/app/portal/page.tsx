@@ -6,6 +6,8 @@ import useSWR from 'swr'
 import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
 import type {
+  BroadcastResult,
+  ResellerCustomers,
   ResellerLedgerRow,
   ResellerPriceRow,
   ResellerSelf,
@@ -51,6 +53,9 @@ export default function PortalPage() {
   const { data: topups, mutate: reloadTopups } = useSWR<ResellerTopupRow[]>(
     'reseller-my-topups',
     () => api.myTopups(),
+  )
+  const { data: customers } = useSWR<ResellerCustomers>('reseller-my-customers', () =>
+    api.myCustomers(),
   )
 
   if (!can('reseller.portal')) return <ForbiddenState permission="reseller.portal" />
@@ -101,6 +106,8 @@ export default function PortalPage() {
       <BotCard me={me} onChanged={() => void reloadMe()} />
 
       <PricesCard rows={plans ?? []} onSaved={() => void reloadPlans()} />
+
+      <CustomersCard customers={customers} />
 
       {ledger?.length ? (
         <Card className="p-4">
@@ -418,6 +425,84 @@ function BrandCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void 
       <Button disabled={busy} onClick={() => void save()}>
         ذخیره
       </Button>
+    </Card>
+  )
+}
+
+
+function CustomersCard({ customers }: { customers: ResellerCustomers | undefined }) {
+  const [message, setMessage] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState<BroadcastResult | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const send = async () => {
+    setBusy(true)
+    setError(null)
+    setResult(null)
+    try {
+      setResult(await api.myBroadcast(message.trim()))
+      setMessage('')
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ارسال انجام نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="text-sm font-medium">
+        مشتریان شما
+        {customers ? (
+          <span className="ms-2 text-muted-foreground">({faNumber(customers.total)})</span>
+        ) : null}
+      </div>
+
+      {!customers?.items.length ? (
+        <p className="text-sm text-muted-foreground">
+          هنوز کسی رباتتان را استارت نکرده.
+        </p>
+      ) : (
+        <div className="max-h-64 divide-y overflow-y-auto rounded-md border text-sm">
+          {customers.items.map((row) => (
+            <div key={row.id} className="flex items-center justify-between gap-3 p-2">
+              <span className="min-w-0 truncate">{row.displayName}</span>
+              <span className="shrink-0 text-xs text-muted-foreground" dir="ltr">
+                {row.username ? '@' + row.username : faNumber(row.telegramId)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 border-t pt-3">
+        <div className="text-sm font-medium">پیام همگانی</div>
+        <p className="text-sm text-muted-foreground">
+          به همهٔ مشتریانتان، از ربات خودتان. کسانی که ربات را بلاک کرده‌اند
+          شمرده می‌شوند ولی جلوی بقیه را نمی‌گیرند.
+        </p>
+        <textarea
+          className="min-h-24 w-full rounded-md border bg-transparent p-2 text-sm"
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          maxLength={1000}
+          placeholder="متن پیام…"
+        />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {result ? (
+          <p className="text-sm text-muted-foreground">
+            ارسال شد به {faNumber(result.sent)} نفر
+            {result.failed ? ` — ${faNumber(result.failed)} نفر دریافت نکردند` : ''}
+          </p>
+        ) : null}
+        <Button
+          disabled={message.trim().length === 0 || busy || !customers?.total}
+          onClick={() => void send()}
+        >
+          {busy ? 'در حال ارسال…' : 'ارسال به همه'}
+        </Button>
+      </div>
     </Card>
   )
 }

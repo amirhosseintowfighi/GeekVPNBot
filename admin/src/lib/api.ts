@@ -42,6 +42,8 @@ import type {
   CryptoRow,
   ResellerSelf,
   ResellerSummary,
+  ResellerCustomers,
+  BroadcastResult,
   ResellerTopupRow,
   PendingTopupRow,
   ResellerApplicationRow,
@@ -535,6 +537,11 @@ export const api = {
     mutate<ResellerPriceRow[]>('PUT', '/api/v1/reseller/plans/retail', { prices }),
   myLedger: () => fetcher<ResellerLedgerRow[]>('/api/v1/reseller/ledger'),
   mySummary: () => fetcher<ResellerSummary>('/api/v1/reseller/summary'),
+  myCustomers: () => fetcher<ResellerCustomers>('/api/v1/reseller/customers'),
+  // Goes out through their own bot. From ours it would be refused outright -
+  // Telegram will not let a bot open a conversation nobody started.
+  myBroadcast: (bodyFa: string) =>
+    mutate<BroadcastResult>('POST', '/api/v1/reseller/broadcast', { bodyFa }),
   myTopups: () => fetcher<ResellerTopupRow[]>('/api/v1/reseller/topups'),
   requestTopup: (amount: number, noteFa: string) =>
     mutate<ResellerTopupRow[]>('POST', '/api/v1/reseller/topups', { amount, noteFa }),

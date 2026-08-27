@@ -29,6 +29,7 @@ from geekvpn.presentation.bot.handlers.common import (
 )
 from geekvpn.presentation.bot.handlers.menu import render_home
 from geekvpn.presentation.bot.states import Registration
+from geekvpn.presentation.bot.ui import copy as C
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
@@ -77,7 +78,7 @@ async def on_start(
         name = display_name_of(user)
         await answer(
             message,
-            T.WELCOME_NEW.format(name=isolate(name), brand=brand_of(scope)),
+            C.resolve(scope, "WELCOME_NEW").format(name=isolate(name), brand=brand_of(scope)),
             reply_markup=K.main_menu(),
         )
         await state.set_state(Registration.display_name)

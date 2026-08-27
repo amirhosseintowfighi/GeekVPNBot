@@ -112,6 +112,9 @@ class RequestScope:
     #: forgotten argument here is a reseller's customer shown our prices, which
     #: looks exactly like a working screen.
     reseller: Reseller | None = None
+    #: This shop's rewritten screens, by constant name. Empty for ours and for
+    #: a reseller who has changed nothing, which is the common case.
+    reseller_texts: dict[str, str] | None = None
 
     # -- repositories ------------------------------------------------------
 

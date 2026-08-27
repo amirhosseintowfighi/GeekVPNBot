@@ -27,7 +27,9 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -241,11 +243,34 @@ class ResellerTopupModel(TimestampMixin, Base):
     )
 
 
+class ResellerTextModel(Base):
+    """One screen a reseller has rewritten.
+
+    Overrides, not copies. Only the screens they changed are stored, so
+    improving a message improves it in every shop that has not deliberately
+    taken it over - the opposite of seeding each reseller with a frozen
+    snapshot of the text file on the day they signed up.
+    """
+
+    __tablename__ = "reseller_texts"
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), primary_key=True
+    )
+    #: The constant's name in `presentation/bot/ui/text.py`.
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    body_fa: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "ResellerApplicationModel",
     "ResellerLedgerModel",
     "ResellerModel",
     "ResellerNodeModel",
     "ResellerPlanPriceModel",
+    "ResellerTextModel",
     "ResellerTopupModel",
 ]
