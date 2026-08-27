@@ -98,8 +98,11 @@ export function NewResellerDialog({
           <DialogHeader>
             <DialogTitle>نماینده ساخته شد</DialogTitle>
             <DialogDescription>
-              این رمز فقط همین یک بار نمایش داده می‌شود. اگر آن را نبندید بدون کپی
-              کردن، راهی برای دیدن دوباره‌اش نیست و باید حساب را بازنشانی کنید.
+              با این نام کاربری و رمز، از همین آدرس وارد پنل می‌شوند و فقط بخش
+              نمایندگی خودشان را می‌بینند.
+              <br />
+              این رمز فقط همین یک بار نمایش داده می‌شود؛ اگر بدون کپی کردن ببندید،
+              راهی برای دیدن دوباره‌اش نیست و باید حساب را بازنشانی کنید.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
@@ -114,6 +117,12 @@ export function NewResellerDialog({
                   {created.password}
                 </code>
               </div>
+            </div>
+            <div className="rounded-md border p-3 text-sm">
+              <div className="text-muted-foreground">آدرس ورود</div>
+              <code dir="ltr" className="break-all">
+                {typeof window === 'undefined' ? '' : window.location.origin + '/sign-in'}
+              </code>
             </div>
             <Button variant="outline" onClick={() => void copy()} className="w-full">
               <Copy className="size-4" />

@@ -62,6 +62,21 @@ export interface NavSection {
 
 export const NAV: NavSection[] = [
   {
+    // A reseller's whole panel. They hold `reseller.portal` and nothing else,
+    // so every other section resolves to a permission they do not have and
+    // disappears - which is why this can sit at the top for them and be
+    // invisible to staff, who deliberately do not hold it.
+    titleFa: 'نمایندگی',
+    items: [
+      {
+        href: '/portal',
+        labelFa: 'پنل من',
+        icon: Handshake,
+        permission: 'reseller.portal',
+      },
+    ],
+  },
+  {
     titleFa: '\u0645\u0631\u0648\u0631',
     items: [
       {

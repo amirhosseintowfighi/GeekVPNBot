@@ -39,6 +39,7 @@ import type {
   CreatedReseller,
   ResellerLedgerRow,
   ResellerPriceRow,
+  ResellerSelf,
   ResellerApplicationRow,
   ApprovedApplication,
 } from './types'
@@ -492,6 +493,28 @@ export const api = {
     }),
   setCardActive: (cardId: string, active: boolean) =>
     mutate<CardRow>('PATCH', `${ROOT}/payments/cards/${cardId}`, { active }),
+
+  // The token goes in and never comes back. Responses carry the bot's public
+  // @username and a boolean, which is all anybody needs to know.
+  setResellerBot: (id: string, token: string) =>
+    mutate<{ botUsername: string | null; hasBot: boolean }>(
+      'PUT',
+      `${ROOT}/resellers/${id}/bot`,
+      { token },
+    ),
+  clearResellerBot: (id: string) =>
+    mutate<{ botUsername: string | null; hasBot: boolean }>(
+      'DELETE',
+      `${ROOT}/resellers/${id}/bot`,
+    ),
+
+  // ------------------------------------------------- the reseller's own view
+  me: () => fetcher<ResellerSelf>('/api/v1/reseller/me'),
+  myPlans: () => fetcher<ResellerPriceRow[]>('/api/v1/reseller/plans'),
+  setMyRetail: (prices: Record<string, number>) =>
+    mutate<ResellerPriceRow[]>('PUT', '/api/v1/reseller/plans/retail', { prices }),
+  myLedger: () => fetcher<ResellerLedgerRow[]>('/api/v1/reseller/ledger'),
+  setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
 
   resellerPrices: (id: string) =>
     fetcher<ResellerPriceRow[]>(`${ROOT}/resellers/${id}/prices`),

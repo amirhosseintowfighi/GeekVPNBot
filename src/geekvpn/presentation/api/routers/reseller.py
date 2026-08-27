@@ -19,6 +19,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ConfigDict, Field
 
+from geekvpn.application.resellers.tenant_bots import InvalidBotToken
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.resellers.errors import (
     InsufficientCredit,
@@ -92,6 +93,13 @@ class SellRequest(ApiModel):
     note_fa: str = Field(default="", max_length=128)
 
 
+class BotRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Goes in, never comes back. Telegram's own format is `<id>:<secret>`.
+    token: str = Field(min_length=20, max_length=128)
+
+
 class RetailRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -120,7 +128,10 @@ async def _me(scope: Any, admin: Any) -> Any:
 )
 async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     reseller = await _me(scope, admin)
+    # The token only to answer "is one configured"; it never leaves this
+    # function. The username is what a person actually needs to see.
     token = await scope.resellers.bot_token(reseller.id)
+    username = await scope.resellers.bot_username(reseller.id)
     return MeResponse(
         id=reseller.id,
         name_fa=reseller.name_fa,
@@ -128,7 +139,7 @@ async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
         balance=reseller.balance_amount,
         discount_percent=reseller.discount_percent,
         in_arrears=reseller.in_arrears,
-        bot_username=None,
+        bot_username=username,
         has_bot=bool(token),
     )
 
@@ -167,6 +178,52 @@ async def set_retail(
         reseller.id, await scope.catalog_plans.list_all(published_only=True)
     )
     return [PriceRow(**row) for row in rows]
+
+
+@router.put(
+    "/bot",
+    response_model=MeResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def attach_bot(
+    payload: BotRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> MeResponse:
+    """Point a reseller's own Telegram bot at this platform.
+
+    Here rather than only in the operator's screen, because it is their bot and
+    their token - and an operator who has to be asked to paste somebody else's
+    credential is an operator who now has it.
+
+    In the panel and not in the chat, for the same reason: a token typed into
+    Telegram is a full credential in somebody's message history forever.
+    """
+    reseller = await _me(scope, admin)
+    telegram = scope.container.settings.telegram
+    try:
+        await scope.reseller_service.attach_bot(
+            reseller.id,
+            token=payload.token,
+            webhook_base_url=telegram.webhook_base_url,
+            webhook_path=telegram.webhook_path,
+            platform_secret=telegram.webhook_secret.get_secret_value(),
+        )
+    except InvalidBotToken as failure:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(failure)) from failure
+    return await me(scope, admin)
+
+
+@router.delete(
+    "/bot",
+    response_model=MeResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def detach_bot(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
+    reseller = await _me(scope, admin)
+    try:
+        await scope.reseller_service.detach_bot(reseller.id)
+    except InvalidBotToken as failure:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(failure)) from failure
+    return await me(scope, admin)
 
 
 @router.get(

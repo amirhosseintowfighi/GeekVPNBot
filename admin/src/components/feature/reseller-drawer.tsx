@@ -109,6 +109,7 @@ export function ResellerDrawer({
               <TabsTrigger value="prices">قیمت‌ها</TabsTrigger>
               <TabsTrigger value="panels">پنل‌ها</TabsTrigger>
               <TabsTrigger value="cards">کارت‌ها</TabsTrigger>
+              <TabsTrigger value="bot">ربات</TabsTrigger>
               <TabsTrigger value="settings">تنظیمات</TabsTrigger>
             </TabsList>
 
@@ -156,6 +157,14 @@ export function ResellerDrawer({
 
             <TabsContent value="cards">
               <CardsTab resellerId={reseller.id} writable={writable && !busy} />
+            </TabsContent>
+
+            <TabsContent value="bot">
+              <BotTab
+                reseller={reseller}
+                writable={writable && !busy}
+                onChanged={onChanged}
+              />
             </TabsContent>
 
             <TabsContent value="settings">
@@ -572,6 +581,89 @@ function CardsTab({ resellerId, writable }: { resellerId: string; writable: bool
             افزودن کارت
           </Button>
         </div>
+      ) : null}
+    </div>
+  )
+}
+
+
+function BotTab({
+  reseller,
+  writable,
+  onChanged,
+}: {
+  reseller: ResellerRow
+  writable: boolean
+  onChanged: () => void
+}) {
+  const [token, setToken] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const run = async (work: () => Promise<unknown>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await work()
+      setToken('')
+      onChanged()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'تلگرام این توکن را نپذیرفت.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 pt-4">
+      <p className="text-sm text-muted-foreground">
+        مشتریان این نماینده با ربات خودش و با قیمت‌های خودش خرید می‌کنند. توکن
+        را از <span dir="ltr">@BotFather</span> بگیرید.
+      </p>
+
+      <div className="rounded-md border p-3 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">وضعیت</span>
+          {reseller.hasBot ? (
+            <Badge variant="success">{reseller.botUsername ?? 'فعال'}</Badge>
+          ) : (
+            <Badge variant="muted">تنظیم نشده</Badge>
+          )}
+        </div>
+      </div>
+
+      {writable ? (
+        <>
+          {/* The reseller can do this themselves from their own panel. It is
+              here too because a new one always asks support to do it while
+              they work out where anything is. */}
+          <Field label="توکن ربات" hint="ذخیره می‌شود ولی هرگز دوباره نمایش داده نمی‌شود">
+            <Input
+              dir="ltr"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              placeholder="123456:ABC-DEF..."
+            />
+          </Field>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <div className="flex gap-2">
+            <Button
+              disabled={token.trim().length < 20 || busy}
+              onClick={() => void run(() => api.setResellerBot(reseller.id, token.trim()))}
+            >
+              {reseller.hasBot ? 'جایگزینی ربات' : 'اتصال ربات'}
+            </Button>
+            {reseller.hasBot ? (
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void run(() => api.clearResellerBot(reseller.id))}
+              >
+                حذف ربات
+              </Button>
+            ) : null}
+          </div>
+        </>
       ) : null}
     </div>
   )

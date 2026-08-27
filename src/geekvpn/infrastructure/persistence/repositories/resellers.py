@@ -204,6 +204,16 @@ class SqlAlchemyResellerRepository:
         row.bot_username = username
         await self._session.flush()
 
+    async def bot_username(self, reseller_id: uuid.UUID) -> str | None:
+        """The bot's public @name.
+
+        Readable, unlike the token: it is what an operator and the reseller
+        both need in order to know *which* bot is configured, and it is public
+        information the moment the bot answers anybody.
+        """
+        row = await self._session.get(ResellerModel, reseller_id)
+        return row.bot_username if row else None
+
     async def bot_token(self, reseller_id: uuid.UUID) -> str | None:
         row = await self._session.get(ResellerModel, reseller_id)
         return row.bot_token_encrypted if row else None

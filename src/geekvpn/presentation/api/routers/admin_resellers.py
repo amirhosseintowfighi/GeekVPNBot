@@ -56,8 +56,10 @@ class ResellerResponse(ApiModel):
     in_arrears: bool = False
 
     @classmethod
-    def of(cls, reseller: Reseller) -> ResellerResponse:
+    def of(cls, reseller: Reseller, *, bot_username: str | None = None) -> ResellerResponse:
         return cls(
+            bot_username=bot_username,
+            has_bot=bool(bot_username),
             id=reseller.id,
             admin_id=reseller.admin_id,
             name_fa=reseller.name_fa,
@@ -184,9 +186,16 @@ def _not_found() -> HTTPException:
     dependencies=[Depends(requires(Permission.RESELLERS_READ))],
 )
 async def list_resellers(scope: ScopeDep) -> list[ResellerResponse]:
+    rows = await scope.reseller_service.list_all()
+    # One query per reseller for the bot's public name. A join would be tidier
+    # and this list is a handful of rows on a screen an operator opens rarely -
+    # the tidier version is worth writing when it is worth measuring.
     return [
-        ResellerResponse.of(reseller)
-        for reseller in await scope.reseller_service.list_all()
+        ResellerResponse.of(
+            reseller,
+            bot_username=await scope.resellers.bot_username(reseller.id),
+        )
+        for reseller in rows
     ]
 
 

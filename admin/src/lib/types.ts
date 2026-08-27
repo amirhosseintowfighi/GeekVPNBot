@@ -826,3 +826,16 @@ export interface ApprovedApplication {
   username: string
   setupToken: string
 }
+
+/** GET /api/v1/reseller/me - what a reseller sees about themselves. */
+export interface ResellerSelf {
+  id: string
+  nameFa: string
+  status: string
+  /** Signed Toman. Negative suspends their customers until it is positive. */
+  balance: number
+  discountPercent: number
+  inArrears: boolean
+  botUsername: string | null
+  hasBot: boolean
+}
