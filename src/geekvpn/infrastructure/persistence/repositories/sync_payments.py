@@ -28,8 +28,10 @@ House rules, unchanged from the async siblings:
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -69,8 +71,15 @@ WALLET_LOCK_NAMESPACE = 947_120_002
 class SyncInvoiceRepository:
     """``application.payments.ports.InvoiceRepository``."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self) -> Any:
+        column = InvoiceModel.reseller_id
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
 
     def get(self, invoice_id: str) -> Invoice | None:
         row = self._session.get(InvoiceModel, invoice_id)
@@ -84,7 +93,12 @@ class SyncInvoiceRepository:
     def save(self, invoice: Invoice) -> None:
         row = self._session.get(InvoiceModel, invoice.id)
         if row is None:
-            self._session.add(invoice_to_row(invoice))
+            fresh = invoice_to_row(invoice)
+            # Stamped on insert only. An existing row's shop is a fact about
+            # who it was sold to, and reassigning it on a later save would
+            # move somebody's invoice between shops.
+            fresh.reseller_id = self._reseller_id
+            self._session.add(fresh)
         else:
             invoice_apply(row, invoice)
         self._session.flush()
@@ -92,7 +106,7 @@ class SyncInvoiceRepository:
     def list_for_user(self, user_id: int, *, limit: int, offset: int = 0) -> Sequence[Invoice]:
         stmt = (
             select(InvoiceModel)
-            .where(InvoiceModel.user_id == user_id)
+            .where(InvoiceModel.user_id == user_id, self._shop())
             .order_by(InvoiceModel.issued_at.desc(), InvoiceModel.id.desc())
             .limit(limit)
             .offset(offset)
@@ -100,7 +114,11 @@ class SyncInvoiceRepository:
         return [invoice_to_domain(row) for row in self._session.execute(stmt).scalars().all()]
 
     def count_for_user(self, user_id: int) -> int:
-        stmt = select(func.count()).select_from(InvoiceModel).where(InvoiceModel.user_id == user_id)
+        stmt = (
+            select(func.count())
+            .select_from(InvoiceModel)
+            .where(InvoiceModel.user_id == user_id, self._shop())
+        )
         return int(self._session.execute(stmt).scalar_one())
 
     def next_sequence(self, *, year: int) -> int:
@@ -131,8 +149,15 @@ class SyncInvoiceRepository:
 class SyncPaymentRepository:
     """``application.payments.ports.PaymentRepository``."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self) -> Any:
+        column = PaymentModel.reseller_id
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
 
     def _refunds(self, payment_id: str) -> Sequence[RefundModel]:
         stmt = (
@@ -157,7 +182,9 @@ class SyncPaymentRepository:
         """
         row = self._session.get(PaymentModel, payment.id)
         if row is None:
-            self._session.add(payment_to_row(payment))
+            fresh = payment_to_row(payment)
+            fresh.reseller_id = self._reseller_id
+            self._session.add(fresh)
         else:
             payment_apply(row, payment)
 
@@ -199,7 +226,7 @@ class SyncPaymentRepository:
     def list_for_user(self, user_id: int, *, limit: int, offset: int = 0) -> Sequence[Payment]:
         stmt = (
             select(PaymentModel)
-            .where(PaymentModel.user_id == user_id)
+            .where(PaymentModel.user_id == user_id, self._shop())
             .order_by(PaymentModel.submitted_at.desc().nullslast(), PaymentModel.id.desc())
             .limit(limit)
             .offset(offset)
@@ -214,6 +241,16 @@ class SyncPaymentRepository:
         This feeds the review queue. Newest-first would let a busy day bury the
         customer who has been waiting longest, which is precisely the customer
         who is about to open a ticket.
+
+        **Every shop, on purpose.** Unlike the per-customer reads above, this
+        one is not scoped: the platform operator reviews every receipt,
+        including those a reseller's customer submitted, and that is what was
+        asked for. Scoping it would hand a reseller's queue to a reseller who
+        has no screen to review it on yet, and the receipt would reach nobody.
+
+        When resellers do get that screen, this needs a shop argument rather
+        than the scope's - the operator wants all of them and a reseller wants
+        one, from the same method.
         """
         stmt = (
             select(PaymentModel)
@@ -305,16 +342,30 @@ class SyncWalletRepository:
 
     There is no balance column. The wallet is rebuilt from its ledger on every
     read, so the balance cannot drift away from the entries that justify it.
+
+    Scoped to one shop. A Telegram account is a separate customer in each
+    reseller's bot with their own money, and this used to read by Telegram id
+    alone - so starting a reseller's bot showed the platform owner their own
+    balance, out of the same rows.
+
+    Reads and writes are scoped together, deliberately. Filtering reads while
+    leaving writes unstamped would put a reseller's customer's credit in a row
+    that customer cannot see and the platform can.
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self) -> Any:
+        column = WalletEntryModel.reseller_id
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def get_or_create(self, user_id: int) -> Wallet:
         """An empty ledger is a valid wallet, so nothing is ever created here."""
         stmt = (
             select(WalletEntryModel)
-            .where(WalletEntryModel.user_id == user_id)
+            .where(WalletEntryModel.user_id == user_id, self._shop())
             .order_by(WalletEntryModel.occurred_at, WalletEntryModel.id)
         )
         rows = self._session.execute(stmt).scalars().all()
@@ -328,14 +379,21 @@ class SyncWalletRepository:
         """
         known = set(
             self._session.execute(
-                select(WalletEntryModel.id).where(WalletEntryModel.user_id == wallet.id)
+                select(WalletEntryModel.id).where(
+                    WalletEntryModel.user_id == wallet.id, self._shop()
+                )
             )
             .scalars()
             .all()
         )
         for entry in wallet.entries:
             if entry.entry_id not in known:
-                self._session.add(wallet_entry_to_row(entry, user_id=wallet.id))
+                row = wallet_entry_to_row(entry, user_id=wallet.id)
+                # Stamped on the way in. An entry written without it belongs to
+                # the platform's shop by definition, which is the wrong answer
+                # for every reseller's customer.
+                row.reseller_id = self._reseller_id
+                self._session.add(row)
         self._session.flush()
 
     def lock(self, user_id: int) -> None:
@@ -347,6 +405,10 @@ class SyncWalletRepository:
         reject at the worst possible moment. The lock is transaction-scoped, so
         it is released by commit or rollback with nothing to clean up.
         """
+        # Keyed on the Telegram id alone, so one person shopping in two shops
+        # at once serialises across both. Over-locking, never under-locking -
+        # and the alternative is folding a UUID into the lock key, which trades
+        # a rare wait for a rare collision between two different people.
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(:namespace, :user_id)"),
             {"namespace": WALLET_LOCK_NAMESPACE % 2_147_483_647, "user_id": user_id},

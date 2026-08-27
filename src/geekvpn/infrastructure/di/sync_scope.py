@@ -424,15 +424,15 @@ class SyncScope:
 
     @cached_property
     def invoices(self) -> SyncInvoiceRepository:
-        return SyncInvoiceRepository(self.session)
+        return SyncInvoiceRepository(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def payments(self) -> SyncPaymentRepository:
-        return SyncPaymentRepository(self.session)
+        return SyncPaymentRepository(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def wallets(self) -> SyncWalletRepository:
-        return SyncWalletRepository(self.session)
+        return SyncWalletRepository(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def tickets(self) -> SyncTicketRepository:
