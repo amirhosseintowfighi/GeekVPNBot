@@ -510,7 +510,7 @@ class SyncScope:
 
     @cached_property
     def broadcasts(self) -> SyncBroadcastRepository:
-        return SyncBroadcastRepository(self.session)
+        return SyncBroadcastRepository(self.session, reseller_id=self.reseller_id)
 
     # -- notifications -----------------------------------------------------
 

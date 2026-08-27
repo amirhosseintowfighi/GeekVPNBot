@@ -48,6 +48,12 @@ from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.di.sync_scope import build_sync_scope
 from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
 
+#: How many scheduled broadcasts one tick will start.
+#:
+#: Small, because each one then sends to its whole audience before the next
+#: begins - a tick that picks up fifty is a tick that runs for an hour.
+_BROADCAST_BATCH = 5
+
 logger = get_logger(__name__)
 
 #: How often the loop wakes. The scheduler decides what is actually due, so this
@@ -235,6 +241,36 @@ class Worker:
         for run in report.ran():
             logger.info("worker.job_ran", job=str(run.job))
 
+    def _dispatch_broadcasts(self) -> None:
+        """Send every scheduled broadcast whose time has come, per shop.
+
+        Each one gets its own scope, built for the shop that composed it, so a
+        reseller's announcement resolves over their customers and goes out
+        through their bot. One scope for all of them would send every shop's
+        message from ours, to an audience drawn from everybody.
+
+        A shop that fails must not strand the others, so each is caught: the
+        aggregate records its own failure and the next tick tries again.
+        """
+        with self._container.sync_sessions() as session:
+            scope = build_sync_scope(self._container, session)
+            due = scope.broadcasts.due(self._container.clock.now(), limit=_BROADCAST_BATCH)
+            shops = {broadcast.id: scope.broadcasts.shop_of(broadcast.id) for broadcast in due}
+
+        for broadcast_id, reseller_id in shops.items():
+            with self._container.sync_sessions() as session:
+                shop = build_sync_scope(self._container, session, reseller_id=reseller_id)
+                try:
+                    shop.broadcast_service.send_now(broadcast_id)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    logger.exception(
+                        "worker.broadcast_failed",
+                        broadcast_id=broadcast_id,
+                        reseller=str(reseller_id) if reseller_id else None,
+                    )
+
     def _tick_sync(self) -> TickReport:
         with self._container.sync_sessions() as session:
             scope = build_sync_scope(self._container, session)
@@ -244,11 +280,15 @@ class Worker:
             )
             scheduler.register(JobKind.TRAFFIC_REMINDER, scope.reminders.run_traffic_reminders)
             scheduler.register(JobKind.DEFERRED_FLUSH, scope.engine.flush_deferred)
-            # BROADCAST_DISPATCH and CAMPAIGN_ANNOUNCE are deliberately not
-            # registered yet: BroadcastService and CampaignService each need a
-            # reader that has no SQL implementation, and registering a handler
-            # that cannot be built would turn a known gap into a tick that
-            # fails every 30 seconds. The scheduler skips unregistered jobs.
+            # BROADCAST_DISPATCH is registered now. The comment that used to
+            # sit here said `BroadcastService` needed a reader with no SQL
+            # implementation - `SqlAudienceResolver` exists, so that gap has
+            # been closed for a while and scheduled broadcasts were still never
+            # firing because nothing had come back to remove the note.
+            #
+            # CAMPAIGN_ANNOUNCE stays unregistered, for the reason that is
+            # still true of it.
+            scheduler.register(JobKind.BROADCAST_DISPATCH, self._dispatch_broadcasts)
             try:
                 report = scheduler.tick()
                 session.commit()

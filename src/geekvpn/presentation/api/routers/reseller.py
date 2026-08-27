@@ -21,6 +21,7 @@ from pydantic import ConfigDict, Field
 
 from geekvpn.application.resellers.tenant_bots import InvalidBotToken
 from geekvpn.domain.identity.permissions import Permission
+from geekvpn.domain.notifications.enums import AudienceKind
 from geekvpn.domain.resellers.errors import (
     InsufficientCredit,
     ResellerNotFound,
@@ -28,7 +29,6 @@ from geekvpn.domain.resellers.errors import (
 )
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
-from geekvpn.presentation.bot.ui import copy as C
 
 router = APIRouter(prefix="/reseller", tags=["reseller"])
 
@@ -85,18 +85,13 @@ class SummaryResponse(ApiModel):
     average_sale: int
 
 
-#: How many customers one broadcast reaches.
-#:
-#: A ceiling rather than paging, because this runs inside a request: a reseller
-#: with more customers than this needs the platform's own broadcast machinery,
-#: with its jobs and its retries, not a longer loop in an HTTP handler.
-_BROADCAST_CAP = 500
-
-
 class BroadcastRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     body_fa: str = Field(min_length=1, max_length=1000)
+    #: Shown as the message's heading. Defaults to the shop's own name, which
+    #: is what a customer needs to see at the top of an announcement.
+    title_fa: str = Field(default="", max_length=120)
 
 
 class BroadcastResult(ApiModel):
@@ -426,85 +421,38 @@ async def broadcast(
 ) -> BroadcastResult:
     """One message to this reseller's own customers.
 
-    Sent through *their* bot. A message from ours would be refused outright -
-    Telegram will not let a bot open a conversation the person never started -
-    and refused deliveries are recorded as suppressions, so it would look like
-    every one of their customers had blocked them.
+    It goes through the platform's broadcast machinery rather than a loop in
+    this handler: batching, cancellation between batches, a recorded recipient
+    count, and a progress row somebody can look at afterwards. The first
+    version of this sent five hundred messages inside one request, which is a
+    request that either times out or lies about finishing.
 
-    Their customers, by construction: the audience is read from the shop, and
-    this endpoint takes no shop id to point elsewhere.
+    Sent through *their* bot, and resolved over *their* customers. From ours it
+    would be refused outright - Telegram will not let a bot open a conversation
+    the person never started - and refused deliveries are recorded as
+    suppressions, so it would look like every one of their customers had
+    blocked them.
     """
     reseller = await _me(scope, admin)
-    rows, _ = await scope.users.list_for_reseller(reseller.id, limit=_BROADCAST_CAP)
 
-    sent = 0
-    failed = 0
-    for row in rows:
-        try:
-            await scope.notify_customer(row.telegram_id, payload.body_fa)
-            sent += 1
-        except Exception:
-            # One unreachable person must not stop the other four hundred.
-            # Somebody who blocked the bot is the usual cause and is not an
-            # error worth failing a broadcast over.
-            failed += 1
-    return BroadcastResult(sent=sent, failed=failed, total=len(rows))
-
-
-@router.get(
-    "/texts",
-    response_model=list[TextRow],
-    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
-)
-async def texts(scope: ScopeDep, admin: CurrentAdmin) -> list[TextRow]:
-    """Every screen a reseller may rewrite, with theirs and ours side by side.
-
-    Both, because an edit is a comparison: a reseller changing the welcome is
-    deciding whether their words beat the ones already there, and a form that
-    hides the default makes that decision blind.
-    """
-    reseller = await _me(scope, admin)
-    overrides = await scope.resellers.texts(reseller.id)
-    return [
-        TextRow(
-            key=key,
-            label_fa=label,
-            default_fa=C.default_for(key),
-            body_fa=overrides.get(key),
-            placeholders=list(C.placeholders(key)),
+    def work(sync: Any) -> Any:
+        created = sync.broadcast_service.create(
+            title_fa=payload.title_fa or reseller.brand_fa or reseller.name_fa,
+            body_fa=payload.body_fa,
+            audience=AudienceKind.ALL,
+            # Their Telegram id if they have one, and zero otherwise: the field
+            # records who composed it, and a reseller acting from the panel may
+            # never have linked an account.
+            created_by=0,
         )
-        for key, label in C.EDITABLE.items()
-    ]
+        return sync.broadcast_service.send_now(created.id)
 
-
-@router.put(
-    "/texts/{key}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
-)
-async def set_text(
-    key: str, payload: TextRequest, scope: ScopeDep, admin: CurrentAdmin
-) -> None:
-    """Rewrite one screen, or empty it to go back to ours."""
-    if key not in C.EDITABLE:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such screen.")
-
-    body = payload.body_fa.strip()
-    if body:
-        missing = [
-            field for field in C.placeholders(key) if "{" + field + "}" not in body
-        ]
-        if missing:
-            # Refused rather than accepted and discovered later. A welcome
-            # without `{brand}` is the reseller's business; a payment screen
-            # without `{amount}` is a customer who does not know what to send.
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                "این متن باید شامل " + "، ".join("{" + f + "}" for f in missing) + " باشد.",
-            )
-
-    reseller = await _me(scope, admin)
-    await scope.resellers.set_text(reseller.id, key=key, body_fa=body)
+    progress = await scope.in_shop(work)
+    return BroadcastResult(
+        sent=progress.sent,
+        failed=progress.failed + progress.suppressed,
+        total=progress.sent + progress.failed + progress.suppressed,
+    )
 
 
 @router.get(

@@ -157,6 +157,15 @@ class BroadcastModel(TimestampMixin, Base):
         String(16), nullable=False, default=BroadcastState.DRAFT.value, index=True
     )
 
+    #: Which shop composed it. NULL is the platform's own.
+    #:
+    #: It decides two things at once: whose customers the audience resolves
+    #: over, and which bot the message is sent from. A broadcast without it
+    #: would go to everybody, from us.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL"), index=True
+    )
+
     audience_kind: Mapped[str] = mapped_column(String(24), nullable=False)
     #: Tier name for TIER, explicit user ids for EXPLICIT, empty otherwise.
     audience_filter: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)

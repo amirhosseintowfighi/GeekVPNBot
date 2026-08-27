@@ -16,6 +16,7 @@ service does not pay for constructing an Argon2-backed admin login use case.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -293,6 +294,33 @@ class RequestScope:
             clock=self.container.clock,
             audit=self.audit,
         )
+
+    async def in_shop[T](self, work: Callable[[SyncScope], T]) -> T:
+        """Run one synchronous unit of work under this request's shop.
+
+        The synchronous half is where payments, broadcasts and notifications
+        live, and every one of them needs to know which shop it is acting for.
+        Building that scope by hand at each call site is how one of them ends
+        up unscoped - which looks like working code and sends a reseller's
+        announcement from our bot.
+        """
+
+        def _call() -> T:
+            with self.container.sync_sessions() as session:
+                scope = build_sync_scope(
+                    self.container,
+                    session,
+                    reseller_id=self.reseller.id if self.reseller is not None else None,
+                )
+                try:
+                    result = work(scope)
+                    session.commit()
+                    return result
+                except Exception:
+                    session.rollback()
+                    raise
+
+        return await run_in_threadpool(_call)
 
     async def notify_customer(self, telegram_id: int, body_fa: str) -> None:
         """One plain message to one person, from this shop's own bot.

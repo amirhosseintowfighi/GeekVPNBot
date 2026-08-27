@@ -201,10 +201,31 @@ class SyncPreferencesStore:
 
 
 class SyncBroadcastRepository:
-    """``application.notifications.ports.BroadcastRepository``."""
+    """``application.notifications.ports.BroadcastRepository``.
 
-    def __init__(self, session: Session) -> None:
+    Scoped to a shop for everything a person looks at, and deliberately *not*
+    for `due`: the worker collects every shop's due broadcasts in one pass and
+    sends each under its own shop, so a filter here would leave every
+    reseller's scheduled announcement waiting forever.
+    """
+
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self) -> Any:
+        column = BroadcastModel.reseller_id
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
+
+    def shop_of(self, broadcast_id: str) -> uuid.UUID | None:
+        """Which shop a broadcast belongs to, without loading the aggregate.
+
+        The worker needs it before it can build the scope that sends it.
+        """
+        row = self._session.get(BroadcastModel, broadcast_id)
+        return row.reseller_id if row is not None else None
 
     def get(self, broadcast_id: str) -> Broadcast:
         row = self._session.get(BroadcastModel, broadcast_id)
@@ -215,7 +236,11 @@ class SyncBroadcastRepository:
     def save(self, broadcast: Broadcast) -> None:
         row = self._session.get(BroadcastModel, broadcast.id)
         if row is None:
-            self._session.add(broadcast_to_row(broadcast))
+            fresh = broadcast_to_row(broadcast)
+            # Stamped on insert only: which shop composed it is a fact about
+            # the moment it was written.
+            fresh.reseller_id = self._reseller_id
+            self._session.add(fresh)
         else:
             broadcast_apply(row, broadcast)
         self._session.flush()
@@ -240,7 +265,7 @@ class SyncBroadcastRepository:
         limit: int = 25,
         offset: int = 0,
     ) -> list[Broadcast]:
-        stmt = select(BroadcastModel)
+        stmt = select(BroadcastModel).where(self._shop())
         if state is not None:
             stmt = stmt.where(BroadcastModel.state == state.value)
         stmt = (
