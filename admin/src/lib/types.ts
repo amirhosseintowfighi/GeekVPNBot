@@ -902,3 +902,13 @@ export interface BroadcastResult {
   failed: number
   total: number
 }
+
+/** One screen a shop may rewrite. `bodyFa` null means it follows ours. */
+export interface ResellerTextRow {
+  key: string
+  labelFa: string
+  bodyFa: string | null
+  /** Only the reseller's own view carries these. */
+  defaultFa?: string
+  placeholders?: string[]
+}

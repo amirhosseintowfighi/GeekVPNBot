@@ -7,6 +7,7 @@ import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
 import type {
   BroadcastResult,
+  ResellerTextRow,
   ResellerCustomers,
   ResellerLedgerRow,
   ResellerPriceRow,
@@ -108,6 +109,8 @@ export default function PortalPage() {
       <PricesCard rows={plans ?? []} onSaved={() => void reloadPlans()} />
 
       <CustomersCard customers={customers} />
+
+      <TextsCard />
 
       {ledger?.length ? (
         <Card className="p-4">
@@ -502,6 +505,84 @@ function CustomersCard({ customers }: { customers: ResellerCustomers | undefined
         >
           {busy ? 'در حال ارسال…' : 'ارسال به همه'}
         </Button>
+      </div>
+    </Card>
+  )
+}
+
+
+function TextsCard() {
+  const { data, mutate } = useSWR<ResellerTextRow[]>('reseller-my-texts', () =>
+    api.myTexts(),
+  )
+  const [draft, setDraft] = React.useState<Record<string, string>>({})
+  const [busy, setBusy] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (data) setDraft(Object.fromEntries(data.map((row) => [row.key, row.bodyFa ?? ''])))
+  }, [data])
+
+  if (!data?.length) return null
+
+  const save = async (key: string) => {
+    setBusy(key)
+    setError(null)
+    try {
+      await api.setMyText(key, draft[key] ?? '')
+      await mutate()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ذخیره نشد.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="text-sm font-medium">متن‌های ربات شما</div>
+      <p className="text-sm text-muted-foreground">
+        هر کدام را خالی بگذارید، متن پیش‌فرض استفاده می‌شود. اگر متنی عبارت‌هایی
+        مثل <code dir="ltr">{'{brand}'}</code> دارد، باید در نوشتهٔ شما هم بماند.
+      </p>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      <div className="space-y-4">
+        {data.map((row) => (
+          <div key={row.key} className="space-y-2 rounded-md border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{row.labelFa}</span>
+              {row.bodyFa ? (
+                <Badge variant="success">متن شما</Badge>
+              ) : (
+                <Badge variant="muted">پیش‌فرض</Badge>
+              )}
+            </div>
+            {/* The default is shown beside the field because an edit is a
+                comparison: a form that hides it makes the decision blind. */}
+            <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs text-muted-foreground">
+              {row.defaultFa}
+            </pre>
+            <textarea
+              className="min-h-20 w-full rounded-md border bg-transparent p-2 text-sm"
+              value={draft[row.key] ?? ''}
+              onChange={(event) => setDraft({ ...draft, [row.key]: event.target.value })}
+              placeholder="خالی = استفاده از متن پیش‌فرض"
+            />
+            {row.placeholders?.length ? (
+              <div className="text-xs text-muted-foreground" dir="ltr">
+                {row.placeholders.map((field) => '{' + field + '}').join('  ')}
+              </div>
+            ) : null}
+            <Button
+              size="sm"
+              disabled={busy === row.key}
+              onClick={() => void save(row.key)}
+            >
+              ذخیره
+            </Button>
+          </div>
+        ))}
       </div>
     </Card>
   )

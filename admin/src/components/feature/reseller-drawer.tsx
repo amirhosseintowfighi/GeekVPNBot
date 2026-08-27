@@ -7,6 +7,8 @@ import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
 import type {
   CardRow,
+  ResellerCustomers,
+  ResellerTextRow,
   CryptoRow,
   PanelRow,
   ResellerLedgerRow,
@@ -111,6 +113,7 @@ export function ResellerDrawer({
               <TabsTrigger value="panels">پنل‌ها</TabsTrigger>
               <TabsTrigger value="cards">پرداخت</TabsTrigger>
               <TabsTrigger value="bot">ربات</TabsTrigger>
+              <TabsTrigger value="shop">فروشگاه</TabsTrigger>
               <TabsTrigger value="settings">تنظیمات</TabsTrigger>
             </TabsList>
 
@@ -167,6 +170,10 @@ export function ResellerDrawer({
                 writable={writable && !busy}
                 onChanged={onChanged}
               />
+            </TabsContent>
+
+            <TabsContent value="shop">
+              <ShopTab resellerId={reseller.id} />
             </TabsContent>
 
             <TabsContent value="settings">
@@ -765,6 +772,68 @@ function CryptoTab({ resellerId, writable }: { resellerId: string; writable: boo
           </Button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+
+function ShopTab({ resellerId }: { resellerId: string }) {
+  const { data: customers } = useSWR<ResellerCustomers>(
+    ['reseller-customers', resellerId],
+    () => api.resellerCustomers(resellerId),
+  )
+  const { data: texts } = useSWR<ResellerTextRow[]>(['reseller-texts', resellerId], () =>
+    api.resellerTexts(resellerId),
+  )
+
+  const rewritten = texts?.filter((row) => row.bodyFa) ?? []
+
+  return (
+    <div className="space-y-4 pt-4">
+      <div>
+        <div className="mb-2 text-sm font-medium">
+          مشتریان
+          {customers ? (
+            <span className="ms-2 text-muted-foreground">({faNumber(customers.total)})</span>
+          ) : null}
+        </div>
+        {!customers?.items.length ? (
+          <p className="text-sm text-muted-foreground">هنوز کسی رباتش را استارت نکرده.</p>
+        ) : (
+          <div className="max-h-56 divide-y overflow-y-auto rounded-md border text-sm">
+            {customers.items.map((row) => (
+              <div key={row.id} className="flex justify-between gap-3 p-2">
+                <span className="min-w-0 truncate">{row.displayName}</span>
+                <span className="shrink-0 text-xs text-muted-foreground" dir="ltr">
+                  {row.username ? '@' + row.username : faNumber(row.telegramId)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t pt-3">
+        <div className="mb-2 text-sm font-medium">متن‌هایی که عوض کرده</div>
+        {/* Only the rewritten ones. Every other screen follows ours, which is
+            the answer to "what does their bot say" for all of them. */}
+        {!rewritten.length ? (
+          <p className="text-sm text-muted-foreground">
+            هیچ متنی را عوض نکرده — رباتش متن‌های پیش‌فرض را می‌گوید.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {rewritten.map((row) => (
+              <div key={row.key} className="rounded-md border p-2 text-sm">
+                <div className="text-xs text-muted-foreground">{row.labelFa}</div>
+                <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs">
+                  {row.bodyFa}
+                </pre>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

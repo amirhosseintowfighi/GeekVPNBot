@@ -30,6 +30,7 @@ from geekvpn.domain.resellers.errors import ResellerNotFound
 from geekvpn.domain.resellers.reseller import MAX_DISCOUNT_PERCENT, Reseller
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
+from geekvpn.presentation.bot.ui import copy as C
 
 router = APIRouter(prefix="/admin/resellers", tags=["administration"])
 
@@ -127,6 +128,27 @@ class BotRequest(ApiModel):
 class BotResponse(ApiModel):
     bot_username: str | None
     has_bot: bool
+
+
+class ResellerCustomerResponse(ApiModel):
+    id: uuid.UUID
+    telegram_id: int
+    username: str | None
+    display_name: str
+    status: str
+    created_at: datetime
+
+
+class ResellerCustomersResponse(ApiModel):
+    total: int
+    items: list[ResellerCustomerResponse]
+
+
+class ResellerTextResponse(ApiModel):
+    key: str
+    label_fa: str
+    #: None means they follow the platform's wording for this screen.
+    body_fa: str | None
 
 
 class PendingTopupResponse(ApiModel):
@@ -429,6 +451,60 @@ async def reject_topup(
         await scope.reseller_topups.reject(topup_id, reason_fa=payload.reason_fa)
     except TopupNotFound as failure:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(failure)) from failure
+
+
+@router.get(
+    "/{reseller_id}/customers",
+    response_model=ResellerCustomersResponse,
+    dependencies=[Depends(requires(Permission.RESELLERS_READ))],
+)
+async def reseller_customers(
+    reseller_id: uuid.UUID,
+    scope: ScopeDep,
+    limit: Annotated[int, Field(ge=1, le=200)] = 50,
+) -> ResellerCustomersResponse:
+    """Who has used one reseller's bot.
+
+    The operator's view of the same rows the reseller sees. You asked to see
+    all of it, and the scoping was never about hiding a shop from you - it is
+    about hiding shops from each other.
+    """
+    rows, total = await scope.users.list_for_reseller(reseller_id, limit=limit)
+    return ResellerCustomersResponse(
+        total=total,
+        items=[
+            ResellerCustomerResponse(
+                id=row.id,
+                telegram_id=row.telegram_id,
+                username=row.username,
+                display_name=row.display_name,
+                status=row.status.value,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.get(
+    "/{reseller_id}/texts",
+    response_model=list[ResellerTextResponse],
+    dependencies=[Depends(requires(Permission.RESELLERS_READ))],
+)
+async def reseller_texts(
+    reseller_id: uuid.UUID, scope: ScopeDep
+) -> list[ResellerTextResponse]:
+    """Which screens a reseller has rewritten, and what they say now.
+
+    Only the ones they changed carry a body - the rest follow ours, which is
+    the answer to "what does their bot actually say" for every screen they have
+    left alone.
+    """
+    overrides = await scope.resellers.texts(reseller_id)
+    return [
+        ResellerTextResponse(key=key, label_fa=label, body_fa=overrides.get(key))
+        for key, label in C.EDITABLE.items()
+    ]
 
 
 @router.get(

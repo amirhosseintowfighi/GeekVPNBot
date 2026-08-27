@@ -43,6 +43,7 @@ import type {
   ResellerSelf,
   ResellerSummary,
   ResellerCustomers,
+  ResellerTextRow,
   BroadcastResult,
   ResellerTopupRow,
   PendingTopupRow,
@@ -548,6 +549,18 @@ export const api = {
   setMyBrand: (brandFa: string) =>
     mutate<ResellerSelf>('PUT', '/api/v1/reseller/brand', { brandFa }),
   setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
+
+  // The operator's view of one shop. The scoping was never about hiding a
+  // reseller from you - it is about hiding shops from each other.
+  resellerCustomers: (id: string) =>
+    fetcher<ResellerCustomers>(`${ROOT}/resellers/${id}/customers`),
+  resellerTexts: (id: string) =>
+    fetcher<ResellerTextRow[]>(`${ROOT}/resellers/${id}/texts`),
+
+  // The reseller's own view of their words, with ours beside each one.
+  myTexts: () => fetcher<ResellerTextRow[]>('/api/v1/reseller/texts'),
+  setMyText: (key: string, bodyFa: string) =>
+    mutate<void>('PUT', `/api/v1/reseller/texts/${key}`, { bodyFa }),
 
   resellerPrices: (id: string) =>
     fetcher<ResellerPriceRow[]>(`${ROOT}/resellers/${id}/prices`),
