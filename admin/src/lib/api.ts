@@ -39,6 +39,8 @@ import type {
   CreatedReseller,
   ResellerLedgerRow,
   ResellerPriceRow,
+  ResellerApplicationRow,
+  ApprovedApplication,
 } from './types'
 import type {
   CampaignCreateBody,
@@ -416,6 +418,22 @@ export const api = {
     cashbackBps?: number
     days?: number[]
   }) => mutate<PlanRow[]>('POST', `${ROOT}/catalog/plans/generate-ladder`, body),
+
+  // Redeeming a one-time link for a first password. Not under `/admin`: that
+  // prefix is behind the IP allowlist, and the person using this is at home.
+  setPassword: (body: { adminId: string; token: string; password: string }) =>
+    mutate<void>('POST', '/api/v1/auth/set-password', body),
+
+  resellerApplications: () =>
+    fetcher<ResellerApplicationRow[]>(`${ROOT}/reseller-applications`),
+  approveApplication: (id: string, discountPercent: number) =>
+    mutate<ApprovedApplication>(
+      'POST',
+      `${ROOT}/reseller-applications/${id}/approve`,
+      { discountPercent },
+    ),
+  rejectApplication: (id: string, reasonFa: string) =>
+    mutate<void>('POST', `${ROOT}/reseller-applications/${id}/reject`, { reasonFa }),
 
   // ----------------------------------------------------------- resellers
   resellers: () => fetcher<ResellerRow[]>(`${ROOT}/resellers`),

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 
-import { permissionForPath } from '@/lib/nav'
+import { isPublicRoute, permissionForPath } from '@/lib/nav'
 import { SkeletonCards } from '@/components/ui/skeleton'
 import { ErrorState, ForbiddenState } from './states'
 import { useSession } from './session'
@@ -30,7 +30,7 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   // A 401 means the cookie is gone or expired. Send the operator to sign in
   // rather than rendering a panel full of failing requests.
   if (error?.status === 401 || !role) {
-    if (typeof window !== 'undefined' && !pathname.startsWith('/sign-in')) {
+    if (typeof window !== 'undefined' && !isPublicRoute(pathname)) {
       window.location.href = '/sign-in'
     }
     return null

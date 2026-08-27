@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { permissionForPath } from '@/lib/nav'
+import { isPublicRoute, permissionForPath } from '@/lib/nav'
 
 /**
  * Every page in the app must resolve to a permission.
@@ -46,7 +46,10 @@ describe('the route guard', () => {
 
   it('resolves a permission for every one of them', () => {
     // Sign-in renders outside the frame and before there is a session to check.
-    const guarded = all.filter((route) => !route.startsWith('/sign-in'))
+    // `/sign-in` and `/set-password` exist before an operator does: both are
+    // opened by somebody with no session and no permissions, and a guard that
+    // refused them would refuse the two doors into the panel.
+    const guarded = all.filter((route) => !isPublicRoute(route))
     const unmapped = guarded.filter((route) => permissionForPath(route) === null)
 
     expect(unmapped).toEqual([])

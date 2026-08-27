@@ -229,3 +229,20 @@ export function permissionForPath(pathname: string): Permission | null {
 
   return match?.permission ?? null
 }
+
+/**
+ * Pages that exist before an operator does.
+ *
+ * The route guard denies any path NAV does not cover, which is right for a
+ * console and wrong for these two: their whole purpose is to be reachable by
+ * somebody with no session and no permissions. `/set-password` in particular
+ * is opened from a link in a chat by a reseller who has never signed in.
+ *
+ * One list, because the guard, the shell and the test each have to ask the
+ * same question and three answers is how one of them drifts.
+ */
+export const PUBLIC_ROUTES = ['/sign-in', '/set-password'] as const
+
+export function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+}

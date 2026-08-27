@@ -793,3 +793,28 @@ export interface ResellerPriceRow {
   /** What this reseller charges their own customer. */
   retail: number
 }
+
+/** Somebody asking to sell under their own name. */
+export interface ResellerApplicationRow {
+  id: string
+  telegramId: number
+  nameFa: string
+  contactFa: string | null
+  noteFa: string | null
+  state: string
+  createdAt: string
+}
+
+/**
+ * What an approval produced.
+ *
+ * `setupToken` is the one-time secret behind the "choose your password" link.
+ * It is returned here and nowhere else - an operator who loses it issues a new
+ * link rather than recovering this one.
+ */
+export interface ApprovedApplication {
+  resellerId: string
+  adminId: string
+  username: string
+  setupToken: string
+}

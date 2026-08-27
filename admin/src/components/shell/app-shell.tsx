@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+
+import { isPublicRoute } from '@/lib/nav'
 import { usePathname } from 'next/navigation'
 import useSWR from 'swr'
 
@@ -27,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Sign-in is the one route that renders outside the frame: no navigation to
   // show and no session to read.
-  const isBareRoute = pathname.startsWith('/sign-in')
+  const isBareRoute = isPublicRoute(pathname)
 
   /*
    * The action queue powers the sidebar badges.
