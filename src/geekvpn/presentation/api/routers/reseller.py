@@ -75,6 +75,30 @@ class LedgerRow(ApiModel):
     occurred_at: datetime
 
 
+class SummaryResponse(ApiModel):
+    sales: int
+    spent: int
+    topped_up: int
+    average_sale: int
+
+
+class TopupRow(ApiModel):
+    id: uuid.UUID
+    amount: int
+    note_fa: str | None
+    state: str
+    created_at: datetime
+
+
+class TopupRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    amount: int = Field(gt=0)
+    #: Whatever identifies the transfer - a reference number, the last digits
+    #: of the card it came from.
+    note_fa: str = Field(default="", max_length=256)
+
+
 class SaleResponse(ApiModel):
     subscription_id: str
     subscription_url: str | None
@@ -226,6 +250,50 @@ async def detach_bot(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     return await me(scope, admin)
 
 
+@router.post(
+    "/topups",
+    response_model=list[TopupRow],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def request_topup(
+    payload: TopupRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> list[TopupRow]:
+    """Ask for credit. An operator decides whether the money arrived.
+
+    No gateway here on purpose. A reseller transfers to the platform however
+    the two of them already arrange it, and inventing a second payment system
+    for a handful of people would be a second place for money to go missing.
+    """
+    reseller = await _me(scope, admin)
+    try:
+        await scope.reseller_topups.request(
+            reseller_id=reseller.id, amount=payload.amount, note_fa=payload.note_fa
+        )
+    except ValueError as failure:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(failure)) from failure
+    return await my_topups(scope, admin)
+
+
+@router.get(
+    "/topups",
+    response_model=list[TopupRow],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def my_topups(scope: ScopeDep, admin: CurrentAdmin) -> list[TopupRow]:
+    reseller = await _me(scope, admin)
+    return [
+        TopupRow(
+            id=row.id,
+            amount=row.amount,
+            note_fa=row.note_fa,
+            state=row.state,
+            created_at=row.created_at,
+        )
+        for row in await scope.reseller_topups.mine(reseller.id)
+    ]
+
+
 @router.get(
     "/subscriptions",
     response_model=list[SubscriptionRow],
@@ -246,6 +314,23 @@ async def subscriptions(scope: ScopeDep, admin: CurrentAdmin) -> list[Subscripti
         )
         for row in rows
     ]
+
+
+@router.get(
+    "/summary",
+    response_model=SummaryResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def summary(scope: ScopeDep, admin: CurrentAdmin) -> SummaryResponse:
+    """Four numbers about their own trade, off their own ledger.
+
+    Not the platform's analytics service. That one is scoped to nothing, and
+    pointing a reseller at it would be a second door into everyone's figures
+    for a screen that needs four sums.
+    """
+    reseller = await _me(scope, admin)
+    numbers = await scope.reseller_service.summary(reseller.id)
+    return SummaryResponse(**numbers)
 
 
 @router.get(

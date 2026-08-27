@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ConfigDict, Field
 
 from geekvpn.application.resellers.tenant_bots import InvalidBotToken
+from geekvpn.application.resellers.topups import TopupNotFound
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.resellers.enums import ResellerStatus
 from geekvpn.domain.resellers.errors import ResellerNotFound
@@ -126,6 +127,21 @@ class BotRequest(ApiModel):
 class BotResponse(ApiModel):
     bot_username: str | None
     has_bot: bool
+
+
+class PendingTopupResponse(ApiModel):
+    id: uuid.UUID
+    reseller_id: uuid.UUID
+    reseller_name_fa: str
+    amount: int
+    note_fa: str | None
+    created_at: datetime
+
+
+class RejectTopupRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason_fa: str = Field(default="", max_length=512)
 
 
 class CreateResellerRequest(ApiModel):
@@ -365,6 +381,54 @@ async def detach_bot(reseller_id: uuid.UUID, scope: ScopeDep) -> BotResponse:
         # way by the service, so this is worth reporting and not worth failing.
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(failure)) from failure
     return BotResponse(bot_username=None, has_bot=False)
+
+
+@router.get(
+    "/topups/pending",
+    response_model=list[PendingTopupResponse],
+    dependencies=[Depends(requires(Permission.RESELLERS_READ))],
+)
+async def pending_topups(scope: ScopeDep) -> list[PendingTopupResponse]:
+    """Resellers waiting to be able to sell. Oldest first."""
+    return [
+        PendingTopupResponse(
+            id=row.id,
+            reseller_id=row.reseller_id,
+            reseller_name_fa=row.reseller_name_fa,
+            amount=row.amount,
+            note_fa=row.note_fa,
+            created_at=row.created_at,
+        )
+        for row in await scope.reseller_topups.pending()
+    ]
+
+
+@router.post(
+    "/topups/{topup_id}/approve",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def approve_topup(topup_id: uuid.UUID, scope: ScopeDep) -> None:
+    try:
+        await scope.reseller_topups.approve(topup_id)
+    except TopupNotFound as failure:
+        # Already decided reads as not found on purpose: two operators with the
+        # queue open must not credit one transfer twice between them.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(failure)) from failure
+
+
+@router.post(
+    "/topups/{topup_id}/reject",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def reject_topup(
+    topup_id: uuid.UUID, payload: RejectTopupRequest, scope: ScopeDep
+) -> None:
+    try:
+        await scope.reseller_topups.reject(topup_id, reason_fa=payload.reason_fa)
+    except TopupNotFound as failure:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(failure)) from failure
 
 
 @router.get(

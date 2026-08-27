@@ -45,6 +45,7 @@ from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.password_setup import PasswordSetup
 from geekvpn.application.resellers.sales import ResellerSalesService
 from geekvpn.application.resellers.service import ResellerService
+from geekvpn.application.resellers.topups import ResellerTopups
 from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
@@ -81,6 +82,7 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
 from geekvpn.infrastructure.persistence.repositories.reseller_applications import (
     SqlAlchemyApplicationRepository,
     SqlAlchemySetupTokens,
+    SqlAlchemyTopupRepository,
 )
 from geekvpn.infrastructure.persistence.repositories.resellers import (
     SqlAlchemyResellerRepository,
@@ -374,6 +376,16 @@ class RequestScope:
             tokens=self.setup_tokens,
             admins=self.admins,
             hasher=self.container.passwords,
+            clock=self.container.clock,
+        )
+
+    @cached_property
+    def reseller_topups(self) -> ResellerTopups:
+        """Credit requests. The money still moves through `reseller_service`,
+        so a balance changes in exactly one place and writes a ledger row."""
+        return ResellerTopups(
+            topups=SqlAlchemyTopupRepository(self.session),
+            resellers=self.reseller_service,
             clock=self.container.clock,
         )
 

@@ -413,6 +413,26 @@ class ResellerService:
     ) -> Sequence[LedgerEntry]:
         return await self._resellers.history(reseller_id, limit=limit)
 
+    async def summary(self, reseller_id: uuid.UUID) -> dict[str, int]:
+        """The few numbers a reseller needs about their own trade.
+
+        Read off their own ledger rather than the platform's analytics, which
+        is scoped to nothing and would be a second door into everyone's figures
+        for a screen that only needs four sums.
+        """
+        entries = list(await self._resellers.history(reseller_id, limit=500))
+        sales = [entry for entry in entries if entry.kind == SALE]
+        topups = [entry for entry in entries if entry.kind in (TOPUP, ADJUSTMENT)]
+        spent = sum(-entry.amount for entry in sales)
+        return {
+            "sales": len(sales),
+            "spent": spent,
+            "topped_up": sum(entry.amount for entry in topups if entry.amount > 0),
+            # What they have made, if they charge what they say they charge.
+            # Their own retail prices are the only figure we have for it.
+            "average_sale": spent // len(sales) if sales else 0,
+        }
+
     # -- pricing -----------------------------------------------------------
 
     async def quote(self, reseller_id: uuid.UUID, plan_id: uuid.UUID) -> QuotedPlan | None:

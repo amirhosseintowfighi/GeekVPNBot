@@ -50,6 +50,7 @@ from geekvpn.infrastructure.persistence.models.resellers import (
     ResellerModel,
     ResellerNodeModel,
     ResellerPlanPriceModel,
+    ResellerTopupModel,
 )
 from geekvpn.infrastructure.persistence.models.settings import SettingModel
 from geekvpn.infrastructure.persistence.models.support import (
@@ -86,6 +87,7 @@ __all__ = [
     "ResellerModel",
     "ResellerNodeModel",
     "ResellerPlanPriceModel",
+    "ResellerTopupModel",
     "ScheduledJobModel",
     "SessionModel",
     "SettingModel",

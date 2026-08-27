@@ -201,10 +201,44 @@ class ResellerApplicationModel(TimestampMixin, Base):
     )
 
 
+class ResellerTopupModel(TimestampMixin, Base):
+    """A reseller asking to have their credit topped up.
+
+    Its own table rather than the customer wallet's. A reseller's credit has no
+    gateway, no cashback and no refund policy - and the one thing this needs
+    that the wallet flow lacks is an operator deciding whether the money
+    actually arrived, which is the whole transaction.
+    """
+
+    __tablename__ = "reseller_topups"
+
+    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    note_fa: Mapped[str | None] = mapped_column(String(256))
+    receipt_file_id: Mapped[str | None] = mapped_column(String(256))
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reason_fa: Mapped[str | None] = mapped_column(String(512))
+
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_reseller_topups_amount"),
+        CheckConstraint(
+            "state IN ('pending', 'approved', 'rejected')",
+            name="ck_reseller_topups_state",
+        ),
+    )
+
+
 __all__ = [
     "ResellerApplicationModel",
     "ResellerLedgerModel",
     "ResellerModel",
     "ResellerNodeModel",
     "ResellerPlanPriceModel",
+    "ResellerTopupModel",
 ]

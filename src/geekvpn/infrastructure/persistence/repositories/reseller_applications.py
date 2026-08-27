@@ -16,8 +16,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.application.resellers.applications import PENDING, ApplicationView
+from geekvpn.application.resellers.topups import PENDING as TOPUP_PENDING
+from geekvpn.application.resellers.topups import TopupView
 from geekvpn.infrastructure.persistence.models.identity import AdminModel
-from geekvpn.infrastructure.persistence.models.resellers import ResellerApplicationModel
+from geekvpn.infrastructure.persistence.models.resellers import (
+    ResellerApplicationModel,
+    ResellerModel,
+    ResellerTopupModel,
+)
 
 
 def _view(row: ResellerApplicationModel) -> ApplicationView:
@@ -121,4 +127,89 @@ class SqlAlchemySetupTokens:
         await self._session.flush()
 
 
-__all__ = ["SqlAlchemyApplicationRepository", "SqlAlchemySetupTokens"]
+class SqlAlchemyTopupRepository:
+    """Credit requests, with the reseller's name joined in.
+
+    The name rather than only the id: every screen that lists these shows who
+    asked, and looking it up per row is how a queue of twenty becomes twenty
+    queries.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, **fields: Any) -> uuid.UUID:
+        row = ResellerTopupModel(**fields)
+        self._session.add(row)
+        await self._session.flush()
+        return row.id
+
+    async def get(self, topup_id: uuid.UUID) -> TopupView | None:
+        stmt = (
+            select(ResellerTopupModel, ResellerModel.name_fa)
+            .join(ResellerModel, ResellerModel.id == ResellerTopupModel.reseller_id)
+            .where(ResellerTopupModel.id == topup_id)
+        )
+        found = (await self._session.execute(stmt)).first()
+        return _topup(*found) if found else None
+
+    async def list_pending(self, *, limit: int = 50) -> Sequence[TopupView]:
+        stmt = (
+            select(ResellerTopupModel, ResellerModel.name_fa)
+            .join(ResellerModel, ResellerModel.id == ResellerTopupModel.reseller_id)
+            .where(ResellerTopupModel.state == TOPUP_PENDING)
+            # Oldest first: somebody is waiting to be able to sell.
+            .order_by(ResellerTopupModel.created_at)
+            .limit(limit)
+        )
+        return [_topup(*row) for row in (await self._session.execute(stmt)).all()]
+
+    async def list_for(
+        self, reseller_id: uuid.UUID, *, limit: int = 20
+    ) -> Sequence[TopupView]:
+        stmt = (
+            select(ResellerTopupModel, ResellerModel.name_fa)
+            .join(ResellerModel, ResellerModel.id == ResellerTopupModel.reseller_id)
+            .where(ResellerTopupModel.reseller_id == reseller_id)
+            .order_by(ResellerTopupModel.created_at.desc())
+            .limit(limit)
+        )
+        return [_topup(*row) for row in (await self._session.execute(stmt)).all()]
+
+    async def decide(
+        self,
+        topup_id: uuid.UUID,
+        *,
+        state: str,
+        decided_by: int | None,
+        decided_at: datetime,
+        reason_fa: str | None = None,
+    ) -> None:
+        row = await self._session.get(ResellerTopupModel, topup_id)
+        if row is None:
+            return
+        row.state = state
+        row.decided_by = decided_by
+        row.decided_at = decided_at
+        row.reason_fa = reason_fa
+        await self._session.flush()
+
+
+def _topup(row: ResellerTopupModel, name_fa: str) -> TopupView:
+    return TopupView(
+        id=row.id,
+        reseller_id=row.reseller_id,
+        reseller_name_fa=name_fa,
+        amount=row.amount,
+        note_fa=row.note_fa,
+        receipt_file_id=row.receipt_file_id,
+        state=row.state,
+        created_at=row.created_at,
+    )
+
+
+__all__ = [
+    "SqlAlchemyApplicationRepository",
+    "SqlAlchemySetupTokens",
+    "SqlAlchemyTopupRepository",
+]

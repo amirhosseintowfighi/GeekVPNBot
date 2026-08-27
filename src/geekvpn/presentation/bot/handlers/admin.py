@@ -121,10 +121,24 @@ async def is_admin(scope: Any, user: Any) -> bool:
 
 
 async def _guard(scope: Any, user: Any) -> Admin | None:
+    """The operator area, and who is allowed into it.
+
+    A reseller has an admin account with a Telegram id on it - that is how they
+    reach *their own* area - and this guard used to ask only whether an admin
+    account existed and could authenticate. Both were true of every reseller,
+    so a reseller tapping the operator command got the payment queue, the
+    customer search and the platform's takings.
+
+    The role is checked here rather than only in the permission set, because
+    this is a Telegram handler: there is no `requires(...)` in front of it, and
+    this function is the entire door.
+    """
     admin = await current_admin(scope, user)
     # `can_authenticate` rather than a plain "not disabled": a suspended or
     # locked admin must lose the bot at the same moment they lose the panel.
     if admin is None or not admin.status.can_authenticate:
+        return None
+    if admin.role is AdminRole.RESELLER:
         return None
     return admin
 
