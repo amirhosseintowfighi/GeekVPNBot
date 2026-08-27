@@ -122,6 +122,26 @@ class CheckoutService(Protocol):
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> SubscriptionCard: ...
 
+    async def methods(self) -> list[tuple[str, str]]:
+        """Which ways of paying this shop actually has, as (key, label).
+
+        Asked rather than assumed: the bot used to offer card and crypto
+        unconditionally, so a shop with neither configured showed two buttons
+        that both ended in an apology.
+        """
+        ...
+
+    async def begin_gateway(
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        gateway_key: str,
+        coupon_code: str | None = None,
+    ) -> str:
+        """Start an online payment and return where to send the customer."""
+        ...
+
     async def begin_card(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> CardPaymentDetails: ...

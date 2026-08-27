@@ -127,6 +127,7 @@ class CheckoutService:
 
     __slots__ = (
         "_audit",
+        "_callback_base",
         "_clock",
         "_digests",
         "_events",
@@ -149,6 +150,7 @@ class CheckoutService:
         events: EventPublisher,
         audit: PaymentAuditLog,
         digests: ReceiptDigestRepository | None = None,
+        callback_base: str = "",
     ) -> None:
         self._invoices = invoices
         self._payments = payments
@@ -159,6 +161,11 @@ class CheckoutService:
         self._events = events
         self._audit = audit
         self._digests = digests
+        # Where an online gateway sends the customer back to. Empty in a
+        # deployment with no public URL, which simply means no online gateway
+        # can be used - better than handing a provider a callback that lands
+        # nowhere and leaves the customer's money in limbo.
+        self._callback_base = callback_base.rstrip("/")
 
     # -- starting ----------------------------------------------------------
 
@@ -212,6 +219,11 @@ class CheckoutService:
             amount=total,
             user_id=request.user_id,
             invoice_number=invoice.number,
+            callback_url=(
+                f"{self._callback_base}/pay/callback/{payment.id}"
+                if self._callback_base
+                else None
+            ),
         )
         # Kept on the payment, not re-derived when the screen is reopened.
         #

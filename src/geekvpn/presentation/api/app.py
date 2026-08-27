@@ -38,6 +38,7 @@ from geekvpn.presentation.api.routers import (
     admin_wallet,
     auth,
     catalog,
+    gateway_callback,
     health,
     meta,
     miniapp,
@@ -220,6 +221,10 @@ def create_app(
     # Unauthenticated on purpose: somebody redeeming a first-password link has
     # no way to get a session yet, which is why the link exists.
     app.include_router(reseller_applications.public_router, prefix=API_V1_PREFIX)
+    # Unauthenticated and unversioned: a customer arrives here in a browser
+    # redirected by a bank, carrying no session - and the URL was handed to the
+    # provider when the payment started, so it must not move between versions.
+    app.include_router(gateway_callback.router)
     # No API_V1_PREFIX: the Mini App calls /api/miniapp/* and its own router
     # already carries that prefix.
     app.include_router(miniapp.router)

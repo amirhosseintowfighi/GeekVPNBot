@@ -77,10 +77,12 @@ from geekvpn.infrastructure.notifications.telegram import (
     HttpTelegramSender,
     TelegramIdIsTheUserId,
 )
+from geekvpn.infrastructure.payments.iranian_gateways import build as build_online_gateway
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
+    GatewayAccountModel,
 )
 from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
@@ -292,6 +294,32 @@ def build_gateway_registry(
         registry.register(
             CryptoTransferGateway(address=chosen.address, network=chosen.network)
         )
+
+    # Online gateways, one per configured provider.
+    #
+    # Registered under the provider's own key rather than a generic "gateway",
+    # because the key is stored on every payment row forever: a shop that
+    # switches from Zibal to ZarinPal must not make its own history unreadable.
+    gateway_stmt = (
+        select(GatewayAccountModel)
+        .where(
+            GatewayAccountModel.active.is_(True),
+            GatewayAccountModel.reseller_id.is_(None)
+            if reseller_id is None
+            else GatewayAccountModel.reseller_id == reseller_id,
+        )
+        .order_by(GatewayAccountModel.sort_order, GatewayAccountModel.id)
+    )
+    for account in session.execute(gateway_stmt).scalars().all():
+        try:
+            registry.register(
+                build_online_gateway(account.provider, account.merchant_id_encrypted)
+            )
+        except KeyError:
+            # A provider this build cannot construct - a row from a newer
+            # version, or one renamed. Skipped rather than raised: the other
+            # payment methods must keep working.
+            logger.warning("payments.unknown_gateway", provider=account.provider)
     return registry
 
 
@@ -635,6 +663,9 @@ class SyncScope:
             # Without this the digest table is read and never written, so
             # the duplicate-receipt guard can only ever miss.
             digests=self.receipt_digests,
+            # Where a gateway sends the customer back. The API's own base URL:
+            # the callback is served by this application, not the panel.
+            callback_base=self.container.settings.app.base_url,
         )
 
     @cached_property

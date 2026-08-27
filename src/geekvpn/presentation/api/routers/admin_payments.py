@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, Response, status
@@ -47,6 +47,7 @@ from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
+    GatewayAccountModel,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_directory import Person
 from geekvpn.presentation.api.admin_common import (
@@ -301,6 +302,40 @@ class CryptoPatchBody(ApiModel):
     active: bool | None = None
 
 
+class GatewayBody(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["zarinpal", "zibal", "aqayepardakht"]
+    #: Goes in encrypted and never comes back. It identifies the shop to the
+    #: provider, and it is the only thing between somebody and a payment
+    #: request billed to that shop.
+    merchant_id: str = Field(min_length=4, max_length=128)
+    sort_order: int = 0
+    active: bool = True
+    reseller_id: uuid.UUID | None = None
+
+
+class GatewayPatchBody(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    merchant_id: str | None = Field(default=None, min_length=4, max_length=128)
+    sort_order: int | None = None
+    active: bool | None = None
+
+
+def _gateway_dict(row: GatewayAccountModel) -> dict[str, Any]:
+    """No merchant id. `hasMerchantId` says whether one is set, which is all
+    an operator needs to tell a configured provider from a blank one."""
+    return {
+        "id": row.id,
+        "provider": row.provider,
+        "hasMerchantId": bool(row.merchant_id_encrypted),
+        "active": row.active,
+        "sortOrder": row.sort_order,
+        "resellerId": None if row.reseller_id is None else str(row.reseller_id),
+    }
+
+
 def _crypto_dict(row: CryptoAccountModel) -> dict[str, Any]:
     return {
         "id": row.id,
@@ -442,6 +477,100 @@ async def update_crypto(
             setattr(row, field, value)
         scope.session.flush()
         return _crypto_dict(row)
+
+    return await mutate_scope(container, work)
+
+
+@router.get(
+    "/gateways",
+    summary="Online payment providers, per shop",
+    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
+)
+async def list_gateways(
+    container: ContainerDep, reseller_id: uuid.UUID | None = None
+) -> list[dict[str, Any]]:
+    def work(scope: SyncScope) -> list[dict[str, Any]]:
+        stmt = select(GatewayAccountModel)
+        if reseller_id is not None:
+            stmt = stmt.where(GatewayAccountModel.reseller_id == reseller_id)
+        rows = (
+            scope.session.execute(
+                stmt.order_by(GatewayAccountModel.sort_order, GatewayAccountModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        return [_gateway_dict(row) for row in rows]
+
+    return await read_scope(container, work)
+
+
+@router.post(
+    "/gateways",
+    status_code=status.HTTP_201_CREATED,
+    summary="Configure an online payment provider",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def create_gateway(
+    payload: GatewayBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label="gateway.create")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        existing = scope.session.execute(
+            select(GatewayAccountModel).where(
+                GatewayAccountModel.provider == payload.provider,
+                GatewayAccountModel.reseller_id.is_(None)
+                if payload.reseller_id is None
+                else GatewayAccountModel.reseller_id == payload.reseller_id,
+            )
+        ).scalars().first()
+        if existing is not None:
+            # One account per provider per shop. Two would be two merchant ids
+            # for the same button, and which one a customer got would depend on
+            # a sort order nobody set deliberately.
+            raise ConflictError("این درگاه برای این فروشگاه قبلاً تنظیم شده است.")
+
+        row = GatewayAccountModel(
+            id=uuid.uuid4().hex,
+            provider=payload.provider,
+            merchant_id_encrypted=payload.merchant_id,
+            active=payload.active,
+            sort_order=payload.sort_order,
+            reseller_id=payload.reseller_id,
+        )
+        scope.session.add(row)
+        scope.session.flush()
+        return _gateway_dict(row)
+
+    return await mutate_scope(container, work)
+
+
+@router.patch(
+    "/gateways/{gateway_id}",
+    summary="Edit a provider, or retire it",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def update_gateway(
+    gateway_id: str,
+    payload: GatewayPatchBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(
+        container, idempotency_key, scope_label=f"gateway.update:{gateway_id}"
+    )
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        row = scope.session.get(GatewayAccountModel, gateway_id)
+        if row is None:
+            raise NotFoundError("این درگاه پیدا نشد.")
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(row, "merchant_id_encrypted" if field == "merchant_id" else field, value)
+        scope.session.flush()
+        return _gateway_dict(row)
 
     return await mutate_scope(container, work)
 

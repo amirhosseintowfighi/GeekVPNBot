@@ -49,6 +49,7 @@ from geekvpn.domain.payments.enums import (
     TransactionKind,
 )
 from geekvpn.infrastructure.persistence.base import Base, TimestampMixin
+from geekvpn.infrastructure.persistence.types import EncryptedString
 
 
 def _values(enum_type: type[enum.Enum]) -> str:
@@ -334,4 +335,37 @@ class CryptoAccountModel(TimestampMixin, Base):
 
     __table_args__ = (
         UniqueConstraint("address", "network", name="uq_crypto_address_network"),
+    )
+
+
+class GatewayAccountModel(TimestampMixin, Base):
+    """A shop's merchant account with an online provider.
+
+    Shaped like the card and crypto accounts: one row per destination, scoped
+    by shop, activated and rotated the same way. A shop's ways of taking money
+    are one kind of thing.
+
+    The merchant id is encrypted. It is not a password - it identifies the shop
+    to the provider - but it is the only thing between somebody and a payment
+    request billed to that shop, and there is no reason to keep it readable.
+    """
+
+    __tablename__ = "billing_gateway_accounts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    merchant_id_encrypted: Mapped[str] = mapped_column(
+        EncryptedString("gateway.merchant_id"), nullable=False
+    )
+    active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "provider IN ('zarinpal', 'zibal', 'aqayepardakht')",
+            name="ck_gateway_accounts_provider",
+        ),
     )

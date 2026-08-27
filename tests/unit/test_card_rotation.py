@@ -28,17 +28,31 @@ class Session:
     keeps the fake honest about there being two queries.
     """
 
-    def __init__(self, *cards: Any, crypto: list[Any] | None = None) -> None:
-        self._cards = list(cards)
-        self._crypto = list(crypto or [])
+    def __init__(
+        self,
+        *cards: Any,
+        crypto: list[Any] | None = None,
+        gateways: list[Any] | None = None,
+    ) -> None:
+        self._by_table = {
+            "card": list(cards),
+            "crypto": list(crypto or []),
+            "gateway": list(gateways or []),
+        }
 
     def execute(self, stmt: Any) -> Any:
         # Answered by which table the statement names, not by call order: the
         # rotation test builds the registry forty times against one session,
         # and a fake that answered in turn would run out after the first.
-        wants_crypto = "crypto" in str(stmt).lower()
-        rows = self._crypto if wants_crypto else self._cards
-        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+        #
+        # Answering everything from one list is how a crypto gateway once got
+        # an address that was a card number, so each kind is kept apart here on
+        # purpose.
+        text = str(stmt).lower()
+        for kind, rows in self._by_table.items():
+            if kind in text:
+                return SimpleNamespace(scalars=lambda rows=rows: SimpleNamespace(all=lambda: rows))
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
 
 
 def card(number: str) -> SimpleNamespace:

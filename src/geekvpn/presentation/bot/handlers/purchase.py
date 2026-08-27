@@ -70,7 +70,15 @@ def _review_keyboard(*, has_coupon: bool) -> InlineKeyboardMarkup:
     return K.stack(rows)
 
 
-def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
+def _method_keyboard(
+    *, wallet_ok: bool, methods: list[tuple[str, str]]
+) -> InlineKeyboardMarkup:
+    """Only what this shop can actually take money by.
+
+    It used to offer card and crypto unconditionally, so a shop with neither
+    configured showed two buttons that both ended in the generic apology - and
+    crypto was never configured anywhere, so that was every shop.
+    """
     rows: list[list[Any]] = []
     if wallet_ok:
         # Green: the balance is already ours, so this one completes on the
@@ -78,14 +86,10 @@ def _method_keyboard(*, wallet_ok: bool) -> InlineKeyboardMarkup:
         rows.append(
             [K.btn(T.PAY_WALLET, PayCB(action="pay", method="wallet", ref="-"), style=K.YES)]
         )
-    # Both blue: this is a choice between two equals, and leaving one grey
-    # reads as "not this one" rather than "either is fine".
-    rows.append(
-        [K.btn(T.PAY_CARD, PayCB(action="pay", method="card", ref="-"), style=K.GO)]
-    )
-    rows.append(
-        [K.btn(T.PAY_CRYPTO, PayCB(action="pay", method="crypto", ref="-"), style=K.GO)]
-    )
+    # All blue: this is a choice between equals, and leaving one grey reads as
+    # "not this one" rather than "either is fine".
+    for key, label in methods:
+        rows.append([K.btn(label, PayCB(action="pay", method=key, ref="-"), style=K.GO)])
     rows.append([K.btn(T.BTN_CANCEL, NavCB(to="home"), style=K.NO)])
     return K.stack(rows)
 
@@ -327,7 +331,15 @@ async def on_choose_method(
             shortfall=toman(max(0, total - snapshot.balance)),
         )
     await state.set_state(Purchase.choosing_payment)
-    await safe_edit(query, body, markup=_method_keyboard(wallet_ok=wallet_ok))
+    methods = await services.checkout.methods()
+    if not methods and not wallet_ok:
+        # Nothing configured and no balance: say so rather than showing a
+        # screen whose only button is "cancel".
+        await safe_edit(query, T.PAY_NO_METHODS, markup=K.single(K.home_button()))
+        return
+    await safe_edit(
+        query, body, markup=_method_keyboard(wallet_ok=wallet_ok, methods=methods)
+    )
 
 
 @router.callback_query(PayCB.filter(F.action == "pay"))
@@ -419,7 +431,17 @@ async def on_pay(
             )
             return
 
-        await safe_edit(query, T.PAY_GATEWAY_SOON, markup=K.single(K.home_button()))
+        # Anything else is an online gateway, by its own key - which is what
+        # the registry registered it under and what the payment row will store.
+        url = await services.checkout.begin_gateway(
+            user_id=user.id, plan_id=plan_uuid, gateway_key=method, coupon_code=coupon
+        )
+        await state.clear()
+        await safe_edit(
+            query,
+            T.PAY_GATEWAY_READY,
+            markup=K.stack([[K.url_btn(T.BTN_PAY_ONLINE, url)]], home=True),
+        )
     except Exception as failure:
         # Logged, not merely apologised for. This `except` used to swallow the
         # exception whole: no traceback, no `handler_failed`, nothing in the

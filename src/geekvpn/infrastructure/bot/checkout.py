@@ -168,6 +168,42 @@ class BotCheckoutAdapter:
 
         return to_card(subscription, order)
 
+    async def methods(self) -> list[tuple[str, str]]:
+        """(key, label) for everything this shop can take money by.
+
+        Read from the registry, which is built per shop - so a reseller sees
+        their own gateways and never one they have not configured.
+        """
+
+        def work(scope: SyncScope) -> list[tuple[str, str]]:
+            return [
+                (gateway.key, gateway.title_fa)
+                for gateway in scope.gateways.all()
+                # The wallet is offered by the screen itself, when the balance
+                # covers the price. Listing it here as well would show it twice
+                # to somebody who can afford it and once to somebody who
+                # cannot, which is the wrong way round.
+                if gateway.key != WALLET
+            ]
+
+        return await self._bridge.run(work)
+
+    async def begin_gateway(
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        gateway_key: str,
+        coupon_code: str | None = None,
+    ) -> str:
+        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=gateway_key)
+        url = result.instruction.redirect_url or ""
+        if not url:
+            # A payment screen with nowhere to go. Raised rather than shown,
+            # so the handler apologises instead of rendering a dead button.
+            raise RuntimeError("The gateway did not return a payment link.")
+        return url
+
     async def begin_card(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
     ) -> CardPaymentDetails:
