@@ -47,6 +47,7 @@ from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.domain.provisioning.events import SubscriptionActivated
+from geekvpn.domain.resellers.reseller import Reseller
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
 from geekvpn.infrastructure.bot.token_check import HttpTokenChecker
 from geekvpn.infrastructure.di.container import Container
@@ -95,6 +96,13 @@ class RequestScope:
 
     container: Container
     session: AsyncSession
+    #: Which shop this request belongs to, when it arrived at a reseller's bot.
+    #:
+    #: Carried on the scope rather than passed down through handlers because
+    #: seven storefront call sites are seven chances to forget one - and a
+    #: forgotten argument here is a reseller's customer shown our prices, which
+    #: looks exactly like a working screen.
+    reseller: Reseller | None = None
 
     # -- repositories ------------------------------------------------------
 
@@ -195,6 +203,9 @@ class RequestScope:
             coupons=self.catalog_coupons,
             policies=self.pricing_policies,
             clock=self.container.clock,
+            default_retail=(
+                self.reseller.retail_overrides if self.reseller is not None else None
+            ),
         )
 
     @cached_property

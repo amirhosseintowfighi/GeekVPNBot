@@ -11,6 +11,7 @@ half-written row.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -81,6 +82,15 @@ class IdentityMiddleware(BaseMiddleware):
 
             data["scope"] = scope
             data["user"] = result.user
+            # Which shop this update belongs to, resolved once per update
+            # rather than in every handler that needs a price. `None` in the
+            # platform's own bot, which is the common case and costs nothing.
+            # Set on the scope, not only in the handler data: the storefront
+            # and the quoting service are reached from seven places, and a
+            # forgotten argument at any of them is a reseller's customer shown
+            # our prices - which looks exactly like a working screen.
+            scope.reseller = await _shop(scope, data.get("reseller_id"))
+            data["reseller"] = scope.reseller
             data["is_new_user"] = result.is_new_user
             # Built here, not in `create_dispatcher`: the bundle needs this
             # update's session, and a dispatcher is constructed once per
@@ -98,6 +108,22 @@ class IdentityMiddleware(BaseMiddleware):
             outcome = await handler(event, data)
             await uow.commit()
             return outcome
+
+
+async def _shop(scope: Any, reseller_id: Any) -> Any:
+    """The reseller behind this update, if it arrived at their bot.
+
+    Failure is `None`, not an exception: a reseller row that cannot be read is
+    a shop that falls back to the platform's prices, which is wrong but
+    serviceable - and better than a customer who cannot open a menu.
+    """
+    if not reseller_id:
+        return None
+    try:
+        return await scope.resellers.get(uuid.UUID(hex=str(reseller_id)))
+    except Exception:
+        logger.warning("bot.identity.shop_unresolved", reseller=str(reseller_id))
+        return None
 
 
 def _extract_user(event: TelegramObject, data: dict[str, Any]) -> TelegramUser | None:

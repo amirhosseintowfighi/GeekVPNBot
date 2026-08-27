@@ -9,6 +9,7 @@ optimistically and must never raise.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 
 from geekvpn.application.catalog.dto import CouponPreview, QuoteView
 from geekvpn.application.catalog.policy_provider import PricingPolicyProvider
@@ -22,6 +23,7 @@ from geekvpn.application.ports.clock import Clock
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.catalog.coupon import Coupon, normalise_code
 from geekvpn.domain.catalog.errors import CatalogError, CatalogValidationError
+from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.pricing import PriceQuote, PricingContext, quote_plan
 from geekvpn.domain.catalog.product import Product
@@ -40,6 +42,7 @@ class QuotingService:
         coupons: CouponRepository,
         policies: PricingPolicyProvider,
         clock: Clock,
+        default_retail: Mapping[uuid.UUID, Money] | None = None,
     ) -> None:
         self._plans = plans
         self._products = products
@@ -47,6 +50,11 @@ class QuotingService:
         self._coupons = coupons
         self._policies = policies
         self._clock = clock
+        # The shop this service was built for. Supplied by the scope rather
+        # than by each caller: `quote` is reached from four places, and one
+        # that forgot would price a reseller's package at our list price on the
+        # screen where their customer presses pay.
+        self._default_retail = dict(default_retail or {})
 
     async def quote(
         self,
@@ -58,6 +66,7 @@ class QuotingService:
         is_first_purchase: bool = False,
         referrer_id: uuid.UUID | None = None,
         enforce_purchasable: bool = True,
+        retail_prices: Mapping[uuid.UUID, Money] | None = None,
     ) -> PriceQuote:
         """Full quote. Raises if the coupon is unusable."""
         plan, product = await self._load(plan_id)
@@ -74,6 +83,12 @@ class QuotingService:
             is_first_purchase=is_first_purchase,
             referrer_id=referrer_id,
             coupon_redemptions_by_user=redemptions,
+            # A reseller's price, when this quote is for their bot. It replaces
+            # the base rather than discounting it: a different shop's price is
+            # not a reduction of ours.
+            retail_prices=dict(
+                retail_prices if retail_prices is not None else self._default_retail
+            ),
         )
         return quote_plan(
             plan=plan,

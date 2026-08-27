@@ -83,9 +83,20 @@ class SyncBridge:
     once. Mirrors ``presentation/api/admin_common.mutate_scope``.
     """
 
-    def __init__(self, *, container: Container, users: SqlAlchemyUserRepository) -> None:
+    def __init__(
+        self,
+        *,
+        container: Container,
+        users: SqlAlchemyUserRepository,
+        reseller_id: uuid.UUID | None = None,
+    ) -> None:
         self._container = container
         self._users = users
+        # Carried across the async/sync boundary. Without it the synchronous
+        # half - which is where payments live - would build a platform scope
+        # for an update that arrived at a reseller's bot, and show their
+        # customer our card.
+        self._reseller_id = reseller_id
 
     async def telegram_id(self, user_id: uuid.UUID) -> int | None:
         user = await self._users.get(user_id)
@@ -94,7 +105,9 @@ class SyncBridge:
     async def run(self, work: Callable[[SyncScope], T]) -> T:
         def _call() -> T:
             with self._container.sync_sessions() as session:
-                scope = build_sync_scope(self._container, session)
+                scope = build_sync_scope(
+                    self._container, session, reseller_id=self._reseller_id
+                )
                 try:
                     result = work(scope)
                     session.commit()

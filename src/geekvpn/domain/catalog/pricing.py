@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import enum
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -116,6 +117,14 @@ class PricingContext:
     is_first_purchase: bool = False
     referrer_id: uuid.UUID | None = None
     coupon_redemptions_by_user: int = 0
+    #: What a reseller charges for a package, replacing the platform's own list
+    #: price. Empty in the platform's own bot, which is the usual case.
+    #:
+    #: It replaces the *base*, deliberately, rather than being another discount
+    #: line: it is not a reduction of our price, it is a different shop's price.
+    #: Campaigns, coupons and cashback then apply on top of it, because those
+    #: are offers the reseller is making to their own customer.
+    retail_prices: Mapping[uuid.UUID, Money] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.now.tzinfo is None:
@@ -192,7 +201,7 @@ def quote_plan(
 
     target = PromotionTarget(plan_id=plan.id, product_id=product.id, tier=product.tier)
 
-    base = plan.base_price
+    base = context.retail_prices.get(plan.id, plan.base_price)
     lines: list[QuoteLine] = [QuoteLine(kind=LineKind.BASE, label_fa=plan.name_fa, amount=base)]
 
     # -- campaign ----------------------------------------------------------

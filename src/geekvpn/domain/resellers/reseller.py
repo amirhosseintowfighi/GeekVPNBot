@@ -121,6 +121,20 @@ class Reseller:
             return override.retail
         return list_price
 
+    @property
+    def retail_overrides(self) -> dict[uuid.UUID, Money]:
+        """The prices this reseller has actually decided, for the storefront.
+
+        Only what they set. A package they have left alone is absent rather
+        than present at the list price, so the storefront falls back on its own
+        and a later change to our list price still reaches their shop.
+        """
+        return {
+            override.plan_id: override.retail
+            for override in self.overrides
+            if override.retail is not None
+        }
+
     # -- credit ------------------------------------------------------------
 
     def charge(self, amount: Money) -> None:

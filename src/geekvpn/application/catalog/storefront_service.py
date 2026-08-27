@@ -17,6 +17,7 @@ packages each, the naive version is 60 round trips.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 
 import structlog
 
@@ -36,6 +37,7 @@ from geekvpn.application.ports.catalog import (
 )
 from geekvpn.application.ports.clock import Clock
 from geekvpn.domain.catalog.campaign import Campaign
+from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.pricing import PricingContext, quote_plan
 from geekvpn.domain.catalog.product import Product
@@ -70,6 +72,7 @@ class StorefrontService:
         is_first_purchase: bool = False,
         referrer_id: uuid.UUID | None = None,
         wallet_balance: int = 0,
+        retail_prices: Mapping[uuid.UUID, Money] | None = None,
     ) -> StorefrontView:
         now = self._clock.now()
         policy = await self._policies.load()
@@ -81,6 +84,11 @@ class StorefrontService:
             loyalty_tier=loyalty_tier,
             is_first_purchase=is_first_purchase,
             referrer_id=referrer_id,
+            # A reseller's storefront shows their prices, not ours. Threaded
+            # through the context rather than applied afterwards so campaigns,
+            # coupons and cashback all compute against the price the customer
+            # is actually being shown.
+            retail_prices=dict(retail_prices or {}),
         )
 
         categories = await self._categories.list_all(published_only=True)

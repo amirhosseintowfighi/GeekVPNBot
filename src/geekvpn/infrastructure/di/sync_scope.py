@@ -206,7 +206,9 @@ class SyncAuditLog:
         logger.info("audit.payment", action=resolved, payment_id=payment_id)
 
 
-def build_gateway_registry(session: Session) -> GatewayRegistry:
+def build_gateway_registry(
+    session: Session, *, reseller_id: uuid.UUID | None = None
+) -> GatewayRegistry:
     """Register the payment methods this deployment can actually take money by.
 
     The destination card is read from the database rather than from settings:
@@ -233,7 +235,16 @@ def build_gateway_registry(session: Session) -> GatewayRegistry:
 
     stmt = (
         select(CardAccountModel)
-        .where(CardAccountModel.active.is_(True))
+        .where(
+            CardAccountModel.active.is_(True),
+            # A shop's own cards, and only those. Falling back to the
+            # platform's for a reseller who has entered none would send their
+            # customer's money to us for a package the reseller has already
+            # paid for - charging twice for one service, and silently.
+            CardAccountModel.reseller_id.is_(None)
+            if reseller_id is None
+            else CardAccountModel.reseller_id == reseller_id,
+        )
         .order_by(CardAccountModel.sort_order, CardAccountModel.id)
     )
     cards = list(session.execute(stmt).scalars().all())
@@ -285,6 +296,10 @@ class SyncScope:
 
     container: Container
     session: Session
+    #: Which shop this unit of work belongs to. Set when it was started from a
+    #: reseller's bot, `None` for the platform's own and for every background
+    #: job - a sweeper reconciling every payment belongs to no single shop.
+    reseller_id: uuid.UUID | None = None
 
     # -- shared adapters ---------------------------------------------------
 
@@ -397,7 +412,13 @@ class SyncScope:
 
     @cached_property
     def gateways(self) -> GatewayRegistry:
-        return build_gateway_registry(self.session)
+        """The payment methods *this shop* can take money by.
+
+        A reseller's customer transfers to the reseller's card. The reseller
+        has already bought the package out of their credit, so money arriving
+        on ours for it would charge twice for one service.
+        """
+        return build_gateway_registry(self.session, reseller_id=self.reseller_id)
 
     # -- repositories ------------------------------------------------------
 
@@ -639,8 +660,10 @@ class SyncScope:
         return SearchService(tickets=self.tickets, clock=self.container.clock)
 
 
-def build_sync_scope(container: Container, session: Session) -> SyncScope:
-    return SyncScope(container=container, session=session)
+def build_sync_scope(
+    container: Container, session: Session, *, reseller_id: uuid.UUID | None = None
+) -> SyncScope:
+    return SyncScope(container=container, session=session, reseller_id=reseller_id)
 
 
 __all__ = [

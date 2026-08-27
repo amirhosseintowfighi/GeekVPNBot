@@ -47,6 +47,10 @@ class FakeScope:
 
     container = FakeContainer()
     session = object()
+    # `None` is the platform's own bot, which is what this assembly is for.
+    # The attribute has to exist: the bundle reads it to decide which shop's
+    # card the synchronous half will offer.
+    reseller = None
     users = object()
     subscriptions = object()
     orders = object()

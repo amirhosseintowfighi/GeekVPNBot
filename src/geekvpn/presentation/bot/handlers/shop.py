@@ -60,6 +60,14 @@ async def load_storefront(*, user: Any, scope: Any, services: BotServices) -> St
         loyalty_tier=tier_of(snapshot.lifetime_spend),
         is_first_purchase=is_first,
         wallet_balance=snapshot.balance,
+        # A reseller's storefront shows a reseller's prices. Empty in the
+        # platform's own bot, where `reseller` is None.
+        # Read off the scope rather than taken as an argument: this is called
+        # from seven places, and one that forgot would quietly show a
+        # reseller's customer our prices.
+        retail_prices=(
+            scope.reseller.retail_overrides if scope.reseller is not None else None
+        ),
     )
     return view
 

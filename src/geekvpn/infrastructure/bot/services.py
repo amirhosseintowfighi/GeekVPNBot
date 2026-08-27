@@ -45,7 +45,14 @@ def build_bot_services(
         not an acceptable fallback.
     """
     container = scope.container
-    bridge = SyncBridge(container=container, users=scope.users)
+    bridge = SyncBridge(
+        container=container,
+        users=scope.users,
+        # Read off the scope the middleware already resolved, so the
+        # synchronous half - where payments live - builds a scope for the same
+        # shop the async half is serving.
+        reseller_id=scope.reseller.id if scope.reseller is not None else None,
+    )
     jalali_year, _, _ = to_jalali(container.clock.now().date())
 
     return BotServices(

@@ -22,6 +22,7 @@ Schema decisions worth defending:
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -36,6 +37,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from geekvpn.domain.payments.enums import (
@@ -244,4 +246,13 @@ class CardAccountModel(TimestampMixin, Base):
     #: Rotation order. The bot shows the lowest sort order that is active, so a
     #: card can be retired without editing code.
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Whose card this is. NULL is the platform's own, which is every row that
+    #: predates resellers.
+    #:
+    #: A reseller's customer transfers to the *reseller's* card - the reseller
+    #: has already bought the package from us out of their credit, and money
+    #: arriving here for it would be charging twice for one service.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
+    )
     daily_limit: Mapped[int | None] = mapped_column(BigInteger)
