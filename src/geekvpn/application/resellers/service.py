@@ -16,11 +16,13 @@ from dataclasses import dataclass
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.ports import (
+    BotTokens,
     Clock,
     LedgerEntry,
     PlanPrices,
     ResellerRepository,
 )
+from geekvpn.application.resellers.tenant_bots import tenant_path, tenant_secret
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.identity.permissions import AdminRole
 from geekvpn.domain.resellers.enums import ResellerStatus
@@ -99,6 +101,7 @@ class ResellerService:
         prices: PlanPrices,
         clock: Clock,
         arrears: ArrearsEnforcer | None = None,
+        tokens: BotTokens | None = None,
     ) -> None:
         self._resellers = resellers
         self._admins = admins
@@ -108,6 +111,15 @@ class ResellerService:
         # the container it is always present - a balance that can go under with
         # nothing watching is a credit limit that does not exist.
         self._arrears = arrears
+        # Also optional, and for the same reason: a deployment without a
+        # Telegram client can still create resellers and move their credit.
+        self._token_port = tokens
+
+    @property
+    def _tokens(self) -> BotTokens:
+        if self._token_port is None:
+            raise RuntimeError("This deployment has no Telegram client configured.")
+        return self._token_port
 
     async def _enforce(self, reseller: Reseller) -> None:
         """Bring this reseller's customers in line with their balance.
@@ -246,6 +258,56 @@ class ResellerService:
         )
         await self._resellers.save(reseller)
         return reseller
+
+    # -- their own bot -----------------------------------------------------
+
+    async def attach_bot(
+        self,
+        reseller_id: uuid.UUID,
+        *,
+        token: str,
+        webhook_base_url: str,
+        webhook_path: str,
+        platform_secret: str,
+    ) -> str:
+        """Store a reseller's bot token and point Telegram at us.
+
+        Both halves, in that order, and the order is the point. Storing without
+        registering leaves a reseller with a bot that answers nothing;
+        registering without storing leaves Telegram delivering updates for a
+        token this platform cannot identify.
+
+        The token is verified against Telegram before either. A token that has
+        never been checked is a bot that will silently receive nothing,
+        discovered by a reseller whose customers are already waiting.
+
+        Returns the bot's @username - the only part of this an operator sees.
+        """
+        reseller = await self.get(reseller_id)
+        identity = await self._tokens.identify(token)
+
+        await self._resellers.set_bot(
+            reseller.id, token=token.strip(), username=identity.username
+        )
+        await self._tokens.register_webhook(
+            token=token.strip(),
+            url=webhook_base_url.rstrip("/") + tenant_path(webhook_path, reseller.id),
+            secret=tenant_secret(platform_secret, reseller.id),
+        )
+        return identity.username
+
+    async def detach_bot(self, reseller_id: uuid.UUID) -> None:
+        """Forget the token and stop Telegram sending to us.
+
+        Telegram is told first: a token cleared while Telegram still holds the
+        webhook leaves updates arriving for a tenant that no longer exists,
+        which is a retry loop rather than a clean stop.
+        """
+        reseller = await self.get(reseller_id)
+        token = await self._resellers.bot_token(reseller.id)
+        if token:
+            await self._tokens.clear_webhook(token=token)
+        await self._resellers.set_bot(reseller.id, token=None, username=None)
 
     # -- credit ------------------------------------------------------------
 

@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
+from geekvpn.application.resellers.tenant_bots import BotIdentity
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.resellers.reseller import Reseller
 
@@ -15,6 +16,20 @@ class Clock(Protocol):
     """Time comes from a port, never from `datetime.now()`."""
 
     def now(self) -> datetime: ...
+
+
+class BotTokens(Protocol):
+    """Everything this service needs from Telegram about a reseller's bot.
+
+    One port rather than three: the three calls are always used together, and a
+    deployment either has a Telegram client or has none.
+    """
+
+    async def identify(self, token: str) -> BotIdentity: ...
+
+    async def register_webhook(self, *, token: str, url: str, secret: str) -> None: ...
+
+    async def clear_webhook(self, *, token: str) -> None: ...
 
 
 class LedgerEntry(Protocol):
@@ -116,4 +131,4 @@ class PlanPrices(Protocol):
     async def list_price(self, plan_id: uuid.UUID) -> Money | None: ...
 
 
-__all__ = ["Clock", "LedgerEntry", "PlanPrices", "ResellerNames", "ResellerRepository"]
+__all__ = ["BotIdentity", "BotTokens", "Clock", "LedgerEntry", "PlanPrices", "ResellerNames", "ResellerRepository"]

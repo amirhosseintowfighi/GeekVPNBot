@@ -22,6 +22,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ConfigDict, Field
 
+from geekvpn.application.resellers.tenant_bots import InvalidBotToken
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.resellers.enums import ResellerStatus
 from geekvpn.domain.resellers.errors import ResellerNotFound
@@ -111,6 +112,18 @@ class PriceRow(ApiModel):
     cost: int
     #: What this reseller charges their own customer.
     retail: int
+
+
+class BotRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Goes in, never comes back. Telegram's own format is `<id>:<secret>`.
+    token: str = Field(min_length=20, max_length=128)
+
+
+class BotResponse(ApiModel):
+    bot_username: str | None
+    has_bot: bool
 
 
 class CreateResellerRequest(ApiModel):
@@ -291,6 +304,58 @@ async def set_retail(
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)
+
+
+@router.put(
+    "/{reseller_id}/bot",
+    response_model=BotResponse,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def attach_bot(
+    reseller_id: uuid.UUID, payload: BotRequest, scope: ScopeDep
+) -> BotResponse:
+    """Give a reseller their own Telegram bot.
+
+    The token goes in and never comes back out. It is a full credential - one
+    leaked from a response lets somebody impersonate the reseller to every one
+    of their customers - so it is stored encrypted and answered for with a
+    @username and a boolean.
+
+    Telegram is asked to identify the token before it is stored, and pointed at
+    this platform after. A token nobody verified is a bot that will silently
+    receive nothing.
+    """
+    telegram = scope.container.settings.telegram
+    try:
+        username = await scope.reseller_service.attach_bot(
+            reseller_id,
+            token=payload.token,
+            webhook_base_url=telegram.webhook_base_url,
+            webhook_path=telegram.webhook_path,
+            platform_secret=telegram.webhook_secret.get_secret_value(),
+        )
+    except ResellerNotFound as failure:
+        raise _not_found() from failure
+    except InvalidBotToken as failure:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(failure)) from failure
+    return BotResponse(bot_username=username, has_bot=True)
+
+
+@router.delete(
+    "/{reseller_id}/bot",
+    response_model=BotResponse,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def detach_bot(reseller_id: uuid.UUID, scope: ScopeDep) -> BotResponse:
+    try:
+        await scope.reseller_service.detach_bot(reseller_id)
+    except ResellerNotFound as failure:
+        raise _not_found() from failure
+    except InvalidBotToken as failure:
+        # Telegram refused to drop the webhook. The token is cleared either
+        # way by the service, so this is worth reporting and not worth failing.
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(failure)) from failure
+    return BotResponse(bot_username=None, has_bot=False)
 
 
 @router.get(

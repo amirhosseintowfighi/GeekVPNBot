@@ -10,6 +10,7 @@ update is parsed.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from secrets import compare_digest
@@ -20,6 +21,7 @@ from aiogram.types import MenuButtonWebApp, Update, WebAppInfo
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
 from geekvpn import __version__
+from geekvpn.application.resellers.tenant_bots import tenant_secret
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.health.probes import run_probes
@@ -32,6 +34,7 @@ from geekvpn.presentation.api.schemas import (
     ReadinessResponse,
 )
 from geekvpn.presentation.bot.factory import create_bot, create_dispatcher
+from geekvpn.presentation.bot.tenants import TenantBots
 from geekvpn.presentation.bot.ui import text
 
 logger = get_logger(__name__)
@@ -176,6 +179,10 @@ def create_bot_app(
             app.state.container,
             fetch_receipt=_receipt_fetcher(app.state.bot),
         )
+        # Resellers' own bots. Built lazily per token and cached, because a
+        # deployment with thirty resellers would otherwise open thirty HTTP
+        # sessions at start-up for bots that may see no traffic all day.
+        app.state.tenants = TenantBots(app.state.container, parse_mode=settings.telegram.parse_mode)
 
         if settings.telegram.set_webhook_on_startup:
             await register_webhook(
@@ -189,6 +196,7 @@ def create_bot_app(
         try:
             yield
         finally:
+            await app.state.tenants.close()
             await app.state.bot.session.close()
             if not externally_owned_container:
                 await close_container(app.state.container)
@@ -225,6 +233,61 @@ def create_bot_app(
             await request.app.state.dispatcher.feed_update(bot=request.app.state.bot, update=update)
         except Exception:
             logger.exception("bot.update_failed", update_id=update.update_id)
+        return {"ok": True}
+
+    @app.post(settings.telegram.webhook_path + "/r/{tenant}", include_in_schema=False)
+    async def tenant_webhook(
+        tenant: str,
+        request: Request,
+        secret_token: str = Header(default="", alias=SECRET_HEADER),
+    ) -> dict[str, bool]:
+        """One reseller's own bot.
+
+        Serving many bots from one process is only possible because this is
+        webhook-driven: polling needs a connection per token, a webhook needs a
+        route per token, and a route is free.
+
+        The secret is derived per reseller rather than shared, so a value
+        leaked from one reseller's edge cannot authenticate traffic claiming to
+        be another. It is compared before the tenant is looked up: an
+        unauthenticated caller must not be able to probe which reseller ids
+        exist by timing.
+        """
+        try:
+            reseller_id = uuid.UUID(hex=tenant)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found") from None
+
+        platform_secret = settings.telegram.webhook_secret.get_secret_value()
+        expected = tenant_secret(platform_secret, reseller_id)
+        if not platform_secret or not compare_digest(secret_token, expected):
+            logger.warning("bot.tenant_webhook.rejected", reason="bad_secret")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+        bot = await request.app.state.tenants.bot_for(reseller_id)
+        if bot is None:
+            # A token that was removed, or a reseller who was closed. Telegram
+            # retries anything non-2xx forever, so this answers 200 and drops
+            # the update rather than building a redelivery loop for a bot that
+            # is not coming back.
+            logger.info("bot.tenant_webhook.unknown", reseller=tenant)
+            return {"ok": True}
+
+        dispatcher = getattr(request.app.state, "reseller_dispatcher", None)
+        if dispatcher is None:
+            # Deliberately not the platform dispatcher. Feeding a reseller's
+            # customer into our own storefront would answer them with our
+            # prices, our wallet and our brand, under a name they believe
+            # belongs to somebody else - a worse outcome than silence, and one
+            # nobody would notice was happening.
+            logger.info("bot.tenant_webhook.no_dispatcher", reseller=tenant)
+            return {"ok": True}
+
+        update = Update.model_validate(await request.json(), context={"bot": bot})
+        try:
+            await dispatcher.feed_update(bot=bot, update=update)
+        except Exception:
+            logger.exception("bot.tenant_update_failed", update_id=update.update_id)
         return {"ok": True}
 
     @app.get("/health/live", response_model=LivenessResponse)

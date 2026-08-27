@@ -48,6 +48,7 @@ from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.domain.provisioning.events import SubscriptionActivated
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
+from geekvpn.infrastructure.bot.token_check import HttpTokenChecker
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import (
     LoggingEventPublisher,
@@ -294,6 +295,7 @@ class RequestScope:
             prices=self.plan_prices,
             clock=self.container.clock,
             arrears=self.arrears,
+            tokens=HttpTokenChecker(),
         )
 
     @cached_property
