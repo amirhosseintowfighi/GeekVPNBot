@@ -70,8 +70,24 @@ class SqlAlchemyUserRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_to_domain(row) for row in rows], total
 
-    async def get_by_telegram_id(self, telegram_id: int) -> User | None:
-        stmt = select(UserModel).where(UserModel.telegram_id == telegram_id)
+    async def get_by_telegram_id(
+        self, telegram_id: int, *, reseller_id: uuid.UUID | None = None
+    ) -> User | None:
+        """One person, in one shop.
+
+        `reseller_id` is not optional in meaning, only in signature: `None` is
+        the platform's own bot, which is a real answer rather than "any shop".
+        Matching on the Telegram id alone would hand a reseller's customer the
+        account they have with *us* - somebody else's wallet balance and
+        subscription list, shown to them under a name they believe belongs to
+        the reseller.
+        """
+        stmt = select(UserModel).where(
+            UserModel.telegram_id == telegram_id,
+            UserModel.reseller_id.is_(None)
+            if reseller_id is None
+            else UserModel.reseller_id == reseller_id,
+        )
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return _to_domain(model) if model else None
 
@@ -125,6 +141,7 @@ def _to_domain(model: UserModel) -> User:
     return User(
         model.id,
         telegram_id=model.telegram_id,
+        reseller_id=None if model.reseller_id is None else str(model.reseller_id),
         referral_code=model.referral_code,
         username=model.username,
         first_name=model.first_name,
@@ -144,6 +161,7 @@ def _to_model(user: User) -> UserModel:
     return UserModel(
         id=user.id,
         telegram_id=user.telegram_id,
+        reseller_id=None if user.reseller_id is None else uuid.UUID(user.reseller_id),
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,

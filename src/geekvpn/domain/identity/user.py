@@ -34,6 +34,7 @@ class User(AggregateRoot[uuid.UUID]):
         "photo_url",
         "referral_code",
         "referred_by_code",
+        "reseller_id",
         "status",
         "suspended_reason",
         "telegram_id",
@@ -45,6 +46,7 @@ class User(AggregateRoot[uuid.UUID]):
         entity_id: uuid.UUID,
         *,
         telegram_id: int,
+        reseller_id: str | None = None,
         referral_code: str,
         username: str | None = None,
         first_name: str | None = None,
@@ -60,6 +62,11 @@ class User(AggregateRoot[uuid.UUID]):
     ) -> None:
         super().__init__(entity_id)
         self.telegram_id = telegram_id
+        #: Which shop this person is a customer of. ``None`` is the
+        #: platform's own bot. A Telegram account can be a customer of
+        #: several shops, and each of those is a separate person here -
+        #: separate wallet, separate subscriptions, separate tickets.
+        self.reseller_id = reseller_id
         self.referral_code = referral_code
         self.username = username
         self.first_name = first_name

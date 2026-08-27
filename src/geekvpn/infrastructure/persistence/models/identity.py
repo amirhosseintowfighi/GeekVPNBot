@@ -33,6 +33,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -52,7 +53,13 @@ class UserModel(TimestampMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    #: Unique per *shop*, not globally - see the two partial indexes below.
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    #: Which shop this person is a customer of. NULL is the platform's own bot,
+    #: which is every row that predates resellers.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL"), index=True
+    )
     username: Mapped[str | None] = mapped_column(String(64))
     first_name: Mapped[str | None] = mapped_column(String(128))
     last_name: Mapped[str | None] = mapped_column(String(128))
@@ -72,6 +79,23 @@ class UserModel(TimestampMixin, Base):
         CheckConstraint(f"language IN ({_values(Language)})", name="users_language"),
         # Supports the "who did this user refer?" query without a scan.
         Index("ix_users_referred_by_code_status", "referred_by_code", "status"),
+        # One row per Telegram account per shop. Two partial indexes rather
+        # than one composite unique, because Postgres treats NULLs as distinct
+        # - a composite would happily accept the same person twice as a
+        # platform customer, which is the duplicate this exists to prevent.
+        Index(
+            "uq_users_platform_telegram_id",
+            "telegram_id",
+            unique=True,
+            postgresql_where=text("reseller_id IS NULL"),
+        ),
+        Index(
+            "uq_users_reseller_telegram_id",
+            "reseller_id",
+            "telegram_id",
+            unique=True,
+            postgresql_where=text("reseller_id IS NOT NULL"),
+        ),
     )
 
 
