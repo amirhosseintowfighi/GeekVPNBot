@@ -61,6 +61,16 @@ class InvoiceModel(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     number: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     state: Mapped[str] = mapped_column(
         String(16), nullable=False, default=InvoiceState.OPEN.value, index=True
     )
@@ -112,6 +122,16 @@ class PaymentModel(TimestampMixin, Base):
         index=True,
     )
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     method: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     state: Mapped[str] = mapped_column(
         String(24), nullable=False, default=PaymentState.DRAFT.value, index=True
@@ -170,6 +190,16 @@ class RefundModel(TimestampMixin, Base):
         index=True,
     )
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reason: Mapped[str] = mapped_column(String(24), nullable=False)
     destination: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -196,6 +226,16 @@ class WalletEntryModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     kind: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     #: Signed: credits positive, debits negative. The domain stores the same
     #: signed integer, so no interpretation happens at the boundary.
@@ -227,6 +267,16 @@ class ReceiptDigestModel(TimestampMixin, Base):
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     payment_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     reference: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String(16), nullable=False)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

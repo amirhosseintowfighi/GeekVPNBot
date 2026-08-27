@@ -76,6 +76,16 @@ class OrderModel(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     number: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
 
     plan_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False, index=True)
@@ -273,6 +283,16 @@ class FunnelEventModel(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     stage: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True

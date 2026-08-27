@@ -19,6 +19,7 @@ Schema decisions worth defending:
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -27,6 +28,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     String,
@@ -34,6 +36,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from geekvpn.domain.notifications.enums import (
@@ -55,6 +58,16 @@ class NotificationModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     category: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     template_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 
@@ -98,6 +111,16 @@ class NotificationPreferenceModel(TimestampMixin, Base):
     __tablename__ = "notify_preferences"
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: Which shop this belongs to. NULL is the platform's own, which is every
+    #: row that predates resellers.
+    #:
+    #: Beside the Telegram id rather than instead of it: the id is what a
+    #: notification is delivered to, and a synthetic key would break every
+    #: send. The pair is what identifies a person - the same account is a
+    #: separate customer in each shop, with their own money.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
     expiry: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     traffic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     promos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
