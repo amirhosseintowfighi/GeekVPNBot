@@ -45,6 +45,7 @@ from geekvpn.infrastructure.persistence.models.provisioning import (
     SubscriptionModel,
 )
 from geekvpn.infrastructure.persistence.models.resellers import (
+    ResellerApplicationModel,
     ResellerLedgerModel,
     ResellerModel,
     ResellerNodeModel,
@@ -80,6 +81,7 @@ __all__ = [
     "RefreshTokenModel",
     "RefundModel",
     "ReplyTemplateModel",
+    "ResellerApplicationModel",
     "ResellerLedgerModel",
     "ResellerModel",
     "ResellerNodeModel",

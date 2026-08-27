@@ -28,6 +28,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -161,7 +162,47 @@ class ResellerLedgerModel(Base):
     )
 
 
+class ResellerApplicationModel(TimestampMixin, Base):
+    """Somebody asking to sell under their own name.
+
+    Its own table rather than a ticket. A ticket is a conversation that ends;
+    this is a record with a decision attached - and the partial unique index is
+    why it cannot be a conversation: one pending application per person,
+    enforced by the database rather than by whichever handler remembered.
+    """
+
+    __tablename__ = "reseller_applications"
+
+    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
+    contact_fa: Mapped[str | None] = mapped_column(String(256))
+    note_fa: Mapped[str | None] = mapped_column(String(512))
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    reason_fa: Mapped[str | None] = mapped_column(String(512))
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: What this became. Null while pending, and null forever on a rejection.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending', 'approved', 'rejected')",
+            name="ck_reseller_applications_state",
+        ),
+        Index(
+            "uq_reseller_applications_pending",
+            "telegram_id",
+            unique=True,
+            postgresql_where=text("state = 'pending'"),
+        ),
+    )
+
+
 __all__ = [
+    "ResellerApplicationModel",
     "ResellerLedgerModel",
     "ResellerModel",
     "ResellerNodeModel",

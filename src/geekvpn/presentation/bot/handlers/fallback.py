@@ -22,6 +22,7 @@ from geekvpn.presentation.bot.handlers import (
     faq,
     profile,
     referral,
+    reseller,
     server_status,
     settings,
     shop,
@@ -125,6 +126,17 @@ async def tap_faq(
 ) -> None:
     await _decorate(message, bot, stickers, "faq")
     await faq.on_faq_command(message, state)
+
+
+@router.message(F.text == K.TAP_RESELLER)
+async def tap_reseller(message: Message, state: FSMContext, **kwargs: Any) -> None:
+    await state.clear()
+    await _decorate(message, kwargs.get("bot"), kwargs.get("stickers"), "reseller")
+    await reseller.open_area(
+        message,
+        user=kwargs.get("user"),
+        scope=kwargs.get("scope"),
+    )
 
 
 @router.message(F.text == K.TAP_SETTINGS)

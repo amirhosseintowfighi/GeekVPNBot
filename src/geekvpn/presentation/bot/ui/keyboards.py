@@ -144,6 +144,7 @@ TAP_STATUS: Final = f"{E.STATUS} {T.MENU_STATUS}"
 TAP_PROFILE: Final = f"{E.PROFILE} {T.MENU_PROFILE}"
 TAP_FAQ: Final = f"{E.FAQ} {T.MENU_FAQ}"
 TAP_SETTINGS: Final = f"{E.SETTINGS} {T.MENU_SETTINGS}"
+TAP_RESELLER: Final = f"🤝 {T.MENU_RESELLER}"
 
 
 def main_menu() -> ReplyKeyboardMarkup:
@@ -180,6 +181,10 @@ def main_menu() -> ReplyKeyboardMarkup:
         KeyboardButton(text=TAP_SUPPORT, style=ButtonStyle.PRIMARY),
         KeyboardButton(text=TAP_STATUS),
     )
+    # Green, and its own row. It is the only button here that is not about the
+    # customer's own service - it is an offer, and one that pays for itself the
+    # first time somebody takes it.
+    builder.row(KeyboardButton(text=TAP_RESELLER, style=ButtonStyle.SUCCESS))
     builder.row(
         KeyboardButton(text=TAP_PROFILE),
         KeyboardButton(text=TAP_FAQ),

@@ -144,6 +144,7 @@ class ResellerService:
         name_fa: str,
         discount_percent: int = 0,
         contact_fa: str | None = None,
+        telegram_id: int | None = None,
         actor_id: uuid.UUID | None = None,
     ) -> NewReseller:
         """A login and a reseller record, together.
@@ -159,6 +160,10 @@ class ResellerService:
             username=username,
             password=password,
             role=AdminRole.RESELLER,
+            # How they get into the bot. The bot authenticates an operator by
+            # Telegram id, so an account without one can sign into the panel
+            # and is a stranger to the bot - which is half a reseller.
+            telegram_id=telegram_id,
             actor_id=actor_id,
         )
 

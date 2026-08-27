@@ -40,6 +40,7 @@ from geekvpn.application.provisioning.subscription_admin import (
     SubscriptionAdminService,
 )
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
+from geekvpn.application.resellers.applications import ResellerApplications
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.sales import ResellerSalesService
 from geekvpn.application.resellers.service import ResellerService
@@ -75,6 +76,10 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
     JalaliOrderNumbers,
     SqlAlchemyOrderRepository,
     SqlAlchemySubscriptionRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.reseller_applications import (
+    SqlAlchemyApplicationRepository,
+    SqlAlchemySetupTokens,
 )
 from geekvpn.infrastructure.persistence.repositories.resellers import (
     SqlAlchemyResellerRepository,
@@ -340,6 +345,26 @@ class RequestScope:
             subscriptions=self.subscriptions,
             access=self.subscription_admin,
         )
+
+    @cached_property
+    def reseller_applications(self) -> ResellerApplications:
+        """Applying to become a reseller, and what approval leaves behind.
+
+        The hasher is the platform's own password hasher: the setup token is a
+        credential for exactly as long as it exists, and storing it in the
+        clear would put somebody else's panel account in a database dump.
+        """
+        return ResellerApplications(
+            applications=SqlAlchemyApplicationRepository(self.session),
+            resellers=self.reseller_service,
+            setup_tokens=self.setup_tokens,
+            hasher=self.container.passwords,
+            clock=self.container.clock,
+        )
+
+    @cached_property
+    def setup_tokens(self) -> SqlAlchemySetupTokens:
+        return SqlAlchemySetupTokens(self.session)
 
     # -- orders and provisioning -------------------------------------------
 

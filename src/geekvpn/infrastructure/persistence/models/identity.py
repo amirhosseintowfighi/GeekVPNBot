@@ -119,6 +119,13 @@ class AdminModel(TimestampMixin, Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: A one-time link that lets somebody set their own first password.
+    #:
+    #: Only a hash, for the same reason passwords are hashed: a database dump
+    #: must not hand over somebody else's account. It is cleared the moment it
+    #: is used, so a link shared by accident stops working once.
+    setup_token_hash: Mapped[str | None] = mapped_column(String(128))
+    setup_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(f"role IN ({_values(AdminRole)})", name="admins_role"),

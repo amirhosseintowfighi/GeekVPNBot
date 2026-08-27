@@ -58,6 +58,19 @@ class WalletCB(CallbackData, prefix="wlt"):
     ref: str = ""
 
 
+class ResellerCB(CallbackData, prefix="rsl"):
+    """The reseller area.
+
+    `ref` holds a plan id, truncated to fit: Telegram caps callback data at 64
+    bytes and a full UUID plus the prefix does not leave room for the action.
+    The handler matches on the prefix of the id, which is unambiguous across a
+    catalogue of tens rather than millions.
+    """
+
+    action: str  # apply | plans | sell | prices | setprice | ledger
+    ref: str = ""
+
+
 class RefCB(CallbackData, prefix="ref"):
     action: str  # link | stats | payouts | share
 

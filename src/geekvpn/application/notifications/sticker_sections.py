@@ -42,6 +42,10 @@ SECTION_EMOJI: Final[dict[str, tuple[str, ...]]] = {
     "status": ("👀", "😐", "🤨", "😎", "👍", "🤩"),
     "profile": ("😇", "😊", "👤", "👋", "🥰"),
     "settings": ("🧐", "🤔", "😎", "👍"),
+    # The one screen in the customer's bot that is an offer rather than a
+    # service. A handshake if the pack has one, money if it does not - this is
+    # the single place where a money emoji is the honest subject.
+    "reseller": ("🤝", "🤑", "💰", "😎"),
     # The rest are moments rather than screens.
     #
     # A customer who has just photographed a bank transfer is at the least
