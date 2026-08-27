@@ -868,3 +868,15 @@ export interface PendingTopupRow {
   noteFa: string | null
   createdAt: string
 }
+
+/** A destination crypto address for the crypto flow. */
+export interface CryptoRow {
+  id: string
+  address: string
+  network: string
+  asset: string
+  active: boolean
+  sortOrder: number
+  /** Whose address. Null is the platform's own. */
+  resellerId: string | null
+}

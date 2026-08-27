@@ -44,7 +44,10 @@ from geekvpn.domain.base.errors import ConflictError, NotFoundError
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.payments.enums import PaymentState, RefundDestination, RefundReason
 from geekvpn.infrastructure.di.sync_scope import SyncScope
-from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
+from geekvpn.infrastructure.persistence.models.payments import (
+    CardAccountModel,
+    CryptoAccountModel,
+)
 from geekvpn.infrastructure.persistence.repositories.sync_directory import Person
 from geekvpn.presentation.api.admin_common import (
     ADMIN_PAGE_SIZE,
@@ -273,6 +276,43 @@ _CARD_FIELDS: dict[str, str] = {
 }
 
 
+class CryptoBody(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Stored readable. It is public by definition - it is what a customer is
+    #: told to send money to.
+    address: str = Field(min_length=8, max_length=128)
+    network: str = Field(min_length=2, max_length=32)
+    asset: str = Field(default="USDT", max_length=16)
+    sort_order: int = 0
+    active: bool = True
+    reseller_id: uuid.UUID | None = None
+
+
+class CryptoPatchBody(ApiModel):
+    """A real PATCH, like the card one: only what is sent is applied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    address: str | None = Field(default=None, min_length=8, max_length=128)
+    network: str | None = Field(default=None, min_length=2, max_length=32)
+    asset: str | None = Field(default=None, max_length=16)
+    sort_order: int | None = None
+    active: bool | None = None
+
+
+def _crypto_dict(row: CryptoAccountModel) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "address": row.address,
+        "network": row.network,
+        "asset": row.asset,
+        "active": row.active,
+        "sortOrder": row.sort_order,
+        "resellerId": None if row.reseller_id is None else str(row.reseller_id),
+    }
+
+
 def _card_dict(card: CardAccountModel) -> dict[str, Any]:
     return {
         "id": card.id,
@@ -316,6 +356,94 @@ async def list_cards(
         return [_card_dict(row) for row in rows]
 
     return await read_scope(container, work)
+
+
+@router.get(
+    "/crypto",
+    summary="Destination crypto addresses",
+    dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
+)
+async def list_crypto(
+    container: ContainerDep, reseller_id: uuid.UUID | None = None
+) -> list[dict[str, Any]]:
+    def work(scope: SyncScope) -> list[dict[str, Any]]:
+        stmt = select(CryptoAccountModel)
+        if reseller_id is not None:
+            stmt = stmt.where(CryptoAccountModel.reseller_id == reseller_id)
+        rows = (
+            scope.session.execute(
+                stmt.order_by(CryptoAccountModel.sort_order, CryptoAccountModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        return [_crypto_dict(row) for row in rows]
+
+    return await read_scope(container, work)
+
+
+@router.post(
+    "/crypto",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a destination crypto address",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def create_crypto(
+    payload: CryptoBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label="crypto.create")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        existing = scope.session.execute(
+            select(CryptoAccountModel).where(
+                CryptoAccountModel.address == payload.address,
+                CryptoAccountModel.network == payload.network,
+            )
+        ).scalars().first()
+        if existing is not None:
+            raise ConflictError("این آدرس روی همین شبکه قبلاً ثبت شده است.")
+
+        row = CryptoAccountModel(
+            id=uuid.uuid4().hex,
+            address=payload.address,
+            network=payload.network,
+            asset=payload.asset,
+            active=payload.active,
+            sort_order=payload.sort_order,
+            reseller_id=payload.reseller_id,
+        )
+        scope.session.add(row)
+        scope.session.flush()
+        return _crypto_dict(row)
+
+    return await mutate_scope(container, work)
+
+
+@router.patch(
+    "/crypto/{crypto_id}",
+    summary="Edit an address, or retire it",
+    dependencies=[Depends(requires(Permission.PAYMENTS_APPROVE))],
+)
+async def update_crypto(
+    crypto_id: str,
+    payload: CryptoPatchBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+) -> dict[str, Any]:
+    await claim_idempotency(container, idempotency_key, scope_label=f"crypto.update:{crypto_id}")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        row = scope.session.get(CryptoAccountModel, crypto_id)
+        if row is None:
+            raise NotFoundError("این آدرس پیدا نشد.")
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(row, field, value)
+        scope.session.flush()
+        return _crypto_dict(row)
+
+    return await mutate_scope(container, work)
 
 
 @router.post(

@@ -31,6 +31,7 @@ from geekvpn.infrastructure.persistence.models.notifications import (
 )
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
+    CryptoAccountModel,
     InvoiceModel,
     PaymentModel,
     ReceiptDigestModel,
@@ -68,6 +69,7 @@ __all__ = [
     "CategoryModel",
     "CouponModel",
     "CouponRedemptionModel",
+    "CryptoAccountModel",
     "FunnelEventModel",
     "InvoiceModel",
     "NodeModel",

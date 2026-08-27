@@ -39,6 +39,7 @@ import type {
   CreatedReseller,
   ResellerLedgerRow,
   ResellerPriceRow,
+  CryptoRow,
   ResellerSelf,
   ResellerSummary,
   ResellerTopupRow,
@@ -494,6 +495,22 @@ export const api = {
       active: true,
       sortOrder: 0,
     }),
+  resellerCrypto: (id: string) =>
+    fetcher<CryptoRow[]>(`${ROOT}/payments/crypto` + `?resellerId=${id}`),
+  addResellerCrypto: (
+    id: string,
+    body: { address: string; network: string; asset: string },
+  ) =>
+    mutate<CryptoRow>('POST', `${ROOT}/payments/crypto`, {
+      address: body.address,
+      network: body.network,
+      asset: body.asset,
+      resellerId: id,
+      active: true,
+      sortOrder: 0,
+    }),
+  setCryptoActive: (cryptoId: string, active: boolean) =>
+    mutate<CryptoRow>('PATCH', `${ROOT}/payments/crypto/${cryptoId}`, { active }),
   setCardActive: (cardId: string, active: boolean) =>
     mutate<CardRow>('PATCH', `${ROOT}/payments/cards/${cardId}`, { active }),
 

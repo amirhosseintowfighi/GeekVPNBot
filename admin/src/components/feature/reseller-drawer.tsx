@@ -7,6 +7,7 @@ import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
 import type {
   CardRow,
+  CryptoRow,
   PanelRow,
   ResellerLedgerRow,
   ResellerPriceRow,
@@ -108,7 +109,7 @@ export function ResellerDrawer({
               <TabsTrigger value="credit">اعتبار</TabsTrigger>
               <TabsTrigger value="prices">قیمت‌ها</TabsTrigger>
               <TabsTrigger value="panels">پنل‌ها</TabsTrigger>
-              <TabsTrigger value="cards">کارت‌ها</TabsTrigger>
+              <TabsTrigger value="cards">پرداخت</TabsTrigger>
               <TabsTrigger value="bot">ربات</TabsTrigger>
               <TabsTrigger value="settings">تنظیمات</TabsTrigger>
             </TabsList>
@@ -157,6 +158,7 @@ export function ResellerDrawer({
 
             <TabsContent value="cards">
               <CardsTab resellerId={reseller.id} writable={writable && !busy} />
+              <CryptoTab resellerId={reseller.id} writable={writable && !busy} />
             </TabsContent>
 
             <TabsContent value="bot">
@@ -664,6 +666,104 @@ function BotTab({
             ) : null}
           </div>
         </>
+      ) : null}
+    </div>
+  )
+}
+
+
+function CryptoTab({ resellerId, writable }: { resellerId: string; writable: boolean }) {
+  const { data, mutate } = useSWR<CryptoRow[]>(['reseller-crypto', resellerId], () =>
+    api.resellerCrypto(resellerId),
+  )
+  const [address, setAddress] = React.useState('')
+  const [network, setNetwork] = React.useState('trc20')
+  const [asset, setAsset] = React.useState('USDT')
+  const [error, setError] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+
+  const valid = address.trim().length >= 8 && network.trim().length >= 2
+
+  const add = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.addResellerCrypto(resellerId, {
+        address: address.trim(),
+        network: network.trim(),
+        asset: asset.trim() || 'USDT',
+      })
+      setAddress('')
+      await mutate()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ثبت آدرس انجام نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-4 border-t pt-4">
+      <div className="text-sm font-medium">آدرس‌های رمزارز</div>
+      <p className="text-sm text-muted-foreground">
+        اگر هیچ آدرسی ثبت نشود، گزینهٔ رمزارز در ربات این نماینده نمایش داده
+        نمی‌شود — همان قاعدهٔ کارت‌ها.
+      </p>
+
+      {!data?.length ? (
+        <p className="text-sm text-muted-foreground">هنوز آدرسی ثبت نشده.</p>
+      ) : (
+        <div className="divide-y rounded-md border text-sm">
+          {data.map((row) => (
+            <div key={row.id} className="flex items-center justify-between gap-3 p-2">
+              <div className="min-w-0">
+                <code dir="ltr" className="break-all">
+                  {row.address}
+                </code>
+                <div className="text-xs text-muted-foreground">
+                  {row.network} · {row.asset}
+                </div>
+              </div>
+              {writable ? (
+                <Switch
+                  checked={row.active}
+                  onCheckedChange={(next) => {
+                    void api.setCryptoActive(row.id, next).then(() => mutate())
+                  }}
+                />
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {writable ? (
+        <div className="space-y-3 rounded-md border p-3">
+          <Field label="آدرس کیف پول">
+            <Input
+              dir="ltr"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="TXyz..."
+            />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="شبکه" hint="مثلاً trc20">
+              <Input
+                dir="ltr"
+                value={network}
+                onChange={(event) => setNetwork(event.target.value)}
+              />
+            </Field>
+            <Field label="ارز">
+              <Input dir="ltr" value={asset} onChange={(event) => setAsset(event.target.value)} />
+            </Field>
+          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button disabled={!valid || busy} onClick={() => void add()}>
+            افزودن آدرس
+          </Button>
+        </div>
       ) : null}
     </div>
   )

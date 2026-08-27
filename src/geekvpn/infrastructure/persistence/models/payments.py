@@ -306,3 +306,32 @@ class CardAccountModel(TimestampMixin, Base):
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
     )
     daily_limit: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CryptoAccountModel(TimestampMixin, Base):
+    """Where a shop's customers send crypto.
+
+    Shaped like a card account down to the sort order and the shop: a payment
+    destination is the same kind of thing whichever chain it is on, and a
+    second shape would be a second thing to scope, rotate and audit.
+
+    The address is stored readable, unlike a panel password or a bot token. It
+    is public by definition - it is what a customer is told to send money to.
+    """
+
+    __tablename__ = "billing_crypto_accounts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    address: Mapped[str] = mapped_column(String(128), nullable=False)
+    network: Mapped[str] = mapped_column(String(32), nullable=False)
+    asset: Mapped[str] = mapped_column(String(16), nullable=False, default="USDT")
+    active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Whose address. NULL is the platform's own.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("address", "network", name="uq_crypto_address_network"),
+    )

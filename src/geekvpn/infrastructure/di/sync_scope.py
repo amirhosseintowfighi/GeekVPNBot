@@ -49,6 +49,7 @@ from geekvpn.application.notifications.subscribers import (
 )
 from geekvpn.application.payments.adapters import (
     CardTransferGateway,
+    CryptoTransferGateway,
     WalletGateway,
 )
 from geekvpn.application.payments.checkout_service import CheckoutService
@@ -77,7 +78,10 @@ from geekvpn.infrastructure.notifications.telegram import (
     TelegramIdIsTheUserId,
 )
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
-from geekvpn.infrastructure.persistence.models.payments import CardAccountModel
+from geekvpn.infrastructure.persistence.models.payments import (
+    CardAccountModel,
+    CryptoAccountModel,
+)
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SyncOrderRepository,
 )
@@ -262,6 +266,31 @@ def build_gateway_registry(
         # not offer card-to-card, which is better than offering a button that
         # sends money nowhere.
         logger.warning("payments.no_active_card", detail="card-to-card is unavailable")
+
+    # Crypto, from this shop's own addresses.
+    #
+    # `CryptoTransferGateway` has existed since the payment layer was written
+    # and nothing ever constructed it, so the bot offered "pay with crypto" and
+    # answered everyone who tapped it with a generic apology. There was nowhere
+    # to read an address from.
+    crypto_stmt = (
+        select(CryptoAccountModel)
+        .where(
+            CryptoAccountModel.active.is_(True),
+            CryptoAccountModel.reseller_id.is_(None)
+            if reseller_id is None
+            else CryptoAccountModel.reseller_id == reseller_id,
+        )
+        .order_by(CryptoAccountModel.sort_order, CryptoAccountModel.id)
+    )
+    wallets = list(session.execute(crypto_stmt).scalars().all())
+    if wallets:
+        # Random among the active ones, for the same reason cards are: spread
+        # the traffic, with no shared turn counter to keep.
+        chosen = secrets.choice(wallets)
+        registry.register(
+            CryptoTransferGateway(address=chosen.address, network=chosen.network)
+        )
     return registry
 
 
