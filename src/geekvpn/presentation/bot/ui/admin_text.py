@@ -184,6 +184,24 @@ __all__ = [name for name in dir() if name.isupper()]
 # -- reseller applications --------------------------------------------------
 
 BTN_APPLICATIONS: Final = "🤝 درخواست‌های نمایندگی"
+BTN_TOPUPS: Final = "\U0001f4b0 شارژ نمایندگان"
+
+TOPUPS_TITLE: Final = "\U0001f4b0 <b>درخواست‌های شارژ</b>"
+TOPUPS_EMPTY: Final = "درخواست شارژی در انتظار نیست."
+#: Amount first: it is the number an operator is checking against a receipt,
+#: and the name only matters once they have found the right amount.
+TOPUP_ROW: Final = "{amount} — {name}"
+TOPUP_DETAIL: Final = (
+    "\U0001f4b0 <b>درخواست شارژ</b>\n\n"
+    "\U0001f3e2 نماینده: {name}\n"
+    "\U0001f4b3 مبلغ: <b>{amount}</b>\n"
+    "\U0001f4dd توضیح: {note}\n"
+    "\U0001f4b5 اعتبار فعلی: {balance}\n\n"
+    "بعد از تأیید، این مبلغ بلافاصله به اعتبارش اضافه می‌شود."
+)
+TOPUP_APPROVED: Final = "\u2705 شارژ {amount} برای {name} تأیید شد."
+TOPUP_REJECTED: Final = "\u274c درخواست رد شد."
+TOPUP_GONE: Final = "این درخواست دیگر در انتظار نیست."
 APPLICATIONS_TITLE: Final = "🤝 <b>درخواست‌های نمایندگی</b>"
 APPLICATIONS_EMPTY: Final = "درخواستی در انتظار بررسی نیست."
 APPLICATION_ROW: Final = "{name} — {contact}"

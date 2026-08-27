@@ -5,7 +5,13 @@ import useSWR from 'swr'
 
 import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
-import type { ResellerLedgerRow, ResellerPriceRow, ResellerSelf } from '@/lib/types'
+import type {
+  ResellerLedgerRow,
+  ResellerPriceRow,
+  ResellerSelf,
+  ResellerSummary,
+  ResellerTopupRow,
+} from '@/lib/types'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
 import { useSession } from '@/components/shell/session'
@@ -38,6 +44,13 @@ export default function PortalPage() {
   )
   const { data: ledger } = useSWR<ResellerLedgerRow[]>('reseller-my-ledger', () =>
     api.myLedger(),
+  )
+  const { data: summary } = useSWR<ResellerSummary>('reseller-my-summary', () =>
+    api.mySummary(),
+  )
+  const { data: topups, mutate: reloadTopups } = useSWR<ResellerTopupRow[]>(
+    'reseller-my-topups',
+    () => api.myTopups(),
   )
 
   if (!can('reseller.portal')) return <ForbiddenState permission="reseller.portal" />
@@ -72,6 +85,16 @@ export default function PortalPage() {
           </p>
         ) : null}
       </Card>
+
+      <TopupCard
+        rows={topups ?? []}
+        onRequested={() => {
+          void reloadTopups()
+          void reloadMe()
+        }}
+      />
+
+      {summary ? <SummaryCards summary={summary} /> : null}
 
       <BotCard me={me} onChanged={() => void reloadMe()} />
 
@@ -247,5 +270,115 @@ function PricesCard({
         ذخیرهٔ قیمت‌ها
       </Button>
     </Card>
+  )
+}
+
+
+const TOPUP_STATE: Record<ResellerTopupRow['state'], string> = {
+  pending: 'در انتظار تأیید',
+  approved: 'تأیید شد',
+  rejected: 'رد شد',
+}
+
+function TopupCard({
+  rows,
+  onRequested,
+}: {
+  rows: ResellerTopupRow[]
+  onRequested: () => void
+}) {
+  const [amount, setAmount] = React.useState('')
+  const [note, setNote] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const value = Number(amount)
+  const valid = Number.isInteger(value) && value >= 10_000
+
+  const submit = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.requestTopup(value, note.trim())
+      setAmount('')
+      setNote('')
+      onRequested()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'درخواست ثبت نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div className="text-sm font-medium">شارژ حساب</div>
+      <p className="text-sm text-muted-foreground">
+        مبلغ را واریز کنید و اینجا ثبتش کنید. بعد از تأیید، اعتبارتان بالا
+        می‌رود و می‌توانید سرویس بسازید.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <Field label="مبلغ" hint="حداقل ۱۰٬۰۰۰ تومان">
+          <Input
+            dir="ltr"
+            inputMode="numeric"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="1000000"
+          />
+        </Field>
+        <Field label="توضیح" hint="شماره پیگیری یا چهار رقم آخر کارتی که از آن فرستادید">
+          <Input value={note} onChange={(event) => setNote(event.target.value)} />
+        </Field>
+        <Button disabled={!valid || busy} onClick={() => void submit()}>
+          ثبت درخواست
+        </Button>
+      </div>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      {rows.length ? (
+        <div className="divide-y rounded-md border text-sm">
+          {rows.map((row) => (
+            <div key={row.id} className="flex items-center justify-between gap-3 p-2">
+              <span>{toman(row.amount)}</span>
+              <Badge
+                variant={
+                  row.state === 'approved'
+                    ? 'success'
+                    : row.state === 'rejected'
+                      ? 'destructive'
+                      : 'muted'
+                }
+              >
+                {TOPUP_STATE[row.state]}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Card>
+  )
+}
+
+function SummaryCards({ summary }: { summary: ResellerSummary }) {
+  // Four figures, off their own ledger. Not the platform's analytics, which is
+  // scoped to nothing - this screen needs four sums, not a door into everyone
+  // else's numbers.
+  const cards = [
+    { label: 'تعداد فروش', value: faNumber(summary.sales) },
+    { label: 'مجموع خرید شما', value: toman(summary.spent) },
+    { label: 'مجموع شارژ', value: toman(summary.toppedUp) },
+    { label: 'میانگین هر فروش', value: toman(summary.averageSale) },
+  ]
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {cards.map((card) => (
+        <Card key={card.label} className="p-4">
+          <div className="text-sm text-muted-foreground">{card.label}</div>
+          <div className="mt-1 text-xl font-semibold">{card.value}</div>
+        </Card>
+      ))}
+    </div>
   )
 }

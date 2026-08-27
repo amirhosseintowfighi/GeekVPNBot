@@ -40,6 +40,9 @@ import type {
   ResellerLedgerRow,
   ResellerPriceRow,
   ResellerSelf,
+  ResellerSummary,
+  ResellerTopupRow,
+  PendingTopupRow,
   ResellerApplicationRow,
   ApprovedApplication,
 } from './types'
@@ -514,10 +517,21 @@ export const api = {
   setMyRetail: (prices: Record<string, number>) =>
     mutate<ResellerPriceRow[]>('PUT', '/api/v1/reseller/plans/retail', { prices }),
   myLedger: () => fetcher<ResellerLedgerRow[]>('/api/v1/reseller/ledger'),
+  mySummary: () => fetcher<ResellerSummary>('/api/v1/reseller/summary'),
+  myTopups: () => fetcher<ResellerTopupRow[]>('/api/v1/reseller/topups'),
+  requestTopup: (amount: number, noteFa: string) =>
+    mutate<ResellerTopupRow[]>('POST', '/api/v1/reseller/topups', { amount, noteFa }),
   setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
 
   resellerPrices: (id: string) =>
     fetcher<ResellerPriceRow[]>(`${ROOT}/resellers/${id}/prices`),
+  // Resellers waiting to be able to sell. Oldest first.
+  pendingTopups: () => fetcher<PendingTopupRow[]>(`${ROOT}/resellers/topups/pending`),
+  approveTopup: (topupId: string) =>
+    mutate<void>('POST', `${ROOT}/resellers/topups/${topupId}/approve`, {}),
+  rejectTopup: (topupId: string, reasonFa: string) =>
+    mutate<void>('POST', `${ROOT}/resellers/topups/${topupId}/reject`, { reasonFa }),
+
   resellerLedger: (id: string) =>
     fetcher<ResellerLedgerRow[]>(`${ROOT}/resellers/${id}/ledger`),
 

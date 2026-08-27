@@ -839,3 +839,30 @@ export interface ResellerSelf {
   botUsername: string | null
   hasBot: boolean
 }
+
+/** GET /api/v1/reseller/summary - four sums off their own ledger. */
+export interface ResellerSummary {
+  sales: number
+  spent: number
+  toppedUp: number
+  averageSale: number
+}
+
+/** A reseller's request to have their credit topped up. */
+export interface ResellerTopupRow {
+  id: string
+  amount: number
+  noteFa: string | null
+  state: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+}
+
+/** The same request as an operator sees it, with who asked. */
+export interface PendingTopupRow {
+  id: string
+  resellerId: string
+  resellerNameFa: string
+  amount: number
+  noteFa: string | null
+  createdAt: string
+}

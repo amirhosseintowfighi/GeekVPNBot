@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { NewResellerDialog } from '@/components/feature/new-reseller-dialog'
 import { ResellerApplications } from '@/components/feature/reseller-applications'
 import { ResellerDrawer } from '@/components/feature/reseller-drawer'
+import { ResellerTopups } from '@/components/feature/reseller-topups'
 
 const STATUS_LABEL: Record<ResellerRow['status'], string> = {
   active: 'فعال',
@@ -72,6 +73,7 @@ export default function ResellersPage() {
       {/* Above the list: an application is somebody waiting for an answer,
           and it renders nothing when the queue is empty. */}
       <ResellerApplications onApproved={() => void mutate()} />
+      <ResellerTopups onDecided={() => void mutate()} />
 
       {error ? (
         <ErrorState

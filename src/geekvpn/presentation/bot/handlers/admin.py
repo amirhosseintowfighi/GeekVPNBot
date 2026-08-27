@@ -29,6 +29,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.payments.review_service import ApprovalRequest
 from geekvpn.application.resellers.applications import ApplicationNotFound
+from geekvpn.application.resellers.topups import TopupNotFound
 from geekvpn.application.support.ticket_service import ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.identity.admin import Admin
@@ -157,6 +158,7 @@ def _menu() -> InlineKeyboardMarkup:
             [K.btn(A.BTN_ORDERS, AdminCB(action="orders"))],
             [K.btn(A.BTN_STATS, AdminCB(action="stats"))],
             [K.btn(A.BTN_APPLICATIONS, AdminCB(action="apps"), style=K.GO)],
+            [K.btn(A.BTN_TOPUPS, AdminCB(action="topups"), style=K.YES)],
             [K.btn(A.BTN_ADMINS, AdminCB(action="admins"))],
         ]
     )
@@ -484,6 +486,130 @@ async def on_close_ticket(
 
 
 # -- reseller applications --------------------------------------------------
+
+
+@router.callback_query(AdminCB.filter(F.action == "topups"))
+async def on_topups(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
+    """Resellers waiting to be able to sell.
+
+    In the bot as well as the panel because this is the queue that stops
+    somebody trading: a reseller with no credit cannot make a single sale, and
+    an operator who is away from a desk should still be able to clear it.
+    """
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    pending = await scope.reseller_topups.pending()
+    if not pending:
+        await safe_edit(
+            query,
+            f"{A.TOPUPS_TITLE}\n\n{A.TOPUPS_EMPTY}",
+            markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="menu"))),
+        )
+        return
+
+    rows = [
+        [
+            K.btn(
+                A.TOPUP_ROW.format(amount=toman(row.amount), name=row.reseller_name_fa),
+                AdminCB(action="topup", ref=row.id.hex),
+            )
+        ]
+        for row in pending
+    ]
+    rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
+    await safe_edit(query, A.TOPUPS_TITLE, markup=K.stack(rows))
+
+
+@router.callback_query(AdminCB.filter(F.action == "topup"))
+async def on_topup(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    found = next(
+        (row for row in await scope.reseller_topups.pending() if row.id.hex == callback_data.ref),
+        None,
+    )
+    if found is None:
+        await safe_edit(
+            query, A.TOPUP_GONE, markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="topups")))
+        )
+        return
+
+    reseller = await scope.reseller_service.get(found.reseller_id)
+    await safe_edit(
+        query,
+        A.TOPUP_DETAIL.format(
+            name=found.reseller_name_fa,
+            amount=toman(found.amount),
+            note=found.note_fa or "—",
+            balance=toman(reseller.balance_amount),
+        ),
+        markup=K.stack(
+            [
+                [
+                    K.btn(A.BTN_APPROVE, AdminCB(action="topup_ok", ref=found.id.hex), style=K.YES),
+                    K.btn(A.BTN_REJECT, AdminCB(action="topup_no", ref=found.id.hex), style=K.NO),
+                ],
+                [K.btn(A.BTN_BACK, AdminCB(action="topups"))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(AdminCB.filter(F.action.in_({"topup_ok", "topup_no"})))
+async def on_topup_decision(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    approving = callback_data.action == "topup_ok"
+    try:
+        topup_id = uuid.UUID(hex=callback_data.ref)
+        if approving:
+            decided = await scope.reseller_topups.approve(
+                topup_id, decided_by=user.telegram_id
+            )
+        else:
+            decided = await scope.reseller_topups.reject(
+                topup_id, decided_by=user.telegram_id
+            )
+    except TopupNotFound:
+        # Already decided, by the panel or by another operator with the same
+        # queue open. Saying so beats crediting one transfer twice.
+        await safe_edit(
+            query, A.TOPUP_GONE, markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="topups")))
+        )
+        return
+
+    message = (
+        A.TOPUP_APPROVED.format(
+            amount=toman(decided.amount), name=decided.reseller_name_fa
+        )
+        if approving
+        else A.TOPUP_REJECTED
+    )
+    await safe_edit(
+        query, message, markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="topups")))
+    )
 
 
 @router.callback_query(AdminCB.filter(F.action == "apps"))
