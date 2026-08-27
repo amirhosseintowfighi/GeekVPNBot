@@ -35,6 +35,10 @@ import type {
   UserDetail,
   UserRow,
   WalletTransactionRow,
+  ResellerRow,
+  CreatedReseller,
+  ResellerLedgerRow,
+  ResellerPriceRow,
 } from './types'
 import type {
   CampaignCreateBody,
@@ -412,6 +416,44 @@ export const api = {
     cashbackBps?: number
     days?: number[]
   }) => mutate<PlanRow[]>('POST', `${ROOT}/catalog/plans/generate-ladder`, body),
+
+  // ----------------------------------------------------------- resellers
+  resellers: () => fetcher<ResellerRow[]>(`${ROOT}/resellers`),
+  reseller: (id: string) => fetcher<ResellerRow>(`${ROOT}/resellers/${id}`),
+  // The only response that ever carries a password. It is generated, shown
+  // once, and hashed - an operator who closes the dialog without copying it
+  // resets the account rather than recovering the value.
+  createReseller: (body: {
+    username: string
+    nameFa: string
+    discountPercent: number
+    contactFa?: string | null
+  }) => mutate<CreatedReseller>('POST', `${ROOT}/resellers`, body),
+  updateReseller: (
+    id: string,
+    patch: Partial<{
+      nameFa: string
+      status: string
+      discountPercent: number
+      contactFa: string | null
+    }>,
+  ) => mutate<ResellerRow>('PATCH', `${ROOT}/resellers/${id}`, patch),
+  setResellerPanels: (id: string, nodeIds: string[]) =>
+    mutate<ResellerRow>('PUT', `${ROOT}/resellers/${id}/panels`, { nodeIds }),
+  // Two endpoints rather than one, because cost and retail are set by two
+  // different people and a single write would let either erase the other.
+  setResellerCosts: (id: string, prices: Record<string, number>) =>
+    mutate<ResellerRow>('PUT', `${ROOT}/resellers/${id}/costs`, { prices }),
+  setResellerRetail: (id: string, prices: Record<string, number>) =>
+    mutate<ResellerRow>('PUT', `${ROOT}/resellers/${id}/retail`, { prices }),
+  // Signed: negative deducts, and may take the balance under. What follows is
+  // not a refusal - their customers are suspended until it is positive again.
+  adjustResellerCredit: (id: string, amount: number, descriptionFa: string) =>
+    mutate<ResellerRow>('POST', `${ROOT}/resellers/${id}/credit`, { amount, descriptionFa }),
+  resellerPrices: (id: string) =>
+    fetcher<ResellerPriceRow[]>(`${ROOT}/resellers/${id}/prices`),
+  resellerLedger: (id: string) =>
+    fetcher<ResellerLedgerRow[]>(`${ROOT}/resellers/${id}/ledger`),
 
   // ------------------------------------------------------ panels/servers
   panels: () => fetcher<PanelRow[]>(`${ROOT}/panels`),

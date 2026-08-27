@@ -101,6 +101,18 @@ class LedgerEntryResponse(ApiModel):
     occurred_at: datetime
 
 
+class PriceRow(ApiModel):
+    plan_id: str
+    name: str
+    duration_days: int
+    #: What anyone pays on the storefront.
+    list_price: int
+    #: What this reseller pays.
+    cost: int
+    #: What this reseller charges their own customer.
+    retail: int
+
+
 class CreateResellerRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -279,6 +291,24 @@ async def set_retail(
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)
+
+
+@router.get(
+    "/{reseller_id}/prices",
+    response_model=list[PriceRow],
+    dependencies=[Depends(requires(Permission.RESELLERS_READ))],
+)
+async def price_list(reseller_id: uuid.UUID, scope: ScopeDep) -> list[PriceRow]:
+    """Every package with all three numbers on it, for one reseller.
+
+    One request rather than a product list followed by a plan list per product:
+    this is a drawer that opens on a click, and an operator comparing a
+    reseller's margin should not watch a dozen round trips resolve.
+    """
+    rows = await scope.reseller_sales.price_list(
+        reseller_id, await scope.catalog_plans.list_all(published_only=True)
+    )
+    return [PriceRow(**row) for row in rows]
 
 
 @router.post(

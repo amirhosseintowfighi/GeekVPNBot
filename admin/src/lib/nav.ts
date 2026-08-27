@@ -3,6 +3,7 @@ import {
   Boxes,
   ChartNoAxesCombined,
   FileClock,
+  Handshake,
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
@@ -117,6 +118,15 @@ export const NAV: NavSection[] = [
         labelFa: '\u06a9\u06cc\u0641 \u067e\u0648\u0644',
         icon: Wallet,
         permission: 'wallet.read',
+      },
+      {
+        // Under operations rather than management: a reseller with no credit
+        // is a queue with customers waiting behind it, the same shape as a
+        // pending payment.
+        href: '/resellers',
+        labelFa: 'نمایندگان',
+        icon: Handshake,
+        permission: 'resellers.read',
       },
       {
         href: '/subscriptions',

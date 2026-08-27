@@ -739,3 +739,57 @@ export interface PaymentRow {
   } | null
 }
 
+/**
+ * A reseller: someone selling this platform under their own name.
+ *
+ * Two prices per package, set by two different people. `costs` is what the
+ * platform charges them, an operator's decision. `retail` is what they charge
+ * their own customer, theirs. Both are sparse - a plan missing from either map
+ * falls back to the percentage and the list price respectively.
+ */
+export interface ResellerRow {
+  id: string
+  adminId: string
+  nameFa: string
+  status: 'active' | 'suspended' | 'closed'
+  discountPercent: number
+  /** Signed Toman. Negative means in arrears, which suspends their customers. */
+  balance: number
+  contactFa: string | null
+  allowedNodeIds: string[]
+  costs: Record<string, number>
+  retail: Record<string, number>
+  hasBot: boolean
+  botUsername: string | null
+  inArrears: boolean
+}
+
+/** The one response that carries a password. It is never readable again. */
+export interface CreatedReseller {
+  reseller: ResellerRow
+  username: string
+  password: string
+}
+
+export interface ResellerLedgerRow {
+  id: string
+  amount: number
+  balanceAfter: number
+  kind: string
+  descriptionFa: string
+  reference: string | null
+  occurredAt: string
+}
+
+/** One package priced three ways, for the reseller drawer. */
+export interface ResellerPriceRow {
+  planId: string
+  name: string
+  durationDays: number
+  /** What anyone pays on the storefront. */
+  listPrice: number
+  /** What this reseller pays. */
+  cost: number
+  /** What this reseller charges their own customer. */
+  retail: number
+}
