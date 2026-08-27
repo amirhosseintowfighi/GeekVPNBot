@@ -108,6 +108,34 @@ class SqlAlchemyUserRepository:
         )
         return {row.telegram_id: person_of(row) for row in rows}
 
+    async def list_for_reseller(
+        self, reseller_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> tuple[Sequence[User], int]:
+        """One reseller's customers, and how many they have.
+
+        The count comes back with the page because the first thing a reseller
+        looks at is how many people they have, and asking twice is two round
+        trips for one screen.
+        """
+        total = int(
+            (
+                await self._session.execute(
+                    select(func.count())
+                    .select_from(UserModel)
+                    .where(UserModel.reseller_id == reseller_id)
+                )
+            ).scalar_one()
+        )
+        stmt = (
+            select(UserModel)
+            .where(UserModel.reseller_id == reseller_id)
+            .order_by(UserModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(row) for row in rows], total
+
     async def get_by_referral_code(self, code: str) -> User | None:
         stmt = select(UserModel).where(UserModel.referral_code == code)
         model = (await self._session.execute(stmt)).scalar_one_or_none()

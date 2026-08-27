@@ -60,6 +60,7 @@ from geekvpn.infrastructure.di.sync_scope import (
     Uuid4IdGenerator,
     build_sync_scope,
 )
+from geekvpn.infrastructure.notifications.telegram import HttpTelegramSender
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
 from geekvpn.infrastructure.persistence.repositories.audit import SqlAlchemyAuditLogRepository
@@ -289,6 +290,38 @@ class RequestScope:
             clock=self.container.clock,
             audit=self.audit,
         )
+
+    async def notify_customer(self, telegram_id: int, body_fa: str) -> None:
+        """One plain message to one person, from this shop's own bot.
+
+        Crosses into the synchronous half because that is where the sender
+        lives, and it is built from the scope's shop - so a reseller's message
+        goes out under their bot, which is the only bot their customer has
+        ever spoken to.
+
+        No template and no notification row: this is a broadcast, not a
+        lifecycle event, and recording five hundred inbox copies of one
+        announcement would bury every real notification underneath it.
+        """
+
+        def work(sync: SyncScope) -> None:
+            token = sync._bot_token()
+            if not token:
+                raise RuntimeError("This shop has no bot to send from.")
+            HttpTelegramSender(
+                token, parse_mode=self.container.settings.telegram.parse_mode
+            ).send_message(chat_id=telegram_id, text=body_fa)
+
+        def _call() -> None:
+            with self.container.sync_sessions() as session:
+                scope = build_sync_scope(
+                    self.container,
+                    session,
+                    reseller_id=self.reseller.id if self.reseller is not None else None,
+                )
+                work(scope)
+
+        await run_in_threadpool(_call)
 
     # -- resellers ---------------------------------------------------------
 

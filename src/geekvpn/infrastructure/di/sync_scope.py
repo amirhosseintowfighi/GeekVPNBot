@@ -82,6 +82,7 @@ from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
 )
+from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SyncOrderRepository,
 )
@@ -485,6 +486,31 @@ class SyncScope:
 
     # -- notifications -----------------------------------------------------
 
+    def _bot_token(self) -> str:
+        """Which bot speaks for this shop.
+
+        A reseller's customer has never started *our* bot, and Telegram refuses
+        a message from a bot the recipient has not spoken to first. So every
+        delivery link, expiry warning and payment approval sent to them from
+        our token was refused - a silent failure, because a refusal here is
+        recorded as a suppression and looks like a customer who blocked us.
+
+        No fallback to ours. Sending from the wrong bot does not merely fail,
+        it fails in a way that reads as the customer's fault.
+        """
+        if self.reseller_id is None:
+            return self.container.settings.telegram.bot_token.get_secret_value()
+
+        row = self.session.get(ResellerModel, self.reseller_id)
+        token = (row.bot_token_encrypted or "") if row is not None else ""
+        if not token:
+            logger.warning(
+                "notify.reseller_has_no_bot",
+                reseller=str(self.reseller_id),
+                detail="their customers reach the Mini App inbox only",
+            )
+        return token
+
     @cached_property
     def channels(self) -> Sequence[Channel]:
         """The inbox, and Telegram when a bot token is configured.
@@ -501,7 +527,7 @@ class SyncScope:
         happened, which is the failure the original comment was guarding
         against.
         """
-        token = self.container.settings.telegram.bot_token.get_secret_value()
+        token = self._bot_token()
         if not token:
             logger.warning(
                 "notify.telegram.disabled",

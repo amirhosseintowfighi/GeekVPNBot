@@ -84,6 +84,40 @@ class SummaryResponse(ApiModel):
     average_sale: int
 
 
+#: How many customers one broadcast reaches.
+#:
+#: A ceiling rather than paging, because this runs inside a request: a reseller
+#: with more customers than this needs the platform's own broadcast machinery,
+#: with its jobs and its retries, not a longer loop in an HTTP handler.
+_BROADCAST_CAP = 500
+
+
+class BroadcastRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body_fa: str = Field(min_length=1, max_length=1000)
+
+
+class BroadcastResult(ApiModel):
+    sent: int
+    failed: int
+    total: int
+
+
+class CustomerRow(ApiModel):
+    id: uuid.UUID
+    telegram_id: int
+    username: str | None
+    display_name: str
+    status: str
+    created_at: datetime
+
+
+class CustomersResponse(ApiModel):
+    total: int
+    items: list[CustomerRow]
+
+
 class TopupRow(ApiModel):
     id: uuid.UUID
     amount: int
@@ -358,6 +392,77 @@ async def summary(scope: ScopeDep, admin: CurrentAdmin) -> SummaryResponse:
     reseller = await _me(scope, admin)
     numbers = await scope.reseller_service.summary(reseller.id)
     return SummaryResponse(**numbers)
+
+
+@router.post(
+    "/broadcast",
+    response_model=BroadcastResult,
+    dependencies=[Depends(requires(Permission.RESELLER_SELL))],
+)
+async def broadcast(
+    payload: BroadcastRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> BroadcastResult:
+    """One message to this reseller's own customers.
+
+    Sent through *their* bot. A message from ours would be refused outright -
+    Telegram will not let a bot open a conversation the person never started -
+    and refused deliveries are recorded as suppressions, so it would look like
+    every one of their customers had blocked them.
+
+    Their customers, by construction: the audience is read from the shop, and
+    this endpoint takes no shop id to point elsewhere.
+    """
+    reseller = await _me(scope, admin)
+    rows, _ = await scope.users.list_for_reseller(reseller.id, limit=_BROADCAST_CAP)
+
+    sent = 0
+    failed = 0
+    for row in rows:
+        try:
+            await scope.notify_customer(row.telegram_id, payload.body_fa)
+            sent += 1
+        except Exception:
+            # One unreachable person must not stop the other four hundred.
+            # Somebody who blocked the bot is the usual cause and is not an
+            # error worth failing a broadcast over.
+            failed += 1
+    return BroadcastResult(sent=sent, failed=failed, total=len(rows))
+
+
+@router.get(
+    "/customers",
+    response_model=CustomersResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def customers(
+    scope: ScopeDep,
+    admin: CurrentAdmin,
+    limit: Annotated[int, Field(ge=1, le=200)] = 50,
+    offset: Annotated[int, Field(ge=0)] = 0,
+) -> CustomersResponse:
+    """The people who have used this reseller's bot.
+
+    Their own, by construction: a customer belongs to a shop, and this cannot
+    be pointed at another one because it never takes a shop id.
+    """
+    reseller = await _me(scope, admin)
+    rows, total = await scope.users.list_for_reseller(
+        reseller.id, limit=limit, offset=offset
+    )
+    return CustomersResponse(
+        total=total,
+        items=[
+            CustomerRow(
+                id=row.id,
+                telegram_id=row.telegram_id,
+                username=row.username,
+                display_name=row.display_name,
+                status=row.status.value,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ],
+    )
 
 
 @router.get(
