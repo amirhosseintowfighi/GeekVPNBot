@@ -397,11 +397,17 @@ class RequestScope:
 
     @cached_property
     def orders(self) -> SqlAlchemyOrderRepository:
-        return SqlAlchemyOrderRepository(self.session)
+        return SqlAlchemyOrderRepository(
+            self.session,
+            reseller_id=self.reseller.id if self.reseller is not None else None,
+        )
 
     @cached_property
     def subscriptions(self) -> SqlAlchemySubscriptionRepository:
-        return SqlAlchemySubscriptionRepository(self.session)
+        return SqlAlchemySubscriptionRepository(
+            self.session,
+            reseller_id=self.reseller.id if self.reseller is not None else None,
+        )
 
     @cached_property
     def nodes(self) -> SqlAlchemyNodeRepository:

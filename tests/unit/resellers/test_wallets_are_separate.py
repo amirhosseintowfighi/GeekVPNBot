@@ -133,3 +133,90 @@ def test_the_scope_hands_the_shop_to_all_three():
         "SyncPaymentRepository",
     ):
         assert f"{name}(self.session, reseller_id=self.reseller_id)" in wiring, name
+
+
+# -- orders, subscriptions, tickets, notifications --------------------------
+
+
+def _source(path: str) -> ast.Module:
+    return ast.parse(pathlib.Path(path).read_text(encoding="utf-8"))
+
+
+def _find(tree: ast.Module, class_name: str, method: str) -> ast.AST:
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for child in node.body:
+                if (
+                    isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
+                    and child.name == method
+                ):
+                    return child
+    raise AssertionError(f"{class_name}.{method} is gone")
+
+
+PROVISIONING = "src/geekvpn/infrastructure/persistence/repositories/provisioning.py"
+SUPPORT = "src/geekvpn/infrastructure/persistence/repositories/sync_support.py"
+NOTIFY = "src/geekvpn/infrastructure/persistence/repositories/sync_notifications.py"
+
+
+@pytest.mark.parametrize(
+    ("path", "class_name", "method"),
+    [
+        (PROVISIONING, "SqlAlchemyOrderRepository", "list_for_user"),
+        (PROVISIONING, "SqlAlchemyOrderRepository", "count_for_user"),
+        (PROVISIONING, "SqlAlchemySubscriptionRepository", "list_for_user"),
+        (SUPPORT, "SyncTicketRepository", "for_user"),
+        (SUPPORT, "SyncTicketRepository", "count_for_user"),
+        (NOTIFY, "SyncNotificationRepository", "for_user"),
+        (NOTIFY, "SyncNotificationRepository", "count_unread"),
+        # Deduplication is per shop too: the same key in two shops is two
+        # different notifications, and sharing it would silence one of them.
+        (NOTIFY, "SyncNotificationRepository", "dedupe_exists"),
+    ],
+)
+def test_every_remaining_per_customer_read_asks_which_shop(
+    path: str, class_name: str, method: str
+):
+    """One person, two shops, two histories.
+
+    A customer of ours who also buys from a reseller had one order list, one
+    subscription list and one ticket thread between the two - the same shape
+    as the wallet, in four more places.
+    """
+    assert _calls_shop(_find(_source(path), class_name, method))
+
+
+@pytest.mark.parametrize(
+    ("path", "class_name", "method"),
+    [
+        (PROVISIONING, "SqlAlchemyOrderRepository", "add"),
+        (PROVISIONING, "SqlAlchemySubscriptionRepository", "add"),
+        (SUPPORT, "SyncTicketRepository", "save"),
+        (NOTIFY, "SyncNotificationRepository", "save"),
+    ],
+)
+def test_every_remaining_insert_stamps_the_shop(path: str, class_name: str, method: str):
+    assert _stamps_shop(_find(_source(path), class_name, method))
+
+
+def test_a_first_purchase_is_per_shop():
+    """"Have they bought before" is a question about *this* shop.
+
+    A customer's first purchase from a reseller is a first purchase, whatever
+    they have bought from us - and first-purchase pricing is money, so getting
+    it from the wrong shop's history charges the wrong price.
+    """
+    assert _calls_shop(_find(_source(PROVISIONING), "SqlAlchemyOrderRepository", "has_completed_order"))
+
+
+def test_both_scopes_hand_the_shop_over():
+    """A repository that takes the argument and a scope that never passes it
+    is a filter that is always `IS NULL` - and looks like working code."""
+    asyncs = pathlib.Path("src/geekvpn/infrastructure/di/scope.py").read_text(encoding="utf-8")
+    syncs = pathlib.Path("src/geekvpn/infrastructure/di/sync_scope.py").read_text(encoding="utf-8")
+
+    for name in ("SqlAlchemyOrderRepository", "SqlAlchemySubscriptionRepository"):
+        index = asyncs.index(f"{name}(")
+        assert "reseller_id=" in asyncs[index : index + 200], name
+    for name in ("SyncTicketRepository", "SyncNotificationRepository"):
+        assert f"{name}(self.session, reseller_id=self.reseller_id)" in syncs, name

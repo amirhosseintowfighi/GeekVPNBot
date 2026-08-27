@@ -54,8 +54,23 @@ _RETRYABLE = (
 
 
 class SqlAlchemyOrderRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None
+    ) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self, column: Any) -> Any:
+        """`WHERE reseller_id = ...`, or `IS NULL` for the platform's own shop.
+
+        `None` is a real answer rather than "any shop": the platform's rows are
+        the ones with no reseller, and matching everything would put a
+        reseller's customers back in front of our own bot.
+        """
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
+
 
     async def get(self, order_id: str) -> Order | None:
         row = await self._session.get(OrderModel, order_id)
@@ -89,7 +104,7 @@ class SqlAlchemyOrderRepository:
     ) -> Sequence[Order]:
         stmt = (
             select(OrderModel)
-            .where(OrderModel.user_id == user_id)
+            .where(OrderModel.user_id == user_id, self._shop(OrderModel.reseller_id))
             .order_by(OrderModel.placed_at.desc())
             .limit(limit)
             .offset(offset)
@@ -98,7 +113,11 @@ class SqlAlchemyOrderRepository:
         return [order_to_domain(row) for row in rows]
 
     async def count_for_user(self, user_id: int) -> int:
-        stmt = select(func.count()).select_from(OrderModel).where(OrderModel.user_id == user_id)
+        stmt = (
+            select(func.count())
+            .select_from(OrderModel)
+            .where(OrderModel.user_id == user_id, self._shop(OrderModel.reseller_id))
+        )
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def search(
@@ -152,6 +171,10 @@ class SqlAlchemyOrderRepository:
             select(OrderModel.id)
             .where(
                 OrderModel.user_id == user_id,
+                # Scoped: "have they bought before" is a question about this
+                # shop. A customer's first purchase from a reseller is a first
+                # purchase, whatever they have bought from us.
+                self._shop(OrderModel.reseller_id),
                 OrderModel.state.in_((OrderState.ACTIVE.value, OrderState.REFUNDED.value)),
             )
             .limit(1)
@@ -174,7 +197,12 @@ class SqlAlchemyOrderRepository:
         return [order_to_domain(row) for row in rows]
 
     async def add(self, order: Order) -> None:
-        self._session.add(order_to_row(order))
+        row = order_to_row(order)
+        # Stamped on insert. A row written without it belongs to the
+        # platform's shop by definition, which is the wrong answer for every
+        # reseller's customer - and invisible from both sides afterwards.
+        row.reseller_id = self._reseller_id
+        self._session.add(row)
         await self._session.flush()
 
     async def update(self, order: Order) -> None:
@@ -186,8 +214,23 @@ class SqlAlchemyOrderRepository:
 
 
 class SqlAlchemySubscriptionRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None
+    ) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self, column: Any) -> Any:
+        """`WHERE reseller_id = ...`, or `IS NULL` for the platform's own shop.
+
+        `None` is a real answer rather than "any shop": the platform's rows are
+        the ones with no reseller, and matching everything would put a
+        reseller's customers back in front of our own bot.
+        """
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
+
 
     async def get(self, subscription_id: str) -> Subscription | None:
         row = await self._session.get(SubscriptionModel, subscription_id)
@@ -206,7 +249,10 @@ class SqlAlchemySubscriptionRepository:
     async def list_for_user(
         self, user_id: int, *, active_only: bool = False
     ) -> Sequence[Subscription]:
-        stmt: Select[Any] = select(SubscriptionModel).where(SubscriptionModel.user_id == user_id)
+        stmt: Select[Any] = select(SubscriptionModel).where(
+            SubscriptionModel.user_id == user_id,
+            self._shop(SubscriptionModel.reseller_id),
+        )
         if active_only:
             stmt = stmt.where(SubscriptionModel.state == SubscriptionState.ACTIVE.value)
         stmt = stmt.order_by(SubscriptionModel.expires_at.desc())
@@ -344,7 +390,13 @@ class SqlAlchemySubscriptionRepository:
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def add(self, subscription: Subscription) -> None:
-        self._session.add(subscription_to_row(subscription))
+        row = subscription_to_row(subscription)
+        # Only when the caller has not already said. A reseller's *sale* sets
+        # this explicitly - it is the seller, not merely the shop - and the
+        # scope's answer must not overwrite a more specific one.
+        if row.reseller_id is None:
+            row.reseller_id = self._reseller_id
+        self._session.add(row)
         await self._session.flush()
 
     async def update(self, subscription: Subscription) -> None:

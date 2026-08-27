@@ -436,7 +436,7 @@ class SyncScope:
 
     @cached_property
     def tickets(self) -> SyncTicketRepository:
-        return SyncTicketRepository(self.session)
+        return SyncTicketRepository(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def reply_templates(self) -> SyncTemplateRepository:
@@ -444,7 +444,7 @@ class SyncScope:
 
     @cached_property
     def notifications(self) -> SyncNotificationRepository:
-        return SyncNotificationRepository(self.session)
+        return SyncNotificationRepository(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def preferences(self) -> SyncPreferencesStore:

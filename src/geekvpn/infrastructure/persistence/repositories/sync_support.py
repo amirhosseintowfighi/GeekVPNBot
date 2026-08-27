@@ -13,7 +13,9 @@ House rules: never commit, filter in SQL, re-read before write.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -49,8 +51,23 @@ OPEN_STATES = (
 class SyncTicketRepository:
     """``application.support.ports.TicketRepository``."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self, session: Session, *, reseller_id: uuid.UUID | None = None
+    ) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self, column: Any) -> Any:
+        """`WHERE reseller_id = ...`, or `IS NULL` for the platform's own shop.
+
+        `None` is a real answer rather than "any shop": the platform's rows are
+        the ones with no reseller, and matching everything would put a
+        reseller's customers back in front of our own bot.
+        """
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
+
 
     def _messages(self, ticket_id: str) -> list[TicketMessageModel]:
         stmt = (
@@ -81,7 +98,12 @@ class SyncTicketRepository:
         """
         row = self._session.get(TicketModel, ticket.id)
         if row is None:
-            self._session.add(ticket_to_row(ticket))
+            row = ticket_to_row(ticket)
+            # Stamped on insert. A row written without it belongs to the
+            # platform's shop by definition - the wrong answer for every
+            # reseller's customer, and invisible from both sides afterwards.
+            row.reseller_id = self._reseller_id
+            self._session.add(row)
             # Flushed on its own, before any message references it.
             #
             # `support_messages.ticket_id` is a foreign key to this row, but the
@@ -111,7 +133,9 @@ class SyncTicketRepository:
         limit: int = 20,
         offset: int = 0,
     ) -> list[Ticket]:
-        stmt = select(TicketModel).where(TicketModel.user_id == user_id)
+        stmt = select(TicketModel).where(
+            TicketModel.user_id == user_id, self._shop(TicketModel.reseller_id)
+        )
         if state is not None:
             stmt = stmt.where(TicketModel.state == state.value)
         stmt = (
@@ -250,7 +274,11 @@ class SyncTicketRepository:
         return int(self._session.execute(stmt).scalar_one()) + 1
 
     def count_for_user(self, user_id: int, *, state: TicketState | None = None) -> int:
-        stmt = select(func.count()).select_from(TicketModel).where(TicketModel.user_id == user_id)
+        stmt = (
+            select(func.count())
+            .select_from(TicketModel)
+            .where(TicketModel.user_id == user_id, self._shop(TicketModel.reseller_id))
+        )
         if state is not None:
             stmt = stmt.where(TicketModel.state == state.value)
         return int(self._session.execute(stmt).scalar_one())

@@ -9,7 +9,9 @@ House rules: never commit, filter in SQL, re-read before write.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -60,8 +62,23 @@ DUE_BROADCAST_STATES = (
 class SyncNotificationRepository:
     """``application.notifications.ports.NotificationRepository``."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self, session: Session, *, reseller_id: uuid.UUID | None = None
+    ) -> None:
         self._session = session
+        self._reseller_id = reseller_id
+
+    def _shop(self, column: Any) -> Any:
+        """`WHERE reseller_id = ...`, or `IS NULL` for the platform's own shop.
+
+        `None` is a real answer rather than "any shop": the platform's rows are
+        the ones with no reseller, and matching everything would put a
+        reseller's customers back in front of our own bot.
+        """
+        return (
+            column.is_(None) if self._reseller_id is None else column == self._reseller_id
+        )
+
 
     def get(self, notification_id: str) -> Notification:
         row = self._session.get(NotificationModel, notification_id)
@@ -72,7 +89,9 @@ class SyncNotificationRepository:
     def save(self, notification: Notification) -> None:
         row = self._session.get(NotificationModel, notification.id)
         if row is None:
-            self._session.add(notification_to_row(notification))
+            row = notification_to_row(notification)
+            row.reseller_id = self._reseller_id
+            self._session.add(row)
         else:
             # Carry the existing broadcast link forward. The aggregate does not
             # know which broadcast produced it, so passing the default would
@@ -88,7 +107,10 @@ class SyncNotificationRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> list[Notification]:
-        stmt = select(NotificationModel).where(NotificationModel.user_id == user_id)
+        stmt = select(NotificationModel).where(
+            NotificationModel.user_id == user_id,
+            self._shop(NotificationModel.reseller_id),
+        )
         if unread_only:
             stmt = stmt.where(NotificationModel.read_at.is_(None))
         stmt = (
@@ -104,6 +126,7 @@ class SyncNotificationRepository:
             .select_from(NotificationModel)
             .where(
                 NotificationModel.user_id == user_id,
+                self._shop(NotificationModel.reseller_id),
                 NotificationModel.read_at.is_(None),
             )
         )
@@ -119,6 +142,7 @@ class SyncNotificationRepository:
             select(NotificationModel.id)
             .where(
                 NotificationModel.user_id == user_id,
+                self._shop(NotificationModel.reseller_id),
                 NotificationModel.dedupe_key == dedupe_key,
             )
             .exists()
@@ -145,6 +169,7 @@ class SyncNotificationRepository:
             .select_from(NotificationModel)
             .where(
                 NotificationModel.user_id == user_id,
+                self._shop(NotificationModel.reseller_id),
                 NotificationModel.category.in_(MARKETING_CATEGORIES),
                 NotificationModel.queued_at >= since,
             )
