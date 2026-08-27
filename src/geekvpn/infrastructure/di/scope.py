@@ -42,6 +42,7 @@ from geekvpn.application.provisioning.subscription_admin import (
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.application.resellers.applications import ResellerApplications
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
+from geekvpn.application.resellers.password_setup import PasswordSetup
 from geekvpn.application.resellers.sales import ResellerSalesService
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.domain.analytics.calendar import to_jalali
@@ -358,6 +359,20 @@ class RequestScope:
             applications=SqlAlchemyApplicationRepository(self.session),
             resellers=self.reseller_service,
             setup_tokens=self.setup_tokens,
+            hasher=self.container.passwords,
+            clock=self.container.clock,
+        )
+
+    @cached_property
+    def password_setup(self) -> PasswordSetup:
+        """Redeeming a one-time link for a first password.
+
+        Reachable without a session, because the person using it has no way to
+        get one yet - that is the whole point of the link.
+        """
+        return PasswordSetup(
+            tokens=self.setup_tokens,
+            admins=self.admins,
             hasher=self.container.passwords,
             clock=self.container.clock,
         )

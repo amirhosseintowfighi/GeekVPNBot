@@ -316,6 +316,10 @@ DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     # tell them apart, so they stay on the looser miniapp.read.
     ("/api/miniapp/checkout", "payments.checkout"),
     ("/api/miniapp/wallet/topup", "payments.topup"),
+    # Redeeming a first-password link. Limited like a login, not like an admin
+    # mutation: it is unauthenticated and it takes a secret, so it is the one
+    # reseller path somebody can hammer without an account.
+    ("/api/v1/auth/set-password", "auth.refresh"),
     ("/api/v1/auth/refresh", "auth.refresh"),
     ("/api/v1/auth/telegram", "auth.telegram"),
     ("/api/v1/auth/captcha", "auth.captcha"),

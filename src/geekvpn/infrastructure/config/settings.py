@@ -69,6 +69,11 @@ class AppSettings(Section):
     env: Environment = Environment.LOCAL
     debug: bool = False
     base_url: str = "http://localhost:8000"
+    #: Where the admin panel is served, for links that a person opens rather
+    #: than a client calls - today, the "choose your password" link a new
+    #: reseller is sent. Empty is honest rather than guessed: a link built
+    #: against the API's base URL would render, look right, and 404.
+    admin_url: str = ""
     request_timeout_seconds: float = 30.0
 
 

@@ -18,6 +18,7 @@ established by the update itself rather than typed in by the person using it.
 from __future__ import annotations
 
 import secrets
+import uuid
 from typing import Any
 
 from aiogram import F, Router
@@ -27,6 +28,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.payments.review_service import ApprovalRequest
+from geekvpn.application.resellers.applications import ApplicationNotFound
 from geekvpn.application.support.ticket_service import ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.identity.admin import Admin
@@ -39,13 +41,16 @@ from geekvpn.domain.payments.enums import PaymentState
 from geekvpn.domain.provisioning.enums import OrderState, SubscriptionState
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.routers.admin_analytics import run_report
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui.callbacks import AdminCB
-from geekvpn.presentation.bot.ui.fa import fa_digits, normalize_input, toman
+from geekvpn.presentation.bot.ui.fa import fa_date, fa_digits, normalize_input, toman
+
+logger = get_logger("bot.admin")
 
 router = Router(name="admin")
 
@@ -137,6 +142,7 @@ def _menu() -> InlineKeyboardMarkup:
             [K.btn(A.BTN_CUSTOMER, AdminCB(action="find"))],
             [K.btn(A.BTN_ORDERS, AdminCB(action="orders"))],
             [K.btn(A.BTN_STATS, AdminCB(action="stats"))],
+            [K.btn(A.BTN_APPLICATIONS, AdminCB(action="apps"), style=K.GO)],
             [K.btn(A.BTN_ADMINS, AdminCB(action="admins"))],
         ]
     )
@@ -461,6 +467,164 @@ async def on_close_ticket(
         return
 
     await safe_edit(query, A.TICKET_CLOSED, markup=_back("tickets"))
+
+
+# -- reseller applications --------------------------------------------------
+
+
+@router.callback_query(AdminCB.filter(F.action == "apps"))
+async def on_applications(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    pending = await scope.reseller_applications.pending()
+    if not pending:
+        await safe_edit(
+            query,
+            f"{A.APPLICATIONS_TITLE}\n\n{A.APPLICATIONS_EMPTY}",
+            markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="menu"))),
+        )
+        return
+
+    rows = [
+        [
+            K.btn(
+                A.APPLICATION_ROW.format(
+                    name=row.name_fa, contact=row.contact_fa or "—"
+                ),
+                AdminCB(action="app", ref=row.id.hex),
+            )
+        ]
+        for row in pending
+    ]
+    rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
+    await safe_edit(query, A.APPLICATIONS_TITLE, markup=K.stack(rows))
+
+
+@router.callback_query(AdminCB.filter(F.action == "app"))
+async def on_application(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    row = next(
+        (
+            item
+            for item in await scope.reseller_applications.pending()
+            if item.id.hex == callback_data.ref
+        ),
+        None,
+    )
+    if row is None:
+        await safe_edit(
+            query,
+            A.APPLICATION_GONE,
+            markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="apps"))),
+        )
+        return
+
+    await safe_edit(
+        query,
+        A.APPLICATION_DETAIL.format(
+            name=row.name_fa,
+            telegram_id=fa_digits(row.telegram_id),
+            contact=row.contact_fa or "—",
+            when=fa_date(row.created_at),
+            note=row.note_fa or "",
+        ),
+        markup=K.stack(
+            [
+                [
+                    K.btn(
+                        A.BTN_APPROVE_APPLICATION,
+                        AdminCB(action="app_ok", ref=row.id.hex),
+                        style=K.YES,
+                    )
+                ],
+                [
+                    K.btn(
+                        A.BTN_REJECT_APPLICATION,
+                        AdminCB(action="app_no", ref=row.id.hex),
+                        style=K.NO,
+                    )
+                ],
+                [K.btn(A.BTN_BACK, AdminCB(action="apps"))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(AdminCB.filter(F.action.in_({"app_ok", "app_no"})))
+async def on_decide_application(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+
+    application_id = uuid.UUID(hex=callback_data.ref)
+    back = K.single(K.btn(A.BTN_BACK, AdminCB(action="apps")))
+
+    if callback_data.action == "app_no":
+        try:
+            await scope.reseller_applications.reject(
+                application_id, decided_by=getattr(user, "telegram_id", None)
+            )
+        except ApplicationNotFound:
+            await safe_edit(query, A.APPLICATION_GONE, markup=back)
+            return
+        await safe_edit(query, A.APPLICATION_REJECTED, markup=back)
+        return
+
+    try:
+        approval = await scope.reseller_applications.approve(
+            application_id, decided_by=getattr(user, "telegram_id", None)
+        )
+    except ApplicationNotFound:
+        await safe_edit(query, A.APPLICATION_GONE, markup=back)
+        return
+    except Exception as failure:
+        logger.exception("bot.application_approve_failed", application=callback_data.ref)
+        await safe_edit(query, A.ACTION_FAILED.format(reason=str(failure)), markup=back)
+        return
+
+    await safe_edit(
+        query,
+        A.APPLICATION_APPROVED.format(
+            name=approval.reseller.name_fa,
+            username=approval.username,
+            link=_setup_link(scope, approval),
+        ),
+        markup=back,
+    )
+
+
+def _setup_link(scope: Any, approval: Any) -> str:
+    """Where the applicant chooses their own password.
+
+    Built from the panel's own base URL rather than the API's: this is a page
+    a person opens, not an endpoint. If nothing is configured the operator
+    still gets the token and can assemble the link by hand, which beats a
+    message with a hole in it.
+    """
+    base = (getattr(scope.container.settings.app, "admin_url", "") or "").rstrip("/")
+    query = f"a={approval.reseller.admin_id}&t={approval.setup_token}"
+    return f"{base}/set-password?{query}" if base else f"/set-password?{query}"
 
 
 # -- admins ----------------------------------------------------------------

@@ -180,3 +180,34 @@ BTN_BACK: Final = "⬅️ بازگشت"
 ACTION_FAILED: Final = "انجام نشد: {reason}"
 
 __all__ = [name for name in dir() if name.isupper()]
+
+# -- reseller applications --------------------------------------------------
+
+BTN_APPLICATIONS: Final = "🤝 درخواست‌های نمایندگی"
+APPLICATIONS_TITLE: Final = "🤝 <b>درخواست‌های نمایندگی</b>"
+APPLICATIONS_EMPTY: Final = "درخواستی در انتظار بررسی نیست."
+APPLICATION_ROW: Final = "{name} — {contact}"
+APPLICATION_DETAIL: Final = (
+    "🤝 <b>{name}</b>\n\n"
+    "👤 شناسه تلگرام: <code>{telegram_id}</code>\n"
+    "📞 تماس: {contact}\n"
+    "📅 ثبت: {when}\n\n"
+    "{note}"
+)
+BTN_APPROVE_APPLICATION: Final = "✅ تأیید نمایندگی"
+BTN_REJECT_APPLICATION: Final = "❌ رد درخواست"
+#: The one message in the operator area that carries a live credential.
+#:
+#: It is a link, not a password: single-use, expiring, and useless once spent.
+#: The operator forwards it to the applicant, so it exists in exactly two
+#: chats and stops working after the first tap.
+APPLICATION_APPROVED: Final = (
+    "✅ نمایندگی <b>{name}</b> تأیید شد.\n\n"
+    "🔑 نام کاربری پنل: <code>{username}</code>\n\n"
+    "این لینک را برایشان بفرستید تا رمز پنلشان را خودشان بسازند. "
+    "یک‌بار مصرف است و تا ۲۴ ساعت اعتبار دارد:\n"
+    "<code>{link}</code>\n\n"
+    "در ربات هم از همین حالا با همان حساب تلگرام وارد بخش نمایندگی می‌شوند."
+)
+APPLICATION_REJECTED: Final = "درخواست رد شد."
+APPLICATION_GONE: Final = "این درخواست دیگر در انتظار نیست."
