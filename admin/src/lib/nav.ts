@@ -261,3 +261,17 @@ export const PUBLIC_ROUTES = ['/sign-in', '/set-password'] as const
 export function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
 }
+
+/**
+ * Where somebody belongs when they open the panel at `/`.
+ *
+ * Sign-in sends everyone to the dashboard, which is gated on
+ * `analytics.view` - a permission a reseller deliberately does not hold. They
+ * signed in successfully and were shown "دسترسی ندارید". The first entry they
+ * can actually see is the honest answer, and it is `/portal` for a reseller
+ * without naming the role here.
+ */
+export function landingFor(can: (permission: Permission) => boolean): string {
+  if (can('analytics.view')) return '/'
+  return NAV_ITEMS.find((item) => item.href !== '/' && can(item.permission))?.href ?? '/'
+}

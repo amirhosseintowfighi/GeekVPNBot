@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 
-import { isPublicRoute, permissionForPath } from '@/lib/nav'
+import { isPublicRoute, landingFor, permissionForPath } from '@/lib/nav'
 import { SkeletonCards } from '@/components/ui/skeleton'
 import { ErrorState, ForbiddenState } from './states'
 import { useSession } from './session'
@@ -51,6 +51,18 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   // An unmapped route is denied, not allowed. A screen missing from the
   // navigation table is a bug to fix, not a door to leave open.
   if (!required) return <ForbiddenState />
+
+  // Sign-in drops everybody on `/`. Somebody who cannot read the dashboard
+  // still has a home - send them there rather than greeting them with a denial
+  // on the first screen after a successful login.
+  if (pathname === '/' && !can(required)) {
+    const home = landingFor(can)
+    if (home !== '/' && typeof window !== 'undefined') {
+      window.location.href = home
+      return null
+    }
+  }
+
   if (!can(required)) return <ForbiddenState permission={required} />
 
   return <>{children}</>

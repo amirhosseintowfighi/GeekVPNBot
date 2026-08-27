@@ -8,6 +8,13 @@ import type { ShopPaymentMethods } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -172,17 +179,24 @@ export function ShopPaymentMethodsCard() {
       <div className="space-y-2 rounded-md border p-3">
         <div className="text-sm font-medium">افزودن درگاه بانکی</div>
         <div className="grid gap-2 sm:grid-cols-2">
-          <select
-            className="rounded-md border bg-transparent p-2 text-sm"
+          {/* The styled Select, not a bare `<select>`. The native one paints
+              its option list with the operating system's colours, which in a
+              dark panel is white text on white. */}
+          <Select
             value={gateway.provider}
-            onChange={(event) => setGateway({ ...gateway, provider: event.target.value })}
+            onValueChange={(value) => setGateway({ ...gateway, provider: value })}
           >
-            {Object.entries(PROVIDER_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(PROVIDER_LABEL).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {/* Goes in and never comes back: it identifies the shop to the
               provider, and it is the only thing between somebody and a payment
               request billed to that shop. */}
