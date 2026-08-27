@@ -73,9 +73,24 @@ class Permission(enum.StrEnum):
     ANALYTICS_VIEW = "analytics.view"
     ANALYTICS_EXPORT = "analytics.export"
 
-    # Resellers
+    # Resellers, as an operator sees them
     RESELLERS_READ = "resellers.read"
     RESELLERS_WRITE = "resellers.write"
+
+    # A reseller acting on their own account.
+    #
+    # Separate verbs rather than reusing `users.read`, `wallet.read` and the
+    # rest, and that separation is load-bearing. Those permissions unlock the
+    # *platform-wide* admin endpoints: a reseller holding `users.read` can list
+    # every customer on the platform, and `subscriptions.write` would let them
+    # suspend anybody's service. A permission is a key, and handing somebody
+    # the key to their own door does not mean handing them the master.
+    #
+    # Nothing under `/api/v1/admin` requires either of these, and nothing under
+    # `/api/v1/reseller` requires anything else. `test_reseller_role_is_boxed_in`
+    # holds both halves.
+    RESELLER_PORTAL = "reseller.portal"
+    RESELLER_SELL = "reseller.sell"
 
     # Platform
     AUDIT_READ = "audit.read"
@@ -86,8 +101,18 @@ class Permission(enum.StrEnum):
 
 ALL_PERMISSIONS: frozenset[Permission] = frozenset(Permission)
 
+#: Everything a reseller may hold. Named so the tests and the role can point
+#: at one definition rather than two lists that drift.
+RESELLER_PERMISSIONS: frozenset[Permission] = frozenset(
+    {Permission.RESELLER_PORTAL, Permission.RESELLER_SELL}
+)
+
 _READ_ONLY: frozenset[Permission] = frozenset(
-    permission for permission in Permission if permission.value.endswith(".read")
+    permission
+    for permission in Permission
+    # A reseller permission that happened to end in `.read` would land in
+    # VIEWER by the suffix rule, which is a staff role.
+    if permission.value.endswith(".read") and permission not in RESELLER_PERMISSIONS
 )
 
 
@@ -105,8 +130,13 @@ class AdminRole(enum.StrEnum):
 
 
 _ROLE_PERMISSIONS: dict[AdminRole, frozenset[Permission]] = {
-    AdminRole.SUPER_ADMIN: ALL_PERMISSIONS,
+    # Staff roles are built from everything *except* the reseller verbs. Those
+    # are not a bigger version of an operator's job, they are a different job -
+    # and an operator holding `reseller.portal` would reach an endpoint that
+    # then has to refuse them for a second reason. One refusal is clearer.
+    AdminRole.SUPER_ADMIN: ALL_PERMISSIONS - RESELLER_PERMISSIONS,
     AdminRole.ADMIN: ALL_PERMISSIONS
+    - RESELLER_PERMISSIONS
     - {
         # Only a super admin may create administrators, change platform
         # settings, or impersonate a customer.
@@ -155,16 +185,18 @@ _ROLE_PERMISSIONS: dict[AdminRole, frozenset[Permission]] = {
     # endpoint. `users.read` here means "the customers I created", never the
     # platform's customer list - and that is enforced by the query, because a
     # permission set cannot express whose.
+    # Two permissions, and neither opens an admin endpoint.
+    #
+    # It used to be eight, borrowed from the operator vocabulary - `users.read`,
+    # `wallet.read`, `subscriptions.write` and the rest. Every one of those is
+    # what an admin endpoint checks, so a reseller's token could list every
+    # customer on the platform and suspend anybody's subscription. The scoping
+    # in `/api/v1/reseller` was never the problem; the permissions were keys to
+    # a different building.
     AdminRole.RESELLER: frozenset(
         {
-            Permission.USERS_READ,
-            Permission.PACKAGES_READ,
-            Permission.SUBSCRIPTIONS_READ,
-            Permission.SUBSCRIPTIONS_WRITE,
-            Permission.ORDERS_READ,
-            Permission.WALLET_READ,
-            Permission.TICKETS_READ,
-            Permission.TICKETS_REPLY,
+            Permission.RESELLER_PORTAL,
+            Permission.RESELLER_SELL,
         }
     ),
 }

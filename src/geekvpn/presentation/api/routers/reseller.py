@@ -116,7 +116,7 @@ async def _me(scope: Any, admin: Any) -> Any:
 @router.get(
     "/me",
     response_model=MeResponse,
-    dependencies=[Depends(requires(Permission.WALLET_READ))],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
 async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     reseller = await _me(scope, admin)
@@ -136,7 +136,7 @@ async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
 @router.get(
     "/plans",
     response_model=list[PriceRow],
-    dependencies=[Depends(requires(Permission.PACKAGES_READ))],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
 async def plans(scope: ScopeDep, admin: CurrentAdmin) -> list[PriceRow]:
     """Every package with all three numbers on it.
@@ -155,7 +155,7 @@ async def plans(scope: ScopeDep, admin: CurrentAdmin) -> list[PriceRow]:
 @router.put(
     "/plans/retail",
     response_model=list[PriceRow],
-    dependencies=[Depends(requires(Permission.PACKAGES_READ))],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
 async def set_retail(
     payload: RetailRequest, scope: ScopeDep, admin: CurrentAdmin
@@ -172,7 +172,7 @@ async def set_retail(
 @router.get(
     "/subscriptions",
     response_model=list[SubscriptionRow],
-    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_READ))],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
 async def subscriptions(scope: ScopeDep, admin: CurrentAdmin) -> list[SubscriptionRow]:
     reseller = await _me(scope, admin)
@@ -194,7 +194,7 @@ async def subscriptions(scope: ScopeDep, admin: CurrentAdmin) -> list[Subscripti
 @router.get(
     "/ledger",
     response_model=list[LedgerRow],
-    dependencies=[Depends(requires(Permission.WALLET_READ))],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
 async def ledger(
     scope: ScopeDep,
@@ -219,7 +219,7 @@ async def ledger(
     "/sell",
     response_model=SaleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(requires(Permission.SUBSCRIPTIONS_WRITE))],
+    dependencies=[Depends(requires(Permission.RESELLER_SELL))],
 )
 async def sell(
     payload: SellRequest, scope: ScopeDep, admin: CurrentAdmin

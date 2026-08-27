@@ -20,8 +20,19 @@ def test_every_role_is_defined():
         assert role in ROLE_PERMISSIONS
 
 
-def test_super_admin_has_everything():
-    assert permissions_for_role(AdminRole.SUPER_ADMIN) == ALL_PERMISSIONS
+def test_super_admin_has_every_staff_permission():
+    """Everything except the reseller verbs.
+
+    Those are not a bigger version of an operator's job, they are a different
+    job: an owner holding `reseller.portal` would reach an endpoint that then
+    has to refuse them for a second reason, because they have no reseller
+    record. One refusal is clearer than two.
+    """
+    from geekvpn.domain.identity.permissions import RESELLER_PERMISSIONS
+
+    assert permissions_for_role(AdminRole.SUPER_ADMIN) == (
+        ALL_PERMISSIONS - RESELLER_PERMISSIONS
+    )
 
 
 def test_admin_cannot_create_admins_or_change_settings():

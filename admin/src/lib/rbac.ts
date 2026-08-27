@@ -83,6 +83,16 @@ export const PERMISSIONS = [
   'resellers.read',
   'resellers.write',
 
+  // A reseller acting on their own account.
+  //
+  // Separate verbs rather than reusing `users.read` and the rest, and that
+  // separation is load-bearing: those unlock the platform-wide admin
+  // endpoints. A reseller holding `users.read` could list every customer on
+  // the platform. A permission is a key, and the key to your own door is not
+  // the master key.
+  'reseller.portal',
+  'reseller.sell',
+
   'audit.read',
   'settings.read',
   'settings.write',
@@ -123,12 +133,20 @@ export const ROLE_DESCRIPTION_FA: Record<Role, string> = {
  * That is what their own issued list is for, and the two can differ: an
  * operator may carry explicit overrides on top of their role.
  */
-const READ_ONLY = PERMISSIONS.filter((p) => p.endsWith('.read'))
+const RESELLER_ONLY: string[] = ['reseller.portal', 'reseller.sell']
+
+const READ_ONLY = PERMISSIONS.filter(
+  (p) => p.endsWith('.read') && !RESELLER_ONLY.includes(p),
+)
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
-  super_admin: PERMISSIONS,
+  // Staff roles exclude the reseller verbs. Those are not a bigger version of
+  // an operator's job, they are a different job.
+  super_admin: PERMISSIONS.filter((p) => !RESELLER_ONLY.includes(p)),
   admin: PERMISSIONS.filter(
-    (p) => !(['admins.write', 'settings.write', 'users.impersonate'] as string[]).includes(p),
+    (p) =>
+      !RESELLER_ONLY.includes(p) &&
+      !(['admins.write', 'settings.write', 'users.impersonate'] as string[]).includes(p),
   ),
   finance: [
     'users.read',
@@ -158,21 +176,10 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   // Derived from the `.read` suffix, minus the audit trail, plus analytics -
   // which does not end in `.read` and would otherwise be missing.
   viewer: [...READ_ONLY.filter((p) => p !== 'audit.read'), 'analytics.view'],
-  // Deliberately small, and deliberately not derived from the `.read` suffix:
-  // a reseller must not pick up `admins.read` or `settings.read` by the
-  // accident of a naming convention. Every one of these is additionally scoped
-  // to their own rows by the API - `users.read` means "the customers I
-  // created", which a permission list cannot express.
-  reseller: [
-    'users.read',
-    'packages.read',
-    'subscriptions.read',
-    'subscriptions.write',
-    'orders.read',
-    'wallet.read',
-    'tickets.read',
-    'tickets.reply',
-  ],
+  // Two, and neither opens an admin endpoint. It used to be eight, borrowed
+  // from the operator vocabulary - and every one of those is what an admin
+  // endpoint checks, so a reseller's token could read the whole platform.
+  reseller: ['reseller.portal', 'reseller.sell'],
 }
 
 /**

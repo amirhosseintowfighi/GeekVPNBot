@@ -26,10 +26,15 @@ import {
  * drift from it again.
  */
 describe('role matrix', () => {
-  it('gives the super admin every permission, including the ones nobody else has', () => {
+  it('gives the super admin every staff permission, including the ones nobody else has', () => {
     const owner = permissionsFor('super_admin')
 
     for (const role of ROLES) {
+      // `reseller` is the exception, and deliberately so: its permissions are
+      // not a bigger version of an operator's job, they are a different job.
+      // An owner holding `reseller.portal` would reach an endpoint that then
+      // has to refuse them for a second reason, and one refusal is clearer.
+      if (role === 'reseller') continue
       for (const permission of permissionsFor(role)) {
         expect(owner).toContain(permission)
       }
@@ -37,6 +42,7 @@ describe('role matrix', () => {
 
     expect(owner).toContain('admins.write')
     expect(owner).toContain('users.impersonate')
+    expect(owner).not.toContain('reseller.portal')
   })
 
   it('reserves administrator creation and impersonation for the super admin alone', () => {
@@ -77,6 +83,11 @@ describe('role matrix', () => {
         // Permissions whose resource has no `.read` of its own: the screen
         // that exercises them is gated by a different resource.
         if (['analytics', 'campaigns', 'broadcast', 'metrics', 'audit'].includes(resource)) continue
+        // `reseller.sell` has no `reseller.read`: the pair is portal and sell,
+        // and the screen it opens is gated by the portal one. Naming it
+        // `reseller.read` would have been worse - VIEWER is derived from that
+        // suffix, so a staff role would have picked it up by accident.
+        if (resource === 'reseller') continue
         // A screen you cannot open is a permission you cannot exercise.
         expect(held).toContain(resource + '.read')
       }
