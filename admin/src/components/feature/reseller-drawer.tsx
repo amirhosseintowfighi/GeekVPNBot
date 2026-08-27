@@ -15,6 +15,7 @@ import type {
   ResellerPriceRow,
   ResellerRow,
 } from '@/lib/types'
+import { GatewayAccounts } from '@/components/feature/gateway-accounts'
 import { useSession } from '@/components/shell/session'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -162,6 +163,10 @@ export function ResellerDrawer({
             <TabsContent value="cards">
               <CardsTab resellerId={reseller.id} writable={writable && !busy} />
               <CryptoTab resellerId={reseller.id} writable={writable && !busy} />
+              <div className="mt-6 space-y-4 border-t pt-4">
+                <div className="text-sm font-medium">درگاه بانکی</div>
+                <GatewayAccounts resellerId={reseller.id} writable={writable && !busy} />
+              </div>
             </TabsContent>
 
             <TabsContent value="bot">

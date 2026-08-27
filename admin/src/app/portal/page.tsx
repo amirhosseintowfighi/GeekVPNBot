@@ -15,6 +15,7 @@ import type {
   ResellerSummary,
   ResellerTopupRow,
 } from '@/lib/types'
+import { ShopPaymentMethodsCard } from '@/components/feature/shop-payment-methods'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
 import { useSession } from '@/components/shell/session'
@@ -103,6 +104,8 @@ export default function PortalPage() {
       {summary ? <SummaryCards summary={summary} /> : null}
 
       <BrandCard me={me} onChanged={() => void reloadMe()} />
+
+      <ShopPaymentMethodsCard />
 
       <BotCard me={me} onChanged={() => void reloadMe()} />
 

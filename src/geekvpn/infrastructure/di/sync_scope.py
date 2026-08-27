@@ -478,6 +478,181 @@ class SyncScope:
         """
         return build_gateway_registry(self.session, reseller_id=self.reseller_id)
 
+    # -- a shop's payment destinations -------------------------------------
+    #
+    # Here rather than in a repository because there is no aggregate behind
+    # them: a card, an address and a merchant account are three rows a person
+    # types in, and inventing three repositories for three inserts would be
+    # more indirection than the thing it hides.
+    #
+    # Every one of these takes the shop explicitly rather than reading
+    # `self.reseller_id`. The caller is a reseller's own endpoint, which has
+    # already resolved whose shop this is, and a method that silently used the
+    # scope's answer would be one refactor away from writing a reseller's card
+    # into the platform's list.
+
+    def shop_payment_methods(self, reseller_id: uuid.UUID) -> dict[str, list[dict[str, Any]]]:
+        cards = (
+            self.session.execute(
+                select(CardAccountModel)
+                .where(CardAccountModel.reseller_id == reseller_id)
+                .order_by(CardAccountModel.sort_order, CardAccountModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        crypto = (
+            self.session.execute(
+                select(CryptoAccountModel)
+                .where(CryptoAccountModel.reseller_id == reseller_id)
+                .order_by(CryptoAccountModel.sort_order, CryptoAccountModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        gateways = (
+            self.session.execute(
+                select(GatewayAccountModel)
+                .where(GatewayAccountModel.reseller_id == reseller_id)
+                .order_by(GatewayAccountModel.sort_order, GatewayAccountModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            "cards": [
+                {
+                    "id": row.id,
+                    "card_number": row.card_number,
+                    "holder_fa": row.holder_fa,
+                    "bank_fa": row.bank_fa,
+                    "active": row.active,
+                }
+                for row in cards
+            ],
+            "crypto": [
+                {
+                    "id": row.id,
+                    "address": row.address,
+                    "network": row.network,
+                    "asset": row.asset,
+                    "active": row.active,
+                }
+                for row in crypto
+            ],
+            "gateways": [
+                {
+                    "id": row.id,
+                    "provider": row.provider,
+                    # Never the merchant id. Whether one is set is all anybody
+                    # needs to tell a configured provider from a blank one.
+                    "has_merchant_id": bool(row.merchant_id_encrypted),
+                    "active": row.active,
+                }
+                for row in gateways
+            ],
+        }
+
+    def add_shop_card(
+        self, reseller_id: uuid.UUID, *, card_number: str, holder_fa: str, bank_fa: str
+    ) -> None:
+        self.session.add(
+            CardAccountModel(
+                id=uuid.uuid4().hex,
+                card_number=card_number,
+                holder_fa=holder_fa,
+                bank_fa=bank_fa,
+                active=True,
+                sort_order=0,
+                reseller_id=reseller_id,
+            )
+        )
+        self.session.flush()
+
+    def add_shop_crypto(
+        self, reseller_id: uuid.UUID, *, address: str, network: str, asset: str
+    ) -> None:
+        self.session.add(
+            CryptoAccountModel(
+                id=uuid.uuid4().hex,
+                address=address,
+                network=network,
+                asset=asset or "USDT",
+                active=True,
+                sort_order=0,
+                reseller_id=reseller_id,
+            )
+        )
+        self.session.flush()
+
+    def add_shop_gateway(
+        self, reseller_id: uuid.UUID, *, provider: str, merchant_id: str
+    ) -> None:
+        existing = (
+            self.session.execute(
+                select(GatewayAccountModel).where(
+                    GatewayAccountModel.provider == provider,
+                    GatewayAccountModel.reseller_id == reseller_id,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            # One account per provider per shop. A second would be two merchant
+            # ids behind one button, and which one a customer got would depend
+            # on a sort order nobody set on purpose.
+            existing.merchant_id_encrypted = merchant_id
+            existing.active = True
+        else:
+            self.session.add(
+                GatewayAccountModel(
+                    id=uuid.uuid4().hex,
+                    provider=provider,
+                    merchant_id_encrypted=merchant_id,
+                    active=True,
+                    sort_order=0,
+                    reseller_id=reseller_id,
+                )
+            )
+        self.session.flush()
+
+    def set_shop_method_active(
+        self, reseller_id: uuid.UUID, *, kind: str, method_id: str, active: bool
+    ) -> None:
+        """Retire or restore one destination, matched against its own shop.
+
+        The shop is in the WHERE rather than checked after loading: a guessed
+        id belonging to another shop then updates nothing, instead of answering
+        "not found" and confirming the id was real.
+        """
+        # Spelled out per kind rather than looked up in a dict of models.
+        # The three tables share a shape but not a type, and a `model` variable
+        # is a `type[Base]` that mypy cannot see `reseller_id` on - the check
+        # that would catch a renamed column is worth three branches.
+        if kind == "card":
+            self._retire(CardAccountModel, reseller_id, method_id, active)
+        elif kind == "crypto":
+            self._retire(CryptoAccountModel, reseller_id, method_id, active)
+        else:
+            self._retire(GatewayAccountModel, reseller_id, method_id, active)
+
+    def _retire(
+        self, model: Any, reseller_id: uuid.UUID, method_id: str, active: bool
+    ) -> None:
+        row = (
+            self.session.execute(
+                select(model).where(
+                    model.id == method_id, model.reseller_id == reseller_id
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if row is not None:
+            row.active = active
+            self.session.flush()
+
     # -- repositories ------------------------------------------------------
 
     @cached_property

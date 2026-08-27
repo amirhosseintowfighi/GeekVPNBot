@@ -40,10 +40,12 @@ import type {
   ResellerLedgerRow,
   ResellerPriceRow,
   CryptoRow,
+  GatewayRow,
   ResellerSelf,
   ResellerSummary,
   ResellerCustomers,
   ResellerTextRow,
+  ShopPaymentMethods,
   BroadcastResult,
   ResellerTopupRow,
   PendingTopupRow,
@@ -512,6 +514,25 @@ export const api = {
       active: true,
       sortOrder: 0,
     }),
+  gateways: (resellerId?: string) =>
+    fetcher<GatewayRow[]>(
+      `${ROOT}/payments/gateways` + (resellerId ? `?resellerId=${resellerId}` : ''),
+    ),
+  addGateway: (body: {
+    provider: string
+    merchantId: string
+    resellerId?: string | null
+  }) =>
+    mutate<GatewayRow>('POST', `${ROOT}/payments/gateways`, {
+      provider: body.provider,
+      merchantId: body.merchantId,
+      resellerId: body.resellerId ?? null,
+      active: true,
+      sortOrder: 0,
+    }),
+  setGatewayActive: (gatewayId: string, active: boolean) =>
+    mutate<GatewayRow>('PATCH', `${ROOT}/payments/gateways/${gatewayId}`, { active }),
+
   setCryptoActive: (cryptoId: string, active: boolean) =>
     mutate<CryptoRow>('PATCH', `${ROOT}/payments/crypto/${cryptoId}`, { active }),
   setCardActive: (cardId: string, active: boolean) =>
@@ -558,6 +579,24 @@ export const api = {
     fetcher<ResellerTextRow[]>(`${ROOT}/resellers/${id}/texts`),
 
   // The reseller's own view of their words, with ours beside each one.
+  // The reseller's own payment destinations. Their endpoints, not the
+  // operator's: a reseller holds neither payments permission, so the admin
+  // routes would answer 403 on a card they own.
+  myPaymentMethods: () =>
+    fetcher<ShopPaymentMethods>('/api/v1/reseller/payment-methods'),
+  addMyCard: (body: { cardNumber: string; holderFa: string; bankFa: string }) =>
+    mutate<void>('POST', '/api/v1/reseller/payment-methods/card', body),
+  addMyCrypto: (body: { address: string; network: string; asset: string }) =>
+    mutate<void>('POST', '/api/v1/reseller/payment-methods/crypto', body),
+  addMyGateway: (body: { provider: string; merchantId: string }) =>
+    mutate<void>('POST', '/api/v1/reseller/payment-methods/gateway', body),
+  setMyMethodActive: (kind: string, methodId: string, active: boolean) =>
+    mutate<void>(
+      'POST',
+      `/api/v1/reseller/payment-methods/${kind}/${methodId}/active`,
+      { active },
+    ),
+
   myTexts: () => fetcher<ResellerTextRow[]>('/api/v1/reseller/texts'),
   setMyText: (key: string, bodyFa: string) =>
     mutate<void>('PUT', `/api/v1/reseller/texts/${key}`, { bodyFa }),

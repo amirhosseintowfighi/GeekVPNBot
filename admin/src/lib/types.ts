@@ -912,3 +912,20 @@ export interface ResellerTextRow {
   defaultFa?: string
   placeholders?: string[]
 }
+
+/** A configured online payment provider. The merchant id never comes back. */
+export interface GatewayRow {
+  id: string
+  provider: 'zarinpal' | 'zibal' | 'aqayepardakht'
+  hasMerchantId: boolean
+  active: boolean
+  sortOrder: number
+  resellerId: string | null
+}
+
+/** A shop's own payment destinations, as the reseller's panel reads them. */
+export interface ShopPaymentMethods {
+  cards: { id: string; cardNumber: string; holderFa: string; bankFa: string; active: boolean }[]
+  crypto: { id: string; address: string; network: string; asset: string; active: boolean }[]
+  gateways: { id: string; provider: string; hasMerchantId: boolean; active: boolean }[]
+}

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ConfigDict, Field
@@ -29,6 +29,10 @@ from geekvpn.domain.resellers.errors import (
 )
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
+
+#: Digits only, 16 to 19 of them - the same shape the operator endpoint
+#: enforces. Written once so the two cannot disagree about what a card is.
+CARD_NUMBER = r"^\d{16,19}$"
 
 router = APIRouter(prefix="/reseller", tags=["reseller"])
 
@@ -119,6 +123,65 @@ class TextRequest(ApiModel):
     #: screen: clearing a message means "use the normal one", never "say
     #: nothing".
     body_fa: str = Field(default="", max_length=2000)
+
+
+class CardOut(ApiModel):
+    id: str
+    card_number: str
+    holder_fa: str
+    bank_fa: str
+    active: bool
+
+
+class CryptoOut(ApiModel):
+    id: str
+    address: str
+    network: str
+    asset: str
+    active: bool
+
+
+class GatewayOut(ApiModel):
+    id: str
+    provider: str
+    #: Never the merchant id itself.
+    has_merchant_id: bool
+    active: bool
+
+
+class PaymentMethodsResponse(ApiModel):
+    cards: list[CardOut]
+    crypto: list[CryptoOut]
+    gateways: list[GatewayOut]
+
+
+class NewCard(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    card_number: str = Field(pattern=CARD_NUMBER)
+    holder_fa: str = Field(min_length=1, max_length=128)
+    bank_fa: str = Field(min_length=1, max_length=64)
+
+
+class NewCrypto(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    address: str = Field(min_length=8, max_length=128)
+    network: str = Field(min_length=2, max_length=32)
+    asset: str = Field(default="USDT", max_length=16)
+
+
+class NewGateway(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["zarinpal", "zibal", "aqayepardakht"]
+    merchant_id: str = Field(min_length=4, max_length=128)
+
+
+class ActiveRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    active: bool
 
 
 class CustomerRow(ApiModel):
@@ -453,6 +516,117 @@ async def broadcast(
         failed=progress.failed + progress.suppressed,
         total=progress.sent + progress.failed + progress.suppressed,
     )
+
+
+# -- how this shop takes money ---------------------------------------------
+#
+# Their own endpoints rather than the operator's. A reseller holds neither
+# `payments.read` nor `payments.approve` - deliberately, because those open
+# every admin payment screen - so pointing their panel at `/admin/payments`
+# would have answered 403 on a card they own.
+
+
+@router.get(
+    "/payment-methods",
+    response_model=PaymentMethodsResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def payment_methods(scope: ScopeDep, admin: CurrentAdmin) -> PaymentMethodsResponse:
+    reseller = await _me(scope, admin)
+
+    def work(sync: Any) -> Any:
+        return sync.shop_payment_methods(reseller.id)
+
+    found = await scope.in_shop(work)
+    return PaymentMethodsResponse(
+        cards=[CardOut(**row) for row in found["cards"]],
+        crypto=[CryptoOut(**row) for row in found["crypto"]],
+        gateways=[GatewayOut(**row) for row in found["gateways"]],
+    )
+
+
+@router.post(
+    "/payment-methods/card",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def add_card(payload: NewCard, scope: ScopeDep, admin: CurrentAdmin) -> None:
+    reseller = await _me(scope, admin)
+
+    def work(sync: Any) -> None:
+        sync.add_shop_card(
+            reseller.id,
+            card_number=payload.card_number,
+            holder_fa=payload.holder_fa,
+            bank_fa=payload.bank_fa,
+        )
+
+    await scope.in_shop(work)
+
+
+@router.post(
+    "/payment-methods/crypto",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def add_crypto(payload: NewCrypto, scope: ScopeDep, admin: CurrentAdmin) -> None:
+    reseller = await _me(scope, admin)
+
+    def work(sync: Any) -> None:
+        sync.add_shop_crypto(
+            reseller.id,
+            address=payload.address,
+            network=payload.network,
+            asset=payload.asset,
+        )
+
+    await scope.in_shop(work)
+
+
+@router.post(
+    "/payment-methods/gateway",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def add_gateway(payload: NewGateway, scope: ScopeDep, admin: CurrentAdmin) -> None:
+    reseller = await _me(scope, admin)
+
+    def work(sync: Any) -> None:
+        sync.add_shop_gateway(
+            reseller.id, provider=payload.provider, merchant_id=payload.merchant_id
+        )
+
+    await scope.in_shop(work)
+
+
+@router.post(
+    "/payment-methods/{kind}/{method_id}/active",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def set_method_active(
+    kind: str,
+    method_id: str,
+    payload: ActiveRequest,
+    scope: ScopeDep,
+    admin: CurrentAdmin,
+) -> None:
+    """Retire or restore one destination.
+
+    Matched against their own shop inside the query, so a guessed id belonging
+    to another shop changes nothing rather than answering "not found" and
+    telling somebody the id was real.
+    """
+    reseller = await _me(scope, admin)
+    if kind not in {"card", "crypto", "gateway"}:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such kind.")
+
+    def work(sync: Any) -> None:
+        sync.set_shop_method_active(
+            reseller.id, kind=kind, method_id=method_id, active=payload.active
+        )
+
+    await scope.in_shop(work)
 
 
 @router.get(
