@@ -96,11 +96,13 @@ class User(AggregateRoot[uuid.UUID]):
         is_premium: bool = False,
         photo_url: str | None = None,
         referred_by_code: str | None = None,
+        reseller_id: str | None = None,
         now: datetime | None = None,
     ) -> User:
         user = cls(
             user_id,
             telegram_id=telegram_id,
+            reseller_id=reseller_id,
             referral_code=referral_code,
             username=username,
             first_name=first_name,

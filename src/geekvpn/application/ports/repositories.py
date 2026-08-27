@@ -23,7 +23,16 @@ from geekvpn.domain.identity.user import User
 class UserRepository(Protocol):
     async def get(self, user_id: uuid.UUID) -> User | None: ...
 
-    async def get_by_telegram_id(self, telegram_id: int) -> User | None: ...
+    async def get_by_telegram_id(
+        self, telegram_id: int, *, reseller_id: uuid.UUID | None = None
+    ) -> User | None:
+        """One person, in one shop.
+
+        `None` is the platform's own bot - a real answer, not "any shop". The
+        same Telegram account is a different customer in each reseller's bot,
+        with their own wallet and their own subscriptions.
+        """
+        ...
 
     async def get_by_referral_code(self, code: str) -> User | None: ...
 

@@ -21,6 +21,12 @@ class TelegramIdentity:
     photo_url: str | None = None
     is_premium: bool = False
     start_param: str | None = None
+    #: Which shop's bot this update arrived at. ``None`` is the
+    #: platform's own. A Telegram account is a separate customer in
+    #: each shop - separate wallet, separate subscriptions - so this
+    #: decides *which* person is being authenticated, not merely where
+    #: they came from.
+    reseller_id: str | None = None
 
 
 @runtime_checkable

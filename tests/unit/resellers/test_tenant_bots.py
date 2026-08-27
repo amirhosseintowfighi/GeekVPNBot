@@ -72,36 +72,65 @@ def test_the_platform_secret_is_not_recoverable_from_a_tenants():
     assert SECRET not in tenant_secret(SECRET, ONE)
 
 
-def test_a_tenants_updates_never_reach_the_platform_dispatcher():
+def test_a_tenants_updates_carry_the_shop_they_arrived_at():
     """The trap this whole file exists to avoid.
 
     A reseller's customer talking to the reseller's bot must not be answered
-    by our storefront: our prices, our wallet and our brand, under a name they
-    believe belongs to somebody else. That is worse than silence, and nobody
-    would notice it was happening.
+    with our storefront: our prices, our wallet and our brand, under a name
+    they believe belongs to somebody else. That is worse than silence, and
+    nobody would notice it was happening.
 
-    Read from the source, because the mistake is one identifier: `dispatcher`
-    instead of `reseller_dispatcher`, in a handler no test can reach without a
-    live Telegram token.
+    The dispatcher is deliberately the same one - aiogram attaches a `Router`
+    to exactly one dispatcher, so a second dispatcher over the same modules is
+    not possible, and two sets of routers would be two things to keep in step.
+    What makes the difference is `reseller_id` travelling with the update:
+    every handler downstream is shared, so nothing can know which shop this is
+    unless the route says so.
+
+    Read from the source, because the mistake is one missing keyword argument
+    in a handler no test can reach without a live Telegram token.
     """
     import ast
-    import pathlib
+    import pathlib as _pathlib
 
-    source = pathlib.Path("src/geekvpn/presentation/bot/app.py").read_text(encoding="utf-8")
-    tree = ast.parse(source)
+    source = _pathlib.Path("src/geekvpn/presentation/bot/app.py").read_text(encoding="utf-8")
     handler = next(
         node
-        for node in ast.walk(tree)
+        for node in ast.walk(ast.parse(source))
         if isinstance(node, ast.AsyncFunctionDef) and node.name == "tenant_webhook"
     )
-
-    fed = {
-        ast.unparse(node.func.value)
+    feeds = [
+        node
         for node in ast.walk(handler)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "feed_update"
-    }
+    ]
 
-    assert fed
-    assert not any("app.state.dispatcher" in target for target in fed), fed
+    assert feeds, "the tenant route feeds nothing"
+    for call in feeds:
+        passed = {keyword.arg for keyword in call.keywords}
+        assert "reseller_id" in passed, "an unscoped update is our shop under their name"
+        # And no duck: a reseller's brand is not ours to decorate.
+        assert "stickers" in passed
+
+
+def test_the_platform_bot_does_not_claim_a_shop():
+    """The other direction. Our own webhook must not pass a reseller id, or
+    every customer of ours would be authenticated into somebody else's shop."""
+    import ast
+    import pathlib as _pathlib
+
+    source = _pathlib.Path("src/geekvpn/presentation/bot/app.py").read_text(encoding="utf-8")
+    handler = next(
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "telegram_webhook"
+    )
+    for call in ast.walk(handler):
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "feed_update"
+        ):
+            assert "reseller_id" not in {keyword.arg for keyword in call.keywords}

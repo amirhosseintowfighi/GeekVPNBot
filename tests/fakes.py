@@ -39,8 +39,24 @@ class InMemoryUserRepository:
     async def get(self, user_id: uuid.UUID) -> User | None:
         return self.items.get(user_id)
 
-    async def get_by_telegram_id(self, telegram_id: int) -> User | None:
-        return next((u for u in self.items.values() if u.telegram_id == telegram_id), None)
+    async def get_by_telegram_id(
+        self, telegram_id: int, *, reseller_id: uuid.UUID | None = None
+    ) -> User | None:
+        """Scoped by shop, like the real one.
+
+        A fake that ignored `reseller_id` would pass every test while the
+        thing it stands in for hands a reseller's customer somebody else's
+        account - which is the exact bug the argument exists to prevent.
+        """
+        wanted = None if reseller_id is None else str(reseller_id)
+        return next(
+            (
+                u
+                for u in self.items.values()
+                if u.telegram_id == telegram_id and u.reseller_id == wanted
+            ),
+            None,
+        )
 
     async def get_by_referral_code(self, code: str) -> User | None:
         return next((u for u in self.items.values() if u.referral_code == code), None)

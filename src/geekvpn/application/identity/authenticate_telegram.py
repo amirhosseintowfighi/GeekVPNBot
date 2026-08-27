@@ -99,7 +99,9 @@ class AuthenticateTelegramUser:
         """Find or create the user behind a proven identity, and check they may
         still come in. Shared by login and by per-request verification so the
         two cannot disagree about who a banned customer is."""
-        user = await self._users.get_by_telegram_id(identity.telegram_id)
+        user = await self._users.get_by_telegram_id(
+            identity.telegram_id, reseller_id=_shop_of(identity)
+        )
         is_new = user is None
 
         if user is None:
@@ -167,6 +169,7 @@ class AuthenticateTelegramUser:
             is_premium=identity.is_premium,
             photo_url=identity.photo_url,
             referred_by_code=_referral_from_start_param(identity.start_param),
+            reseller_id=identity.reseller_id,
             now=now,
         )
         await self._users.add(user)
@@ -197,6 +200,23 @@ def _language_of(code: str | None) -> Language | None:
     if not code:
         return None
     return Language.FA if code.lower().startswith("fa") else Language.EN
+
+
+def _shop_of(identity: TelegramIdentity) -> uuid.UUID | None:
+    """Which shop this update belongs to, as the repository wants it.
+
+    A malformed value is treated as the platform's own shop rather than
+    raising. It can only come from this process's own webhook routing, and a
+    customer who cannot sign in at all is a worse answer than one who signs in
+    to the wrong storefront - which the route's own validation already
+    prevents.
+    """
+    if not identity.reseller_id:
+        return None
+    try:
+        return uuid.UUID(identity.reseller_id)
+    except ValueError:
+        return None
 
 
 def _referral_from_start_param(start_param: str | None) -> str | None:

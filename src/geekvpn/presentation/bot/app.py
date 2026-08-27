@@ -273,19 +273,23 @@ def create_bot_app(
             logger.info("bot.tenant_webhook.unknown", reseller=tenant)
             return {"ok": True}
 
-        dispatcher = getattr(request.app.state, "reseller_dispatcher", None)
-        if dispatcher is None:
-            # Deliberately not the platform dispatcher. Feeding a reseller's
-            # customer into our own storefront would answer them with our
-            # prices, our wallet and our brand, under a name they believe
-            # belongs to somebody else - a worse outcome than silence, and one
-            # nobody would notice was happening.
-            logger.info("bot.tenant_webhook.no_dispatcher", reseller=tenant)
-            return {"ok": True}
-
         update = Update.model_validate(await request.json(), context={"bot": bot})
         try:
-            await dispatcher.feed_update(bot=bot, update=update)
+            # The same dispatcher as the platform's bot, and the same
+            # routers - aiogram attaches a `Router` to exactly one dispatcher,
+            # so a second one over the same modules is not possible, and two
+            # sets of routers would be two things to keep in step.
+            #
+            # What makes this a *reseller's* bot is the two values below.
+            # `reseller_id` decides which customer is authenticated, which
+            # prices are quoted and whose card is shown; `stickers` is None
+            # because a reseller's brand is not our duck.
+            await request.app.state.dispatcher.feed_update(
+                bot=bot,
+                update=update,
+                reseller_id=reseller_id.hex,
+                stickers=None,
+            )
         except Exception:
             logger.exception("bot.tenant_update_failed", update_id=update.update_id)
         return {"ok": True}

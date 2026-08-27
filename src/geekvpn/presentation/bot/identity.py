@@ -62,6 +62,11 @@ class IdentityMiddleware(BaseMiddleware):
                 language_code=telegram_user.language_code,
                 is_premium=bool(telegram_user.is_premium),
                 start_param=_extract_start_param(event),
+                # Put here by the tenant webhook, from the path the update
+                # arrived on. It decides *which* person is being authenticated:
+                # the same Telegram account is a separate customer in each
+                # reseller's bot, with their own wallet and subscriptions.
+                reseller_id=data.get("reseller_id"),
             )
             try:
                 result = await scope.authenticate_telegram.from_trusted_bot_update(
