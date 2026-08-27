@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { NewResellerDialog } from '@/components/feature/new-reseller-dialog'
+import { ResellerApplications } from '@/components/feature/reseller-applications'
 import { ResellerDrawer } from '@/components/feature/reseller-drawer'
 
 const STATUS_LABEL: Record<ResellerRow['status'], string> = {
@@ -67,6 +68,10 @@ export default function ResellersPage() {
           ) : null
         }
       />
+
+      {/* Above the list: an application is somebody waiting for an answer,
+          and it renders nothing when the queue is empty. */}
+      <ResellerApplications onApproved={() => void mutate()} />
 
       {error ? (
         <ErrorState

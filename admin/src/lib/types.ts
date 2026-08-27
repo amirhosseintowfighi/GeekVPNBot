@@ -701,6 +701,14 @@ export interface CardRow {
   active: boolean
   sortOrder: number
   dailyLimit: number | null
+  /**
+   * Whose card. Null is the platform's own.
+   *
+   * A reseller's customer transfers to the reseller's card - the reseller has
+   * already bought the package out of their credit, so money arriving on ours
+   * for it would charge twice for one service.
+   */
+  resellerId: string | null
 }
 
 export interface CardBody {

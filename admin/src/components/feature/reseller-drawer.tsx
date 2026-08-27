@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { ApiError, api } from '@/lib/api'
 import { faNumber, toman } from '@/lib/fa'
 import type {
+  CardRow,
   PanelRow,
   ResellerLedgerRow,
   ResellerPriceRow,
@@ -107,6 +108,7 @@ export function ResellerDrawer({
               <TabsTrigger value="credit">اعتبار</TabsTrigger>
               <TabsTrigger value="prices">قیمت‌ها</TabsTrigger>
               <TabsTrigger value="panels">پنل‌ها</TabsTrigger>
+              <TabsTrigger value="cards">کارت‌ها</TabsTrigger>
               <TabsTrigger value="settings">تنظیمات</TabsTrigger>
             </TabsList>
 
@@ -150,6 +152,10 @@ export function ResellerDrawer({
                 writable={writable && !busy}
                 onSave={(ids) => run(() => api.setResellerPanels(reseller.id, ids))}
               />
+            </TabsContent>
+
+            <TabsContent value="cards">
+              <CardsTab resellerId={reseller.id} writable={writable && !busy} />
             </TabsContent>
 
             <TabsContent value="settings">
@@ -473,6 +479,99 @@ function SettingsTab({
         >
           ذخیره
         </Button>
+      ) : null}
+    </div>
+  )
+}
+
+
+function CardsTab({ resellerId, writable }: { resellerId: string; writable: boolean }) {
+  const { data, mutate } = useSWR<CardRow[]>(['reseller-cards', resellerId], () =>
+    api.resellerCards(resellerId),
+  )
+  const [holder, setHolder] = React.useState('')
+  const [bank, setBank] = React.useState('')
+  const [number, setNumber] = React.useState('')
+  const [error, setError] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+
+  const digits = number.replace(/\D/g, '')
+  const valid = holder.trim() && bank.trim() && digits.length >= 16 && digits.length <= 19
+
+  const add = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.addResellerCard(resellerId, {
+        holderFa: holder.trim(),
+        bankFa: bank.trim(),
+        cardNumber: digits,
+      })
+      setHolder('')
+      setBank('')
+      setNumber('')
+      await mutate()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ثبت کارت انجام نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 pt-4">
+      <p className="text-sm text-muted-foreground">
+        مشتری این نماینده به این کارت‌ها واریز می‌کند، نه به کارت شما. اگر هیچ
+        کارتی ثبت نشود، کارت‌به‌کارت در ربات این نماینده نمایش داده نمی‌شود.
+      </p>
+
+      {!data?.length ? (
+        <p className="text-sm text-muted-foreground">هنوز کارتی ثبت نشده.</p>
+      ) : (
+        <div className="divide-y rounded-md border text-sm">
+          {data.map((card) => (
+            <div key={card.id} className="flex items-center justify-between gap-3 p-2">
+              <div>
+                <code dir="ltr">{card.cardNumber}</code>
+                <div className="text-xs text-muted-foreground">
+                  {card.holderFa} · {card.bankFa}
+                </div>
+              </div>
+              {writable ? (
+                <Switch
+                  checked={card.active}
+                  onCheckedChange={(next) => {
+                    void api.setCardActive(card.id, next).then(() => mutate())
+                  }}
+                />
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {writable ? (
+        <div className="space-y-3 rounded-md border p-3">
+          <Field label="شماره کارت">
+            <Input
+              dir="ltr"
+              inputMode="numeric"
+              value={number}
+              onChange={(event) => setNumber(event.target.value)}
+              placeholder="6037991199119911"
+            />
+          </Field>
+          <Field label="به نام">
+            <Input value={holder} onChange={(event) => setHolder(event.target.value)} />
+          </Field>
+          <Field label="بانک">
+            <Input value={bank} onChange={(event) => setBank(event.target.value)} />
+          </Field>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button disabled={!valid || busy} onClick={() => void add()}>
+            افزودن کارت
+          </Button>
+        </div>
       ) : null}
     </div>
   )

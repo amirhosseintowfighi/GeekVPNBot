@@ -468,6 +468,31 @@ export const api = {
   // not a refusal - their customers are suspended until it is positive again.
   adjustResellerCredit: (id: string, amount: number, descriptionFa: string) =>
     mutate<ResellerRow>('POST', `${ROOT}/resellers/${id}/credit`, { amount, descriptionFa }),
+  // A reseller's own destination cards. Their customer transfers to these,
+  // not to ours - the reseller has already paid us out of their credit.
+  // The query is built apart from the path on purpose: the contract test
+  // reads these literals to check every call against a registered route, and a
+  // query string glued into the template reads as part of the path.
+  resellerCards: (id: string) =>
+    fetcher<CardRow[]>(`${ROOT}/payments/cards` + `?resellerId=${id}`),
+  addResellerCard: (
+    id: string,
+    body: { holderFa: string; bankFa: string; cardNumber: string },
+  ) =>
+    // Fields written out rather than spread: the contract test reads this
+    // literal to check the body against the endpoint's required fields, and a
+    // spread hides every one of them from it.
+    mutate<CardRow>('POST', `${ROOT}/payments/cards`, {
+      holderFa: body.holderFa,
+      bankFa: body.bankFa,
+      cardNumber: body.cardNumber,
+      resellerId: id,
+      active: true,
+      sortOrder: 0,
+    }),
+  setCardActive: (cardId: string, active: boolean) =>
+    mutate<CardRow>('PATCH', `${ROOT}/payments/cards/${cardId}`, { active }),
+
   resellerPrices: (id: string) =>
     fetcher<ResellerPriceRow[]>(`${ROOT}/resellers/${id}/prices`),
   resellerLedger: (id: string) =>

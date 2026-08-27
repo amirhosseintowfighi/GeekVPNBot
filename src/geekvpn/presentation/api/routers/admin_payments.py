@@ -233,6 +233,44 @@ class CardBody(ApiModel):
     sort_order: int = 0
     active: bool = True
     daily_limit: int | None = Field(default=None, gt=0)
+    #: Whose card this is. Null is the platform's own.
+    #:
+    #: A reseller's customer transfers to the reseller's card - the reseller has
+    #: already bought the package out of their credit, so money arriving on ours
+    #: for it would charge twice for one service.
+    reseller_id: uuid.UUID | None = None
+
+
+class CardPatchBody(ApiModel):
+    """A real PATCH: every field optional, only what is sent is applied.
+
+    Separate from `CardBody` rather than making that one's fields optional,
+    because creating a card without a number is not a thing anybody should be
+    able to ask for.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    holder_fa: str | None = Field(default=None, min_length=1, max_length=128)
+    bank_fa: str | None = Field(default=None, min_length=1, max_length=64)
+    card_number: str | None = Field(default=None, pattern=r"^\d{16,19}$")
+    sheba: str | None = Field(default=None, max_length=26)
+    sort_order: int | None = None
+    active: bool | None = None
+    daily_limit: int | None = Field(default=None, gt=0)
+
+
+#: Request field to column. Spelled out rather than derived, so a rename on
+#: either side is a failing test rather than a silent no-op.
+_CARD_FIELDS: dict[str, str] = {
+    "holder_fa": "holder_fa",
+    "bank_fa": "bank_fa",
+    "card_number": "card_number",
+    "sheba": "sheba",
+    "sort_order": "sort_order",
+    "active": "active",
+    "daily_limit": "daily_limit",
+}
 
 
 def _card_dict(card: CardAccountModel) -> dict[str, Any]:
@@ -245,6 +283,7 @@ def _card_dict(card: CardAccountModel) -> dict[str, Any]:
         "active": card.active,
         "sortOrder": card.sort_order,
         "dailyLimit": card.daily_limit,
+        "resellerId": None if card.reseller_id is None else str(card.reseller_id),
     }
 
 
@@ -253,13 +292,23 @@ def _card_dict(card: CardAccountModel) -> dict[str, Any]:
     summary="Destination cards for the card-to-card flow",
     dependencies=[Depends(requires(Permission.PAYMENTS_READ))],
 )
-async def list_cards(container: ContainerDep) -> list[dict[str, Any]]:
+async def list_cards(
+    container: ContainerDep, reseller_id: uuid.UUID | None = None
+) -> list[dict[str, Any]]:
+    """Every card, or one shop's.
+
+    Without the filter this returns the platform's cards *and* every
+    reseller's, which is right for an operator auditing them and wrong for the
+    drawer that edits one reseller - so the caller says which.
+    """
+
     def work(scope: SyncScope) -> list[dict[str, Any]]:
+        stmt = select(CardAccountModel)
+        if reseller_id is not None:
+            stmt = stmt.where(CardAccountModel.reseller_id == reseller_id)
         rows = (
             scope.session.execute(
-                select(CardAccountModel).order_by(
-                    CardAccountModel.sort_order, CardAccountModel.id
-                )
+                stmt.order_by(CardAccountModel.sort_order, CardAccountModel.id)
             )
             .scalars()
             .all()
@@ -300,6 +349,7 @@ async def create_card(
             active=payload.active,
             sort_order=payload.sort_order,
             daily_limit=payload.daily_limit,
+            reseller_id=payload.reseller_id,
         )
         scope.session.add(card)
         scope.session.flush()
@@ -315,7 +365,7 @@ async def create_card(
 )
 async def update_card(
     card_id: str,
-    payload: CardBody,
+    payload: CardPatchBody,
     idempotency_key: IdempotencyKey,
     container: ContainerDep,
 ) -> dict[str, Any]:
@@ -325,13 +375,11 @@ async def update_card(
         card = scope.session.get(CardAccountModel, card_id)
         if card is None:
             raise NotFoundError("این کارت پیدا نشد.")
-        card.holder_fa = payload.holder_fa
-        card.bank_fa = payload.bank_fa
-        card.card_number = payload.card_number
-        card.sheba = payload.sheba
-        card.active = payload.active
-        card.sort_order = payload.sort_order
-        card.daily_limit = payload.daily_limit
+        # Only what was sent. It is a PATCH, and it took a whole `CardBody` -
+        # so retiring a card meant resending its number, its holder and its
+        # bank, and a caller that sent only `active` got a 422.
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(card, _CARD_FIELDS[field], value)
         scope.session.flush()
         return _card_dict(card)
 
