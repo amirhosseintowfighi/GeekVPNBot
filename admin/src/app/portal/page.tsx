@@ -96,6 +96,8 @@ export default function PortalPage() {
 
       {summary ? <SummaryCards summary={summary} /> : null}
 
+      <BrandCard me={me} onChanged={() => void reloadMe()} />
+
       <BotCard me={me} onChanged={() => void reloadMe()} />
 
       <PricesCard rows={plans ?? []} onSaved={() => void reloadPlans()} />
@@ -380,5 +382,42 @@ function SummaryCards({ summary }: { summary: ResellerSummary }) {
         </Card>
       ))}
     </div>
+  )
+}
+
+
+function BrandCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void }) {
+  const [brand, setBrand] = React.useState(me.brandFa)
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const save = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.setMyBrand(brand.trim())
+      onChanged()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ذخیره نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div className="text-sm font-medium">نام کسب‌وکار شما</div>
+      <p className="text-sm text-muted-foreground">
+        رباتتان با همین نام به مشتریانتان سلام می‌کند و در پیام دعوت دوستان هم
+        همین می‌آید.
+      </p>
+      <Field label="نام" hint="خالی بگذارید تا نام نمایندگی‌تان استفاده شود">
+        <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
+      </Field>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <Button disabled={busy} onClick={() => void save()}>
+        ذخیره
+      </Button>
+    </Card>
   )
 }

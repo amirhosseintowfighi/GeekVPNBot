@@ -355,8 +355,14 @@ def referral(
     return f"{body}\n\n<code>{link}</code>"
 
 
-def referral_share_text(link: str) -> str:
-    return f"{T.REF_SHARE_TEXT}\n{link}"
+def referral_share_text(link: str, *, brand: str = T.BRAND) -> str:
+    """What a customer forwards to their friends.
+
+    It names the shop they are recommending, which in a reseller's bot is the
+    reseller. A customer inviting people to a competitor's brand is the worst
+    version of this message.
+    """
+    return f"{T.REF_SHARE_TEXT.format(brand=brand)}\n{link}"
 
 
 # -- Profile -----------------------------------------------------------------

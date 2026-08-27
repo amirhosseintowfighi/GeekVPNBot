@@ -68,6 +68,13 @@ class ResellerModel(TimestampMixin, Base):
     #: Readable, so the panel can show "@theirbot" without decrypting anything.
     bot_username: Mapped[str | None] = mapped_column(String(64), unique=True)
 
+    #: What their bot calls itself. NULL falls back to the platform's own
+    #: name - correct for our bot, and a reasonable default until a reseller
+    #: decides theirs.
+    #:
+    #: Separate from `name_fa`, which is what *we* call them on the operator
+    #: screens. A shop trading as one name and filed under another is normal.
+    brand_fa: Mapped[str | None] = mapped_column(String(64))
     contact_fa: Mapped[str | None] = mapped_column(String(256))
     note_fa: Mapped[str | None] = mapped_column(String(512))
 

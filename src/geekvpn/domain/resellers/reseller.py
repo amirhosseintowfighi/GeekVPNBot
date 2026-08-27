@@ -75,6 +75,10 @@ class Reseller:
     #: Whatever an operator needs to reach this person outside the platform.
     #: Free text: a phone number, a Telegram handle, a name and a note.
     contact_fa: str | None = None
+    #: What their bot calls itself, when they have chosen. `None` means the
+    #: platform's own name - which is a reasonable default and, more to the
+    #: point, a name rather than a blank in their customer's first message.
+    brand_fa: str | None = None
 
     def __post_init__(self) -> None:
         self.set_discount(self.discount_percent)

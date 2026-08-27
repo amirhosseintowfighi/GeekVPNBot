@@ -20,6 +20,7 @@ from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import CategoryView, ProductView, StorefrontView
 from geekvpn.presentation.bot.handlers.common import (
     answer,
+    brand_of,
     match_ref,
     safe_edit,
     short_ref,
@@ -134,7 +135,7 @@ async def open_storefront(
     if not view.categories:
         await answer(message, T.SHOP_EMPTY)
         return
-    body = f"{T.SHOP_TITLE}\n\n{T.SHOP_INTRO}"
+    body = f"{T.SHOP_TITLE.format(brand=brand_of(scope))}\n\n{T.SHOP_INTRO}"
     await answer(message, body, reply_markup=_category_keyboard(view))
 
 
@@ -166,7 +167,7 @@ async def on_open_shop(
     if not view.categories:
         await safe_edit(query, T.SHOP_EMPTY, markup=K.single(K.home_button()))
         return
-    body = f"{T.SHOP_TITLE}\n\n{T.SHOP_INTRO}"
+    body = f"{T.SHOP_TITLE.format(brand=brand_of(scope))}\n\n{T.SHOP_INTRO}"
     await safe_edit(query, body, markup=_category_keyboard(view))
 
 

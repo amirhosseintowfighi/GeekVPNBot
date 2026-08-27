@@ -201,8 +201,13 @@ class ResellerService:
         status: ResellerStatus | None = None,
         discount_percent: int | None = None,
         contact_fa: str | None = None,
+        brand_fa: str | None = None,
     ) -> Reseller:
         reseller = await self.get(reseller_id)
+        if brand_fa is not None:
+            # Empty clears it, falling back to their own name rather than to
+            # ours - a customer seeing the reseller's name is right either way.
+            reseller.brand_fa = brand_fa.strip() or None
         if name_fa is not None:
             reseller.name_fa = name_fa.strip()
         if contact_fa is not None:

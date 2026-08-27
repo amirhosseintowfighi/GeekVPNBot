@@ -180,3 +180,16 @@ def customer_message(exception: BaseException) -> str:
         return str(message)
     return T.ERR_GENERIC
 
+
+def brand_of(scope: Any) -> str:
+    """What this shop calls itself.
+
+    The reseller's name in their bot, ours in ours. A helper rather than a
+    lookup at each call site because four screens name the shop and a fifth
+    will be added by somebody who has not read this file - and the failure mode
+    is a customer greeted by a competitor's brand, which nothing will catch.
+    """
+    reseller = getattr(scope, "reseller", None)
+    if reseller is None:
+        return T.BRAND
+    return reseller.brand_fa or reseller.name_fa or T.BRAND

@@ -831,6 +831,8 @@ export interface ApprovedApplication {
 export interface ResellerSelf {
   id: string
   nameFa: string
+  /** What their bot calls itself. Falls back to nameFa, never to ours. */
+  brandFa: string
   status: string
   /** Signed Toman. Negative suspends their customers until it is positive. */
   balance: number

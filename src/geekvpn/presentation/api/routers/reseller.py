@@ -35,6 +35,8 @@ router = APIRouter(prefix="/reseller", tags=["reseller"])
 class MeResponse(ApiModel):
     id: uuid.UUID
     name_fa: str
+    #: What their bot calls itself. Falls back to `name_fa`, never to ours.
+    brand_fa: str
     status: str
     balance: int
     discount_percent: int
@@ -117,6 +119,12 @@ class SellRequest(ApiModel):
     note_fa: str = Field(default="", max_length=128)
 
 
+class BrandRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    brand_fa: str = Field(default="", max_length=64)
+
+
 class BotRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -159,6 +167,7 @@ async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     return MeResponse(
         id=reseller.id,
         name_fa=reseller.name_fa,
+        brand_fa=reseller.brand_fa or reseller.name_fa,
         status=reseller.status.value,
         balance=reseller.balance_amount,
         discount_percent=reseller.discount_percent,
@@ -202,6 +211,24 @@ async def set_retail(
         reseller.id, await scope.catalog_plans.list_all(published_only=True)
     )
     return [PriceRow(**row) for row in rows]
+
+
+@router.put(
+    "/brand",
+    response_model=MeResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def set_brand(
+    payload: BrandRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> MeResponse:
+    """What their bot calls itself.
+
+    Theirs to choose. Until they do it falls back to the name we file them
+    under, which is still their name - never ours.
+    """
+    reseller = await _me(scope, admin)
+    await scope.reseller_service.update(reseller.id, brand_fa=payload.brand_fa)
+    return await me(scope, admin)
 
 
 @router.put(

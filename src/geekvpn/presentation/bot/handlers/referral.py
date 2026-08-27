@@ -17,7 +17,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import ReferralSummary
 from geekvpn.application.bot.services import BotServices
-from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
+from geekvpn.presentation.bot.handlers.common import answer, brand_of, safe_edit, toast
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
@@ -36,12 +36,12 @@ def referral_link(*, bot_username: str, code: str) -> str:
     return f"https://t.me/{bot_username}?start=ref_{code}"
 
 
-def _keyboard(link: str) -> InlineKeyboardMarkup:
+def _keyboard(link: str, *, brand: str = T.BRAND) -> InlineKeyboardMarkup:
     share_url = (
         "https://t.me/share/url?url="
         + quote(link, safe="")
         + "&text="
-        + quote(T.REF_SHARE_TEXT, safe="")
+        + quote(T.REF_SHARE_TEXT.format(brand=brand), safe="")
     )
     # Sharing is what this screen is for; the stats are for coming back to it
     # later. The colour was on the wrong one.
@@ -61,7 +61,13 @@ async def _load(services: BotServices, user: Any) -> ReferralSummary:
         return ReferralSummary(code="")
 
 
-async def _render(services: BotServices, user: Any, *, bot_username: str) -> tuple[str, Any]:
+async def _render(
+    services: BotServices,
+    user: Any,
+    *,
+    bot_username: str,
+    brand: str = T.BRAND,
+) -> tuple[str, Any]:
     summary = await _load(services, user)
     link = referral_link(bot_username=bot_username, code=summary.code)
     body = R.referral(
@@ -71,7 +77,7 @@ async def _render(services: BotServices, user: Any, *, bot_username: str) -> tup
         first_rate_bps=DEFAULT_FIRST_BPS,
         recurring_rate_bps=DEFAULT_RECURRING_BPS,
     )
-    return body, _keyboard(link)
+    return body, _keyboard(link, brand=brand)
 
 
 async def _bot_username(bot: Any) -> str:
@@ -89,12 +95,15 @@ async def on_referral_command(
     services: BotServices,
     bot: Any = None,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.clear()
     if user is None:
         await answer(message, T.ERR_GENERIC)
         return
-    body, markup = await _render(services, user, bot_username=await _bot_username(bot))
+    body, markup = await _render(
+        services, user, bot_username=await _bot_username(bot), brand=brand_of(scope)
+    )
     await answer(message, body, reply_markup=markup)
 
 
@@ -105,12 +114,15 @@ async def on_referral(
     services: BotServices,
     bot: Any = None,
     user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.clear()
     await toast(query)
     if user is None:
         return
-    body, markup = await _render(services, user, bot_username=await _bot_username(bot))
+    body, markup = await _render(
+        services, user, bot_username=await _bot_username(bot), brand=brand_of(scope)
+    )
     await safe_edit(query, body, markup=markup)
 
 

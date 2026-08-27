@@ -88,6 +88,7 @@ class SqlAlchemyResellerRepository:
                 for row_price in prices
             ),
             contact_fa=row.contact_fa,
+            brand_fa=row.brand_fa,
         )
 
     # -- writing -----------------------------------------------------------
@@ -102,6 +103,7 @@ class SqlAlchemyResellerRepository:
                 discount_percent=reseller.discount_percent,
                 balance=reseller.balance_amount,
                 contact_fa=reseller.contact_fa,
+                brand_fa=reseller.brand_fa,
             )
         )
         await self._session.flush()
@@ -117,6 +119,7 @@ class SqlAlchemyResellerRepository:
         row.discount_percent = reseller.discount_percent
         row.balance = reseller.balance_amount
         row.contact_fa = reseller.contact_fa
+        row.brand_fa = reseller.brand_fa
         await self._write_children(reseller)
 
     async def _write_children(self, reseller: Reseller) -> None:

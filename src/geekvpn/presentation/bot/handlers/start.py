@@ -22,6 +22,7 @@ from geekvpn.application.bot.services import BotServices
 from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     answer,
+    brand_of,
     display_name_of,
     safe_edit,
     toast,
@@ -76,7 +77,7 @@ async def on_start(
         name = display_name_of(user)
         await answer(
             message,
-            T.WELCOME_NEW.format(name=isolate(name)),
+            T.WELCOME_NEW.format(name=isolate(name), brand=brand_of(scope)),
             reply_markup=K.main_menu(),
         )
         await state.set_state(Registration.display_name)

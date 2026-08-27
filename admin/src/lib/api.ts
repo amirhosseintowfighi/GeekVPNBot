@@ -521,6 +521,8 @@ export const api = {
   myTopups: () => fetcher<ResellerTopupRow[]>('/api/v1/reseller/topups'),
   requestTopup: (amount: number, noteFa: string) =>
     mutate<ResellerTopupRow[]>('POST', '/api/v1/reseller/topups', { amount, noteFa }),
+  setMyBrand: (brandFa: string) =>
+    mutate<ResellerSelf>('PUT', '/api/v1/reseller/brand', { brandFa }),
   setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
 
   resellerPrices: (id: string) =>
