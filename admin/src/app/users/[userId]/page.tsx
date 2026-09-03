@@ -229,7 +229,7 @@ export default function UserDetailPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{'پلن'}</TableHead>
+                <TableHead>{'اشتراک'}</TableHead>
                 <TableHead>{'وضعیت'}</TableHead>
                 <TableHead>{'شروع'}</TableHead>
                 <TableHead>{'انقضا'}</TableHead>
@@ -246,9 +246,12 @@ export default function UserDetailPage() {
                         href={'/subscriptions/' + subscription.id}
                         className="text-primary hover:underline"
                       >
-                        {/* A claimed account has no package of ours.
-                            Its id is still the way in. */}
-                        {subscription.planId ?? 'افزوده‌شده دستی'}
+                        {/* The panel username, not the plan id. A raw UUID
+                            told nobody anything, and because the link beside
+                            it points at the *subscription* while the text was
+                            the *plan*, copying what you see and looking it up
+                            finds nothing - which is exactly what happened. */}
+                        {subscription.remoteUsername ?? subscription.id}
                       </Link>
                     </TableCell>
                     <TableCell>
