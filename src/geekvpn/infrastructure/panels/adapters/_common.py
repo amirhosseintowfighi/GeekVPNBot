@@ -7,6 +7,7 @@ instead of five subtly different ones.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -73,6 +74,26 @@ def to_int(value: Any, *, panel: str, field: str, default: int = 0) -> int:
     raise PanelContractViolation(
         f"{field} had unexpected type {type(value).__name__}.", panel=panel, field=field
     )
+
+
+def required_int(item: Mapping[str, Any], key: str, *, panel: str) -> int:
+    """A counter the panel must have sent, coerced.
+
+    `to_int(item.get(key), ...)` defaults a missing key to zero, which makes
+    "this panel does not report usage under that name" indistinguishable from
+    "this customer has used nothing". Traffic sat at zero for days looking
+    exactly like an idle account, and there was nothing in any log to say
+    otherwise.
+
+    Present-and-null is still zero: panels do send an explicit null for an
+    account that has never connected. It is the *absence* of the key that means
+    we are reading the wrong field.
+    """
+    if key not in item:
+        raise PanelContractViolation(
+            f"{key} was missing from the account payload.", panel=panel, field=key
+        )
+    return to_int(item[key], panel=panel, field=key)
 
 
 def require_mapping(value: Any, *, panel: str, what: str) -> dict[str, Any]:

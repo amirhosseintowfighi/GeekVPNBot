@@ -37,6 +37,7 @@ from geekvpn.infrastructure.panels.adapters._common import (
     LOOKUP_PAGE,
     now_utc,
     require_mapping,
+    required_int,
     sub_token,
     to_int,
     to_utc,
@@ -322,9 +323,7 @@ class MarzbanAdapter(HttpPanelAdapter):
 
     def _to_usage(self, item: Mapping[str, Any]) -> AccountUsage:
         return AccountUsage(
-            used_bytes=to_int(
-                item.get("used_traffic"), panel=self.kind.value, field="used_traffic"
-            ),
+            used_bytes=required_int(item, "used_traffic", panel=self.kind.value),
             measured_at=now_utc(),
             # The panel's own last-seen. Absent on older builds, which
             # is why it is optional rather than defaulted to now.
