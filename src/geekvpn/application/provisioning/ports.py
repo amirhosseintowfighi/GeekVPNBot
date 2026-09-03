@@ -203,6 +203,15 @@ class NodeRepository(Protocol):
         """
         ...
 
+    async def list_every(self) -> Sequence[NodeRecord]:
+        """Every node at all, sellable or not.
+
+        For finding an account that already exists. A customer's service does
+        not move because we stopped selling from its server, so a search
+        restricted to sellable nodes reports a real subscription as missing.
+        """
+        ...
+
 
 @runtime_checkable
 class PanelProvider(Protocol):

@@ -60,10 +60,20 @@ class FakeNode:
 
 
 class FakeNodes:
+    """`list_sellable` deliberately answers with nothing.
+
+    A claim must search every node: the account already exists, and it does not
+    move because we stopped selling from its server. Leaving this empty means a
+    service that goes back to `list_sellable` fails these tests immediately.
+    """
+
     def __init__(self, ids: list[str]) -> None:
         self._ids = ids
 
     async def list_sellable(self):
+        return []
+
+    async def list_every(self):
         return [FakeNode(n) for n in self._ids]
 
 
@@ -222,3 +232,15 @@ def test_an_empty_message_is_not_a_search():
 
     assert result.outcome is ClaimOutcome.NOT_FOUND
     assert subs.added == []
+
+
+def test_a_node_we_no_longer_sell_from_is_still_searched():
+    """The bug a real customer hit: a working link, an account that exists, and
+    "no such subscription" - because the node it lives on had stopped taking
+    new customers."""
+    service, subs = _service(by_node={"drained": FakeAdapter(account=_account())})
+
+    result = asyncio.run(service.claim(url=LINK, user_id=99))
+
+    assert result.outcome is ClaimOutcome.CLAIMED
+    assert subs.added[0].node_id == "drained"

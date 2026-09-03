@@ -99,6 +99,19 @@ class SqlAlchemyNodeRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [node_to_record(row) for row in rows]
 
+    async def list_every(self) -> Sequence[NodeRecord]:
+        """Every node we hold credentials for, sellable or not.
+
+        `list_sellable` answers "where would a new account go", and that is the
+        wrong question whenever we are looking for an account that already
+        exists: a customer's service does not move because we stopped selling
+        from its server. Searching only sellable nodes made a claim fail with
+        "no such subscription" for a link that was perfectly real.
+        """
+        stmt = select(NodeModel).order_by(NodeModel.sort_order, NodeModel.id)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [node_to_record(row) for row in rows]
+
     async def credentials_for(self, node_id: str) -> tuple[str, dict[str, object]] | None:
         """The panel kind and the full adapter config payload for one node.
 

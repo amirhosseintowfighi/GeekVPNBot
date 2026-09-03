@@ -25,6 +25,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 
+import structlog
+
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import (
     NodeRepository,
@@ -36,6 +38,8 @@ from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.panels.values import PanelAccount
 from geekvpn.domain.provisioning.enums import SubscriptionState
 from geekvpn.domain.provisioning.subscription import Subscription
+
+logger = structlog.stdlib.get_logger(__name__)
 
 #: An account whose panel reports no expiry still needs one, because the column
 #: is not nullable and every screen renders a date. A year is long enough not to
@@ -119,12 +123,23 @@ class ClaimService:
         """
         asked = 0
         failed = 0
-        for node in await self._nodes.list_sellable():
+        # Every node, not the sellable ones. The account we are looking for
+        # already exists, and it does not move because we stopped selling
+        # from the server it lives on.
+        for node in await self._nodes.list_every():
             asked += 1
             try:
                 adapter = await self._panels.for_node(node)
                 account = await adapter.find_by_subscription(url)
-            except PanelError:
+            except PanelError as exc:
+                # Named, because a claim that fails on every node looks
+                # identical to a link that was never real - and only one of
+                # those is the customer's problem.
+                logger.warning(
+                    "claim.panel_refused",
+                    node_id=node.id,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
                 failed += 1
                 continue
             if account is not None:

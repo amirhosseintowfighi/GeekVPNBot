@@ -266,7 +266,13 @@ class MarzneshinAdapter(HttpPanelAdapter):
         payload = self._http.json(response)
         rows = payload.get("items") if isinstance(payload, dict) else payload
         if not isinstance(rows, list):
-            return None
+            # Not "no match" - we could not read the reply at all. Returning
+            # `None` here told a customer holding a working link that no such
+            # subscription existed, which is the wrong sentence and points them
+            # at the wrong thing to check.
+            raise PanelContractViolation(
+                "Account list was not readable.", panel=self.kind.value, envelope="items"
+            )
         for row in rows:
             item = require_mapping(row, panel=self.kind.value, what="user")
             if sub_token(str(item.get("subscription_url") or "")) == wanted:

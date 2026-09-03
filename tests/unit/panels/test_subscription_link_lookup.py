@@ -51,3 +51,28 @@ def test_a_bare_username_is_its_own_token():
     """Some panels are configured with no path at all, and some customers paste
     the username rather than the link."""
     assert sub_token("ali") == "ali"
+
+
+def test_an_unreadable_account_list_is_not_the_same_as_no_match():
+    """A reply we cannot parse used to return `None`, which the claim reported
+    to the customer as "no such subscription" - for a link that was real, on a
+    panel whose response shape we had guessed wrong. It points them at the one
+    thing that is not the problem."""
+    import asyncio
+    from unittest.mock import AsyncMock, Mock
+
+    from geekvpn.domain.panels.errors import PanelContractViolation
+    from geekvpn.infrastructure.panels.adapters.pasarguard import PasarGuardAdapter
+
+    adapter = Mock(spec=PasarGuardAdapter)
+    adapter._http = Mock()
+    adapter._http.request = AsyncMock(return_value=Mock())
+    # An envelope we did not expect: neither a list nor a dict holding one.
+    adapter._http.json = Mock(return_value={"data": {"page": 1}})
+    adapter._auth_headers = AsyncMock(return_value={})
+    adapter.kind = Mock(value="pasarguard")
+
+    with pytest.raises(PanelContractViolation):
+        asyncio.run(
+            PasarGuardAdapter.find_by_subscription(adapter, "https://x/sub/token")
+        )
