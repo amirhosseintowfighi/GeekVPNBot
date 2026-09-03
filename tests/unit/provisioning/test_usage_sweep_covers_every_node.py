@@ -150,3 +150,52 @@ def test_a_node_with_no_accounts_is_not_visited_at_all():
     report = asyncio.run(_service(subscriptions, nodes).sync_all())
 
     assert [n.node_id for n in report.nodes] == ["open"]
+
+
+class ExplodingPanels:
+    """Fails the way a real misconfiguration does: not with a `PanelError`.
+
+    Building an adapter decrypts the stored password and validates the config
+    payload. A rotated key or a malformed payload raises neither of those as a
+    panel error, and the sweep only caught panel errors.
+    """
+
+    def __init__(self, broken: str) -> None:
+        self._broken = broken
+
+    async def for_node(self, node):
+        if node.id == self._broken:
+            raise ValueError("could not decrypt node.password")
+        return FakeAdapter(500)
+
+
+def test_one_misconfigured_node_does_not_take_down_the_whole_sweep():
+    subscriptions = FakeSubscriptions([_subscription("a", "good"), _subscription("b", "broken")])
+    nodes = FakeNodes(all_ids=["good", "broken"], sellable_ids=["good", "broken"])
+    service = UsageSyncService(
+        subscriptions=subscriptions,
+        nodes=nodes,
+        panels=ExplodingPanels("broken"),
+        clock=FixedClock(),
+    )
+
+    report = asyncio.run(service.sync_all())
+
+    assert subscriptions.items["a"].traffic_used_mib == 500
+    assert report.failed_nodes == ["broken"]
+
+
+def test_the_failure_says_what_went_wrong():
+    """`worker.tick_failed` named no node. This has to."""
+    subscriptions = FakeSubscriptions([_subscription("b", "broken")])
+    nodes = FakeNodes(all_ids=["broken"], sellable_ids=["broken"])
+    service = UsageSyncService(
+        subscriptions=subscriptions,
+        nodes=nodes,
+        panels=ExplodingPanels("broken"),
+        clock=FixedClock(),
+    )
+
+    report = asyncio.run(service.sync_all())
+
+    assert "decrypt" in (report.nodes[0].error or "")

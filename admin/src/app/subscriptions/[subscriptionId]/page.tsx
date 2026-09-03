@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
-import { faDateTime, faNumber, normalizeInput } from '@/lib/fa'
+import { faDateTime, faNumber, gib, normalizeInput } from '@/lib/fa'
 import { SUBSCRIPTION_STATE } from '@/lib/labels'
 import type { AdminSubscriptionRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
@@ -209,8 +209,8 @@ export default function SubscriptionPage() {
           <CardContent className="space-y-2 text-2xs">
             <Row labelFa={'مصرف'}>
               {limitGib === null
-                ? faNumber(Math.round(usedGib)) + ' گیگابایت (نامحدود)'
-                : faNumber(Math.round(usedGib)) + ' از ' + faNumber(Math.round(limitGib)) + ' گیگابایت'}
+                ? gib(usedGib) + ' (نامحدود)'
+                : gib(usedGib, false) + ' از ' + gib(limitGib)}
             </Row>
             <Row labelFa={'آخرین همگام‌سازی'}>
               {data.lastSyncedAt ? faDateTime(data.lastSyncedAt) : '—'}

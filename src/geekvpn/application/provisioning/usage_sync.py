@@ -28,7 +28,6 @@ from geekvpn.application.provisioning.ports import (
     PanelProvider,
     SubscriptionRepository,
 )
-from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.panels.values import PanelAccountRef
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -131,9 +130,19 @@ class UsageSyncService:
         try:
             adapter = await self._panels.for_node(node)
             readings = await adapter.bulk_usage([_ref_for(s) for s in syncable])
-        except PanelError as exc:
+        except Exception as exc:
             # Deliberately swallowed: the next node still deserves its turn.
-            return NodeSyncReport(node_id=node_id, skipped=len(syncable), error=str(exc))
+            #
+            # `Exception`, not `PanelError`. Building the adapter decrypts the
+            # stored password and validates the config payload, and neither of
+            # those failures is a PanelError - so a single node with a rotated
+            # key or a malformed config took down the whole sweep, silently,
+            # under a `worker.tick_failed` that names no node.
+            return NodeSyncReport(
+                node_id=node_id,
+                skipped=len(syncable),
+                error=f"{type(exc).__name__}: {exc}",
+            )
 
         updated = 0
         for subscription in syncable:

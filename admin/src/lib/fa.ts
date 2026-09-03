@@ -101,10 +101,11 @@ export function basisPoints(percentage: number): number {
 }
 
 /** Volume. `null` means an unlimited package, which has no number to show. */
-export function gib(value: number | null): string {
+export function gib(value: number | null, withUnit = true): string {
   if (value === null) return UNLIMITED
   const decimals = value < 10 && value % 1 !== 0 ? 1 : 0
-  return faNumber(value, decimals) + ' ' + GIGABYTE
+  const formatted = faNumber(value, decimals)
+  return withUnit ? formatted + ' ' + GIGABYTE : formatted
 }
 
 /**

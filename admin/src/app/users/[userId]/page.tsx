@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faDateTime, faNumber, normalizeInput, toman } from '@/lib/fa'
+import { faDate, faDateTime, faNumber, gib, normalizeInput, toman } from '@/lib/fa'
 import { SUBSCRIPTION_STATE, USER_STATE } from '@/lib/labels'
 import type { AdminSubscriptionRow, Paged, UserDetail } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
@@ -40,6 +40,9 @@ type DialogKind = 'state' | 'wallet' | 'message' | null
  * `/subscriptions?user_id=`, which is also what makes them paginated and
  * filterable instead of silently capped at whatever the detail call chose.
  */
+// Subscriptions store MiB; every screen reads gigabytes.
+const MIB_PER_GIB = 1024
+
 export default function UserDetailPage() {
   const params = useParams<{ userId: string }>()
   const { can } = useSession()
@@ -260,7 +263,11 @@ export default function UserDetailPage() {
                       {faDate(subscription.expiresAt)}
                     </TableCell>
                     <TableCell numeric>
-                      {faNumber(Math.round(subscription.trafficUsedMib / 1024)) + ' گیگابایت'}
+                      {/* `gib`, not a hand-rolled round: rounding to whole
+                          gigabytes reported 3.44 GB as ۳ and everything
+                          under half a gigabyte as ۰ - which reads exactly
+                          like a usage figure that never updated. */}
+                      {gib(subscription.trafficUsedMib / MIB_PER_GIB)}
                     </TableCell>
                   </TableRow>
                 )
