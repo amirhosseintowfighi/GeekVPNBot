@@ -112,6 +112,19 @@ def now_utc() -> datetime:
 LOOKUP_PAGE = 1000
 
 
+#: How many accounts one bulk read asks for.
+#:
+#: This was `max(len(wanted), 100)`, which asks for a hundred rows however many
+#: accounts we are actually looking for - so on a panel with more than a
+#: hundred users the ones past the first page were never read, and their usage
+#: simply stopped moving. Nothing failed; the reading was just absent, which
+#: reads as an idle customer.
+#:
+#: Still a ceiling rather than paging: one request is worth keeping while a
+#: shop fits inside it, and `LOOKUP_PAGE` is far past where these panels are
+#: comfortable anyway.
+BULK_PAGE = 1000
+
 def sub_token(url: str) -> str:
     """The identifying tail of a subscription link.
 

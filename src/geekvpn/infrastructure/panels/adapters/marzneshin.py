@@ -34,6 +34,7 @@ from geekvpn.domain.panels.values import (
     TrafficQuota,
 )
 from geekvpn.infrastructure.panels.adapters._common import (
+    BULK_PAGE,
     LOOKUP_PAGE,
     now_utc,
     require_mapping,
@@ -280,7 +281,7 @@ class MarzneshinAdapter(HttpPanelAdapter):
         response = await self._http.request(
             "GET",
             "/api/users",
-            params={"size": max(len(wanted), 100), "page": 1},
+            params={"size": max(len(wanted), BULK_PAGE), "page": 1},
             headers=await self._auth_headers(),
             expected=(200,),
         )

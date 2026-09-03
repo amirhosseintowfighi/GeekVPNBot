@@ -12,9 +12,9 @@ import pytest
 
 from geekvpn.application.provisioning.ports import NodeRecord
 from geekvpn.application.provisioning.usage_sync import BYTES_PER_MIB, UsageSyncService
-from geekvpn.domain.panels.enums import PanelKind
-from geekvpn.domain.panels.errors import PanelUnreachable
-from geekvpn.domain.panels.values import AccountUsage
+from geekvpn.domain.panels.enums import AccountState, PanelKind
+from geekvpn.domain.panels.errors import AccountNotFound, PanelUnreachable
+from geekvpn.domain.panels.values import AccountUsage, PanelAccount
 from geekvpn.domain.provisioning.enums import NodeState, SubscriptionState
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -103,6 +103,23 @@ class FakeAdapter:
             username: AccountUsage(used_bytes=used, measured_at=NOW)
             for username, used in self._readings.items()
         }
+
+    async def get_account(self, ref):
+        """One account by name, which is how a single subscription is read now.
+
+        The sweep still goes through `bulk_usage`; reading one used to as well,
+        and it silently missed any account past the panel's first page.
+        """
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        if ref.username not in self._readings:
+            raise AccountNotFound(panel="fake", username=ref.username)
+        return PanelAccount(
+            ref=ref,
+            state=AccountState.ACTIVE,
+            usage=AccountUsage(used_bytes=self._readings[ref.username], measured_at=NOW),
+        )
 
 
 class FakePanels:

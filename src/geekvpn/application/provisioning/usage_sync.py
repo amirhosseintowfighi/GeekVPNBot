@@ -90,10 +90,16 @@ class UsageSyncService:
             return None
 
         adapter = await self._panels.for_node(node)
-        readings = await adapter.bulk_usage([_ref_for(subscription)])
-        usage = readings.get(subscription.remote_username)
-        if usage is None:
-            return subscription
+        # `get_account`, not `bulk_usage`. Reading one account through the bulk
+        # endpoint lists the panel's first page of users and hopes this one is
+        # on it - and when it was not, the reading came back empty, the row was
+        # returned untouched, and the operator was told "usage read from the
+        # panel". A subscription's usage sat nine days stale behind a success
+        # message. Asking for the account by name is one request and cannot
+        # miss; `AccountNotFound` is a `PanelError`, so a panel that genuinely
+        # does not have it now says so instead of reporting success.
+        account = await adapter.get_account(_ref_for(subscription))
+        usage = account.usage
 
         subscription.record_usage(
             used_mib=usage.used_bytes // BYTES_PER_MIB,
