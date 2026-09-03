@@ -11,12 +11,31 @@ traceback cannot leak a panel password into the log aggregator.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic.alias_generators import to_camel
 
 
 class PanelConnectionConfig(BaseModel):
-    """Fields common to every HTTP-based panel."""
+    """Fields common to every HTTP-based panel.
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    Accepts both spellings of every field. The operator-supplied part of a
+    node's config arrives from the admin panel, which speaks camelCase like the
+    rest of the API, and is stored verbatim - so a PasarGuard node with a group
+    selected was saved holding `defaultGroups`, which `extra="forbid"` then
+    rejected on the way back in. Building the adapter raised, and because that
+    is a ValidationError rather than a PanelError nothing caught it: every
+    operation on that node failed, and the usage sweep took the whole worker
+    tick down with it.
+
+    `populate_by_name` keeps the snake_case spelling working, so rows written
+    by any other path stay valid and no data migration is needed.
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+    )
 
     base_url: str = Field(description="Root URL of the panel, e.g. https://panel.example.com")
     username: str = ""
