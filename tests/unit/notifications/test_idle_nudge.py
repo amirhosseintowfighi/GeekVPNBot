@@ -15,7 +15,7 @@ import pytest
 from geekvpn.application.notifications.ports import SubscriptionSnapshot
 from geekvpn.application.notifications.reminders import ReminderService
 from geekvpn.domain.notifications.enums import JobKind
-from geekvpn.domain.notifications.schedule import IDLE_NUDGE_DAYS, idle_dedupe_key
+from geekvpn.domain.notifications.schedule import IDLE_NUDGE_HOURS, idle_dedupe_key
 
 pytestmark = pytest.mark.unit
 
@@ -45,7 +45,7 @@ class FakeEngine:
 class FakeReader:
     def __init__(self, rows: list[SubscriptionSnapshot]) -> None:
         self.rows = rows
-        self.asked_days: int | None = None
+        self.asked_hours: int | None = None
 
     def expiring_within(self, days, *, now):
         return []
@@ -53,8 +53,8 @@ class FakeReader:
     def with_traffic_usage(self, *, min_percent, now):
         return []
 
-    def idle_since(self, days, *, now):
-        self.asked_days = days
+    def idle_since(self, hours, *, now):
+        self.asked_hours = hours
         return self.rows
 
 
@@ -80,6 +80,7 @@ def _snapshot(**kwargs) -> SubscriptionSnapshot:
         "used_gib": 1.0,
         "total_gib": 50.0,
         "active": True,
+        "last_connected_at": NOW - timedelta(days=5),
         "last_used_at": NOW - timedelta(days=5),
         "started_at": NOW - timedelta(days=30),
     }
@@ -138,19 +139,22 @@ def test_a_cancelled_service_is_left_alone():
 def test_a_row_with_no_history_at_all_is_skipped():
     """No date means no stable dedupe key, and a message would repeat on every
     single sweep."""
-    service, engine, _ = _service([_snapshot(last_used_at=None, started_at=None)])
+    service, engine, _ = _service([_snapshot(last_connected_at=None, started_at=None)])
 
     service.run_idle_nudges()
 
     assert engine.sent == []
 
 
-def test_the_sweep_asks_for_the_agreed_window():
+def test_the_sweep_asks_for_exactly_seventy_two_hours():
+    """Counted in hours, not days. "3 days" is the kind of thing that gets
+    rounded to a date somewhere down the stack."""
     service, _, reader = _service([])
 
     service.run_idle_nudges()
 
-    assert reader.asked_days == IDLE_NUDGE_DAYS
+    assert reader.asked_hours == 72
+    assert IDLE_NUDGE_HOURS == 72
 
 
 def test_the_report_names_its_own_job():

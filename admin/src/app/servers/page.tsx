@@ -30,6 +30,11 @@ import { Progress, usageTone } from '@/components/ui/primitives'
  * is a switch rather than a delete because pulling a server during
  * maintenance must not destroy its history or its bound plans.
  */
+const CONFIRM_DELETE =
+  'این سرور حذف شود؟ اگر اشتراک فعالی روی آن باشد، حذف انجام نمی‌شود.'
+
+const DELETE_FAILED = 'حذف سرور انجام نشد.'
+
 export default function ServersPage() {
   const [creating, setCreating] = React.useState(false)
   const { can } = useSession()
@@ -75,6 +80,7 @@ export default function ServersPage() {
                 <TableHead>{'\u0638\u0631\u0641\u06cc\u062a'}</TableHead>
                 <TableHead>{'\u0622\u062e\u0631\u06cc\u0646 \u0628\u0631\u0631\u0633\u06cc'}</TableHead>
                 <TableHead>{'\u067e\u0630\u06cc\u0631\u0634 \u06a9\u0627\u0631\u0628\u0631 \u062c\u062f\u06cc\u062f'}</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -121,6 +127,33 @@ export default function ServersPage() {
                           mutate()
                         }}
                       />
+                    </TableCell>
+
+                    <TableCell>
+                      {can('panels.write') ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={async () => {
+                            // A real delete, unlike the catalogue's: a server
+                            // is infrastructure, not something an invoice
+                            // names. The API refuses while active
+                            // subscriptions are still on it, and says so.
+                            if (!window.confirm(CONFIRM_DELETE)) return
+                            try {
+                              await api.deleteNode(server.id)
+                              mutate()
+                            } catch (thrown) {
+                              window.alert(
+                                thrown instanceof ApiError ? thrown.messageFa : DELETE_FAILED,
+                              )
+                            }
+                          }}
+                        >
+                          {'حذف'}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )

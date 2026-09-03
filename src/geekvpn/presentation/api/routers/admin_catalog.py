@@ -114,8 +114,14 @@ def _category_view(category: Category) -> CategoryAdminResponse:
     dependencies=[READ],
     summary="List every category, including drafts and archived ones",
 )
-async def list_categories(scope: ScopeDep) -> list[CategoryAdminResponse]:
-    return [_category_view(c) for c in await scope.catalog_admin.list_categories()]
+async def list_categories(
+    scope: ScopeDep,
+    include_archived: bool = Query(default=False, description="Also return archived rows."),
+) -> list[CategoryAdminResponse]:
+    return [
+        _category_view(c)
+        for c in await scope.catalog_admin.list_categories(include_archived=include_archived)
+    ]
 
 
 @router.post(
@@ -215,13 +221,37 @@ def _product_view(
     summary="List products",
 )
 async def list_products(
-    scope: ScopeDep, category_id: uuid.UUID | None = Query(default=None)
+    scope: ScopeDep,
+    category_id: uuid.UUID | None = Query(default=None),
+    include_archived: bool = Query(default=False, description="Also return archived rows."),
 ) -> list[ProductAdminResponse]:
-    products = await scope.catalog_admin.list_products(category_id=category_id)
+    products = await scope.catalog_admin.list_products(
+        category_id=category_id, include_archived=include_archived
+    )
     # One node read for the whole list, so each row can name the server it
     # provisions from instead of showing a UUID nobody recognises.
     node_ids = {panel_id_for(node.id): node.id for node in await scope.nodes.list_all()}
     return [_product_view(p, node_ids) for p in products]
+
+
+@router.delete(
+    "/categories/{category_id}",
+    response_model=CategoryAdminResponse,
+    dependencies=[WRITE],
+    summary="Archive a category",
+)
+async def archive_category(
+    category_id: uuid.UUID, actor: CurrentAdmin, scope: ScopeDep
+) -> CategoryAdminResponse:
+    """Archives rather than deletes, like everything else in the catalogue.
+
+    A category names the products under it, and those name orders. It drops out
+    of the lists, which is what the operator means by removing it.
+    """
+    category = await scope.catalog_admin.set_category_state(
+        category_id, state=PublicationState.ARCHIVED, actor_id=actor.subject_id
+    )
+    return _category_view(category)
 
 
 @router.post(
@@ -357,6 +387,25 @@ async def list_plans(
     scope: ScopeDep, product_id: uuid.UUID | None = Query(default=None)
 ) -> list[PlanAdminResponse]:
     return [_plan_view(p) for p in await scope.catalog_admin.list_plans(product_id=product_id)]
+
+
+@router.delete(
+    "/products/{product_id}",
+    response_model=ProductAdminResponse,
+    dependencies=[WRITE],
+    summary="Archive a product",
+)
+async def archive_product(
+    product_id: uuid.UUID, actor: CurrentAdmin, scope: ScopeDep
+) -> ProductAdminResponse:
+    """Archives rather than deletes.
+
+    A product is named by every order ever placed against its packages.
+    """
+    product = await scope.catalog_admin.set_product_state(
+        product_id, state=PublicationState.ARCHIVED, actor_id=actor.subject_id
+    )
+    return _product_view(product)
 
 
 @router.post(
@@ -578,6 +627,26 @@ async def list_coupons(
         active_only=active_only, limit=limit, offset=offset
     )
     return [_coupon_view(c) for c in coupons]
+
+
+@router.delete(
+    "/plans/{plan_id}",
+    response_model=PlanAdminResponse,
+    dependencies=[WRITE],
+    summary="Archive a package",
+)
+async def archive_plan(
+    plan_id: uuid.UUID, actor: CurrentAdmin, scope: ScopeDep
+) -> PlanAdminResponse:
+    """Archives rather than deletes.
+
+    This is the one where it matters most: a plan is what an invoice names, and
+    a customer's receipt has to still render years from now.
+    """
+    plan = await scope.catalog_admin.set_plan_state(
+        plan_id, state=PublicationState.ARCHIVED, actor_id=actor.subject_id
+    )
+    return _plan_view(plan)
 
 
 @router.post(

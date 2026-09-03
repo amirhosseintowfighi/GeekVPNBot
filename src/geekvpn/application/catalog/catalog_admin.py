@@ -39,6 +39,22 @@ from geekvpn.domain.catalog.plan import Plan
 from geekvpn.domain.catalog.product import Product
 
 
+#: Archived rows are hidden from the operator's lists unless asked for.
+#:
+#: Archiving is how anything in the catalogue is removed - a plan that has ever
+#: been sold is named by the orders that sold it, and deleting the row turns a
+#: customer's invoice into an unexplainable price. But "removed" has to mean
+#: gone from the screen, or the button appears to do nothing.
+#:
+#: Filtered here rather than in SQL because a catalogue is tens of rows, not the
+#: subscription table: threading a flag through three repositories and three
+#: ports would be more machinery than the thing it saves.
+def _visible[T](rows: list[T], *, include_archived: bool) -> list[T]:
+    if include_archived:
+        return rows
+    return [row for row in rows if row.state is not PublicationState.ARCHIVED]  # type: ignore[attr-defined]
+
+
 class CatalogAdminService:
     def __init__(
         self,
@@ -57,8 +73,8 @@ class CatalogAdminService:
 
     # -- categories --------------------------------------------------------
 
-    async def list_categories(self) -> list[Category]:
-        return list(await self._categories.list_all())
+    async def list_categories(self, *, include_archived: bool = False) -> list[Category]:
+        return _visible(list(await self._categories.list_all()), include_archived=include_archived)
 
     async def create_category(
         self, command: CreateCategoryCommand, *, actor_id: uuid.UUID | None = None
@@ -130,8 +146,13 @@ class CatalogAdminService:
 
     # -- products ----------------------------------------------------------
 
-    async def list_products(self, *, category_id: uuid.UUID | None = None) -> list[Product]:
-        return list(await self._products.list_all(category_id=category_id))
+    async def list_products(
+        self, *, category_id: uuid.UUID | None = None, include_archived: bool = False
+    ) -> list[Product]:
+        return _visible(
+            list(await self._products.list_all(category_id=category_id)),
+            include_archived=include_archived,
+        )
 
     async def create_product(
         self, command: CreateProductCommand, *, actor_id: uuid.UUID | None = None
@@ -242,13 +263,15 @@ class CatalogAdminService:
 
     # -- plans -------------------------------------------------------------
 
-    async def list_plans(self, *, product_id: uuid.UUID | None = None) -> list[Plan]:
+    async def list_plans(
+        self, *, product_id: uuid.UUID | None = None, include_archived: bool = False
+    ) -> list[Plan]:
         plans = (
             await self._plans.list_all()
             if product_id is None
             else await self._plans.list_for_product(product_id)
         )
-        return list(plans)
+        return _visible(list(plans), include_archived=include_archived)
 
     async def create_plan(
         self, command: CreatePlanCommand, *, actor_id: uuid.UUID | None = None

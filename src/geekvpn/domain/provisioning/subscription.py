@@ -48,6 +48,7 @@ class Subscription(AggregateRoot[str]):
         "_state",
         "device_limit",
         "expires_at",
+        "last_connected_at",
         "last_synced_at",
         "last_used_at",
         "node_id",
@@ -89,6 +90,7 @@ class Subscription(AggregateRoot[str]):
         device_limit: int = 2,
         last_synced_at: datetime | None = None,
         last_used_at: datetime | None = None,
+        last_connected_at: datetime | None = None,
         notified_expiry_days: Iterable[int] = (),
         notified_traffic_percents: Iterable[int] = (),
         revoked_at: datetime | None = None,
@@ -132,6 +134,9 @@ class Subscription(AggregateRoot[str]):
         self.device_limit = device_limit
         self.last_synced_at = last_synced_at
         self.last_used_at = last_used_at
+        #: What the panel says, not what we inferred. `None` means the
+        #: panel does not report it or has never seen them connect.
+        self.last_connected_at = last_connected_at
         self._notified_expiry_days = set(notified_expiry_days)
         self._notified_traffic_percents = set(notified_traffic_percents)
         self.revoked_at = revoked_at
@@ -239,11 +244,22 @@ class Subscription(AggregateRoot[str]):
         if self._state is SubscriptionState.REVOKED:
             raise SubscriptionRevoked()
 
-    def record_usage(self, *, used_mib: int, at: datetime) -> None:
-        """Absolute total from the panel, not a delta."""
+    def record_usage(
+        self, *, used_mib: int, at: datetime, online_at: datetime | None = None
+    ) -> None:
+        """Absolute total from the panel, not a delta.
+
+        `online_at` is the panel's own last-seen, and it only ever moves
+        forward: panels round it, and a reading that went backwards would reset
+        the silence we measure against.
+        """
         self._guard_changeable()
         if used_mib < 0:
             raise OrderValidationError("Reported usage cannot be negative.", used_mib=used_mib)
+        if online_at is not None and (
+            self.last_connected_at is None or online_at > self.last_connected_at
+        ):
+            self.last_connected_at = online_at
         # A panel that was reset reports a smaller number than we already hold.
         # Trusting it would hand back traffic the customer really consumed, so
         # usage only ever moves forward until an explicit reset.

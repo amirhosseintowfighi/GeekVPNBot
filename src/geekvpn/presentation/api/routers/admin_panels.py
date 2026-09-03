@@ -25,7 +25,7 @@ from geekvpn.application.provisioning.ports import NodeAdminRecord
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.panels.enums import PanelKind
 from geekvpn.domain.panels.errors import CapabilityNotSupported, PanelError
-from geekvpn.domain.provisioning.enums import NodeState
+from geekvpn.domain.provisioning.enums import NodeState, SubscriptionState
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import ScopeDep, requires
 
@@ -208,6 +208,28 @@ async def update_node(node_id: str, payload: UpdateNodeRequest, scope: ScopeDep)
     dependencies=[Depends(requires(Permission.PANELS_WRITE))],
 )
 async def delete_node(node_id: str, scope: ScopeDep) -> None:
+    """Remove a server, unless customers are still on it.
+
+    A hard delete, and `subscriptions.node_id` is ON DELETE SET NULL - so
+    removing a node that still holds accounts silently orphans them: their
+    usage can never be read again, they cannot be suspended or renewed through
+    us, and the accounts stay behind on a panel nobody is watching. None of
+    that raises. It just quietly stops working.
+
+    Draining first is the operator's job, and refusing here is what makes it
+    possible to notice it has not happened.
+    """
+    live, _ = await scope.subscriptions.search(
+        state=SubscriptionState.ACTIVE, node_id=node_id, limit=1, offset=0
+    )
+    if live:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=(
+                "این سرور هنوز اشتراک فعال دارد. اول آن‌ها را منتقل یا لغو کنید،"
+                " بعد سرور را حذف کنید."
+            ),
+        )
     if not await scope.nodes.delete(node_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Node not found.")
 

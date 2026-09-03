@@ -175,6 +175,10 @@ class SubscriptionModel(TimestampMixin, Base):
 
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: The panel's own last-seen for this account. Distinct from
+    #: `last_used_at`, which only moves when the byte counter grows and so
+    #: says nothing about somebody who connected and reached nothing.
+    last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     #: Which reminder thresholds have already fired, e.g. ``[7, 3]`` and
     #: ``[80]``. Kept on the row so a restarted job does not re-notify.
     notified_expiry_days: Mapped[list[int]] = mapped_column(JSONB, nullable=False, default=list)

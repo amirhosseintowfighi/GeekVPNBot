@@ -26,10 +26,11 @@ TRAFFIC_THRESHOLDS: tuple[int, ...] = (80, 95)
 # Percent at which the plan counts as finished rather than merely low.
 TRAFFIC_EXHAUSTED_PERCENT = 100
 
-#: Silence long enough to be worth asking about. Short enough that a
-#: customer who cannot connect hears from us while they still care, long
-#: enough that a weekend away does not trigger it.
-IDLE_NUDGE_DAYS = 3
+#: Exactly three days of silence, counted in hours because that is what was
+#: asked for and because "3 days" invites somebody to round it to a date.
+#: Long enough that a weekend away does not trigger it, short enough that a
+#: customer who cannot connect hears from us while they still care.
+IDLE_NUDGE_HOURS = 72
 
 DEFAULT_INTERVALS: dict[JobKind, int] = {
     JobKind.EXPIRATION_REMINDER: 60,
@@ -133,7 +134,7 @@ def due_entries(entries: list[ScheduleEntry], now: datetime) -> list[ScheduleEnt
 __all__ = [
     "DEFAULT_INTERVALS",
     "EXPIRY_REMINDER_DAYS",
-    "IDLE_NUDGE_DAYS",
+    "IDLE_NUDGE_HOURS",
     "TRAFFIC_EXHAUSTED_PERCENT",
     "TRAFFIC_THRESHOLDS",
     "ScheduleEntry",

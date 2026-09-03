@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from geekvpn.application.notifications.ports import SubscriptionSnapshot
@@ -44,6 +44,7 @@ def _snapshot(row: SubscriptionModel, plan_name: str = "") -> SubscriptionSnapsh
         total_gib=total_gib,
         active=row.state == SubscriptionState.ACTIVE.value,
         last_used_at=row.last_used_at,
+        last_connected_at=row.last_connected_at,
         started_at=row.started_at,
     )
 
@@ -116,29 +117,42 @@ class SqlSubscriptionReader:
         return [_snapshot(row) for row in rows]
 
 
-    def idle_since(self, days: int, *, now: datetime) -> list[SubscriptionSnapshot]:
-        """Live subscriptions with no traffic movement for `days`.
+    def idle_since(self, hours: int, *, now: datetime) -> list[SubscriptionSnapshot]:
+        """Live subscriptions the panel has not seen connect for `hours`.
 
-        `last_used_at` is the only connection signal there is - panels report a
-        cumulative counter, not sessions - and the usage sweep moves it whenever
-        the counter grows. A row that has never moved falls back to when it was
-        provisioned, which is exactly the customer who bought and could never
-        connect at all.
+        Measured from `last_connected_at`, which is what the panel itself
+        reports. It used to be measured from traffic movement, and that is a
+        different question: a counter only grows when bytes flow, and it had
+        never been written at all while the usage sweep was broken - so the
+        clock fell back to the purchase date and the message went to customers
+        who were connecting daily.
 
-        Deliberately excludes anyone with nothing left to use. Somebody whose
-        plan expired or whose quota ran out is not stuck, and asking them what
-        went wrong would be the wrong conversation - the expiry and traffic
-        sweeps already have that one.
+        Two populations qualify, and the difference matters:
+
+        * the panel saw them, and that was more than `hours` ago;
+        * the panel has never seen them and they have used nothing, since
+          buying more than `hours` ago - somebody who could never connect at
+          all, which is the most urgent version of this.
+
+        Anyone else is left alone. A customer with traffic on the clock but no
+        `last_connected_at` is one whose panel does not report it, and guessing
+        at their silence is how the old version got it wrong.
         """
-        cutoff = now - timedelta(days=days)
+        cutoff = now - timedelta(hours=hours)
         stmt: Select[Any] = (
             select(SubscriptionModel)
             .where(
                 self._shop(),
                 SubscriptionModel.state == SubscriptionState.ACTIVE.value,
                 SubscriptionModel.expires_at > now,
-                func.coalesce(SubscriptionModel.last_used_at, SubscriptionModel.started_at)
-                <= cutoff,
+                or_(
+                    SubscriptionModel.last_connected_at <= cutoff,
+                    and_(
+                        SubscriptionModel.last_connected_at.is_(None),
+                        SubscriptionModel.traffic_used_mib == 0,
+                        SubscriptionModel.started_at <= cutoff,
+                    ),
+                ),
                 # Unmetered plans have no cap to be short of, so `NULL` here has
                 # to pass rather than fail the comparison.
                 or_(
@@ -148,7 +162,7 @@ class SqlSubscriptionReader:
                 ),
             )
             .order_by(
-                func.coalesce(SubscriptionModel.last_used_at, SubscriptionModel.started_at)
+                func.coalesce(SubscriptionModel.last_connected_at, SubscriptionModel.started_at)
             )
             .limit(self._limit)
         )

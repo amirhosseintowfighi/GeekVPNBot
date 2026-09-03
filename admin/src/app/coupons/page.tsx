@@ -47,6 +47,9 @@ import { Progress } from '@/components/ui/primitives'
  * Codes are archived, never deleted. A deleted code loses its usage history,
  * and the first question after a suspicious spike is always "who used it".
  */
+const CONFIRM_ARCHIVE =
+  'این کد بایگانی شود؟ سفارش‌هایی که با آن تخفیف گرفته‌اند دست‌نخورده می‌مانند.'
+
 export default function CouponsPage() {
   const { can } = useSession()
   const [state, setState] = React.useState<string | undefined>('active')
@@ -169,6 +172,9 @@ export default function CouponsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={async () => {
+                            // Asked first, like every other removal: the row
+                            // leaves the screen and there is no undo beside it.
+                            if (!window.confirm(CONFIRM_ARCHIVE)) return
                             await api.archiveCoupon(coupon.id)
                             mutate()
                           }}

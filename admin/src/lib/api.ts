@@ -61,6 +61,8 @@ import type {
 } from './types'
 import type { Role } from './rbac'
 
+import { faDigits } from './fa'
+
 export const BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? ''
 
 export const GENERIC_ERROR =
@@ -71,6 +73,9 @@ export const OFFLINE_ERROR =
 
 export const FORBIDDEN_ERROR =
   '\u0634\u0645\u0627 \u062f\u0633\u062a\u0631\u0633\u06cc \u0644\u0627\u0632\u0645 \u0628\u0631\u0627\u06cc \u0627\u06cc\u0646 \u0639\u0645\u0644\u06cc\u0627\u062a \u0631\u0627 \u0646\u062f\u0627\u0631\u06cc\u062f.'
+
+export const BUSY_ERROR =
+  'درخواست‌ها بیش از حد مجاز است. چند لحظه صبر کنید.'
 
 export const SESSION_ERROR =
   '\u0646\u0634\u0633\u062a \u0634\u0645\u0627 \u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647. \u062f\u0648\u0628\u0627\u0631\u0647 \u0648\u0627\u0631\u062f \u0634\u0648\u06cc\u062f.'
@@ -106,7 +111,13 @@ function messageForStatus(status: number, serverMessage?: string): string {
   if (status === 0) return OFFLINE_ERROR
   if (status === 401) return SESSION_ERROR
   if (status === 403) return FORBIDDEN_ERROR
-  return GENERIC_ERROR
+  if (status === 429) return BUSY_ERROR
+  // The status is the whole diagnosis and it used to be thrown away. "خطایی رخ
+  // داد" is the same sentence for a crashed request, a restarting container and
+  // a proxy timeout - so an operator reporting it says the only thing they can
+  // see, and it names nothing. Any body we could have read is already used
+  // above; this is the case where there was none.
+  return `${GENERIC_ERROR} (${faDigits(status)})`
 }
 
 /**
@@ -372,6 +383,8 @@ export const api = {
   categories: () => fetcher<CategoryRow[]>(`${ROOT}/catalog/categories`),
   saveCategory: (body: Partial<CategoryRow>) =>
     mutate<CategoryRow>('POST', `${ROOT}/catalog/categories`, body),
+  archiveCategory: (categoryId: string) =>
+    mutate<CategoryRow>('DELETE', `${ROOT}/catalog/categories/${categoryId}`),
   setCategoryState: (categoryId: string, state: string) =>
     mutate<CategoryRow>('PUT', `${ROOT}/catalog/categories/${categoryId}/state`, {
       publish: state === 'published',
@@ -400,6 +413,8 @@ export const api = {
       nodeTags,
     }),
 
+  archiveProduct: (productId: string) =>
+    mutate<ProductRow>('DELETE', `${ROOT}/catalog/products/${productId}`),
   setProductState: (productId: string, state: string) =>
     mutate<ProductRow>('PUT', `${ROOT}/catalog/products/${productId}/state`, {
       publish: state === 'published',
@@ -407,6 +422,8 @@ export const api = {
 
   plans: (productId: string) => fetcher<PlanRow[]>(`${ROOT}/catalog/products/${productId}/plans`),
   savePlan: (body: Partial<PlanRow>) => mutate<PlanRow>('POST', `${ROOT}/catalog/plans`, body),
+  archivePlan: (planId: string) =>
+    mutate<PlanRow>('DELETE', `${ROOT}/catalog/plans/${planId}`),
   setPlanState: (planId: string, state: string) =>
     mutate<PlanRow>('PUT', `${ROOT}/catalog/plans/${planId}/state`, {
       publish: state === 'published',
@@ -612,6 +629,10 @@ export const api = {
 
   resellerLedger: (id: string) =>
     fetcher<ResellerLedgerRow[]>(`${ROOT}/resellers/${id}/ledger`),
+
+  // A real delete, not an archive: a node is infrastructure, not something an
+  // invoice names. The API refuses while active subscriptions are still on it.
+  deleteNode: (nodeId: string) => mutate<void>('DELETE', `${ROOT}/panels/${nodeId}`),
 
   // ------------------------------------------------------ panels/servers
   panels: () => fetcher<PanelRow[]>(`${ROOT}/panels`),

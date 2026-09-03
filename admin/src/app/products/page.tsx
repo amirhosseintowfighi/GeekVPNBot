@@ -56,6 +56,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Generated plans land in DRAFT: nothing reaches a customer until a human
  * publishes it.
  */
+/**
+ * Removing anything in the catalogue archives it.
+ *
+ * A plan is what an invoice names, a product owns those plans, and a category
+ * owns those products - delete any of them for real and a customer's receipt
+ * becomes an unexplainable price. Archived rows drop out of these lists, which
+ * is what the operator means by removing them.
+ */
+function confirmRemoval(what: string): boolean {
+  return window.confirm(
+    what + ' حذف شود؟ سفارش‌های گذشته و فاکتورهایشان دست‌نخورده می‌مانند.',
+  )
+}
+
 export default function ProductsPage() {
   const { can } = useSession()
   const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined)
@@ -137,6 +151,22 @@ export default function ProductsPage() {
                   }}
                 />
                 <span className="text-xs">{category.nameFa}</span>
+                {can('packages.write') ? (
+                  <button
+                    type="button"
+                    className="text-2xs text-destructive"
+                    onClick={async () => {
+                      if (!confirmRemoval(category.nameFa)) return
+                      await api.archiveCategory(category.id)
+                      categories.mutate()
+                      // The products under it are listed by category, so a
+                      // removed category leaves a filter pointing at nothing.
+                      products.mutate()
+                    }}
+                  >
+                    {'حذف'}
+                  </button>
+                ) : null}
               </label>
             ))}
           </CardContent>
@@ -248,10 +278,24 @@ export default function ProductsPage() {
                     <TableCell className="text-muted-foreground">{product.tier}</TableCell>
                     <TableCell>
                       {can('packages.write') ? (
-                        <Button variant="ghost" size="sm" onClick={() => setLadderFor(product)}>
-                          <Wand2 className="size-3.5" aria-hidden />
-                          {'\u062a\u0648\u0644\u06cc\u062f \u0646\u0631\u062f\u0628\u0627\u0646'}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setLadderFor(product)}>
+                            <Wand2 className="size-3.5" aria-hidden />
+                            {'\u062a\u0648\u0644\u06cc\u062f \u0646\u0631\u062f\u0628\u0627\u0646'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={async () => {
+                              if (!confirmRemoval(product.nameFa)) return
+                              await api.archiveProduct(product.id)
+                              products.mutate()
+                            }}
+                          >
+                            {'حذف'}
+                          </Button>
+                        </div>
                       ) : null}
                     </TableCell>
                   </TableRow>
@@ -311,14 +355,30 @@ export default function ProductsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Switch
-                            checked={plan.state === 'published'}
-                            disabled={!can('packages.write')}
-                            onCheckedChange={async (checked) => {
-                              await api.setPlanState(plan.id, checked ? 'published' : 'draft')
-                              plans.mutate()
-                            }}
-                          />
+                          <div className="flex items-center gap-1">
+                            <Switch
+                              checked={plan.state === 'published'}
+                              disabled={!can('packages.write')}
+                              onCheckedChange={async (checked) => {
+                                await api.setPlanState(plan.id, checked ? 'published' : 'draft')
+                                plans.mutate()
+                              }}
+                            />
+                            {can('packages.write') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive"
+                                onClick={async () => {
+                                  if (!confirmRemoval(plan.nameFa)) return
+                                  await api.archivePlan(plan.id)
+                                  plans.mutate()
+                                }}
+                              >
+                                {'حذف'}
+                              </Button>
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

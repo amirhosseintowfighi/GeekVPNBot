@@ -125,6 +125,13 @@ class AccountUsage:
     used_bytes: int
     measured_at: datetime
     quota: TrafficQuota = field(default_factory=TrafficQuota)
+    #: When the panel last saw this account connected, if it says.
+    #:
+    #: The real answer to "when did they last use it". Traffic counters only
+    #: move when bytes flow, so deriving it from them says nothing about a
+    #: customer who connected and could not reach anything - which is exactly
+    #: the customer worth asking about.
+    online_at: datetime | None = None
 
     @property
     def remaining_bytes(self) -> int | None:

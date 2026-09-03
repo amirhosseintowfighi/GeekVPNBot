@@ -191,10 +191,13 @@ class SubscriptionSnapshot:
     used_gib: float = 0.0
     total_gib: float | None = None
     active: bool = True
-    #: When traffic last moved on this account, which is the only
-    #: connection signal we have: panels report a counter, not a session.
-    #: `None` means they have never connected since it was provisioned.
+    #: When traffic last moved. A weak signal: counters only grow when bytes
+    #: flow, so this says nothing about somebody who connected and reached
+    #: nothing - which is the customer worth asking about.
     last_used_at: datetime | None = None
+    #: When the panel last saw them connected. The real answer, and what the
+    #: silence is measured from.
+    last_connected_at: datetime | None = None
     started_at: datetime | None = None
 
     def days_left(self, now: datetime) -> int:
@@ -234,8 +237,8 @@ class SubscriptionReader(Protocol):
         self, *, min_percent: float, now: datetime
     ) -> list[SubscriptionSnapshot]: ...
 
-    def idle_since(self, days: int, *, now: datetime) -> list[SubscriptionSnapshot]:
-        """Live subscriptions that have moved no traffic for `days`.
+    def idle_since(self, hours: int, *, now: datetime) -> list[SubscriptionSnapshot]:
+        """Live subscriptions the panel has not seen connect for `hours`.
 
         Only accounts with something left to use: somebody whose plan has
         expired or whose quota is gone is not stuck, they are finished, and

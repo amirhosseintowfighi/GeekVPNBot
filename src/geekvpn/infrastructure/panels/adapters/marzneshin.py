@@ -338,6 +338,9 @@ class MarzneshinAdapter(HttpPanelAdapter):
                 item.get("used_traffic"), panel=self.kind.value, field="used_traffic"
             ),
             measured_at=now_utc(),
+            # The panel's own last-seen. Absent on older builds, which
+            # is why it is optional rather than defaulted to now.
+            online_at=to_utc(item.get("online_at"), panel=self.kind.value, field="online_at"),
             quota=TrafficQuota(
                 to_int(item.get("data_limit"), panel=self.kind.value, field="data_limit") or None
             ),

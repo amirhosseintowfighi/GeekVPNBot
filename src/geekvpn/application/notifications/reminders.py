@@ -25,7 +25,7 @@ from geekvpn.domain.notifications.events import ReminderJobCompleted
 from geekvpn.domain.notifications.message import fa_gib
 from geekvpn.domain.notifications.schedule import (
     EXPIRY_REMINDER_DAYS,
-    IDLE_NUDGE_DAYS,
+    IDLE_NUDGE_HOURS,
     TRAFFIC_EXHAUSTED_PERCENT,
     TRAFFIC_THRESHOLDS,
     expiry_dedupe_key,
@@ -102,12 +102,15 @@ class ReminderService:
         now = self._clock.now()
         report = SweepReport(job=JobKind.IDLE_NUDGE)
 
-        for snapshot in self._subscriptions.idle_since(IDLE_NUDGE_DAYS, now=now):
+        for snapshot in self._subscriptions.idle_since(IDLE_NUDGE_HOURS, now=now):
             if not snapshot.active:
                 report = report.with_skipped()
                 continue
 
-            since = snapshot.last_used_at or snapshot.started_at
+            # The panel's own last-seen, or - for somebody it has never seen -
+            # when they bought. Both are stable, which is what the dedupe key
+            # needs: a date that moved would earn a second message.
+            since = snapshot.last_connected_at or snapshot.started_at
             if since is None:
                 # No idea when the silence began, so no stable dedupe key: a
                 # message here would repeat on every single sweep.
@@ -117,7 +120,7 @@ class ReminderService:
             result = self._engine.notify(
                 user_id=snapshot.user_id,
                 template_key="service.idle",
-                fields={"plan": snapshot.plan_name, "days": IDLE_NUDGE_DAYS},
+                fields={"plan": snapshot.plan_name, "days": IDLE_NUDGE_HOURS // 24},
                 dedupe_key=idle_dedupe_key(snapshot.subscription_id, since.date().isoformat()),
                 source=str(JobKind.IDLE_NUDGE),
             )

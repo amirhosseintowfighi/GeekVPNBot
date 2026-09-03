@@ -132,6 +132,7 @@ def subscription_to_domain(model: SubscriptionModel) -> Subscription:
         device_limit=model.device_limit,
         last_synced_at=model.last_synced_at,
         last_used_at=model.last_used_at,
+        last_connected_at=model.last_connected_at,
         notified_expiry_days=model.notified_expiry_days or [],
         notified_traffic_percents=model.notified_traffic_percents or [],
         revoked_at=model.revoked_at,
@@ -155,6 +156,7 @@ def subscription_apply(model: SubscriptionModel, subscription: Subscription) -> 
     model.device_limit = subscription.device_limit
     model.last_synced_at = subscription.last_synced_at
     model.last_used_at = subscription.last_used_at
+    model.last_connected_at = subscription.last_connected_at
     # Sorted so a diff of two rows is readable and a set's arbitrary order
     # never shows up as a spurious change in the audit trail.
     model.notified_expiry_days = sorted(subscription.notified_expiry_days)

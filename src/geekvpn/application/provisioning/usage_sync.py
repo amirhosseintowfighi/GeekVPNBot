@@ -95,7 +95,11 @@ class UsageSyncService:
         if usage is None:
             return subscription
 
-        subscription.record_usage(used_mib=usage.used_bytes // BYTES_PER_MIB, at=usage.measured_at)
+        subscription.record_usage(
+            used_mib=usage.used_bytes // BYTES_PER_MIB,
+            at=usage.measured_at,
+            online_at=usage.online_at,
+        )
         await self._subscriptions.update(subscription)
         return subscription
 
@@ -150,7 +154,9 @@ class UsageSyncService:
             if usage is None:
                 continue
             subscription.record_usage(
-                used_mib=usage.used_bytes // BYTES_PER_MIB, at=usage.measured_at
+                used_mib=usage.used_bytes // BYTES_PER_MIB,
+                at=usage.measured_at,
+                online_at=usage.online_at,
             )
             await self._subscriptions.update(subscription)
             updated += 1
