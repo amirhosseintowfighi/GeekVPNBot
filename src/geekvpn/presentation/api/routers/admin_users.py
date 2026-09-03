@@ -196,7 +196,10 @@ async def search_audit_logs(
     return [
         AuditEntryResponse(
             id=entry.id,
-            action=entry.action.value,
+            # `str`, not `.value`: an action recorded by another
+            # subsystem comes back as a plain string. StrEnum members
+            # stringify to their value, so both render the same.
+            action=str(entry.action),
             outcome=entry.outcome.value,
             occurred_at=entry.occurred_at,
             actor_type=entry.actor_type.value,

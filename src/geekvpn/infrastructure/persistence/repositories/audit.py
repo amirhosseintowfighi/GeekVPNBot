@@ -22,7 +22,9 @@ class SqlAlchemyAuditLogRepository:
         self._session.add(
             AuditLogModel(
                 id=entry.id,
-                action=entry.action.value,
+                # `str`, not `.value`: the catalogue records its own
+                # StrEnum through this same recorder, by design.
+                action=str(entry.action),
                 outcome=entry.outcome.value,
                 occurred_at=entry.occurred_at,
                 actor_type=entry.actor_type.value,
@@ -64,10 +66,27 @@ class SqlAlchemyAuditLogRepository:
         return [_to_domain(model) for model in models]
 
 
+def _action(recorded: str) -> AuditAction | str:
+    """The action as an enum when we know it, as itself when we do not.
+
+    `AuditAction(recorded)` raised on anything this module has not heard of,
+    and the whole audit page answered 500 - one row written by the catalogue,
+    which records its own `CatalogAuditAction` into this column by design, and
+    the operator could not read any of their history.
+
+    An audit log is append-only fact. A reader that refuses to show yesterday
+    because it does not recognise one word of it is the wrong reader.
+    """
+    try:
+        return AuditAction(recorded)
+    except ValueError:
+        return recorded
+
+
 def _to_domain(model: AuditLogModel) -> AuditEntry:
     return AuditEntry(
         id=model.id,
-        action=AuditAction(model.action),
+        action=_action(model.action),
         outcome=AuditOutcome(model.outcome),
         occurred_at=model.occurred_at,
         actor_type=SubjectType(model.actor_type),

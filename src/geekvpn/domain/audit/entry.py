@@ -91,7 +91,12 @@ class AuditEntry:
     """One immutable fact about something that happened."""
 
     id: uuid.UUID
-    action: AuditAction
+    #: `AuditAction` for anything this module names, and a plain string
+    #: for anything another subsystem recorded - the catalogue writes its
+    #: own `CatalogAuditAction` into the same column, by design, and a
+    #: release that adds an action leaves rows an older reader has never
+    #: heard of. History has to stay readable either way.
+    action: AuditAction | str
     outcome: AuditOutcome
     occurred_at: datetime
     actor_type: SubjectType
