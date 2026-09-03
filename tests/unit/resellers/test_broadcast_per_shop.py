@@ -47,8 +47,12 @@ def _method(class_name: str, name: str) -> ast.AST:
 
 def test_scheduled_broadcasts_are_dispatched_at_all():
     """They never were. The job existed, the service existed, the resolver
-    existed - and nothing registered the handler."""
-    source = ast.unparse(_function(WORKER, "_tick_sync"))
+    existed - and nothing registered the handler.
+
+    Registration lives in `_tick_shop` now that the sweeps run once per shop.
+    Still the same guarantee: something registers the dispatcher.
+    """
+    source = ast.unparse(_function(WORKER, "_tick_shop"))
 
     assert "JobKind.BROADCAST_DISPATCH" in source
 

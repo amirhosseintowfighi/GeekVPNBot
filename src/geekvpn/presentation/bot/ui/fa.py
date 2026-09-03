@@ -142,8 +142,13 @@ def percent(value: float) -> str:
     return isolate(f"\u066a{text}")
 
 
-def gib(value: float | None) -> str:
-    """Render a traffic quota. `None` means unlimited -- never ۰."""
+def gib(value: float | None, *, compact: bool = False) -> str:
+    """Render a traffic quota. `None` means unlimited -- never ۰.
+
+    `compact` shortens the unit word for inline-keyboard labels, which Telegram
+    truncates to one line: four characters saved there is the difference
+    between showing the price and showing "\u06f2\u06f0\u06f0,...".
+    """
     if value is None:
         return "\u0646\u0627\u0645\u062d\u062f\u0648\u062f"
     if value >= 1024:
@@ -153,7 +158,8 @@ def gib(value: float | None) -> str:
     if value < 1:
         return isolate(f"{fa_number(value * 1024)} \u0645\u06af\u0627\u0628\u0627\u06cc\u062a")
     formatted = fa_number(value, decimals=0 if float(value).is_integer() else 1)
-    return isolate(f"{formatted} \u06af\u06cc\u06af\u0627\u0628\u0627\u06cc\u062a")
+    unit = "\u06af\u06cc\u06af" if compact else "\u06af\u06cc\u06af\u0627\u0628\u0627\u06cc\u062a"
+    return isolate(f"{formatted} {unit}")
 
 
 def ratio(used: float, total: float | None) -> str:

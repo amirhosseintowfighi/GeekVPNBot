@@ -150,6 +150,23 @@ class Notifier:
             now=now,
         )
 
+    async def idle_nudge(
+        self, *, user_id: Any, plan_name: str, now: datetime | None = None
+    ) -> Delivery:
+        """Three days of silence on a service that still works.
+
+        The button opens a ticket rather than the shop. Somebody who cannot
+        connect does not need to be sold anything - they have already paid, and
+        the only useful reply is a person asking what happened.
+        """
+        return await self.send(
+            user_id=user_id,
+            category=Category.EXPIRY,
+            body=T.NOTIFY_IDLE_NUDGE.format(plan=plan_name),
+            markup=K.single(K.btn(T.BTN_IDLE_HELP, NavCB(to="support"))),
+            now=now,
+        )
+
     async def quota_warning(
         self,
         *,

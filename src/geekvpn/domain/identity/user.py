@@ -32,6 +32,7 @@ class User(AggregateRoot[uuid.UUID]):
         "last_name",
         "last_seen_at",
         "photo_url",
+        "preferred_name",
         "referral_code",
         "referred_by_code",
         "reseller_id",
@@ -51,6 +52,7 @@ class User(AggregateRoot[uuid.UUID]):
         username: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
+        preferred_name: str | None = None,
         language: Language = Language.FA,
         status: UserStatus = UserStatus.ACTIVE,
         is_premium: bool = False,
@@ -71,6 +73,10 @@ class User(AggregateRoot[uuid.UUID]):
         self.username = username
         self.first_name = first_name
         self.last_name = last_name
+        #: What this person asked to be called, if they ever said.
+        #: Kept apart from `first_name` because that one is Telegram's and is
+        #: overwritten from the payload on every single authentication.
+        self.preferred_name = preferred_name
         self.language = language
         self.status = status
         self.is_premium = is_premium
@@ -129,10 +135,28 @@ class User(AggregateRoot[uuid.UUID]):
 
     @property
     def display_name(self) -> str:
+        """What to call this person, their own answer first.
+
+        `first_name` is Telegram's, and `refresh_profile` overwrites it from the
+        payload on every authentication - so a name the customer chose used to
+        survive exactly until their next /start.
+        """
+        if self.preferred_name:
+            return self.preferred_name
         parts = [part for part in (self.first_name, self.last_name) if part]
         if parts:
             return " ".join(parts)
         return f"@{self.username}" if self.username else f"user-{self.telegram_id}"
+
+    def set_preferred_name(self, name: str | None) -> None:
+        """Record what this person asked to be called, or clear it.
+
+        Deliberately not part of `refresh_profile`: that method treats the
+        Telegram payload as authoritative, which is right for everything
+        Telegram owns and wrong for the one field the customer owns.
+        """
+        cleaned = (name or "").strip()
+        self.preferred_name = cleaned or None
 
     def refresh_profile(
         self,

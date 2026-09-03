@@ -25,10 +25,12 @@ from geekvpn.domain.notifications.events import ReminderJobCompleted
 from geekvpn.domain.notifications.message import fa_gib
 from geekvpn.domain.notifications.schedule import (
     EXPIRY_REMINDER_DAYS,
+    IDLE_NUDGE_DAYS,
     TRAFFIC_EXHAUSTED_PERCENT,
     TRAFFIC_THRESHOLDS,
     expiry_dedupe_key,
     expiry_threshold_for,
+    idle_dedupe_key,
     traffic_dedupe_key,
     traffic_threshold_for,
 )
@@ -81,6 +83,57 @@ class ReminderService:
         self._subscriptions = subscriptions
         self._clock = clock
         self._events = events
+
+
+    # ---- Silence --------------------------------------------------------
+
+    def run_idle_nudges(self) -> SweepReport:
+        """Ask the customers who have a working service and are not using it.
+
+        Three days of no traffic on an account that still has both time and
+        quota left is the shape of somebody who cannot connect: a blocked
+        server, a wrong app, a stale link. They rarely open a ticket about it -
+        they assume it is broken and leave - so this is us asking first.
+
+        The dedupe key is the start of the silence, so one spell of quiet
+        earns exactly one message however many times the sweep runs, and a
+        customer who comes back and goes quiet again is asked again.
+        """
+        now = self._clock.now()
+        report = SweepReport(job=JobKind.IDLE_NUDGE)
+
+        for snapshot in self._subscriptions.idle_since(IDLE_NUDGE_DAYS, now=now):
+            if not snapshot.active:
+                report = report.with_skipped()
+                continue
+
+            since = snapshot.last_used_at or snapshot.started_at
+            if since is None:
+                # No idea when the silence began, so no stable dedupe key: a
+                # message here would repeat on every single sweep.
+                report = report.with_skipped()
+                continue
+
+            result = self._engine.notify(
+                user_id=snapshot.user_id,
+                template_key="service.idle",
+                fields={"plan": snapshot.plan_name, "days": IDLE_NUDGE_DAYS},
+                dedupe_key=idle_dedupe_key(snapshot.subscription_id, since.date().isoformat()),
+                source=str(JobKind.IDLE_NUDGE),
+            )
+            report = report.with_queued() if result.was_queued else report.with_skipped()
+
+        self._events.publish_all(
+            [
+                ReminderJobCompleted(
+                    job=report.job,
+                    examined=report.examined,
+                    queued=report.queued,
+                    skipped=report.skipped,
+                )
+            ]
+        )
+        return report
 
     # ---- Expiration -----------------------------------------------------
 

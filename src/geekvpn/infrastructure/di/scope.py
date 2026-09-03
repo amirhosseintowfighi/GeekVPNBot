@@ -35,6 +35,7 @@ from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.platform.settings_service import SettingsService
+from geekvpn.application.provisioning.claim_service import ClaimService
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.application.provisioning.subscription_admin import (
@@ -549,6 +550,20 @@ class RequestScope:
         anything about the account.
         """
         return SubscriptionAdminService(
+            subscriptions=self.subscriptions,
+            nodes=self.nodes,
+            panels=self.panel_provider,
+            clock=self.container.clock,
+        )
+
+    @cached_property
+    def claims(self) -> ClaimService:
+        """Adopting an account that was sold outside the bot.
+
+        Same collaborators again: a claim is only believable if the panel
+        itself confirms the account, so this cannot be done from our tables.
+        """
+        return ClaimService(
             subscriptions=self.subscriptions,
             nodes=self.nodes,
             panels=self.panel_provider,

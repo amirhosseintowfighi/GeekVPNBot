@@ -76,6 +76,20 @@ class PanelAdapter(Protocol):
 
     async def get_account(self, ref: PanelAccountRef) -> PanelAccount: ...
 
+    async def find_by_subscription(self, url: str) -> PanelAccount | None:
+        """Locate an account from its subscription link.
+
+        For a customer who bought through support and now wants the bot to
+        manage it: the link is the only thing they have, and on most panels it
+        carries an opaque token rather than the username.
+
+        Returns `None` when nothing matches, including on a panel that cannot
+        search at all. Not an exception - "not here" is the ordinary answer
+        while asking each node in turn, and only the last silence means
+        anything.
+        """
+        ...
+
     async def delete_account(self, ref: PanelAccountRef, *, idempotency_key: str) -> None:
         """Delete. Deleting an already-absent account MUST succeed silently,
         because a retried delete is indistinguishable from a first one."""

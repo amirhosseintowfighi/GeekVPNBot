@@ -155,6 +155,7 @@ class SqlAlchemyUserRepository:
         model.username = user.username
         model.first_name = user.first_name
         model.last_name = user.last_name
+        model.preferred_name = user.preferred_name
         model.language = user.language.value
         model.status = user.status.value
         model.is_premium = user.is_premium
@@ -174,6 +175,7 @@ def _to_domain(model: UserModel) -> User:
         username=model.username,
         first_name=model.first_name,
         last_name=model.last_name,
+        preferred_name=model.preferred_name,
         language=Language(model.language),
         status=UserStatus(model.status),
         is_premium=model.is_premium,
@@ -193,6 +195,7 @@ def _to_model(user: User) -> UserModel:
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
+        preferred_name=user.preferred_name,
         language=user.language.value,
         status=user.status.value,
         is_premium=user.is_premium,

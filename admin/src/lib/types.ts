@@ -186,8 +186,10 @@ export interface UserDetail {
 export interface AdminSubscriptionRow {
   id: string
   userId: number
-  orderId: string
-  planId: string
+  // Null for a service nobody bought here: an account sold through
+  // support and later claimed in the bot.
+  orderId: string | null
+  planId: string | null
   state: SubscriptionState
   nodeId: string | null
   remoteUsername: string | null

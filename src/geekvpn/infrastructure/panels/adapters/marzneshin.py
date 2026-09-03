@@ -34,8 +34,10 @@ from geekvpn.domain.panels.values import (
     TrafficQuota,
 )
 from geekvpn.infrastructure.panels.adapters._common import (
+    LOOKUP_PAGE,
     now_utc,
     require_mapping,
+    sub_token,
     to_int,
     to_utc,
 )
@@ -241,6 +243,33 @@ class MarzneshinAdapter(HttpPanelAdapter):
         if response.status_code == 404:
             raise AccountNotFound(panel=self.kind.value, username=ref.username)
         return await self.get_account(ref)
+
+    async def find_by_subscription(self, url: str) -> PanelAccount | None:
+        """Match a pasted link against this panel's own subscription URLs.
+
+        For the customer who bought through support and now wants the bot to
+        manage it. Compared on the token rather than the whole link - see
+        `sub_token` for why the hostname cannot be trusted to match.
+        """
+        wanted = sub_token(url)
+        if not wanted:
+            return None
+        response = await self._http.request(
+            "GET",
+            "/api/users",
+            params={"size": LOOKUP_PAGE, "page": 1},
+            headers=await self._auth_headers(),
+            expected=(200,),
+        )
+        payload = self._http.json(response)
+        rows = payload.get("items") if isinstance(payload, dict) else payload
+        if not isinstance(rows, list):
+            return None
+        for row in rows:
+            item = require_mapping(row, panel=self.kind.value, what="user")
+            if sub_token(str(item.get("subscription_url") or "")) == wanted:
+                return self._to_account(item)
+        return None
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         self.require(Capability.BULK_USAGE)

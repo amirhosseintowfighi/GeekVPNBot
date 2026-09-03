@@ -191,6 +191,11 @@ class SubscriptionSnapshot:
     used_gib: float = 0.0
     total_gib: float | None = None
     active: bool = True
+    #: When traffic last moved on this account, which is the only
+    #: connection signal we have: panels report a counter, not a session.
+    #: `None` means they have never connected since it was provisioned.
+    last_used_at: datetime | None = None
+    started_at: datetime | None = None
 
     def days_left(self, now: datetime) -> int:
         """Whole days remaining, rounded up, floored at zero.
@@ -228,6 +233,14 @@ class SubscriptionReader(Protocol):
     def with_traffic_usage(
         self, *, min_percent: float, now: datetime
     ) -> list[SubscriptionSnapshot]: ...
+
+    def idle_since(self, days: int, *, now: datetime) -> list[SubscriptionSnapshot]:
+        """Live subscriptions that have moved no traffic for `days`.
+
+        Only accounts with something left to use: somebody whose plan has
+        expired or whose quota is gone is not stuck, they are finished, and
+        asking them what went wrong would be the wrong conversation."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)

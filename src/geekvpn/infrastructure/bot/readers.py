@@ -88,7 +88,13 @@ class SqlSubscriptionCardReader:
 
         cards: list[SubscriptionCard] = []
         for subscription in await self._subscriptions.list_for_user(telegram_id):
-            order = await self._orders.get(subscription.order_id)
+            # A claimed account has no order behind it, and asking the
+            # order repository for `None` is not a lookup worth making.
+            order = (
+                await self._orders.get(subscription.order_id)
+                if subscription.order_id
+                else None
+            )
             cards.append(to_card(subscription, order))
         return cards
 
@@ -131,19 +137,17 @@ class SqlProfileReader:
         )
 
     async def set_display_name(self, user_id: uuid.UUID, display_name: str) -> ProfileSummary:
-        """``display_name`` is derived from the name parts, so this writes those.
+        """Record the name this person asked to be called.
 
-        The other fields are passed through unchanged: `refresh_profile` treats
-        every argument as authoritative, so omitting one would blank it.
+        This used to write `first_name` through `refresh_profile`, and that is
+        the field the authentication path overwrites from the Telegram payload
+        on every request - so the chosen name survived until the customer's
+        next /start and then silently reverted to their account name.
         """
         user = await self._users.get(user_id)
         if user is None:
             raise LookupError(f"No user {user_id}.")
-        user.refresh_profile(
-            username=user.username,
-            first_name=display_name,
-            last_name=None,
-        )
+        user.set_preferred_name(display_name)
         await self._users.update(user)
         return await self.summary(user_id)
 
@@ -233,7 +237,7 @@ def to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard
     quota_mib = subscription.traffic_limit_mib
     return SubscriptionCard(
         subscription_id=_as_uuid(subscription.id),
-        plan_id=_as_uuid(subscription.plan_id),
+        plan_id=_as_uuid(subscription.plan_id or ""),
         product_name_fa=order.plan_name_fa if order else "",
         plan_name_fa=order.plan_name_fa if order else "",
         state=_CARD_STATE.get(subscription.state, CardState.PENDING),

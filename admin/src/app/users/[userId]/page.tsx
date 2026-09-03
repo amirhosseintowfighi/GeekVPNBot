@@ -243,7 +243,9 @@ export default function UserDetailPage() {
                         href={'/subscriptions/' + subscription.id}
                         className="text-primary hover:underline"
                       >
-                        {subscription.planId}
+                        {/* A claimed account has no package of ours.
+                            Its id is still the way in. */}
+                        {subscription.planId ?? 'افزوده‌شده دستی'}
                       </Link>
                     </TableCell>
                     <TableCell>

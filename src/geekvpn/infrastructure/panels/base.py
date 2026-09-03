@@ -21,6 +21,7 @@ from geekvpn.domain.panels.errors import CapabilityNotSupported
 from geekvpn.domain.panels.values import (
     AccountUsage,
     NodeInfo,
+    PanelAccount,
     PanelAccountRef,
     PanelGroup,
     SubscriptionPayload,
@@ -148,6 +149,14 @@ class HttpPanelAdapter:
     async def reset_traffic(self, ref: PanelAccountRef, *, idempotency_key: str) -> Any:
         self.require(Capability.RESET_TRAFFIC)
         raise NotImplementedError  # pragma: no cover
+
+    async def find_by_subscription(self, url: str) -> PanelAccount | None:
+        """Nothing, unless the adapter can search its panel.
+
+        Returns rather than raises: the caller asks every node in turn, and a
+        panel that cannot answer is not an error, it is one fewer place to look.
+        """
+        return None
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         self.require(Capability.BULK_USAGE)

@@ -276,6 +276,15 @@ class SqlAlchemySubscriptionRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 
+    async def node_ids_with_accounts(self) -> Sequence[str]:
+        """Distinct nodes holding at least one subscription."""
+        rows = await self._session.execute(
+            select(SubscriptionModel.node_id)
+            .where(SubscriptionModel.node_id.is_not(None))
+            .distinct()
+        )
+        return [row for row in rows.scalars().all() if row]
+
     async def search(
         self,
         *,

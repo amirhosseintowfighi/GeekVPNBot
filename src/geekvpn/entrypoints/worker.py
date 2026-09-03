@@ -37,8 +37,11 @@ import asyncio
 import contextlib
 import signal
 import time
+import uuid
 from pathlib import Path
 from types import FrameType
+
+from sqlalchemy import select
 
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.domain.notifications.enums import JobKind
@@ -47,6 +50,7 @@ from geekvpn.infrastructure.di.container import Container, build_container, clos
 from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.di.sync_scope import build_sync_scope
 from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
+from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 
 #: How many scheduled broadcasts one tick will start.
 #:
@@ -271,14 +275,59 @@ class Worker:
                         reseller=str(reseller_id) if reseller_id else None,
                     )
 
-    def _tick_sync(self) -> TickReport:
+    def _shops(self) -> list[uuid.UUID | None]:
+        """Every shop whose customers can be written to, ours first.
+
+        Only resellers with a bot token: their customers have never started
+        ours, and a shop with no bot of its own has no way to reach them at
+        all, so sweeping it would queue messages nothing can deliver.
+        """
         with self._container.sync_sessions() as session:
-            scope = build_sync_scope(self._container, session)
+            rows = session.execute(
+                select(ResellerModel.id).where(ResellerModel.bot_token_encrypted.is_not(None))
+            )
+            return [None, *rows.scalars().all()]
+
+    def _tick_sync(self) -> TickReport:
+        """Run the customer-facing sweeps once for every shop.
+
+        They used to run once, against an unscoped reader, through whichever
+        bot the platform scope held. So a reseller's customer either heard
+        nothing or heard from a bot they have never spoken to - which Telegram
+        refuses, and which is then recorded as a suppression indistinguishable
+        from somebody blocking us.
+
+        `DEFERRED_FLUSH` and `BROADCAST_DISPATCH` stay on the platform pass.
+        The first walks the queue, whose rows already carry their own shop; the
+        second does its own per-shop loop for the same reason this one exists.
+        """
+        report: TickReport | None = None
+        for reseller_id in self._shops():
+            try:
+                one = self._tick_shop(reseller_id)
+            except Exception:
+                # A shop with a bad token or a broken row must not stop the
+                # others: the next tick tries it again.
+                logger.exception(
+                    "worker.shop_tick_failed",
+                    reseller=str(reseller_id) if reseller_id else None,
+                )
+                continue
+            if report is None:
+                report = one
+            else:
+                report.runs.extend(one.runs)
+        return report or TickReport(at=self._container.clock.now())
+
+    def _tick_shop(self, reseller_id: uuid.UUID | None) -> TickReport:
+        with self._container.sync_sessions() as session:
+            scope = build_sync_scope(self._container, session, reseller_id=reseller_id)
             scheduler = NotificationScheduler(clock=self._container.clock)
             scheduler.register(
                 JobKind.EXPIRATION_REMINDER, scope.reminders.run_expiration_reminders
             )
             scheduler.register(JobKind.TRAFFIC_REMINDER, scope.reminders.run_traffic_reminders)
+            scheduler.register(JobKind.IDLE_NUDGE, scope.reminders.run_idle_nudges)
             scheduler.register(JobKind.DEFERRED_FLUSH, scope.engine.flush_deferred)
             # BROADCAST_DISPATCH is registered now. The comment that used to
             # sit here said `BroadcastService` needed a reader with no SQL
@@ -288,7 +337,8 @@ class Worker:
             #
             # CAMPAIGN_ANNOUNCE stays unregistered, for the reason that is
             # still true of it.
-            scheduler.register(JobKind.BROADCAST_DISPATCH, self._dispatch_broadcasts)
+            if reseller_id is None:
+                scheduler.register(JobKind.BROADCAST_DISPATCH, self._dispatch_broadcasts)
             try:
                 report = scheduler.tick()
                 session.commit()

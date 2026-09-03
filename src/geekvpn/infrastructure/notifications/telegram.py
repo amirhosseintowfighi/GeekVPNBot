@@ -119,18 +119,32 @@ class HttpTelegramSender:
         return self._pack
 
     def send_message(self, *, chat_id: int, text: str, action: str | None = None) -> None:
-        # `action` is a logical destination the bot turns into a button. A
-        # button needs a callback the bot process owns, so it is deliberately
-        # not rendered here: a broken button is worse than none, and the text
-        # already says what happened.
+        """Send one customer notification, with its call to action attached.
+
+        The button used to be dropped here on the grounds that a broken button
+        is worse than none. It was the wrong trade: every expiry warning, quota
+        warning and wallet notice arrived as a wall of text telling somebody to
+        go and do something with no way to do it, and the typed helpers in the
+        bot process that *did* build buttons were called by nothing at all.
+
+        The callback strings are the bot's own `NavCB`, built the same way
+        `HttpOperatorSender` builds `AdminCB`, and held to the handlers that
+        decode them by a test - an unknown destination sends no button rather
+        than one that answers "this is from an older version".
+        """
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": self._parse_mode,
+            "disable_web_page_preview": True,
+        }
+        button = _action_button(action)
+        if button is not None:
+            payload["reply_markup"] = {"inline_keyboard": [[button]]}
+
         response = httpx.post(
             f"https://api.telegram.org/bot{self._token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": self._parse_mode,
-                "disable_web_page_preview": True,
-            },
+            json=payload,
             timeout=TIMEOUT_SECONDS,
         )
 
@@ -149,6 +163,40 @@ class HttpTelegramSender:
             description=description,
         )
         raise TelegramApiError(description or f"HTTP {response.status_code}")
+
+
+#: Where each template's `action` sends the customer, and what the button says.
+#:
+#: The values are `NavCB` callback data - `prefix:to`, aiogram's default
+#: separator - so they are decoded by the same handlers a button inside the bot
+#: reaches. `test_notification_actions_reach_a_handler` holds this table to the
+#: handlers; a destination nobody handles must not ship as a button.
+ACTION_BUTTONS: dict[str, tuple[str, str]] = {
+    "dashboard": ("\U0001f4e6 \u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0645\u0646", "nav:dashboard"),
+    "shop": ("\U0001f6d2 \u062e\u0631\u06cc\u062f \u0633\u0631\u0648\u06cc\u0633", "nav:shop"),
+    "wallet": ("\U0001f45b \u06a9\u06cc\u0641 \u067e\u0648\u0644", "nav:wallet"),
+    # The templates call this screen "services" and the bot calls it the
+    # dashboard. Same place; this table is where the two names meet.
+    "services": ("📦 سرویس‌های من", "nav:dashboard"),
+    "support": ("\U0001f4ac \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc", "nav:support"),
+    "referral": ("\U0001f381 \u062f\u0639\u0648\u062a \u062f\u0648\u0633\u062a\u0627\u0646", "nav:referral"),
+}
+
+
+def _action_button(action: str | None) -> dict[str, str] | None:
+    """The inline button for a template's action, or nothing.
+
+    An unrecognised action produces no button rather than a guess. That is the
+    one place the old "a broken button is worse than none" instinct was right.
+    """
+    if not action:
+        return None
+    found = ACTION_BUTTONS.get(action)
+    if found is None:
+        logger.info("notify.unknown_action", action=action)
+        return None
+    label, data = found
+    return {"text": label, "callback_data": data}
 
 
 class HttpOperatorSender:

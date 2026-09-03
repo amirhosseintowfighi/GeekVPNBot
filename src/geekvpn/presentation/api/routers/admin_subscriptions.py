@@ -28,8 +28,11 @@ router = APIRouter(prefix="/admin/subscriptions", tags=["administration"])
 class SubscriptionResponse(ApiModel):
     id: str
     user_id: int
-    order_id: str
-    plan_id: str
+    #: Null for a service nobody bought here - an account sold through
+    #: support and claimed in the bot. Declaring these required would
+    #: have made every such row a 500 on the operator's own screen.
+    order_id: str | None
+    plan_id: str | None
     state: SubscriptionState
     node_id: str | None
     remote_username: str | None

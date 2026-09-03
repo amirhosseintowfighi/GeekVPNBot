@@ -790,7 +790,12 @@ class SyncScope:
 
     @cached_property
     def subscription_reader(self) -> SqlSubscriptionReader:
-        return SqlSubscriptionReader(self.session)
+        """Scoped, like every other read side here.
+
+        Unscoped, the reminder sweeps saw every shop's customers at once and
+        wrote to them through whichever bot the scope happened to hold.
+        """
+        return SqlSubscriptionReader(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def reminders(self) -> ReminderService:

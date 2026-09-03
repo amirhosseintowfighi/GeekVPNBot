@@ -147,13 +147,18 @@ def product_card(product: ProductView) -> str:
 def plan_button_label(plan: PlanView) -> str:
     """Compact one-line label for a package button.
 
+    Price first, and the units abbreviated. Telegram gives an inline button one
+    line and truncates the rest, and with the price last it was the price that
+    disappeared - a shop whose buttons read "\u06f2\u06f0 \u06af\u06cc\u06af\u0627\u0628\u0627\u06cc\u062a \u00b7 \u06cc\u06a9\u200c\u0645\u0627\u0647\u0647 \u00b7 \u06f2\u06f0\u06f0,...".
+    Whatever else gets cut, the number the customer is deciding on survives.
+
     Shows the discounted price when there is one; the strike-through original
     goes in the detail view, because a button is not the place for two prices.
     """
-    quota = gib(plan.quota_gib)
+    quota = gib(plan.quota_gib, compact=True)
     duration = fa_duration(plan.duration_days)
     price = plan.price.total
-    label = f"{quota} \u00b7 {duration} \u00b7 {toman(price)}"
+    label = f"{toman(price)} \u00b7 {quota} \u00b7 {duration}"
     if plan.price.campaign_label:
         label = f"{E.FIRE} {label}"
     elif plan.is_featured:

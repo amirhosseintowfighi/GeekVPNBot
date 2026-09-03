@@ -178,6 +178,17 @@ class SubscriptionRepository(Protocol):
         """
         ...
 
+    async def node_ids_with_accounts(self) -> Sequence[str]:
+        """Every node some subscription actually lives on.
+
+        The usage sweep used to walk `list_sellable()`, which answers a
+        different question: where would a *new* account go. A node the operator
+        stops selling from - full, draining, in maintenance - still has paying
+        customers on it, and their traffic figure froze at whatever it was the
+        day the flag flipped.
+        """
+        ...
+
 
 @runtime_checkable
 class NodeRepository(Protocol):

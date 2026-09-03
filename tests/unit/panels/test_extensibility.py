@@ -116,6 +116,11 @@ class HypotheticalAdapter:
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         raise NotImplementedError
 
+    async def find_by_subscription(self, url: str) -> PanelAccount | None:
+        # Returns rather than raises, like the shipped adapters that cannot
+        # search: "not here" is the ordinary answer while each node is asked.
+        return None
+
     async def groups(self) -> Sequence[PanelGroup]:
         # Capability-gated like `reset_traffic` and `bulk_usage`: on the port
         # so a caller can always ask, and refused by adapters that cannot

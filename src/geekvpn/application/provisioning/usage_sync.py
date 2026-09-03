@@ -101,10 +101,19 @@ class UsageSyncService:
         return subscription
 
     async def sync_all(self, *, batch_size: int = 500) -> SyncReport:
-        """One batched request per node, for the scheduled job."""
+        """One batched request per node holding accounts, for the scheduled job.
+
+        Driven by where subscriptions actually are, not by `list_sellable()`.
+        That answers "where would a new account go", and a node the operator
+        stopped selling from - full, draining, in maintenance - still has
+        paying customers whose usage has to keep moving. Under the old query
+        their figure froze the moment the flag flipped, and because every quota
+        warning is computed from that figure, their 80% notice stopped firing
+        too.
+        """
         report = SyncReport()
-        for node in await self._nodes.list_sellable():
-            report.nodes.append(await self.sync_node(node.id, batch_size=batch_size))
+        for node_id in await self._subscriptions.node_ids_with_accounts():
+            report.nodes.append(await self.sync_node(node_id, batch_size=batch_size))
         return report
 
     async def sync_node(self, node_id: str, *, batch_size: int = 500) -> NodeSyncReport:

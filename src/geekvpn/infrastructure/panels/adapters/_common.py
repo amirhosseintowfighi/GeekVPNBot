@@ -83,3 +83,23 @@ def require_mapping(value: Any, *, panel: str, what: str) -> dict[str, Any]:
 
 def now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+#: How many accounts one subscription-link lookup asks for. A panel holding
+#: more customers than this needs paging here; until then a second round trip
+#: on every claim would be work nobody is waiting for.
+LOOKUP_PAGE = 1000
+
+
+def sub_token(url: str) -> str:
+    """The identifying tail of a subscription link.
+
+    Everything after the last slash, minus any query string. The hostname is
+    deliberately not compared: the panel reports whatever it was configured
+    with, the customer holds whatever they were sent, and those differ behind a
+    reverse proxy or a second domain. The token is what names the account, and
+    it is long enough that matching on it alone is not a collision risk.
+    """
+    if not url:
+        return ""
+    return url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1].strip()

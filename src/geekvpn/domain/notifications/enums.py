@@ -197,6 +197,7 @@ class JobKind(enum.StrEnum):
 
     EXPIRATION_REMINDER = "expiration_reminder"
     TRAFFIC_REMINDER = "traffic_reminder"
+    IDLE_NUDGE = "idle_nudge"
     BROADCAST_DISPATCH = "broadcast_dispatch"
     CAMPAIGN_ANNOUNCE = "campaign_announce"
     DEFERRED_FLUSH = "deferred_flush"
@@ -205,6 +206,7 @@ class JobKind(enum.StrEnum):
         return {
             JobKind.EXPIRATION_REMINDER: "\u06cc\u0627\u062f\u0622\u0648\u0631\u06cc \u0627\u0646\u0642\u0636\u0627",
             JobKind.TRAFFIC_REMINDER: "\u06cc\u0627\u062f\u0622\u0648\u0631\u06cc \u062d\u062c\u0645",
+            JobKind.IDLE_NUDGE: "پیگیری عدم اتصال",
             JobKind.BROADCAST_DISPATCH: "\u0627\u0631\u0633\u0627\u0644 \u0647\u0645\u06af\u0627\u0646\u06cc",
             JobKind.CAMPAIGN_ANNOUNCE: "\u0627\u0639\u0644\u0627\u0646 \u06a9\u0645\u067e\u06cc\u0646",
             JobKind.DEFERRED_FLUSH: "\u0627\u0631\u0633\u0627\u0644 \u0645\u0639\u0648\u0642\u0647",

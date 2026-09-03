@@ -67,6 +67,11 @@ class FakeSubscriptions:
         found = [s for s in self.items.values() if node_id in (None, s.node_id)]
         return found, len(found)
 
+    async def node_ids_with_accounts(self):
+        # What drives the sweep now: where subscriptions actually are, not
+        # where a new one would go.
+        return sorted({s.node_id for s in self.items.values() if s.node_id})
+
     async def update(self, subscription: Subscription) -> None:
         self.updated.append(subscription.id)
 

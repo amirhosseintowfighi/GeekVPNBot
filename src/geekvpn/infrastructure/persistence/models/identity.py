@@ -63,6 +63,10 @@ class UserModel(TimestampMixin, Base):
     username: Mapped[str | None] = mapped_column(String(64))
     first_name: Mapped[str | None] = mapped_column(String(128))
     last_name: Mapped[str | None] = mapped_column(String(128))
+    #: The name the customer chose for themselves. Separate from
+    #: `first_name` because that column is overwritten from the Telegram
+    #: payload on every authentication.
+    preferred_name: Mapped[str | None] = mapped_column(String(128))
     language: Mapped[str] = mapped_column(String(8), nullable=False, default=Language.FA.value)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=UserStatus.ACTIVE.value, index=True

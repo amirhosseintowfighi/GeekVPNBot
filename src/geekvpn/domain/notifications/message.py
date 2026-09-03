@@ -188,6 +188,17 @@ CATALOG: dict[str, MessageTemplate] = {
             action="shop",
         ),
         MessageTemplate(
+            key="service.idle",
+            category=_C.EXPIRY,
+            title_fa="همه‌چیز روبه‌راهه؟",
+            body_fa=(
+                "{days} روزی می‌شود به {plan} وصل نشده‌اید، در حالی که "
+                "سرویستان هنوز هم اعتبار دارد هم حجم. اگر جایی گیر کرده — "
+                "سرور، برنامه، لینک — بگویید تا درستش کنیم."
+            ),
+            action="support",
+        ),
+        MessageTemplate(
             key="traffic.warning",
             category=_C.TRAFFIC,
             title_fa="\u062d\u062c\u0645 \u0631\u0648 \u0628\u0647 \u067e\u0627\u06cc\u0627\u0646",

@@ -26,9 +26,15 @@ TRAFFIC_THRESHOLDS: tuple[int, ...] = (80, 95)
 # Percent at which the plan counts as finished rather than merely low.
 TRAFFIC_EXHAUSTED_PERCENT = 100
 
+#: Silence long enough to be worth asking about. Short enough that a
+#: customer who cannot connect hears from us while they still care, long
+#: enough that a weekend away does not trigger it.
+IDLE_NUDGE_DAYS = 3
+
 DEFAULT_INTERVALS: dict[JobKind, int] = {
     JobKind.EXPIRATION_REMINDER: 60,
     JobKind.TRAFFIC_REMINDER: 30,
+    JobKind.IDLE_NUDGE: 360,
     JobKind.BROADCAST_DISPATCH: 1,
     JobKind.CAMPAIGN_ANNOUNCE: 60,
     JobKind.DEFERRED_FLUSH: 15,
@@ -41,6 +47,16 @@ def expiry_dedupe_key(subscription_id: str, days_left: int) -> str:
 
 def traffic_dedupe_key(subscription_id: str, threshold: int) -> str:
     return f"traffic:{subscription_id}:{threshold}"
+
+
+def idle_dedupe_key(subscription_id: str, since: str) -> str:
+    """One nudge per spell of silence, not one every sweep.
+
+    Keyed on when the silence started, so a customer who reconnects and
+    then goes quiet again is a new spell and hears from us again - while
+    somebody who stays away for a month is asked exactly once.
+    """
+    return f"idle:{subscription_id}:{since}"
 
 
 def broadcast_dedupe_key(broadcast_id: str, user_id: int) -> str:
@@ -117,6 +133,7 @@ def due_entries(entries: list[ScheduleEntry], now: datetime) -> list[ScheduleEnt
 __all__ = [
     "DEFAULT_INTERVALS",
     "EXPIRY_REMINDER_DAYS",
+    "IDLE_NUDGE_DAYS",
     "TRAFFIC_EXHAUSTED_PERCENT",
     "TRAFFIC_THRESHOLDS",
     "ScheduleEntry",
@@ -126,6 +143,7 @@ __all__ = [
     "due_entries",
     "expiry_dedupe_key",
     "expiry_threshold_for",
+    "idle_dedupe_key",
     "traffic_dedupe_key",
     "traffic_threshold_for",
 ]

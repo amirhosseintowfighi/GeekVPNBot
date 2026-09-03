@@ -71,8 +71,11 @@ class Subscription(AggregateRoot[str]):
         subscription_id: str,
         *,
         user_id: int,
-        order_id: str,
-        plan_id: str,
+        #: `None` when nobody bought this here - an account sold through
+        #: support and claimed in the bot afterwards. Everything else about
+        #: such a subscription is ordinary; it simply has no sale behind it.
+        order_id: str | None = None,
+        plan_id: str | None = None,
         started_at: datetime,
         expires_at: datetime,
         remote_username: str,

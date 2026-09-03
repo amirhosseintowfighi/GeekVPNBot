@@ -131,10 +131,18 @@ class SubscriptionModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    order_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False, index=True
+    #: Null for a service nobody bought here: an account sold through support
+    #: and later claimed in the bot. Synthesising an order for those would have
+    #: put a sale that never happened into the revenue figures.
+    #:
+    #: The unique constraint below still holds - Postgres treats NULLs as
+    #: distinct, so any number of claimed rows coexist while each real order
+    #: still buys exactly one service.
+    order_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("orders.id", ondelete="RESTRICT"), index=True
     )
-    plan_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False, index=True)
+    #: Null for the same reason: a claimed account matches no package of ours.
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), index=True)
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="active", index=True)
 
     node_id: Mapped[str | None] = mapped_column(

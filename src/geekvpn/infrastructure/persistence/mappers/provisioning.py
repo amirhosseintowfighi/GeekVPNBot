@@ -116,7 +116,7 @@ def subscription_to_domain(model: SubscriptionModel) -> Subscription:
         model.id,
         user_id=model.user_id,
         order_id=model.order_id,
-        plan_id=str(model.plan_id),
+        plan_id=None if model.plan_id is None else str(model.plan_id),
         state=SubscriptionState(model.state),
         node_id=model.node_id,
         remote_id=model.remote_id,

@@ -14,9 +14,11 @@ from typing import Any
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.provisioning.claim_service import ClaimOutcome
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -43,6 +45,7 @@ def _list_keyboard(cards: list[Any]) -> InlineKeyboardMarkup:
         ]
         for card in cards
     ]
+    rows.append([K.btn(T.BTN_CLAIM, SubCB(action="claim", ref="-"))])
     rows.append([K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO), K.home_button()])
     return K.stack(rows)
 
@@ -92,7 +95,12 @@ async def on_services_command(
         await answer(
             message,
             C.resolve(scope, "DASH_EMPTY"),
-            reply_markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
+            reply_markup=K.stack(
+                [
+                    [K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)],
+                    [K.btn(T.BTN_CLAIM, SubCB(action="claim", ref="-"))],
+                ]
+            ),
         )
         return
     await answer(message, T.DASH_TITLE, reply_markup=_list_keyboard(cards))
@@ -115,7 +123,12 @@ async def on_dashboard(
         await safe_edit(
             query,
             C.resolve(scope, "DASH_EMPTY"),
-            markup=K.single(K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)),
+            markup=K.stack(
+                [
+                    [K.btn(T.BTN_SHOP_NOW, NavCB(to="shop"), style=K.GO)],
+                    [K.btn(T.BTN_CLAIM, SubCB(action="claim", ref="-"))],
+                ]
+            ),
         )
         return
     await safe_edit(query, T.DASH_TITLE, markup=_list_keyboard(cards))
@@ -240,4 +253,73 @@ async def on_rotate(
         query,
         f"{T.ROTATE_DONE}\n\n<code>{link}</code>",
         markup=K.single(K.btn(T.BTN_BACK, NavCB(to="dashboard"))),
+    )
+
+
+class DashboardFlow(StatesGroup):
+    #: Waiting for the customer to paste the link of a service they already own.
+    claiming = State()
+
+
+#: What each outcome sounds like to the customer. A dict rather than a chain of
+#: `if`s so a new outcome fails loudly here instead of silently falling through
+#: to "not found", which is the one answer that must never be a default.
+_CLAIM_REPLY = {
+    ClaimOutcome.CLAIMED: T.CLAIM_DONE,
+    ClaimOutcome.NOT_FOUND: T.CLAIM_NOT_FOUND,
+    ClaimOutcome.ALREADY_CLAIMED: T.CLAIM_TAKEN,
+    ClaimOutcome.PANEL_UNREACHABLE: T.CLAIM_PANEL_DOWN,
+}
+
+
+@router.callback_query(SubCB.filter(F.action == "claim"))
+async def on_claim_start(query: CallbackQuery, state: FSMContext) -> None:
+    await toast(query)
+    await state.set_state(DashboardFlow.claiming)
+    await safe_edit(
+        query,
+        T.CLAIM_ASK,
+        markup=K.single(K.btn(T.BTN_BACK, NavCB(to="dashboard"))),
+    )
+
+
+@router.message(DashboardFlow.claiming, F.text)
+async def on_claim_link(
+    message: Message,
+    state: FSMContext,
+    user: Any = None,
+    scope: Any = None,
+    **_: Any,
+) -> None:
+    """Adopt the account behind a pasted link, if it is really there.
+
+    The whole decision belongs to `ClaimService`, which asks the panels. This
+    only turns its answer into a sentence - in particular it must not treat an
+    unreachable panel as "no such service", which would tell a paying customer
+    holding a working link that it does not exist.
+    """
+    await state.clear()
+    if user is None or scope is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    telegram_id = getattr(user, "telegram_id", None)
+    if telegram_id is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+
+    try:
+        result = await scope.claims.claim(
+            url=message.text or "",
+            user_id=telegram_id,
+            reseller_id=getattr(scope, "reseller_id", None),
+        )
+    except Exception:
+        await answer(message, T.CLAIM_PANEL_DOWN)
+        return
+
+    await answer(
+        message,
+        _CLAIM_REPLY[result.outcome],
+        reply_markup=K.single(K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"))),
     )
