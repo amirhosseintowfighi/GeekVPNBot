@@ -19,6 +19,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from geekvpn.application.bot.services import BotServices
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -34,7 +35,9 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB
-from geekvpn.presentation.bot.ui.fa import isolate, normalize_input
+from geekvpn.presentation.bot.ui.fa import isolate, normalize_input, toman
+
+logger = get_logger(__name__)
 
 router = Router(name="start")
 
@@ -81,6 +84,7 @@ async def on_start(
             C.resolve(scope, "WELCOME_NEW").format(name=isolate(name), brand=brand_of(scope)),
             reply_markup=K.main_menu(),
         )
+        await _welcome_credit(message, scope, user)
         await state.set_state(Registration.display_name)
         builder = InlineKeyboardBuilder()
         builder.row(K.btn(T.BTN_SKIP, NavCB(to="skip_name")))
@@ -145,3 +149,27 @@ async def on_skip_name(
 @router.message(Command("help"))
 async def on_help(message: Message, services: BotServices, user: Any = None) -> None:
     await answer(message, T.SUPPORT_INTRO, reply_markup=K.main_menu())
+
+
+async def _welcome_credit(message: Message, scope: Any, user: Any) -> None:
+    """Give the signup bonus, and say so only if there was one.
+
+    Zero is the ordinary answer three different ways - the bonus is off, this
+    is a reseller's shop, or this customer has already had one - and none of
+    them is worth a sentence. A greeting that announces a gift of nothing is
+    worse than a greeting.
+
+    Best effort. A wallet that will not credit must not stop somebody
+    registering: they can be given the bonus by hand, but a /start that dies
+    leaves them with no account at all.
+    """
+    telegram_id = getattr(user, "telegram_id", None)
+    if scope is None or telegram_id is None:
+        return
+    try:
+        amount = await scope.grant_signup_bonus(telegram_id)
+    except Exception:
+        logger.exception("bot.signup_bonus_failed", telegram_id=telegram_id)
+        return
+    if amount > 0:
+        await answer(message, T.WELCOME_BONUS.format(amount=toman(amount)))

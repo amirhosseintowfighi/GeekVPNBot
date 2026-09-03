@@ -55,6 +55,7 @@ from geekvpn.application.payments.adapters import (
 from geekvpn.application.payments.checkout_service import CheckoutService
 from geekvpn.application.payments.refund_service import RefundService
 from geekvpn.application.payments.review_service import PaymentReviewService
+from geekvpn.application.payments.signup_bonus import SignupBonusService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
 from geekvpn.application.ports.clock import Clock
@@ -894,6 +895,20 @@ class SyncScope:
             ids=self.ids,
             events=self.events,
             audit=self.audit,
+        )
+
+    @cached_property
+    def signup_bonus(self) -> SignupBonusService:
+        """The welcome credit for a brand-new customer.
+
+        Carries the shop, because the decision depends on it: the amount is a
+        platform setting, and spending it in a reseller's shop would spend
+        their margin on a promotion they never agreed to.
+        """
+        return SignupBonusService(
+            wallets=self.wallet,
+            ledger=self.wallets,
+            reseller_id=self.reseller_id,
         )
 
     # -- support -----------------------------------------------------------

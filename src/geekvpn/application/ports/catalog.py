@@ -125,7 +125,16 @@ class CampaignRepository(Protocol):
 
     async def get_by_slug(self, slug: str) -> Campaign | None: ...
 
-    async def list_all(self, *, limit: int = 100, offset: int = 0) -> Sequence[Campaign]: ...
+    async def list_all(
+        self, *, limit: int = 100, offset: int = 0, include_archived: bool = False
+    ) -> Sequence[Campaign]:
+        """Archived campaigns are excluded unless asked for.
+
+        Archiving is how a campaign is removed - one referenced by a
+        historical order must not be deleted - so it has to disappear from
+        the listing, or the archive button looks like it did nothing.
+        """
+        ...
 
     async def list_running(self, *, now: datetime) -> Sequence[Campaign]:
         """Every campaign that could apply right now.

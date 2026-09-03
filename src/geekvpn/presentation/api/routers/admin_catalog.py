@@ -665,8 +665,13 @@ async def list_campaigns(
     scope: ScopeDep,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    include_archived: bool = Query(
+        default=False, description="Also return campaigns that have been archived."
+    ),
 ) -> list[CampaignAdminResponse]:
-    campaigns = await scope.promotions.list_campaigns(limit=limit, offset=offset)
+    campaigns = await scope.promotions.list_campaigns(
+        limit=limit, offset=offset, include_archived=include_archived
+    )
     return [_campaign_view(c) for c in campaigns]
 
 
@@ -704,6 +709,29 @@ async def set_campaign_state(
 ) -> CampaignAdminResponse:
     campaign = await scope.promotions.set_campaign_state(
         campaign_id, state=payload.state, actor_id=actor.subject_id
+    )
+    return _campaign_view(campaign)
+
+
+@router.delete(
+    "/campaigns/{campaign_id}",
+    response_model=CampaignAdminResponse,
+    dependencies=[PROMOTE],
+    summary="Archive a campaign",
+)
+async def archive_campaign(
+    campaign_id: uuid.UUID, actor: CurrentAdmin, scope: ScopeDep
+) -> CampaignAdminResponse:
+    """Archives rather than deletes, for the reason coupons do.
+
+    A campaign that has ever discounted an order is named by that order. Remove
+    the row and a historical invoice becomes an unexplainable price.
+
+    Archived campaigns drop out of the listing, so from the operator's side this
+    is the delete they were looking for - the history just survives underneath.
+    """
+    campaign = await scope.promotions.set_campaign_state(
+        campaign_id, state="archive", actor_id=actor.subject_id
     )
     return _campaign_view(campaign)
 

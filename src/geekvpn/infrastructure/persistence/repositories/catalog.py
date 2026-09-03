@@ -23,6 +23,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import true as sa_true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.domain.base.errors import NotFoundError
@@ -276,9 +277,16 @@ class SqlAlchemyCampaignRepository:
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return campaign_to_domain(row) if row else None
 
-    async def list_all(self, *, limit: int = 100, offset: int = 0) -> Sequence[Campaign]:
+    async def list_all(
+        self, *, limit: int = 100, offset: int = 0, include_archived: bool = False
+    ) -> Sequence[Campaign]:
         stmt = (
             select(CampaignModel)
+            .where(
+                # Archiving is how a campaign is removed. If archived rows kept
+                # appearing, the button would look like it had done nothing.
+                sa_true() if include_archived else CampaignModel.state != "archived"
+            )
             .order_by(CampaignModel.priority.desc(), CampaignModel.created_at.desc())
             .limit(limit)
             .offset(offset)

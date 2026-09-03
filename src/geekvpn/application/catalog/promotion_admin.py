@@ -143,8 +143,21 @@ class PromotionAdminService:
 
     # -- campaigns ---------------------------------------------------------
 
-    async def list_campaigns(self, *, limit: int = 50, offset: int = 0) -> list[Campaign]:
-        return list(await self._campaigns.list_all(limit=limit, offset=offset))
+    async def list_campaigns(
+        self, *, limit: int = 50, offset: int = 0, include_archived: bool = False
+    ) -> list[Campaign]:
+        """Archived campaigns are hidden unless asked for.
+
+        Archiving is how a campaign is removed - one referenced by a
+        historical order must not be deleted, or an old invoice becomes an
+        unexplainable discount - but "removed" has to mean gone from the
+        screen, or the button looks like it did nothing.
+        """
+        return list(
+            await self._campaigns.list_all(
+                limit=limit, offset=offset, include_archived=include_archived
+            )
+        )
 
     async def create_campaign(
         self, command: CreateCampaignCommand, *, actor_id: uuid.UUID | None = None

@@ -99,6 +99,22 @@ SUPPORT_HOURS = SettingDefinition[str](
     description="Human-readable support hours, in Persian.",
 )
 
+SIGNUP_BONUS_TOMAN = SettingDefinition[int](
+    key="wallet.signup_bonus_toman",
+    default=0,
+    type_=int,
+    description=(
+        "Credit given to a customer's wallet the first time they start the bot,"
+        " in Toman. Zero turns it off."
+    ),
+)
+SIGNUP_BONUS_NOTE_FA = SettingDefinition[str](
+    key="wallet.signup_bonus_note_fa",
+    default="هدیهٔ خوش‌آمدگویی",
+    type_=str,
+    description="What the customer sees beside this credit in their wallet history.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -108,6 +124,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         ADMIN_SESSION_IP_PINNING,
         SUPPORT_TELEGRAM_HANDLE,
         SUPPORT_HOURS,
+        SIGNUP_BONUS_TOMAN,
+        SIGNUP_BONUS_NOTE_FA,
     )
 }
 

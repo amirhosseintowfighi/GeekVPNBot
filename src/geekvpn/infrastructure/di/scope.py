@@ -34,7 +34,11 @@ from geekvpn.application.identity.authenticate_telegram import AuthenticateTeleg
 from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
-from geekvpn.application.platform.settings_service import SettingsService
+from geekvpn.application.platform.settings_service import (
+    SIGNUP_BONUS_NOTE_FA,
+    SIGNUP_BONUS_TOMAN,
+    SettingsService,
+)
 from geekvpn.application.provisioning.claim_service import ClaimService
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
@@ -555,6 +559,31 @@ class RequestScope:
             panels=self.panel_provider,
             clock=self.container.clock,
         )
+
+    async def grant_signup_bonus(self, telegram_id: int) -> int:
+        """Credit a new customer's welcome bonus. Returns what was given.
+
+        Zero covers every ordinary "nothing happened": the bonus is switched
+        off, this is a reseller's shop, or this customer has already had one.
+        The caller shows a message when it is positive and says nothing
+        otherwise, so none of the three needs telling apart at the call site.
+
+        Reads the amount here because settings are async and wallets are not,
+        and passes it in - which also leaves the rule itself testable without
+        a settings store.
+        """
+        amount = await self.settings_service.get(SIGNUP_BONUS_TOMAN)
+        if amount <= 0:
+            return 0
+        note = await self.settings_service.get(SIGNUP_BONUS_NOTE_FA)
+
+        def work(sync: SyncScope) -> int:
+            entry = sync.signup_bonus.grant(
+                user_id=telegram_id, amount_toman=amount, note_fa=note
+            )
+            return amount if entry is not None else 0
+
+        return await self.in_shop(work)
 
     @cached_property
     def claims(self) -> ClaimService:

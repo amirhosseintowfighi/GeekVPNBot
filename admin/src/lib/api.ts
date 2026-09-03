@@ -655,7 +655,15 @@ export const api = {
   archiveCoupon: (couponId: string) =>
     mutate<CouponRow>('DELETE', `${ROOT}/catalog/coupons/${couponId}`),
 
-  campaigns: () => fetcher<CampaignRow[]>(`${ROOT}/catalog/campaigns`),
+  campaigns: (includeArchived = false) =>
+    fetcher<CampaignRow[]>(
+      `${ROOT}/catalog/campaigns` + (includeArchived ? '?includeArchived=true' : ''),
+    ),
+  // Archives. A campaign that has ever discounted an order is named by that
+  // order, so the row survives - it just leaves the list, which is what
+  // "delete" means from the operator's side.
+  archiveCampaign: (campaignId: string) =>
+    mutate<CampaignRow>('DELETE', `${ROOT}/catalog/campaigns/${campaignId}`),
   saveCampaign: (body: CampaignCreateBody) =>
     mutate<CampaignRow>('POST', `${ROOT}/catalog/campaigns`, body),
   // The campaign route takes a verb - activate/pause/archive - not the

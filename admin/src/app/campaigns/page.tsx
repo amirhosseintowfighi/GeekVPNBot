@@ -51,6 +51,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  *   of volume while giving away more than it earned is the failure mode this
  *   table exists to make visible.
  */
+const CONFIRM_DELETE =
+  'این کمپین از فهرست حذف شود؟ سفارش‌هایی که با آن تخفیف گرفته‌اند دست‌نخورده می‌مانند.'
+
 export default function CampaignsPage() {
   const { can } = useSession()
   const [creating, setCreating] = React.useState(false)
@@ -103,6 +106,7 @@ export default function CampaignsPage() {
                 <TableHead>{'\u062a\u062e\u0641\u06cc\u0641 \u062f\u0627\u062f\u0647\u200c\u0634\u062f\u0647'}</TableHead>
                 <TableHead>{'\u062f\u0631\u0622\u0645\u062f'}</TableHead>
                 <TableHead>{'\u0641\u0639\u0627\u0644'}</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,6 +169,27 @@ export default function CampaignsPage() {
                           mutate()
                         }}
                       />
+                    </TableCell>
+
+                    <TableCell>
+                      {can('campaigns.write') ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={async () => {
+                            // Confirmed, because it is the row leaving the
+                            // screen and there is no undo button beside it.
+                            // The campaign is archived rather than deleted,
+                            // so the history behind it survives either way.
+                            if (!window.confirm(CONFIRM_DELETE)) return
+                            await api.archiveCampaign(campaign.id)
+                            mutate()
+                          }}
+                        >
+                          {'حذف'}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )
