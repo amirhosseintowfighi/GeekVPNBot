@@ -24,10 +24,20 @@ import struct
 import time
 from urllib.parse import quote, urlencode
 
+from geekvpn.infrastructure.logging.setup import get_logger
+
+logger = get_logger("security.totp")
+
 DIGITS = 6
 STEP_SECONDS = 30
 WINDOW_STEPS = 1
 SECRET_BYTES = 20  # 160 bits, per RFC 4226
+
+#: How far either side a *rejected* code is searched for, only to explain the
+#: refusal. Nothing in this range is accepted; ten minutes is far more drift
+#: than a working NTP client ever produces, and enough to recognise a host
+#: whose clock has simply stopped being maintained.
+_DRIFT_SEARCH_STEPS = 20
 
 
 class Rfc6238TotpService:
@@ -72,7 +82,34 @@ class Rfc6238TotpService:
             expected = self._code_for_counter(secret, counter + offset)
             if hmac.compare_digest(expected, candidate):
                 return True
+
+        self._warn_if_clock_drifted(secret, candidate, counter)
         return False
+
+    def _warn_if_clock_drifted(self, secret: str, candidate: str, counter: int) -> None:
+        """Say so in the log when a rejected code was simply the wrong minute.
+
+        A correct code from a phone whose clock agrees with the world fails
+        here when *our* clock does not, and the operator is told their code is
+        wrong - so they read a fresh one, and that fails too, and there is
+        nothing anywhere to suggest the codes were never the problem. Locking
+        somebody out of their own panel with a misleading reason is worse than
+        the outage that caused it.
+
+        The acceptance window is untouched: this only searches wider to explain
+        a refusal that has already happened. Each extra accepted step
+        multiplies an attacker's chance, and none are accepted here.
+        """
+        for offset in range(-_DRIFT_SEARCH_STEPS, _DRIFT_SEARCH_STEPS + 1):
+            if abs(offset) <= self._window:
+                continue
+            if hmac.compare_digest(self._code_for_counter(secret, counter + offset), candidate):
+                logger.warning(
+                    "totp.clock_drift_suspected",
+                    drift_seconds=offset * self._step,
+                    detail="the code was valid at a different time; check the server clock",
+                )
+                return
 
     def _code_for_counter(self, secret: str, counter: int) -> str:
         key = _decode_base32(secret)
