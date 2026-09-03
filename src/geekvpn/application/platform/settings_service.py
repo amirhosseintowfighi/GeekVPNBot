@@ -31,8 +31,29 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
     default: T
     type_: type
     description: str
+    #: What the operator sees. `description` is English and for us; the panel
+    #: is Persian and for them, and it used to invent a label client-side from
+    #: a field the API never sent - so every row rendered blank.
+    label_fa: str = ""
     is_secret: bool = False
     write_permission: Permission = Permission.SETTINGS_WRITE
+
+    @property
+    def kind(self) -> str:
+        """How the panel should render this one.
+
+        Derived from the declared type rather than declared separately: a
+        second field would be one more thing to get out of step, and it was
+        exactly that mismatch - a client guessing at `kind` - that turned every
+        text setting into a numeric box that reduced it to zero on edit.
+        """
+        if self.type_ is bool:
+            return "boolean"
+        if self.type_ is int and self.key.endswith("_toman"):
+            return "toman"
+        if self.type_ in (int, float):
+            return "number"
+        return "text"
 
     def coerce(self, raw: Any) -> T:
         """Validate on the way in, not on the way out.
@@ -64,36 +85,42 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
 
 MAINTENANCE_MODE = SettingDefinition[bool](
     key="platform.maintenance_mode",
+    label_fa="حالت تعمیرات",
     default=False,
     type_=bool,
     description="Reject customer traffic with a friendly Persian notice.",
 )
 MAINTENANCE_MESSAGE = SettingDefinition[str](
     key="platform.maintenance_message",
+    label_fa="پیام حالت تعمیرات",
     default="سرویس موقتاً در حال به‌روزرسانی است. تا چند دقیقه دیگر برمی‌گردیم.",
     type_=str,
     description="Message shown to customers while maintenance mode is on.",
 )
 REGISTRATION_ENABLED = SettingDefinition[bool](
     key="identity.registration_enabled",
+    label_fa="ثبت‌نام کاربر جدید",
     default=True,
     type_=bool,
     description="Allow brand-new Telegram users to create an account.",
 )
 ADMIN_SESSION_IP_PINNING = SettingDefinition[bool](
     key="security.admin_session_ip_pinning",
+    label_fa="بستن نشست ادمین به IP",
     default=False,
     type_=bool,
     description="Invalidate an admin session if its source IP changes.",
 )
 SUPPORT_TELEGRAM_HANDLE = SettingDefinition[str](
     key="support.telegram_handle",
+    label_fa="آیدی پشتیبانی",
     default="@GeekVPNSupport",
     type_=str,
     description="Handle shown in bot and Mini App support screens.",
 )
 SUPPORT_HOURS = SettingDefinition[str](
     key="support.hours",
+    label_fa="ساعات پاسخگویی",
     default="۹ صبح تا ۱۲ شب، هفت روز هفته",
     type_=str,
     description="Human-readable support hours, in Persian.",
@@ -101,6 +128,7 @@ SUPPORT_HOURS = SettingDefinition[str](
 
 SIGNUP_BONUS_TOMAN = SettingDefinition[int](
     key="wallet.signup_bonus_toman",
+    label_fa="هدیهٔ کاربر جدید (تومان)",
     default=0,
     type_=int,
     description=(
@@ -110,6 +138,7 @@ SIGNUP_BONUS_TOMAN = SettingDefinition[int](
 )
 SIGNUP_BONUS_NOTE_FA = SettingDefinition[str](
     key="wallet.signup_bonus_note_fa",
+    label_fa="متن هدیهٔ کاربر جدید",
     default="هدیهٔ خوش‌آمدگویی",
     type_=str,
     description="What the customer sees beside this credit in their wallet history.",

@@ -605,7 +605,7 @@ export interface PolicySetting {
   key: string
   labelFa: string
   descriptionFa: string
-  kind: 'toman' | 'bps' | 'count' | 'boolean' | 'text'
+  kind: 'toman' | 'bps' | 'number' | 'count' | 'boolean' | 'text'
   value: number | boolean | string
   min: number | null
   max: number | null

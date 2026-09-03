@@ -125,6 +125,12 @@ class SettingResponse(ApiModel):
     key: str
     value: object
     description: str | None
+    #: What the panel shows and how it renders the input. Both used to be
+    #: guessed client-side from fields this response never carried, so every
+    #: row had a blank label and a numeric box - which silently reduced a text
+    #: setting to zero the moment anybody typed in it.
+    label_fa: str
+    kind: str
     is_secret: bool
     updated_at: datetime | None
 

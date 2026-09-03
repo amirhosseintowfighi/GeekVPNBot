@@ -16,39 +16,33 @@ import { Input } from '@/components/ui/input'
 import { SkeletonCards } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 
-/** Groups mirror the policy key namespaces in the pricing engine. */
-const GROUPS: Array<{ prefix: string; titleFa: string; descriptionFa: string }> = [
-  {
-    prefix: 'pricing.rounding',
-    titleFa: '\u0642\u06cc\u0645\u062a\u200c\u06af\u0630\u0627\u0631\u06cc',
-    descriptionFa:
-      '\u06af\u0631\u062f \u06a9\u0631\u062f\u0646 \u0642\u06cc\u0645\u062a \u0647\u0645\u06cc\u0634\u0647 \u0628\u0647 \u0633\u0648\u062f \u0645\u0634\u062a\u0631\u06cc \u0648 \u0631\u0648 \u0628\u0647 \u067e\u0627\u06cc\u06cc\u0646 \u0627\u0646\u062c\u0627\u0645 \u0645\u06cc\u200c\u0634\u0648\u062f.',
-  },
-  {
-    prefix: 'pricing.allow_coupon',
-    titleFa: '\u062a\u062c\u0645\u06cc\u0639 \u062a\u062e\u0641\u06cc\u0641\u200c\u0647\u0627',
-    descriptionFa:
-      '\u0627\u06af\u0631 \u062e\u0627\u0645\u0648\u0634 \u0628\u0627\u0634\u062f\u060c \u0641\u0642\u0637 \u0628\u0647\u062a\u0631\u06cc\u0646 \u062a\u062e\u0641\u06cc\u0641 \u0628\u0631\u0627\u06cc \u0645\u0634\u062a\u0631\u06cc \u0627\u0639\u0645\u0627\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.',
-  },
-  {
-    prefix: 'pricing.max_total',
-    titleFa: '\u0633\u0642\u0641 \u062a\u062e\u0641\u06cc\u0641',
-    descriptionFa:
-      '\u062d\u062f\u0627\u06a9\u062b\u0631 \u062a\u062e\u0641\u06cc\u0641 \u0645\u062c\u0627\u0632 \u0631\u0648\u06cc \u06cc\u06a9 \u0633\u0641\u0627\u0631\u0634\u061b \u0645\u062d\u0627\u0641\u0638 \u0646\u0647\u0627\u06cc\u06cc \u062d\u0627\u0634\u06cc\u0647\u0654 \u0633\u0648\u062f.',
-  },
-  {
-    prefix: 'pricing.cashback',
-    titleFa: '\u06a9\u0634\u0628\u06a9',
-    descriptionFa:
-      '\u06a9\u0634\u0628\u06a9 \u067e\u0633 \u0627\u0632 \u062e\u0631\u06cc\u062f \u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0648\u0627\u0631\u06cc\u0632 \u0645\u06cc\u200c\u0634\u0648\u062f \u0648 \u0627\u0632 \u0645\u0628\u0644\u063a \u0641\u0627\u06a9\u062a\u0648\u0631 \u06a9\u0645 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f.',
-  },
-  {
-    prefix: 'pricing.referral',
-    titleFa: '\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646',
-    descriptionFa:
-      '\u067e\u0627\u062f\u0627\u0634 \u0645\u0639\u0631\u0641 \u0648 \u0647\u062f\u06cc\u0647\u0654 \u06a9\u0627\u0631\u0628\u0631 \u062f\u0639\u0648\u062a\u200c\u0634\u062f\u0647.',
-  },
-]
+/**
+ * Namespaces, keyed on the first segment of the setting key.
+ *
+ * This used to be a hand-written list of five `pricing.*` prefixes, and every
+ * row whose key started with anything else was filtered out and never drawn -
+ * which was all eight of them, so the page rendered nothing at all. Grouping on
+ * the namespace the key already has, with a catch-all underneath, means a new
+ * setting appears the moment the backend declares it.
+ */
+const GROUP_TITLES: Record<string, string> = {
+  wallet: 'کیف پول',
+  pricing: 'قیمت‌گذاری',
+  platform: 'پلتفرم',
+  identity: 'ثبت‌نام و کاربران',
+  security: 'امنیت',
+  support: 'پشتیبانی',
+}
+
+const OTHER_TITLE = 'سایر'
+
+function namespaceOf(key: string): string {
+  return key.split('.')[0] ?? ''
+}
+
+function groupTitle(namespace: string): string {
+  return GROUP_TITLES[namespace] ?? OTHER_TITLE
+}
 
 /**
  * Settings.
@@ -152,76 +146,88 @@ export default function SettingsPage() {
         <SkeletonCards count={4} />
       ) : (
         <div className="space-y-3">
-          {GROUPS.map((group) => {
-            const settings = (data ?? []).filter((setting) => setting.key.startsWith(group.prefix))
-            if (settings.length === 0) return null
+          {Object.entries(
+            (data ?? []).reduce<Record<string, PolicySetting[]>>((groups, setting) => {
+              const title = groupTitle(namespaceOf(setting.key))
+              groups[title] = [...(groups[title] ?? []), setting]
+              return groups
+            }, {}),
+          ).map(([title, settings]) => (
+            <Card key={title}>
+              <CardHeader>
+                <CardTitle>{title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {settings.map((setting) => {
+                  const value = valueOf(setting)
 
-            return (
-              <Card key={group.prefix}>
-                <CardHeader>
-                  <CardTitle>{group.titleFa}</CardTitle>
-                  <p className="text-2xs text-muted-foreground">{group.descriptionFa}</p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {settings.map((setting) => {
-                    const value = valueOf(setting)
-
-                    return (
-                      <div
-                        key={setting.key}
-                        className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0"
-                      >
-                        <div className="min-w-48 flex-1">
-                          <p className="text-2xs font-medium">{setting.labelFa}</p>
-                          <p className="text-2xs text-muted-foreground">{setting.descriptionFa}</p>
-                          {/* The raw key is shown deliberately: it is what
-                              appears in the audit log and in the backend. */}
-                          <code dir="ltr" className="mt-0.5 block text-2xs text-muted-foreground/60">
-                            {setting.key}
-                          </code>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {setting.kind === 'boolean' ? (
-                            <Switch
-                              checked={Boolean(value)}
-                              disabled={!editable}
-                              onCheckedChange={(checked) => stage(setting.key, checked)}
-                            />
-                          ) : (
-                            <>
-                              <Input
-                                ltr
-                                inputMode="numeric"
-                                disabled={!editable}
-                                value={String(value)}
-                                onChange={(event) =>
-                                  stage(
-                                    setting.key,
-                                    Number(normalizeInput(event.target.value).replace(/[^\d]/g, '')) || 0,
-                                  )
-                                }
-                                className="h-8 w-32 text-2xs"
-                              />
-                              {/* Show the human reading of the stored unit so
-                                  nobody has to divide by 100 in their head. */}
-                              <span className="nums min-w-20 text-2xs text-muted-foreground">
-                                {setting.kind === 'bps'
-                                  ? percent(Number(value) / 100)
-                                  : setting.kind === 'toman'
-                                    ? toman(Number(value))
-                                    : ''}
-                              </span>
-                            </>
-                          )}
-                        </div>
+                  return (
+                    <div
+                      key={setting.key}
+                      className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0"
+                    >
+                      <div className="min-w-48 flex-1">
+                        <p className="text-2xs font-medium">{setting.labelFa}</p>
+                        <p className="text-2xs text-muted-foreground">{setting.descriptionFa}</p>
+                        {/* The raw key is shown deliberately: it is what
+                            appears in the audit log and in the backend. */}
+                        <code dir="ltr" className="mt-0.5 block text-2xs text-muted-foreground/60">
+                          {setting.key}
+                        </code>
                       </div>
-                    )
-                  })}
-                </CardContent>
-              </Card>
-            )
-          })}
+
+                      <div className="flex items-center gap-2">
+                        {setting.kind === 'boolean' ? (
+                          <Switch
+                            checked={Boolean(value)}
+                            disabled={!editable}
+                            onCheckedChange={(checked) => stage(setting.key, checked)}
+                          />
+                        ) : setting.kind === 'text' ? (
+                          // Text, not digits. Every non-boolean used to go
+                          // through a numeric filter, so typing in a message
+                          // or a support handle reduced it to ۰.
+                          <Input
+                            disabled={!editable}
+                            value={String(value)}
+                            onChange={(event) => stage(setting.key, event.target.value)}
+                            className="h-8 w-64 text-2xs"
+                          />
+                        ) : (
+                          <>
+                            <Input
+                              ltr
+                              inputMode="numeric"
+                              disabled={!editable}
+                              value={String(value)}
+                              onChange={(event) =>
+                                stage(
+                                  setting.key,
+                                  Number(
+                                    normalizeInput(event.target.value).replace(/[^\d]/g, ''),
+                                  ) || 0,
+                                )
+                              }
+                              className="h-8 w-32 text-2xs"
+                            />
+                            {/* The human reading of the stored unit, so nobody
+                                has to divide by 100 in their head. */}
+                            <span className="nums min-w-20 text-2xs text-muted-foreground">
+                              {setting.kind === 'bps'
+                                ? percent(Number(value) / 100)
+                                : setting.kind === 'toman'
+                                  ? toman(Number(value))
+                                  : ''}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </>
