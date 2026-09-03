@@ -30,6 +30,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, Telegram
 
 from geekvpn.application.platform.channel_gate import RequiredChannel, missing_channels
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.presentation.bot.events import inner_event
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T
 
@@ -121,7 +122,8 @@ def _membership(bot: Any) -> Callable[[str, int], Awaitable[bool | None]]:
 
 
 def _is_recheck(event: TelegramObject) -> bool:
-    return isinstance(event, CallbackQuery) and (event.data or "") == RECHECK
+    inner = inner_event(event)
+    return isinstance(inner, CallbackQuery) and (inner.data or "") == RECHECK
 
 
 def gate_keyboard(missing: list[RequiredChannel]) -> Any:
@@ -141,15 +143,22 @@ def gate_text(missing: list[RequiredChannel]) -> str:
 
 
 async def _show_gate(event: TelegramObject, missing: list[RequiredChannel]) -> None:
+    """Draw the gate, whatever the update turned out to be.
+
+    `event` is an `Update` here - this runs as an outer middleware - and
+    matching on it directly drew nothing at all while still swallowing the
+    update. A customer pressed /start and the bot said nothing.
+    """
+    inner = inner_event(event)
     body = gate_text(missing)
     markup = gate_keyboard(missing)
-    if isinstance(event, CallbackQuery):
-        await event.answer()
-        if event.message is not None:
-            await event.message.answer(body, reply_markup=markup)
+    if isinstance(inner, CallbackQuery):
+        await inner.answer()
+        if isinstance(inner.message, Message):
+            await inner.message.answer(body, reply_markup=markup)
         return
-    if isinstance(event, Message):
-        await event.answer(body, reply_markup=markup)
+    if isinstance(inner, Message):
+        await inner.answer(body, reply_markup=markup)
 
 
 __all__ = [

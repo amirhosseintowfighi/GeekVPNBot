@@ -20,6 +20,7 @@ from typing import Any
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject, User
 
+from geekvpn.presentation.bot.events import inner_event
 from geekvpn.presentation.bot.ui import text as T
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
@@ -58,9 +59,13 @@ class ThrottlingMiddleware(BaseMiddleware):
         if user is None:
             return await handler(event, data)
 
-        if isinstance(event, CallbackQuery):
+        # The update, unwrapped. Registered on `dispatcher.update`, this is
+        # handed an `Update` - so both branches below missed, every update fell
+        # through, and nothing has ever been throttled. See `events.py`.
+        inner = inner_event(event)
+        if isinstance(inner, CallbackQuery):
             kind, interval = "cb", self.callback_interval
-        elif isinstance(event, Message):
+        elif isinstance(inner, Message):
             kind, interval = "msg", self.message_interval
         else:
             return await handler(event, data)
@@ -70,7 +75,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         previous = self._last.get(key)
 
         if previous is not None and now - previous < interval:
-            await self._warn(event, user.id, now)
+            await self._warn(inner, user.id, now)
             return None
 
         self._last[key] = now
