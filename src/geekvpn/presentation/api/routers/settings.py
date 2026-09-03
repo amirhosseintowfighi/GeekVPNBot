@@ -67,10 +67,8 @@ async def update_setting(
     record = await scope.settings_service.set(
         key, payload.value, actor_id=actor.subject_id, actor_label=actor.role
     )
-    return SettingResponse(
-        key=record.key,
-        value=record.display_value,
-        description=record.description,
-        is_secret=record.is_secret,
-        updated_at=record.updated_at,
-    )
+    # `_view`, not a second hand-built response. This one was built by hand and
+    # was missing the two fields the model had just gained, so every save
+    # answered 500 at response validation - no setting could be changed at all,
+    # and the panel showed the generic "something went wrong".
+    return _view(record)
