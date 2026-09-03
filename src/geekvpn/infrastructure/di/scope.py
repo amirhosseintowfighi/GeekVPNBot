@@ -77,6 +77,9 @@ from geekvpn.infrastructure.persistence.repositories.catalog import (
     SqlAlchemyPlanRepository,
     SqlAlchemyProductRepository,
 )
+from geekvpn.infrastructure.persistence.repositories.channels import (
+    SqlRequiredChannelRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.nodes import (
     SqlAlchemyNodeRepository,
 )
@@ -584,6 +587,18 @@ class RequestScope:
             return amount if entry is not None else 0
 
         return await self.in_shop(work)
+
+    @cached_property
+    def required_channels(self) -> SqlRequiredChannelRepository:
+        """The channels this shop makes customers join.
+
+        Carries the shop, so a reseller's bot gates on their channels and edits
+        only their own rows.
+        """
+        return SqlRequiredChannelRepository(
+            self.session,
+            reseller_id=None if self.reseller is None else self.reseller.id,
+        )
 
     @cached_property
     def claims(self) -> ClaimService:

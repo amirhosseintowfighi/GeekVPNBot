@@ -274,3 +274,38 @@ __all__ = [
     "ResellerTextModel",
     "ResellerTopupModel",
 ]
+
+
+class RequiredChannelModel(TimestampMixin, Base):
+    """A channel a customer must join before the bot will serve them.
+
+    Per shop, like every other customer-facing setting. NULL is the platform's
+    own bot; a reseller's rows gate only theirs. One global list would make one
+    shop's growth campaign everybody's entry requirement.
+    """
+
+    __tablename__ = "required_channels"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    #: `@name` for a public channel, `-100...` for a private one. Telegram takes
+    #: either wherever a chat is named, and two columns would mean every read
+    #: choosing between them.
+    chat_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    title_fa: Mapped[str] = mapped_column(String(128), nullable=False)
+    #: Needed for a private channel, whose `@name` cannot be opened. A public
+    #: one is reachable from `chat_ref` alone.
+    invite_url: Mapped[str | None] = mapped_column(String(512))
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Whose bot this gates. NULL is the platform's own.
+    reseller_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE")
+    )
+
+    __table_args__ = (
+        Index("ix_required_channels_shop", "reseller_id", "active"),
+        # The same channel twice would gate on one requirement and show two
+        # buttons for it. NULLs are distinct in Postgres, so each shop has its
+        # own namespace and the platform keeps its own.
+        Index("uq_required_channels_shop_ref", "reseller_id", "chat_ref", unique=True),
+    )

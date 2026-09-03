@@ -8,6 +8,7 @@ import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { CardsSection } from '@/components/feature/cards-section'
+import { RequiredChannels } from '@/components/feature/required-channels'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Button } from '@/components/ui/button'
@@ -114,6 +115,11 @@ export default function SettingsPage() {
       {/* Cards first: without one the platform cannot take money at all, which
           outranks every pricing policy below it. */}
       <CardsSection />
+
+      {/* Beside the other things that decide whether a customer can use the
+          bot at all, rather than buried in the key/value list below - it is
+          a gate, not a policy number. */}
+      <RequiredChannels scope="platform" />
 
       {error ? (
         <ErrorState

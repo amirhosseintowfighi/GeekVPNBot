@@ -12,45 +12,46 @@ import type {
   AdminTicketMessage,
   AdminTicketRow,
   AnalyticsBundle,
+  ApprovedApplication,
   AuditLogRow,
   BroadcastAudience,
+  BroadcastResult,
   BroadcastRow,
   CampaignRow,
   CardBody,
   CardRow,
   CategoryRow,
   CouponRow,
+  CreatedReseller,
+  CryptoRow,
   DashboardSummary,
   DurationRung,
+  GatewayRow,
   OperatorRow,
   OrderDetail,
   OrderRow,
   Paged,
   PanelRow,
   PaymentRow,
+  PendingTopupRow,
   PlanRow,
   PolicySetting,
   ProductRow,
+  RequiredChannelRow,
+  ResellerApplicationRow,
+  ResellerCustomers,
+  ResellerLedgerRow,
+  ResellerPriceRow,
+  ResellerRow,
+  ResellerSelf,
+  ResellerSummary,
+  ResellerTextRow,
+  ResellerTopupRow,
   ServerRow,
+  ShopPaymentMethods,
   UserDetail,
   UserRow,
   WalletTransactionRow,
-  ResellerRow,
-  CreatedReseller,
-  ResellerLedgerRow,
-  ResellerPriceRow,
-  CryptoRow,
-  GatewayRow,
-  ResellerSelf,
-  ResellerSummary,
-  ResellerCustomers,
-  ResellerTextRow,
-  ShopPaymentMethods,
-  BroadcastResult,
-  ResellerTopupRow,
-  PendingTopupRow,
-  ResellerApplicationRow,
-  ApprovedApplication,
 } from './types'
 import type {
   CampaignCreateBody,
@@ -810,6 +811,25 @@ export const api = {
       })}`,
     )
   },
+
+  // ---------------------------------------------------- required channels
+  // Two shops, one shape. Neither call names a shop: the API takes it from the
+  // token, so a reseller cannot reach the platform's gate by changing a URL.
+  channels: () => fetcher<RequiredChannelRow[]>(`${ROOT}/channels`),
+  addChannel: (body: { chatRef: string; titleFa: string; inviteUrl: string | null }) =>
+    mutate<void>('POST', `${ROOT}/channels`, body),
+  setChannelActive: (channelId: string, active: boolean) =>
+    mutate<void>('POST', `${ROOT}/channels/${channelId}/active`, { active }),
+  removeChannel: (channelId: string) =>
+    mutate<void>('DELETE', `${ROOT}/channels/${channelId}`),
+
+  myChannels: () => fetcher<RequiredChannelRow[]>('/api/v1/reseller/channels'),
+  addMyChannel: (body: { chatRef: string; titleFa: string; inviteUrl: string | null }) =>
+    mutate<void>('POST', '/api/v1/reseller/channels', body),
+  setMyChannelActive: (channelId: string, active: boolean) =>
+    mutate<void>('POST', `/api/v1/reseller/channels/${channelId}/active`, { active }),
+  removeMyChannel: (channelId: string) =>
+    mutate<void>('DELETE', `/api/v1/reseller/channels/${channelId}`),
 
   // ----------------------------------------------------------- settings
   settings: () => fetcher<PolicySetting[]>(`${ROOT}/settings`),

@@ -15,6 +15,7 @@ import type {
   ResellerSummary,
   ResellerTopupRow,
 } from '@/lib/types'
+import { RequiredChannels } from '@/components/feature/required-channels'
 import { ShopPaymentMethodsCard } from '@/components/feature/shop-payment-methods'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -106,6 +107,8 @@ export default function PortalPage() {
       <BrandCard me={me} onChanged={() => void reloadMe()} />
 
       <ShopPaymentMethodsCard />
+
+      <RequiredChannels scope="mine" />
 
       <BotCard me={me} onChanged={() => void reloadMe()} />
 

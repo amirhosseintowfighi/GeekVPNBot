@@ -18,6 +18,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from geekvpn.infrastructure.config.settings import Settings
 from geekvpn.infrastructure.di.container import Container
+from geekvpn.presentation.bot.channel_gate import ChannelGateMiddleware
 from geekvpn.presentation.bot.handlers import (
     admin,
     dashboard,
@@ -113,6 +114,10 @@ def create_dispatcher(
         observer.outer_middleware(LoggingMiddleware())
         observer.outer_middleware(IdentityMiddleware(container, fetch_receipt=fetch_receipt))
         observer.outer_middleware(ThrottlingMiddleware())
+        # Last: it needs the identity resolved above, and a customer who
+        # is hammering the bot should be throttled before we spend a
+        # Telegram round trip asking whether they joined anything.
+        observer.outer_middleware(ChannelGateMiddleware())
 
     # Available to every handler as `stickers`, the same way `services`
     # is. Handlers that do not decorate simply never declare it.

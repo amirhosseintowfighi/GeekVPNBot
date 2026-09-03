@@ -182,6 +182,18 @@ export interface UserDetail {
   orders: number
 }
 
+/** GET /api/v1/admin/channels and /api/v1/reseller/channels - ChannelResponse. */
+export interface RequiredChannelRow {
+  id: string
+  /** `@name` for a public channel, a numeric chat id for a private one. */
+  chatRef: string
+  titleFa: string
+  /** Required for a private channel: there is no link to build from an id. */
+  inviteUrl: string | null
+  active: boolean
+  sortOrder: number
+}
+
 /** GET /api/v1/admin/subscriptions - SubscriptionResponse. */
 export interface AdminSubscriptionRow {
   id: string

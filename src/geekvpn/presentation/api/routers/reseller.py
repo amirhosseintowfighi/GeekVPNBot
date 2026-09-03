@@ -28,6 +28,13 @@ from geekvpn.domain.resellers.errors import (
     ResellerSuspended,
 )
 from geekvpn.presentation.api.base_schema import ApiModel
+from geekvpn.presentation.api.routers.admin_channels import (
+    ActiveRequest as ChannelActiveRequest,
+)
+from geekvpn.presentation.api.routers.admin_channels import (
+    NewChannel,
+    reject_unreachable,
+)
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
 
 #: Digits only, 16 to 19 of them - the same shape the operator endpoint
@@ -182,6 +189,15 @@ class ActiveRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     active: bool
+
+
+class ChannelOut(ApiModel):
+    id: str
+    chat_ref: str
+    title_fa: str
+    invite_url: str | None
+    active: bool
+    sort_order: int
 
 
 class CustomerRow(ApiModel):
@@ -627,6 +643,62 @@ async def set_method_active(
         )
 
     await scope.in_shop(work)
+
+
+# -- the channels this shop makes customers join ---------------------------
+#
+# The same four operations the platform has, on the reseller's own rows. The
+# shop comes from `_me`, never from the request: an id in the path would be one
+# missing check away from a reseller editing our gate.
+
+
+@router.get(
+    "/channels",
+    response_model=list[ChannelOut],
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def my_channels(scope: ScopeDep, admin: CurrentAdmin) -> list[ChannelOut]:
+    await _me(scope, admin)
+    return [ChannelOut(**row) for row in await scope.required_channels.listing()]
+
+
+@router.post(
+    "/channels",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def add_my_channel(payload: NewChannel, scope: ScopeDep, admin: CurrentAdmin) -> None:
+    await _me(scope, admin)
+    reject_unreachable(payload)
+    await scope.required_channels.add(
+        chat_ref=payload.chat_ref,
+        title_fa=payload.title_fa,
+        invite_url=payload.invite_url,
+    )
+
+
+@router.post(
+    "/channels/{channel_id}/active",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def set_my_channel_active(
+    channel_id: str, payload: ChannelActiveRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> None:
+    await _me(scope, admin)
+    if not await scope.required_channels.set_active(channel_id, active=payload.active):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such channel.")
+
+
+@router.delete(
+    "/channels/{channel_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def remove_my_channel(channel_id: str, scope: ScopeDep, admin: CurrentAdmin) -> None:
+    await _me(scope, admin)
+    if not await scope.required_channels.remove(channel_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such channel.")
 
 
 @router.get(

@@ -20,6 +20,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from geekvpn.application.bot.services import BotServices
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.presentation.bot.channel_gate import (
+    PASS_TTL_SECONDS,
+    RECHECK,
+    gate_keyboard,
+    gate_text,
+    unjoined,
+)
 from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -173,3 +180,55 @@ async def _welcome_credit(message: Message, scope: Any, user: Any) -> None:
         return
     if amount > 0:
         await answer(message, T.WELCOME_BONUS.format(amount=toman(amount)))
+
+
+@router.callback_query(F.data == RECHECK)
+async def on_gate_recheck(
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    scope: Any = None,
+    user: Any = None,
+    bot: Any = None,
+    cache: Any = None,
+) -> None:
+    """Re-run the join check on demand.
+
+    Never gated by the middleware - it is the one button that can release
+    somebody, so gating it would be a door locked from the inside.
+
+    The cache is not consulted here. Somebody pressing this has just done
+    something about it, and answering from a cached "no" would tell them they
+    had not joined a channel they just joined.
+    """
+    await query.answer()
+    if scope is None or user is None or bot is None:
+        return
+
+    telegram_id = getattr(user, "telegram_id", None)
+    if telegram_id is None:
+        return
+
+    missing = await unjoined(scope, bot, telegram_id, cache=None)
+    if missing:
+        await safe_edit(query, gate_text(missing), markup=gate_keyboard(missing))
+        await toast(query, T.GATE_STILL_MISSING)
+        return
+
+    # Warm the cache the way a passing check would have, so the next tap does
+    # not ask Telegram all over again.
+    if cache is not None:
+        channels = await scope.required_channels.active()
+        await cache.set(
+            f"gate:{telegram_id}:{len(channels)}", "1", ttl_seconds=PASS_TTL_SECONDS
+        )
+
+    await state.clear()
+    body, markup = await render_home(
+        user=user, services=services, is_admin=await is_admin(scope, user)
+    )
+    await safe_edit(query, T.GATE_PASSED)
+    # `Message`, not the inaccessible stub aiogram hands back for a message too
+    # old to act on - a home screen sent into that is a call that cannot land.
+    if isinstance(query.message, Message):
+        await answer(query.message, body, reply_markup=markup)
