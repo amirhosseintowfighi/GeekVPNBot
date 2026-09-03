@@ -219,15 +219,18 @@ async def delete_node(node_id: str, scope: ScopeDep) -> None:
     Draining first is the operator's job, and refusing here is what makes it
     possible to notice it has not happened.
     """
-    live, _ = await scope.subscriptions.search(
+    _, live = await scope.subscriptions.search(
         state=SubscriptionState.ACTIVE, node_id=node_id, limit=1, offset=0
     )
     if live:
+        # The count, not just the fact. "It still has subscriptions" leaves an
+        # operator with no idea whether that is one test account or four
+        # hundred customers, and no way to find them.
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail=(
-                "این سرور هنوز اشتراک فعال دارد. اول آن‌ها را منتقل یا لغو کنید،"
-                " بعد سرور را حذف کنید."
+                f"این سرور {live} اشتراک فعال دارد و حذف نشد. "
+                "از صفحهٔ اشتراک‌ها آن‌ها را لغو یا منتقل کنید، بعد دوباره امتحان کنید."
             ),
         )
     if not await scope.nodes.delete(node_id):

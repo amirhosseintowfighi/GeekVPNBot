@@ -383,6 +383,8 @@ export const api = {
   categories: () => fetcher<CategoryRow[]>(`${ROOT}/catalog/categories`),
   saveCategory: (body: Partial<CategoryRow>) =>
     mutate<CategoryRow>('POST', `${ROOT}/catalog/categories`, body),
+  updateCategory: (categoryId: string, patch: Partial<CategoryRow>) =>
+    mutate<CategoryRow>('PATCH', `${ROOT}/catalog/categories/${categoryId}`, patch),
   archiveCategory: (categoryId: string) =>
     mutate<CategoryRow>('DELETE', `${ROOT}/catalog/categories/${categoryId}`),
   setCategoryState: (categoryId: string, state: string) =>
@@ -413,6 +415,8 @@ export const api = {
       nodeTags,
     }),
 
+  updateProduct: (productId: string, patch: Partial<ProductRow>) =>
+    mutate<ProductRow>('PATCH', `${ROOT}/catalog/products/${productId}`, patch),
   archiveProduct: (productId: string) =>
     mutate<ProductRow>('DELETE', `${ROOT}/catalog/products/${productId}`),
   setProductState: (productId: string, state: string) =>
@@ -422,6 +426,8 @@ export const api = {
 
   plans: (productId: string) => fetcher<PlanRow[]>(`${ROOT}/catalog/products/${productId}/plans`),
   savePlan: (body: Partial<PlanRow>) => mutate<PlanRow>('POST', `${ROOT}/catalog/plans`, body),
+  updatePlan: (planId: string, patch: Partial<PlanRow>) =>
+    mutate<PlanRow>('PATCH', `${ROOT}/catalog/plans/${planId}`, patch),
   archivePlan: (planId: string) =>
     mutate<PlanRow>('DELETE', `${ROOT}/catalog/plans/${planId}`),
   setPlanState: (planId: string, state: string) =>
