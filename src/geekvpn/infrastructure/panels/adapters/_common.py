@@ -96,6 +96,38 @@ def required_int(item: Mapping[str, Any], key: str, *, panel: str) -> int:
     return to_int(item[key], panel=panel, field=key)
 
 
+#: Where the different panels put an account's subscription link. Tried in
+#: order, because these forks rename things between versions and a lookup that
+#: knows only one spelling reports every real link as missing.
+SUBSCRIPTION_KEYS = ("subscription_url", "subscription_link", "sub_url", "subscriptionUrl")
+
+
+def subscription_of(item: Mapping[str, Any]) -> str:
+    """The account's subscription link, under whichever name this panel used."""
+    for key in SUBSCRIPTION_KEYS:
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
+def require_a_readable_link(seen: int, with_link: int, *, panel: str) -> None:
+    """Refuse to call it "not found" when we never read a link at all.
+
+    If the panel returned accounts and not one of them carried a subscription
+    link under any name we know, we are reading the wrong field - and saying
+    "no such subscription" sends a customer holding a working link to check the
+    one thing that is definitely fine.
+    """
+    if seen and not with_link:
+        raise PanelContractViolation(
+            "No account in the list carried a subscription link under any known"
+            f" name; tried {', '.join(SUBSCRIPTION_KEYS)}.",
+            panel=panel,
+            accounts=seen,
+        )
+
+
 def require_mapping(value: Any, *, panel: str, what: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PanelContractViolation(f"Expected a JSON object for {what}.", panel=panel, what=what)

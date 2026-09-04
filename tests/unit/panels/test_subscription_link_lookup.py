@@ -76,3 +76,58 @@ def test_an_unreadable_account_list_is_not_the_same_as_no_match():
         asyncio.run(
             PasarGuardAdapter.find_by_subscription(adapter, "https://x/sub/token")
         )
+
+
+def test_the_link_that_was_reported_as_missing():
+    """A real one, with a port and a dot inside the token."""
+    pasted = (
+        "https://panel.doping.games:8443/sub/"
+        "djMsMSwxNzg4NDQxMjYw.Xs1JrAv7_-7Tia_5mhOQv4qI70A4ASA69x8LCWL2Mvw"
+    )
+
+    # The same account as the panel would report it: relative path, no host.
+    reported = "/sub/djMsMSwxNzg4NDQxMjYw.Xs1JrAv7_-7Tia_5mhOQv4qI70A4ASA69x8LCWL2Mvw"
+
+    assert sub_token(pasted) == sub_token(reported)
+
+
+def test_a_link_under_another_field_name_is_still_found():
+    """These forks rename things between versions, and a lookup that knows one
+    spelling reports every real link as missing."""
+    from geekvpn.infrastructure.panels.adapters._common import subscription_of
+
+    for key in ("subscription_url", "subscription_link", "sub_url", "subscriptionUrl"):
+        assert subscription_of({key: "/sub/abc"}) == "/sub/abc"
+
+
+def test_an_empty_link_is_not_a_link():
+    from geekvpn.infrastructure.panels.adapters._common import subscription_of
+
+    assert subscription_of({"subscription_url": "   "}) == ""
+    assert subscription_of({"username": "ali"}) == ""
+
+
+def test_accounts_with_no_link_at_all_is_a_contract_violation():
+    """Not "no match". If the panel returned accounts and none carried a link
+    under any name we know, we are reading the wrong field - and "no such
+    subscription" sends the customer to check the one thing that is fine."""
+    from geekvpn.domain.panels.errors import PanelContractViolation
+    from geekvpn.infrastructure.panels.adapters._common import require_a_readable_link
+
+    with pytest.raises(PanelContractViolation):
+        require_a_readable_link(seen=40, with_link=0, panel="pasarguard")
+
+
+def test_a_genuinely_absent_account_is_still_just_absent():
+    """The panel had accounts, they had links, ours was not among them. That
+    is the one case where "not found" is the honest answer."""
+    from geekvpn.infrastructure.panels.adapters._common import require_a_readable_link
+
+    require_a_readable_link(seen=40, with_link=40, panel="pasarguard")
+
+
+def test_an_empty_panel_is_not_a_contract_violation():
+    """A panel with no accounts yet has nothing to say about field names."""
+    from geekvpn.infrastructure.panels.adapters._common import require_a_readable_link
+
+    require_a_readable_link(seen=0, with_link=0, panel="pasarguard")

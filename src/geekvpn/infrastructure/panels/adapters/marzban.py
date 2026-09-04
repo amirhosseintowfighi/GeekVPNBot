@@ -37,9 +37,11 @@ from geekvpn.infrastructure.panels.adapters._common import (
     BULK_PAGE,
     LOOKUP_PAGE,
     now_utc,
+    require_a_readable_link,
     require_mapping,
     required_int,
     sub_token,
+    subscription_of,
     to_int,
     to_utc,
 )
@@ -264,10 +266,16 @@ class MarzbanAdapter(HttpPanelAdapter):
             raise PanelContractViolation(
                 "Account list was not readable.", panel=self.kind.value, envelope="users"
             )
+        with_link = 0
         for row in rows:
             item = require_mapping(row, panel=self.kind.value, what="user")
-            if sub_token(str(item.get("subscription_url") or "")) == wanted:
+            link = subscription_of(item)
+            if link:
+                with_link += 1
+            if sub_token(link) == wanted:
                 return self._to_account(item)
+        # Only now is "not found" an honest answer.
+        require_a_readable_link(len(rows), with_link, panel=self.kind.value)
         return None
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
