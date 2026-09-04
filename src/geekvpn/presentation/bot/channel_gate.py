@@ -23,6 +23,7 @@ staring at a gate they had already satisfied.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from hashlib import sha256
 from typing import Any
 
 from aiogram import BaseMiddleware
@@ -90,7 +91,7 @@ async def unjoined(
     if not channels:
         return []
 
-    key = f"gate:{telegram_id}:{len(channels)}"
+    key = cache_key(scope, telegram_id, channels)
     if cache is not None and await cache.get(key) == "1":
         return []
 
@@ -100,6 +101,22 @@ async def unjoined(
     if not missing and cache is not None:
         await cache.set(key, "1", ttl_seconds=PASS_TTL_SECONDS)
     return missing
+
+
+def cache_key(scope: Any, telegram_id: int, channels: list[RequiredChannel]) -> str:
+    """Whose gate, for whom, over exactly which channels.
+
+    The shop is in the key because the same Telegram account is a separate
+    customer in every bot: without it, two shops that each require one channel
+    shared an entry, and joining ours let somebody past a reseller's gate.
+
+    The channels are in it by id rather than by count. Swapping one requirement
+    for another leaves the count unchanged, and a cached pass would survive a
+    change that was meant to start gating on something else.
+    """
+    shop = getattr(getattr(scope, "reseller", None), "id", None) or "platform"
+    fingerprint = ",".join(sorted(channel.id for channel in channels))
+    return f"gate:{shop}:{telegram_id}:{sha256(fingerprint.encode()).hexdigest()[:16]}"
 
 
 def _membership(bot: Any) -> Callable[[str, int], Awaitable[bool | None]]:
@@ -165,6 +182,7 @@ __all__ = [
     "PASS_TTL_SECONDS",
     "RECHECK",
     "ChannelGateMiddleware",
+    "cache_key",
     "gate_keyboard",
     "gate_text",
     "unjoined",

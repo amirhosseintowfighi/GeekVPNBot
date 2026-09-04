@@ -23,6 +23,7 @@ from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.channel_gate import (
     PASS_TTL_SECONDS,
     RECHECK,
+    cache_key,
     gate_keyboard,
     gate_text,
     unjoined,
@@ -219,8 +220,11 @@ async def on_gate_recheck(
     # not ask Telegram all over again.
     if cache is not None:
         channels = await scope.required_channels.active()
+        # Built by the same function the check uses. Two hand-written keys
+        # would drift, and a warm entry under the wrong key is a round trip to
+        # Telegram on every tap that nobody would notice.
         await cache.set(
-            f"gate:{telegram_id}:{len(channels)}", "1", ttl_seconds=PASS_TTL_SECONDS
+            cache_key(scope, telegram_id, channels), "1", ttl_seconds=PASS_TTL_SECONDS
         )
 
     await state.clear()

@@ -167,3 +167,68 @@ def test_a_shop_with_no_channels_gates_nobody():
     asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1)))
 
     assert handled == [1]
+
+
+# -- who the gate applies to -----------------------------------------------
+
+
+class _Shop:
+    def __init__(self, shop_id: str | None) -> None:
+        self.id = shop_id
+
+
+class _ShopScope(_Scope):
+    def __init__(self, channels: list[Any], shop_id: str | None) -> None:
+        super().__init__(channels)
+        self.reseller = _Shop(shop_id) if shop_id else None
+
+
+def test_an_existing_customer_is_gated_too():
+    """Nothing in the gate asks whether the account is new. A customer who
+    registered months ago and never joined is stopped the next time they touch
+    the bot, not grandfathered in."""
+    dispatcher, handled = _dispatcher(
+        ChannelGateMiddleware(), scope=_Scope([_channel()]), user=_User()
+    )
+
+    # `is_new_user` false is what the identity middleware injects for somebody
+    # who already had an account.
+    asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1, "/services")))
+
+    assert handled == []
+
+
+def test_it_applies_to_every_message_not_just_start():
+    dispatcher, handled = _dispatcher(
+        ChannelGateMiddleware(), scope=_Scope([_channel()]), user=_User()
+    )
+
+    asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1, "کیف پول")))
+
+    assert handled == []
+
+
+def test_two_shops_do_not_share_a_cached_pass():
+    """The same Telegram account is a separate customer in every bot. Keyed on
+    the channel count alone, joining our channel let somebody straight past a
+    reseller's gate for as long as the entry lived."""
+    from geekvpn.presentation.bot.channel_gate import cache_key
+
+    ours = cache_key(_ShopScope([_channel()], None), 1, [_channel()])
+    theirs = cache_key(_ShopScope([_channel()], "shop-1"), 1, [_channel()])
+
+    assert ours != theirs
+
+
+def test_swapping_a_requirement_invalidates_the_pass():
+    """Same count, different channel. Keyed on the count, a cached pass would
+    outlive the requirement it was granted against."""
+    from geekvpn.application.platform.channel_gate import RequiredChannel
+    from geekvpn.presentation.bot.channel_gate import cache_key
+
+    before = cache_key(_Scope([]), 1, [_channel()])
+    after = cache_key(
+        _Scope([]), 1, [RequiredChannel(id="2", chat_ref="@other", title_fa="دیگر")]
+    )
+
+    assert before != after
