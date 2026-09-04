@@ -10,11 +10,15 @@ from __future__ import annotations
 import base64
 import binascii
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+import structlog
+
 from geekvpn.domain.panels.errors import PanelContractViolation
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 def to_utc(value: Any, *, panel: str, field: str) -> datetime | None:
@@ -136,17 +140,28 @@ def account_id_from_token(token: str) -> int | None:
 SUBSCRIPTION_KEYS = ("subscription_url", "subscription_link", "sub_url", "subscriptionUrl")
 
 
-def same_id(reported: Any, wanted: int) -> bool:
-    """Whether a panel's account id is the one the token names.
+#: Where the different panels put an account's own id, tried in order - the
+#: same reason `SUBSCRIPTION_KEYS` exists.
+ID_KEYS = ("id", "user_id", "uid", "pk")
 
-    Compared as integers: these panels report ids as `1`, `"1"` and sometimes
-    `1.0` depending on version and endpoint, and a string comparison would miss
-    the account it is looking straight at.
+
+def same_id(item: Mapping[str, Any], wanted: int) -> bool:
+    """Whether this account row is the one the token names.
+
+    Compared as integers under any of the key names these forks use: they
+    report ids as `1`, `"1"` and sometimes `1.0` depending on version and
+    endpoint, and a string comparison would miss the account it is looking
+    straight at.
     """
-    try:
-        return int(reported) == wanted
-    except (TypeError, ValueError):
-        return False
+    for key in ID_KEYS:
+        if key not in item:
+            continue
+        try:
+            if int(item[key]) == wanted:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def subscription_of(item: Mapping[str, Any]) -> str:
@@ -156,6 +171,28 @@ def subscription_of(item: Mapping[str, Any]) -> str:
         if isinstance(value, str) and value.strip():
             return value
     return ""
+
+
+def report_unmatched(rows: Sequence[Any], *, panel: str, had_id: bool) -> None:
+    """Say what the account rows actually look like when nothing matched.
+
+    Four rounds of this went into guessing which key a panel puts the id and
+    the subscription link under, each guess costing a deploy and a customer
+    trying their link again. The keys are cheap to print and settle it in one
+    look.
+
+    Key names only, never values: a row carries subscription tokens and proxy
+    secrets, and a log is the wrong place for either. The first row is enough -
+    they all have the same shape.
+    """
+    first = next((row for row in rows if isinstance(row, dict)), None)
+    logger.warning(
+        "panel.account_unmatched",
+        panel=panel,
+        accounts=len(rows),
+        had_id=had_id,
+        keys=sorted(first) if first is not None else [],
+    )
 
 
 def require_a_readable_link(

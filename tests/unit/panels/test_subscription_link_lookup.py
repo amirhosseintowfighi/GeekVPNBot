@@ -162,9 +162,24 @@ def test_ids_are_compared_as_numbers():
     and endpoint; a string comparison misses the account it is looking at."""
     from geekvpn.infrastructure.panels.adapters._common import same_id
 
-    assert same_id(1, 1)
-    assert same_id("1", 1)
-    assert same_id(1.0, 1)
-    assert not same_id(2, 1)
-    assert not same_id(None, 1)
-    assert not same_id("ali", 1)
+    assert same_id({"id": 1}, 1)
+    assert same_id({"id": "1"}, 1)
+    assert same_id({"id": 1.0}, 1)
+    assert not same_id({"id": 2}, 1)
+    assert not same_id({"id": None}, 1)
+    assert not same_id({"id": "ali"}, 1)
+
+
+def test_the_id_is_found_under_any_name_these_panels_use():
+    """Same reason the link has four spellings: guessing one costs a deploy and
+    a customer trying their link again."""
+    from geekvpn.infrastructure.panels.adapters._common import same_id
+
+    for key in ("id", "user_id", "uid", "pk"):
+        assert same_id({key: 7}, 7)
+
+
+def test_a_row_with_no_id_at_all_matches_nothing():
+    from geekvpn.infrastructure.panels.adapters._common import same_id
+
+    assert not same_id({"username": "ali"}, 1)

@@ -43,6 +43,7 @@ from geekvpn.infrastructure.panels.adapters._common import (
     LOOKUP_PAGE,
     account_id_from_token,
     now_utc,
+    report_unmatched,
     require_a_readable_link,
     require_mapping,
     required_int,
@@ -305,7 +306,7 @@ class PasarGuardAdapter(HttpPanelAdapter):
             if link and sub_token(link) == wanted:
                 # The link itself matched. Nothing left to prove.
                 return self._to_account(item)
-            if by_id is not None and same_id(item.get("id"), by_id):
+            if by_id is not None and same_id(item, by_id):
                 candidate = item
 
         if candidate is not None:
@@ -327,6 +328,7 @@ class PasarGuardAdapter(HttpPanelAdapter):
         require_a_readable_link(
             len(rows), with_link, panel=self.kind.value, had_id=by_id is not None
         )
+        report_unmatched(rows, panel=self.kind.value, had_id=by_id is not None)
         return None
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
