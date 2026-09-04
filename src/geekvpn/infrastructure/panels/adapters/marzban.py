@@ -36,10 +36,12 @@ from geekvpn.domain.panels.values import (
 from geekvpn.infrastructure.panels.adapters._common import (
     BULK_PAGE,
     LOOKUP_PAGE,
+    account_id_from_token,
     now_utc,
     require_a_readable_link,
     require_mapping,
     required_int,
+    same_id,
     sub_token,
     subscription_of,
     to_int,
@@ -267,15 +269,39 @@ class MarzbanAdapter(HttpPanelAdapter):
                 "Account list was not readable.", panel=self.kind.value, envelope="users"
             )
         with_link = 0
+        by_id = account_id_from_token(wanted)
+        candidate: Mapping[str, Any] | None = None
+
         for row in rows:
             item = require_mapping(row, panel=self.kind.value, what="user")
             link = subscription_of(item)
             if link:
                 with_link += 1
-            if sub_token(link) == wanted:
+            if link and sub_token(link) == wanted:
+                # The link itself matched. Nothing left to prove.
                 return self._to_account(item)
+            if by_id is not None and same_id(item.get("id"), by_id):
+                candidate = item
+
+        if candidate is not None:
+            # An id matched, and an id is only unique *within* a panel - a
+            # token minted by one server would match a different customer's
+            # account on another. So it is confirmed against the account
+            # itself before anything is attached: handing somebody a stranger's
+            # service is far worse than refusing a genuine claim.
+            account = await self.get_account(
+                PanelAccountRef(
+                    panel_id=self._panel_id, username=str(candidate.get("username", ""))
+                )
+            )
+            if account.subscription_url and sub_token(account.subscription_url) == wanted:
+                return account
+            return None
+
         # Only now is "not found" an honest answer.
-        require_a_readable_link(len(rows), with_link, panel=self.kind.value)
+        require_a_readable_link(
+            len(rows), with_link, panel=self.kind.value, had_id=by_id is not None
+        )
         return None
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:

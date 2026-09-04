@@ -7,6 +7,9 @@ instead of five subtly different ones.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -96,10 +99,54 @@ def required_int(item: Mapping[str, Any], key: str, *, panel: str) -> int:
     return to_int(item[key], panel=panel, field=key)
 
 
+#: The body a v3 subscription token decodes to: `v3,<account id>,<created>`.
+_TOKEN_BODY = re.compile(r"^v\d+,(\d+),\d+$")
+
+
+def account_id_from_token(token: str) -> int | None:
+    """The panel's own account id, read out of the subscription token.
+
+    These panels build the token as base64 of `v3,<id>,<created>` with a
+    signature after it - sometimes behind a dot, sometimes just concatenated -
+    so the id is sitting in the link the customer already has.
+
+    That matters because the account list does not always carry the
+    subscription link at all, and without this there is nothing to match a
+    pasted link against. `None` when the token is not that shape, which is the
+    honest answer for a panel that builds them differently.
+    """
+    head = token.split(".", 1)[0]
+    # Walk back through the prefix: some builds append the signature with no
+    # separator, so the base64 run is shorter than the head.
+    for end in range(len(head), 7, -1):
+        candidate = head[:end]
+        try:
+            decoded = base64.urlsafe_b64decode(candidate + "=" * (-len(candidate) % 4))
+        except (ValueError, binascii.Error):
+            continue
+        match = _TOKEN_BODY.match(decoded.decode("utf-8", "ignore").strip())
+        if match:
+            return int(match.group(1))
+    return None
+
+
 #: Where the different panels put an account's subscription link. Tried in
 #: order, because these forks rename things between versions and a lookup that
 #: knows only one spelling reports every real link as missing.
 SUBSCRIPTION_KEYS = ("subscription_url", "subscription_link", "sub_url", "subscriptionUrl")
+
+
+def same_id(reported: Any, wanted: int) -> bool:
+    """Whether a panel's account id is the one the token names.
+
+    Compared as integers: these panels report ids as `1`, `"1"` and sometimes
+    `1.0` depending on version and endpoint, and a string comparison would miss
+    the account it is looking straight at.
+    """
+    try:
+        return int(reported) == wanted
+    except (TypeError, ValueError):
+        return False
 
 
 def subscription_of(item: Mapping[str, Any]) -> str:
@@ -111,15 +158,22 @@ def subscription_of(item: Mapping[str, Any]) -> str:
     return ""
 
 
-def require_a_readable_link(seen: int, with_link: int, *, panel: str) -> None:
-    """Refuse to call it "not found" when we never read a link at all.
+def require_a_readable_link(
+    seen: int, with_link: int, *, panel: str, had_id: bool = False
+) -> None:
+    """Refuse to call it "not found" when we had no way to look.
 
-    If the panel returned accounts and not one of them carried a subscription
-    link under any name we know, we are reading the wrong field - and saying
-    "no such subscription" sends a customer holding a working link to check the
-    one thing that is definitely fine.
+    If the panel returned accounts, not one of them carried a subscription link
+    under any name we know, *and* the token did not yield an account id either,
+    then we had no way to match anything - and saying "no such subscription"
+    sends a customer holding a working link to check the one thing that is
+    definitely fine.
+
+    `had_id` is what keeps this honest in the other direction. When the token
+    did name an account and no row had that id, the account really is not on
+    this panel, and that is an answer rather than a failure.
     """
-    if seen and not with_link:
+    if seen and not with_link and not had_id:
         raise PanelContractViolation(
             "No account in the list carried a subscription link under any known"
             f" name; tried {', '.join(SUBSCRIPTION_KEYS)}.",

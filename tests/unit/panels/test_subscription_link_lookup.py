@@ -131,3 +131,40 @@ def test_an_empty_panel_is_not_a_contract_violation():
     from geekvpn.infrastructure.panels.adapters._common import require_a_readable_link
 
     require_a_readable_link(seen=0, with_link=0, panel="pasarguard")
+
+
+# -- finding an account when the list omits the link -----------------------
+
+
+def test_the_account_id_is_read_out_of_the_real_tokens():
+    """Both links a customer actually sent. The panels build the token as
+    base64 of `v3,<id>,<created>`, so the id is in the link already."""
+    from geekvpn.infrastructure.panels.adapters._common import account_id_from_token
+
+    with_dot = "djMsMSwxNzg4NDQxMjYw.Xs1JrAv7_-7Tia_5mhOQv4qI70A4ASA69x8LCWL2Mvw"
+    without_dot = "djMsMTE3LDE3ODI3MzkxOTAa062a9db2c"
+
+    assert account_id_from_token(with_dot) == 1
+    assert account_id_from_token(without_dot) == 117
+
+
+def test_a_token_of_another_shape_yields_nothing():
+    """The honest answer for a panel that builds them differently - better than
+    a number guessed out of arbitrary bytes."""
+    from geekvpn.infrastructure.panels.adapters._common import account_id_from_token
+
+    for token in ("", "abc", "not-base64-at-all", "aaaaaaaaaaaaaaaa"):
+        assert account_id_from_token(token) is None
+
+
+def test_ids_are_compared_as_numbers():
+    """These panels report `1`, `"1"` and sometimes `1.0` depending on version
+    and endpoint; a string comparison misses the account it is looking at."""
+    from geekvpn.infrastructure.panels.adapters._common import same_id
+
+    assert same_id(1, 1)
+    assert same_id("1", 1)
+    assert same_id(1.0, 1)
+    assert not same_id(2, 1)
+    assert not same_id(None, 1)
+    assert not same_id("ali", 1)
