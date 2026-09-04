@@ -24,6 +24,7 @@ import enum
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 import structlog
 
@@ -94,8 +95,20 @@ class ClaimService:
         if not cleaned:
             return ClaimResult(ClaimOutcome.NOT_FOUND)
 
-        located, every_panel_failed = await self._search(cleaned)
+        located, every_panel_failed, asked = await self._search(cleaned)
         if located is None:
+            if not every_panel_failed:
+                # The host, never the token: the token is a bearer credential
+                # and a log is the wrong place for it. The host is the whole
+                # question when nothing matched - a link issued by a server
+                # that is not registered here cannot be found however well we
+                # read the ones that are, and no amount of field-name fixing
+                # will change that.
+                logger.warning(
+                    "claim.not_found",
+                    host=urlsplit(cleaned).netloc or "unparseable",
+                    panels_searched=asked,
+                )
             # "Nowhere" and "nobody answered" are different sentences. Telling
             # somebody holding a working link that their service does not exist
             # because a panel was down is the one wrong answer here.
@@ -113,7 +126,7 @@ class ClaimService:
         await self._subscriptions.add(subscription)
         return ClaimResult(ClaimOutcome.CLAIMED, subscription)
 
-    async def _search(self, url: str) -> tuple[tuple[str, PanelAccount] | None, bool]:
+    async def _search(self, url: str) -> tuple[tuple[str, PanelAccount] | None, bool, int]:
         """Ask each node in turn, and say whether every one of them failed.
 
         A panel that raises is skipped rather than fatal - one dead node must
@@ -143,8 +156,8 @@ class ClaimService:
                 failed += 1
                 continue
             if account is not None:
-                return (node.id, account), False
-        return None, bool(asked) and failed == asked
+                return (node.id, account), False, asked
+        return None, bool(asked) and failed == asked, asked
 
     async def _already_known(self, node_id: str, account: PanelAccount) -> bool:
         """Is this panel account already somebody's service here?
