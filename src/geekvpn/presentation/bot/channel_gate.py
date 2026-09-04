@@ -75,12 +75,46 @@ class ChannelGateMiddleware(BaseMiddleware):
             # either opens the bot or redraws the gate.
             return await handler(event, data)
 
+        if await is_operator(scope, telegram_id):
+            return await handler(event, data)
+
         missing = await unjoined(scope, bot, telegram_id, cache=cache)
         if not missing:
             return await handler(event, data)
 
         await _show_gate(event, missing)
         return None
+
+
+async def is_operator(scope: Any, telegram_id: int) -> bool:
+    """Whether this Telegram account runs a shop rather than buys from one.
+
+    The gate is a growth device aimed at customers. An operator answering a
+    ticket at 2am, or a reseller opening their own bot, being turned away by a
+    requirement they wrote themselves is the kind of thing that gets discovered
+    during an outage.
+
+    Any admin account that can still authenticate counts - staff and resellers
+    alike. A reseller is the operator of their own bot, and in ours they are an
+    account holder we would rather not lock out of a support conversation. This
+    exempts nobody from anything that protects data: every operator screen
+    behind the gate checks permissions again on each call, and this only
+    decides whether a join requirement applies.
+
+    Asked before Telegram is: one indexed lookup is cheaper than a round trip
+    per channel, and an operator should never pay for the check at all.
+    """
+    admins = getattr(scope, "admins", None)
+    if admins is None:
+        return False
+    try:
+        admin = await admins.get_by_telegram_id(telegram_id)
+    except Exception:
+        # A lookup that fails must not become a free pass, and must not lock
+        # the bot either. Fall through and let the gate decide.
+        logger.warning("bot.channel_gate.operator_lookup_failed", telegram_id=telegram_id)
+        return False
+    return admin is not None and admin.status.can_authenticate
 
 
 async def unjoined(
@@ -185,5 +219,6 @@ __all__ = [
     "cache_key",
     "gate_keyboard",
     "gate_text",
+    "is_operator",
     "unjoined",
 ]

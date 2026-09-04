@@ -232,3 +232,99 @@ def test_swapping_a_requirement_invalidates_the_pass():
     )
 
     assert before != after
+
+
+# -- operators -------------------------------------------------------------
+
+
+class _Status:
+    def __init__(self, ok: bool) -> None:
+        self.can_authenticate = ok
+
+
+class _Admin:
+    def __init__(self, ok: bool = True) -> None:
+        self.status = _Status(ok)
+
+
+class _Admins:
+    def __init__(self, admin: Any) -> None:
+        self._admin = admin
+        self.asked = 0
+
+    async def get_by_telegram_id(self, telegram_id: int) -> Any:
+        self.asked += 1
+        return self._admin
+
+
+class _OperatorScope(_Scope):
+    def __init__(self, channels: list[Any], admin: Any) -> None:
+        super().__init__(channels)
+        self.admins = _Admins(admin)
+
+
+def test_an_operator_is_not_gated():
+    """Being locked out of your own bot by a requirement you wrote yourself is
+    the kind of thing discovered during an outage."""
+    dispatcher, handled = _dispatcher(
+        ChannelGateMiddleware(),
+        scope=_OperatorScope([_channel()], _Admin()),
+        user=_User(),
+    )
+
+    asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1)))
+
+    assert handled == [1]
+
+
+def test_a_suspended_operator_is_gated_like_anybody_else():
+    """They lose the bot the moment they lose the panel; an exemption that
+    outlived the account would be a way back in."""
+    dispatcher, handled = _dispatcher(
+        ChannelGateMiddleware(),
+        scope=_OperatorScope([_channel()], _Admin(ok=False)),
+        user=_User(),
+    )
+
+    asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1)))
+
+    assert handled == []
+
+
+def test_a_plain_customer_is_still_gated():
+    dispatcher, handled = _dispatcher(
+        ChannelGateMiddleware(), scope=_OperatorScope([_channel()], None), user=_User()
+    )
+
+    asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1)))
+
+    assert handled == []
+
+
+def test_an_operator_never_costs_a_telegram_round_trip():
+    """Checked before the membership call, not after."""
+    bot = _Bot(joined=False)
+    dispatcher, _ = _dispatcher(
+        ChannelGateMiddleware(),
+        scope=_OperatorScope([_channel()], _Admin()),
+        user=_User(),
+    )
+
+    asyncio.run(dispatcher.feed_update(bot, _update(1)))
+
+    assert bot.sent == []
+
+
+def test_a_broken_lookup_is_not_a_free_pass():
+    """A failing query must not exempt everybody - that would turn a database
+    hiccup into an open gate."""
+    from geekvpn.presentation.bot.channel_gate import is_operator
+
+    class Broken:
+        async def get_by_telegram_id(self, telegram_id: int) -> Any:
+            raise RuntimeError("down")
+
+    scope = _Scope([])
+    scope.admins = Broken()
+
+    assert asyncio.run(is_operator(scope, 1)) is False
