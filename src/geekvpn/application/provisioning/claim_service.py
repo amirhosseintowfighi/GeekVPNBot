@@ -22,14 +22,14 @@ from __future__ import annotations
 
 import enum
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
 import structlog
 
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.provisioning.links import host_of, public_link
+from geekvpn.application.provisioning.links import host_of, link_host, public_link
 from geekvpn.application.provisioning.ports import (
     NodeRecord,
     NodeRepository,
@@ -99,11 +99,17 @@ class ClaimService:
         nodes: NodeRepository,
         panels: PanelProvider,
         clock: Clock,
+        shop_hosts: Mapping[str, str] | None = None,
     ) -> None:
         self._subscriptions = subscriptions
         self._nodes = nodes
         self._panels = panels
         self._clock = clock
+        #: This shop's own link hosts, node id to host. Passed in rather than
+        #: looked up because the scope already knows which shop the request
+        #: belongs to, and a service that fetches it again could fetch a
+        #: different one.
+        self._shop_hosts = shop_hosts
 
     async def claim(
         self, *, url: str, user_id: int, reseller_id: str | None = None
@@ -238,7 +244,8 @@ class ClaimService:
             # one that serves customers. Stored rewritten, so an adopted
             # service hands out the same working link a bought one does.
             subscription_url=public_link(
-                account.subscription_url, node.subscription_base_url
+                account.subscription_url,
+                link_host(node.id, node.subscription_base_url, self._shop_hosts),
             ),
             traffic_limit_mib=(
                 None

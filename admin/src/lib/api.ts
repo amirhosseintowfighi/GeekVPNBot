@@ -492,6 +492,10 @@ export const api = {
   ) => mutate<ResellerRow>('PATCH', `${ROOT}/resellers/${id}`, patch),
   setResellerPanels: (id: string, nodeIds: string[]) =>
     mutate<ResellerRow>('PUT', `${ROOT}/resellers/${id}/panels`, { nodeIds }),
+  // Sent whole: the map replaces what was there, so removing a domain is
+  // sending the map without it.
+  setResellerSubscriptionHosts: (id: string, hosts: Record<string, string>) =>
+    mutate<ResellerRow>('PUT', `${ROOT}/resellers/${id}/subscription-hosts`, { hosts }),
   // Two endpoints rather than one, because cost and retail are set by two
   // different people and a single write would let either erase the other.
   setResellerCosts: (id: string, prices: Record<string, number>) =>

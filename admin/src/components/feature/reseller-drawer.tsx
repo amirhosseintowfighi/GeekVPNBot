@@ -158,6 +158,14 @@ export function ResellerDrawer({
                 writable={writable && !busy}
                 onSave={(ids) => run(() => api.setResellerPanels(reseller.id, ids))}
               />
+              <LinkHostsTab
+                panels={panels}
+                hosts={reseller.subscriptionHosts}
+                writable={writable && !busy}
+                onSave={(hosts) =>
+                  run(() => api.setResellerSubscriptionHosts(reseller.id, hosts))
+                }
+              />
             </TabsContent>
 
             <TabsContent value="cards">
@@ -431,6 +439,59 @@ function PanelsTab({
         ))}
       </div>
       {writable ? <Button onClick={() => onSave(chosen)}>ذخیره</Button> : null}
+    </div>
+  )
+}
+
+function LinkHostsTab({
+  panels,
+  hosts,
+  writable,
+  onSave,
+}: {
+  panels: PanelRow[]
+  hosts: Record<string, string>
+  writable: boolean
+  onSave: (hosts: Record<string, string>) => void
+}) {
+  const [draft, setDraft] = React.useState<Record<string, string>>(hosts)
+
+  React.useEffect(() => setDraft(hosts), [hosts])
+
+  return (
+    <div className="mt-6 space-y-3 border-t pt-4">
+      <div className="text-sm font-medium">دامنهٔ لینک اشتراک این نماینده</div>
+      <p className="text-sm leading-loose text-muted-foreground">
+        مشتری‌های این نماینده نباید لینک روی دامنهٔ ما بگیرن. برای هر پنل، دامنه‌ای رو
+        بنویس که ساب همون پنل روش سرو می‌شه. خالی یعنی همون دامنه‌ای که خود سرور داره.
+      </p>
+      <p className="text-sm leading-loose text-muted-foreground">
+        برای هر پنل جداگانه، چون توکن اشتراک فقط برای همون پنلی معنی داره که ساختتش —
+        یه دامنه برای همه، دو سومِ مشتری‌ها رو می‌فرسته سراغ سروری که توکنشون رو
+        نمی‌شناسه.
+      </p>
+      <div className="space-y-2">
+        {panels.map((panel) => (
+          <div key={panel.id} className="rounded-md border p-2">
+            <div className="mb-1 text-sm">
+              {panel.nameFa}
+              <span className="ms-2 text-xs text-muted-foreground" dir="ltr">
+                {panel.subscriptionBaseUrl || panel.baseUrl}
+              </span>
+            </div>
+            <Input
+              dir="ltr"
+              disabled={!writable}
+              placeholder="https://sub.example.com"
+              value={draft[panel.id] ?? ''}
+              onChange={(event) =>
+                setDraft({ ...draft, [panel.id]: event.target.value })
+              }
+            />
+          </div>
+        ))}
+      </div>
+      {writable ? <Button onClick={() => onSave(draft)}>ذخیره</Button> : null}
     </div>
   )
 }

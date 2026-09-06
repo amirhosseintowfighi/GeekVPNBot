@@ -25,12 +25,12 @@ looking.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.provisioning.links import public_link
+from geekvpn.application.provisioning.links import link_host, public_link
 from geekvpn.application.provisioning.node_selector import select_node
 from geekvpn.application.provisioning.ports import (
     EventPublisher,
@@ -86,6 +86,7 @@ class ProvisioningService:
         "_on_activated",
         "_orders",
         "_panels",
+        "_shop_hosts",
         "_subscriptions",
     )
 
@@ -111,6 +112,11 @@ class ProvisioningService:
         #: chances to forget.
         on_activated: Callable[[SubscriptionActivated, str | None], Awaitable[None]]
         | None = None,
+        #: This shop's own link hosts, node id to host. Passed in rather than
+        #: looked up because the scope already knows which shop the request
+        #: belongs to, and a service that fetched it again could fetch a
+        #: different one.
+        shop_hosts: Mapping[str, str] | None = None,
     ) -> None:
         self._orders = orders
         self._subscriptions = subscriptions
@@ -120,6 +126,7 @@ class ProvisioningService:
         self._ids = ids
         self._events = events
         self._on_activated = on_activated
+        self._shop_hosts = shop_hosts
 
     # -- the main path -----------------------------------------------------
 
@@ -237,7 +244,8 @@ class ProvisioningService:
             # reach. Rewritten here, at the one place the link is stored, so
             # every screen and every notification shows the same working link.
             subscription_url=public_link(
-                account.subscription_url, node.subscription_base_url
+                account.subscription_url,
+                link_host(node.id, node.subscription_base_url, self._shop_hosts),
             ),
             reseller_id=reseller_id,
         )

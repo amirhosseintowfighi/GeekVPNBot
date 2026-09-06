@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from geekvpn.application.identity.manage_admins import ManageAdmins
@@ -218,6 +218,24 @@ class ResellerService:
             # Through the aggregate, so the cap is enforced in one place rather
             # than by whichever caller remembered.
             reseller.set_discount(discount_percent)
+        await self._resellers.save(reseller)
+        return reseller
+
+    async def set_subscription_hosts(
+        self, reseller_id: uuid.UUID, hosts: Mapping[str, str]
+    ) -> Reseller:
+        """Which domain this shop's links are served on, per panel.
+
+        Replaced wholesale, like the panel list: removing an entry is sending
+        the map without it, and a merge would leave no way to remove one.
+        Blank values are dropped rather than stored, so clearing a field means
+        "fall back to the node's own host" rather than "serve links from
+        nowhere".
+        """
+        reseller = await self.get(reseller_id)
+        reseller.subscription_hosts = {
+            node_id: host.strip() for node_id, host in hosts.items() if host.strip()
+        }
         await self._resellers.save(reseller)
         return reseller
 

@@ -18,6 +18,7 @@ answer and only the token and the host are.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -54,4 +55,19 @@ def public_link(url: str | None, base: str | None) -> str | None:
     )
 
 
-__all__ = ["host_of", "public_link"]
+def link_host(
+    node_id: str, node_default: str | None, shop_hosts: Mapping[str, str] | None
+) -> str | None:
+    """Which host this shop's links for this node are served on.
+
+    The shop's own domain wins, then the node's, then nothing - which leaves
+    the panel's own answer alone. Resolved per node rather than per shop
+    because a subscription token only means anything to the panel that minted
+    it: a reseller selling from three panels needs three domains, and one
+    shop-wide host would send two thirds of their customers to a server that
+    has never heard of their token.
+    """
+    return (shop_hosts or {}).get(node_id) or node_default
+
+
+__all__ = ["host_of", "link_host", "public_link"]

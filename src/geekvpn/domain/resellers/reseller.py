@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.resellers.enums import ResellerStatus
@@ -79,6 +80,14 @@ class Reseller:
     #: platform's own name - which is a reasonable default and, more to the
     #: point, a name rather than a blank in their customer's first message.
     brand_fa: str | None = None
+    #: Node id to the host this shop's subscription links are served on.
+    #:
+    #: Their customers must not receive a link on our domain, and a reseller
+    #: selling from several panels needs a domain per panel - a subscription
+    #: token only means anything to the panel that minted it. Empty falls back
+    #: to whatever the node declares, which is right until somebody decides
+    #: otherwise. See `application.provisioning.links`.
+    subscription_hosts: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.set_discount(self.discount_percent)

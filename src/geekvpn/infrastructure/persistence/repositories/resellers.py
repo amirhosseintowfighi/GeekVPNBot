@@ -90,6 +90,7 @@ class SqlAlchemyResellerRepository:
             ),
             contact_fa=row.contact_fa,
             brand_fa=row.brand_fa,
+            subscription_hosts=dict(row.subscription_hosts or {}),
         )
 
     # -- writing -----------------------------------------------------------
@@ -105,6 +106,7 @@ class SqlAlchemyResellerRepository:
                 balance=reseller.balance_amount,
                 contact_fa=reseller.contact_fa,
                 brand_fa=reseller.brand_fa,
+                subscription_hosts=dict(reseller.subscription_hosts),
             )
         )
         await self._session.flush()
@@ -121,6 +123,7 @@ class SqlAlchemyResellerRepository:
         row.balance = reseller.balance_amount
         row.contact_fa = reseller.contact_fa
         row.brand_fa = reseller.brand_fa
+        row.subscription_hosts = dict(reseller.subscription_hosts)
         await self._write_children(reseller)
 
     async def _write_children(self, reseller: Reseller) -> None:

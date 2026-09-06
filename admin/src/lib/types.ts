@@ -785,6 +785,9 @@ export interface ResellerRow {
   balance: number
   contactFa: string | null
   allowedNodeIds: string[]
+  /** Node id to the domain this shop's subscription links are served on.
+   *  Absent means the node's own host. */
+  subscriptionHosts: Record<string, string>
   costs: Record<string, number>
   retail: Record<string, number>
   hasBot: boolean

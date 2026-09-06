@@ -528,6 +528,10 @@ class RequestScope:
             ids=Uuid4IdGenerator(),
             events=LoggingEventPublisher(),
             on_activated=self._announce_delivery,
+            # The shop's own link domains. Taken from the scope rather than
+            # fetched, so a reseller's customer can never be handed a link
+            # built from a different shop's settings.
+            shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
         )
 
     async def _announce_delivery(
@@ -612,6 +616,7 @@ class RequestScope:
             nodes=self.nodes,
             panels=self.panel_provider,
             clock=self.container.clock,
+            shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
         )
 
     @cached_property

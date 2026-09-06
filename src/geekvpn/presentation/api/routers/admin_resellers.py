@@ -50,6 +50,9 @@ class ResellerResponse(ApiModel):
     #: Plan id to what this reseller charges their own customers. Theirs, not
     #: ours - absent means they have not decided and the list price stands.
     retail: dict[str, int]
+    #: Node id to the domain this shop's subscription links are served on.
+    #: Absent means the node's own host, which is the default.
+    subscription_hosts: dict[str, str] = Field(default_factory=dict)
     #: Whether their own Telegram bot is configured. Never the token itself.
     has_bot: bool = False
     bot_username: str | None = None
@@ -70,6 +73,7 @@ class ResellerResponse(ApiModel):
             balance=reseller.balance_amount,
             contact_fa=reseller.contact_fa,
             allowed_node_ids=sorted(reseller.allowed_node_ids),
+            subscription_hosts=dict(reseller.subscription_hosts),
             costs={
                 str(override.plan_id): override.cost.amount
                 for override in reseller.overrides
@@ -193,6 +197,15 @@ class PanelsRequest(ApiModel):
     node_ids: list[str] = Field(default_factory=list)
 
 
+class SubscriptionHostsRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Node id to host. Sent whole: the map replaces what was there, so
+    #: removing an entry is sending the map without it. A blank value is
+    #: dropped, meaning "fall back to the node's own host".
+    hosts: dict[str, str] = Field(default_factory=dict)
+
+
 class PricesRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -311,6 +324,33 @@ async def set_panels(
         )
     try:
         reseller = await scope.reseller_service.set_panels(reseller_id, payload.node_ids)
+    except ResellerNotFound as failure:
+        raise _not_found() from failure
+    return ResellerResponse.of(reseller)
+
+
+@router.put(
+    "/{reseller_id}/subscription-hosts",
+    response_model=ResellerResponse,
+    dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
+)
+async def set_subscription_hosts(
+    reseller_id: uuid.UUID, payload: SubscriptionHostsRequest, scope: ScopeDep
+) -> ResellerResponse:
+    """Which domain this shop's subscription links are served on, per panel."""
+    known = {node.id for node in await scope.nodes.list_all()}
+    unknown = sorted(set(payload.hosts) - known)
+    if unknown:
+        # Refused rather than stored, like `set_panels`: a host recorded
+        # against a panel that does not exist is a setting that silently does
+        # nothing, and the operator would have no way to see that.
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"Unknown panels: {', '.join(unknown)}"
+        )
+    try:
+        reseller = await scope.reseller_service.set_subscription_hosts(
+            reseller_id, payload.hosts
+        )
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)

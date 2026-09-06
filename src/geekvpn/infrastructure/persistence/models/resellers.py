@@ -32,6 +32,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -79,6 +80,17 @@ class ResellerModel(TimestampMixin, Base):
     brand_fa: Mapped[str | None] = mapped_column(String(64))
     contact_fa: Mapped[str | None] = mapped_column(String(256))
     note_fa: Mapped[str | None] = mapped_column(String(512))
+
+    #: Node id to the host this shop's subscription links are served on.
+    #:
+    #: A map rather than one host, because a subscription token only means
+    #: anything to the panel that minted it: a reseller selling from three
+    #: panels needs three domains, not one. Empty means "whatever the node
+    #: itself declares", which is every reseller until an operator says
+    #: otherwise.
+    subscription_hosts: Mapped[dict[str, str]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     __table_args__ = (
         CheckConstraint(f"status IN ({_values(ResellerStatus)})", name="resellers_status"),
