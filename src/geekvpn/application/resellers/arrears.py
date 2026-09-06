@@ -38,7 +38,7 @@ logger = structlog.stdlib.get_logger(__name__)
 #: The marker is the whole mechanism for telling "off because the reseller owes
 #: us money" apart from "off because an operator turned it off". Without it, a
 #: top-up would resume a subscription somebody had deliberately stopped.
-ARREARS_REASON_FA = "بدهی نماینده — سرویس تا تسویه‌ی حساب غیرفعال است"
+ARREARS_REASON_FA = "بدهی نماینده — سرویس تا تسویهٔ حساب غیرفعاله"
 
 
 class SubscriptionAccess(Protocol):

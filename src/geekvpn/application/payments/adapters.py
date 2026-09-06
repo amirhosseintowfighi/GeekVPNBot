@@ -106,11 +106,11 @@ class CardTransferGateway:
         # other one at the same price, so a customer who helpfully rounds them
         # off hands the reviewer an unmatchable receipt.
         instructions = (
-            f"دقیقاً مبلغ {amount.amount:,} تومان را به کارت زیر واریز "
-            "کنید و سپس تصویر رسید را ارسال کنید.\n\n"
-            "⚠️ مبلغ را روند نکنید. سه رقم آخر شناسهٔ فاکتور شماست و "
-            "با آن رسید شما شناخته می‌شود.\n"
-            "⏳ این فاکتور فقط ۳۰ دقیقه اعتبار دارد."
+            f"دقیقاً مبلغ {amount.amount:,} تومان رو به کارت زیر واریز "
+            "کن و بعد تصویر رسید رو بفرست.\n\n"
+            "⚠️ مبلغ رو رند نکن. سه رقم آخر شناسهٔ فاکتور توئه و "
+            "رسیدت با همون شناخته می‌شه.\n"
+            "⏳ این فاکتور فقط ۳۰ دقیقه اعتبار داره."
         )
         return CheckoutInstruction(
             payment_id=payment_id,

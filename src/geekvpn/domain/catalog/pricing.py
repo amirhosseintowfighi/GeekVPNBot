@@ -285,7 +285,7 @@ def quote_plan(
         lines.append(
             QuoteLine(
                 kind=LineKind.ROUNDING,
-                label_fa="گرد کردن به نفع شما",
+                label_fa="گرد کردن به نفع تو",
                 amount=total - rounded,
             )
         )

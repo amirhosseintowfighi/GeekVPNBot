@@ -146,7 +146,7 @@ class QuotingService:
         if saving.is_zero:
             return CouponPreview.rejected(
                 code=normalised,
-                message_fa="این کد روی قیمت فعلی تخفیفی ایجاد نمی‌کند.",
+                message_fa="این کد روی این قیمت تخفیفی نمی‌ده.",
             )
         return CouponPreview.accepted(code=normalised, discount=saving, total=discounted.total)
 

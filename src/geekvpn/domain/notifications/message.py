@@ -154,47 +154,36 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.EXPIRY,
             title_fa="\u06cc\u0627\u062f\u0622\u0648\u0631\u06cc \u0627\u0646\u0642\u0636\u0627",
             body_fa=(
-                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan} \u0634\u0645\u0627 "
-                "{days} \u0631\u0648\u0632 \u062f\u06cc\u06af\u0631 "
-                "\u0645\u0646\u0642\u0636\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f. "
-                "\u0628\u0631\u0627\u06cc \u062c\u0644\u0648\u06af\u06cc\u0631\u06cc "
-                "\u0627\u0632 \u0642\u0637\u0639 \u0633\u0631\u0648\u06cc\u0633\u060c "
-                "\u0647\u0645\u06cc\u0646 \u0627\u0644\u0627\u0646 "
-                "\u062a\u0645\u062f\u06cc\u062f \u06a9\u0646\u06cc\u062f."
+                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan}\u062a {days} \u0631\u0648\u0632 \u062f\u06cc\u06af\u0647 \u062a\u0645\u0648\u0645 \u0645\u06cc\u200c\u0634\u0647. \u0627\u06af\u0647 \u0646\u0645\u06cc\u200c\u062e\u0648\u0627\u06cc \u0648\u0633\u0637 \u06a9\u0627\u0631 \u0642\u0637\u0639 \u0634\u06cc\u060c \u0647\u0645\u06cc\u0646 \u062d\u0627\u0644\u0627 \u062a\u0645\u062f\u06cc\u062f\u0634 \u06a9\u0646."
             ),
             action="dashboard",
         ),
         MessageTemplate(
             key="expiry.today",
             category=_C.EXPIRY,
-            title_fa="\u0627\u0645\u0631\u0648\u0632 \u0622\u062e\u0631\u06cc\u0646 \u0631\u0648\u0632 \u0627\u0633\u062a",
+            title_fa="\u0627\u0645\u0631\u0648\u0632 \u0622\u062e\u0631\u06cc\u0646 \u0631\u0648\u0632\u0647",
             body_fa=(
-                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan} \u0634\u0645\u0627 "
-                "\u0627\u0645\u0631\u0648\u0632 \u0645\u0646\u0642\u0636\u06cc "
-                "\u0645\u06cc\u200c\u0634\u0648\u062f."
+                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan}\u062a \u0627\u0645\u0631\u0648\u0632 \u062a\u0645\u0648\u0645 \u0645\u06cc\u200c\u0634\u0647."
             ),
             action="dashboard",
         ),
         MessageTemplate(
             key="expiry.expired",
             category=_C.CRITICAL,
-            title_fa="\u0627\u0634\u062a\u0631\u0627\u06a9 \u0645\u0646\u0642\u0636\u06cc \u0634\u062f",
+            title_fa="\u0627\u0634\u062a\u0631\u0627\u06a9 \u062a\u0645\u0648\u0645 \u0634\u062f",
             body_fa=(
-                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan} \u0634\u0645\u0627 "
-                "\u0628\u0647 \u067e\u0627\u06cc\u0627\u0646 \u0631\u0633\u06cc\u062f "
-                "\u0648 \u0627\u062a\u0635\u0627\u0644 \u0642\u0637\u0639 "
-                "\u0634\u062f\u0647 \u0627\u0633\u062a."
+                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan}\u062a \u0628\u0647 \u0622\u062e\u0631 \u0631\u0633\u06cc\u062f \u0648 \u0627\u062a\u0635\u0627\u0644 \u0642\u0637\u0639 \u0634\u062f\u0647."
             ),
             action="shop",
         ),
         MessageTemplate(
             key="service.idle",
             category=_C.EXPIRY,
-            title_fa="همه‌چیز روبه‌راهه؟",
+            title_fa="همه‌چی روبه‌راهه؟",
             body_fa=(
-                "{days} روزی می‌شود به {plan} وصل نشده‌اید، در حالی که "
-                "سرویستان هنوز هم اعتبار دارد هم حجم. اگر جایی گیر کرده — "
-                "سرور، برنامه، لینک — بگویید تا درستش کنیم."
+                "{days} روزی می‌شه به {plan} وصل نشدی، درحالی‌که سرویست "
+                "هم اعتبار داره هم حجم. اگه جایی گیر کرده — "
+                "سرور، برنامه، لینک — بگو تا درستش کنیم."
             ),
             action="support",
         ),
@@ -203,24 +192,16 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.TRAFFIC,
             title_fa="\u062d\u062c\u0645 \u0631\u0648 \u0628\u0647 \u067e\u0627\u06cc\u0627\u0646",
             body_fa=(
-                "{percent} \u062f\u0631\u0635\u062f \u0627\u0632 "
-                "\u062d\u062c\u0645 \u0628\u0633\u062a\u0647\u0654 {plan} "
-                "\u0645\u0635\u0631\u0641 \u0634\u062f\u0647 \u0627\u0633\u062a. "
-                "{remaining} \u0628\u0627\u0642\u06cc "
-                "\u0645\u0627\u0646\u062f\u0647 \u0627\u0633\u062a."
+                "{percent} \u062f\u0631\u0635\u062f \u0627\u0632 \u062d\u062c\u0645 \u0628\u0633\u062a\u0647\u0654 {plan} \u0631\u0641\u062a. {remaining} \u0628\u0631\u0627\u062a \u0645\u0648\u0646\u062f\u0647."
             ),
             action="dashboard",
         ),
         MessageTemplate(
             key="traffic.exhausted",
             category=_C.CRITICAL,
-            title_fa="\u062d\u062c\u0645 \u062a\u0645\u0627\u0645 \u0634\u062f",
+            title_fa="\u062d\u062c\u0645 \u062a\u0645\u0648\u0645 \u0634\u062f",
             body_fa=(
-                "\u062d\u062c\u0645 \u0628\u0633\u062a\u0647\u0654 {plan} "
-                "\u062a\u0645\u0627\u0645 \u0634\u062f. \u0628\u0631\u0627\u06cc "
-                "\u0627\u062f\u0627\u0645\u0647\u0654 \u0633\u0631\u0648\u06cc\u0633 "
-                "\u0628\u0633\u062a\u0647\u0654 \u062c\u062f\u06cc\u062f "
-                "\u062a\u0647\u06cc\u0647 \u06a9\u0646\u06cc\u062f."
+                "\u062d\u062c\u0645 \u0628\u0633\u062a\u0647\u0654 {plan} \u062a\u0645\u0648\u0645 \u0634\u062f. \u0628\u0631\u0627\u06cc \u0627\u062f\u0627\u0645\u0647\u060c \u06cc\u0647 \u0628\u0633\u062a\u0647\u0654 \u062a\u0627\u0632\u0647 \u0628\u0631\u062f\u0627\u0631."
             ),
             action="shop",
         ),
@@ -229,11 +210,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0634\u0627\u0631\u0698 \u0634\u062f",
             body_fa=(
-                "\u0645\u0628\u0644\u063a {amount} \u062a\u0648\u0645\u0627\u0646 "
-                "\u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0634\u0645\u0627 "
-                "\u0627\u0641\u0632\u0648\u062f\u0647 \u0634\u062f. "
-                "\u0645\u0648\u062c\u0648\u062f\u06cc: {balance} "
-                "\u062a\u0648\u0645\u0627\u0646."
+                "{amount} \u062a\u0648\u0645\u0627\u0646 \u0631\u06cc\u062e\u062a \u062a\u0648 \u06a9\u06cc\u0641 \u067e\u0648\u0644\u062a. \u0645\u0648\u062c\u0648\u062f\u06cc: {balance} \u062a\u0648\u0645\u0627\u0646."
             ),
             action="wallet",
         ),
@@ -242,11 +219,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u0628\u0631\u062f\u0627\u0634\u062a \u0627\u0632 \u06a9\u06cc\u0641 \u067e\u0648\u0644",
             body_fa=(
-                "\u0645\u0628\u0644\u063a {amount} \u062a\u0648\u0645\u0627\u0646 "
-                "\u0627\u0632 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0634\u0645\u0627 "
-                "\u06a9\u0633\u0631 \u0634\u062f. "
-                "\u0645\u0648\u062c\u0648\u062f\u06cc: {balance} "
-                "\u062a\u0648\u0645\u0627\u0646."
+                "{amount} \u062a\u0648\u0645\u0627\u0646 \u0627\u0632 \u06a9\u06cc\u0641 \u067e\u0648\u0644\u062a \u06a9\u0645 \u0634\u062f. \u0645\u0648\u062c\u0648\u062f\u06cc: {balance} \u062a\u0648\u0645\u0627\u0646."
             ),
             action="wallet",
         ),
@@ -255,10 +228,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u067e\u0631\u062f\u0627\u062e\u062a \u062a\u0623\u06cc\u06cc\u062f \u0634\u062f",
             body_fa=(
-                "\u067e\u0631\u062f\u0627\u062e\u062a {amount} "
-                "\u062a\u0648\u0645\u0627\u0646 \u0634\u0645\u0627 "
-                "\u062a\u0623\u06cc\u06cc\u062f \u0634\u062f. "
-                "\u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc: {reference}"
+                "\u067e\u0631\u062f\u0627\u062e\u062a {amount} \u062a\u0648\u0645\u0627\u0646\u06cc\u062a \u062a\u0623\u06cc\u06cc\u062f \u0634\u062f. \u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc: {reference}"
             ),
             action="dashboard",
         ),
@@ -267,22 +237,16 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u067e\u0631\u062f\u0627\u062e\u062a \u0631\u062f \u0634\u062f",
             body_fa=(
-                "\u067e\u0631\u062f\u0627\u062e\u062a \u0628\u0627 "
-                "\u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc {reference} "
-                "\u062a\u0623\u06cc\u06cc\u062f \u0646\u0634\u062f. "
-                "\u062f\u0644\u06cc\u0644: {reason}"
+                "\u067e\u0631\u062f\u0627\u062e\u062a \u0628\u0627 \u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc {reference} \u062a\u0623\u06cc\u06cc\u062f \u0646\u0634\u062f. \u062f\u0644\u06cc\u0644: {reason}"
             ),
             action="support",
         ),
         MessageTemplate(
             key="payment.refunded",
             category=_C.CRITICAL,
-            title_fa="\u0645\u0628\u0644\u063a \u0639\u0648\u062f\u062a \u062f\u0627\u062f\u0647 \u0634\u062f",
+            title_fa="\u0645\u0628\u0644\u063a \u0628\u0631\u06af\u0634\u062a \u062e\u0648\u0631\u062f",
             body_fa=(
-                "\u0645\u0628\u0644\u063a {amount} \u062a\u0648\u0645\u0627\u0646 "
-                "\u0628\u0627\u0628\u062a \u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc "
-                "{reference} \u0639\u0648\u062f\u062a \u062f\u0627\u062f\u0647 "
-                "\u0634\u062f."
+                "{amount} \u062a\u0648\u0645\u0627\u0646 \u0628\u0627\u0628\u062a \u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc {reference} \u0628\u0631\u06af\u0634\u062a \u062e\u0648\u0631\u062f."
             ),
             action="wallet",
         ),
@@ -291,11 +255,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u062e\u0631\u06cc\u062f \u0645\u0648\u0641\u0642",
             body_fa=(
-                "\u0628\u0633\u062a\u0647\u0654 {plan} \u0641\u0639\u0627\u0644 "
-                "\u0634\u062f. \u0645\u062f\u062a: {days} \u0631\u0648\u0632 "
-                "\u0648 \u062d\u062c\u0645: {volume}. "
-                "\u0627\u0632 \u062e\u0631\u06cc\u062f \u0634\u0645\u0627 "
-                "\u0633\u067e\u0627\u0633\u06af\u0632\u0627\u0631\u06cc\u0645."
+                "\u0628\u0633\u062a\u0647\u0654 {plan} \u0641\u0639\u0627\u0644 \u0634\u062f. \u0645\u062f\u062a: {days} \u0631\u0648\u0632\u060c \u062d\u062c\u0645: {volume}. \u0645\u0631\u0633\u06cc \u06a9\u0647 \u0645\u0627 \u0631\u0648 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0631\u062f\u06cc \U0001f64f"
             ),
             action="services",
         ),
@@ -304,9 +264,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u0627\u0634\u062a\u0631\u0627\u06a9 \u062a\u0645\u062f\u06cc\u062f \u0634\u062f",
             body_fa=(
-                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan} \u0628\u0647 "
-                "\u0645\u062f\u062a {days} \u0631\u0648\u0632 \u062f\u06cc\u06af\u0631 "
-                "\u062a\u0645\u062f\u06cc\u062f \u0634\u062f."
+                "\u0627\u0634\u062a\u0631\u0627\u06a9 {plan} \u0628\u0631\u0627\u06cc {days} \u0631\u0648\u0632 \u062f\u06cc\u06af\u0647 \u062a\u0645\u062f\u06cc\u062f \u0634\u062f."
             ),
             action="services",
         ),
@@ -315,10 +273,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.PROMOS,
             title_fa="\u0647\u062f\u06cc\u0647\u0654 \u0645\u0639\u0631\u0641\u06cc",
             body_fa=(
-                "{amount} \u062a\u0648\u0645\u0627\u0646 \u0628\u0627\u0628\u062a "
-                "\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646 "
-                "\u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0634\u0645\u0627 "
-                "\u0627\u0636\u0627\u0641\u0647 \u0634\u062f."
+                "{amount} \u062a\u0648\u0645\u0627\u0646 \u0628\u0627\u0628\u062a \u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u062a \u0631\u06cc\u062e\u062a \u062a\u0648 \u06a9\u06cc\u0641 \u067e\u0648\u0644\u062a. \u062f\u0645\u062a \u06af\u0631\u0645 \U0001f64c"
             ),
             action="referral",
         ),
@@ -327,9 +282,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u067e\u0627\u0633\u062e \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc",
             body_fa=(
-                "\u0628\u0631\u0627\u06cc \u062a\u06cc\u06a9\u062a {reference} "
-                "\u067e\u0627\u0633\u062e \u062c\u062f\u06cc\u062f\u06cc "
-                "\u062b\u0628\u062a \u0634\u062f."
+                "\u0628\u0631\u0627\u06cc \u062a\u06cc\u06a9\u062a {reference} \u06cc\u0647 \u067e\u0627\u0633\u062e \u062c\u062f\u06cc\u062f \u062b\u0628\u062a \u0634\u062f."
             ),
             action="support",
         ),
@@ -338,10 +291,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="\u062a\u06cc\u06a9\u062a \u0628\u0633\u062a\u0647 \u0634\u062f",
             body_fa=(
-                "\u062a\u06cc\u06a9\u062a {reference} \u0628\u0633\u062a\u0647 "
-                "\u0634\u062f. \u062f\u0631 \u0635\u0648\u0631\u062a "
-                "\u0646\u06cc\u0627\u0632 \u062f\u0648\u0628\u0627\u0631\u0647 "
-                "\u067e\u06cc\u0627\u0645 \u0628\u062f\u0647\u06cc\u062f."
+                "\u062a\u06cc\u06a9\u062a {reference} \u0628\u0633\u062a\u0647 \u0634\u062f. \u0647\u0631 \u0648\u0642\u062a \u0644\u0627\u0632\u0645 \u0634\u062f \u062f\u0648\u0628\u0627\u0631\u0647 \u067e\u06cc\u0627\u0645 \u0628\u062f\u0647."
             ),
             action="support",
         ),
@@ -350,11 +300,7 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.PROMOS,
             title_fa="{title}",
             body_fa=(
-                "\u062a\u0627 {percent} \u062f\u0631\u0635\u062f "
-                "\u062a\u062e\u0641\u06cc\u0641 \u0628\u0631\u0627\u06cc "
-                "\u0645\u062f\u062a \u0645\u062d\u062f\u0648\u062f. "
-                "\u0641\u0631\u0635\u062a \u0631\u0627 \u0627\u0632 "
-                "\u062f\u0633\u062a \u0646\u062f\u0647\u06cc\u062f."
+                "\u062a\u0627 {percent} \u062f\u0631\u0635\u062f \u062a\u062e\u0641\u06cc\u0641\u060c \u0628\u0631\u0627\u06cc \u0645\u062f\u062a \u0645\u062d\u062f\u0648\u062f. \u0627\u0632 \u062f\u0633\u062a\u0634 \u0646\u062f\u0647 \U0001f609"
             ),
             action="shop",
         ),
@@ -364,23 +310,23 @@ CATALOG: dict[str, MessageTemplate] = {
             # A preference that could silence it would silence the delivery,
             # not an announcement about it.
             category=_C.CRITICAL,
-            title_fa="\U0001f389 سرویس شما فعال شد!",
+            title_fa="\U0001f389 سرویست فعال شد!",
             body_fa=(
-                "خرید شما کامل شد و اشتراکتان همین حالا آماده‌ی استفاده است.\n\n"
-                "\U0001f517 <b>لینک اشتراک شما:</b>\n"
+                "خریدت کامل شد و اشتراکت همین حالا آماده‌ست.\n\n"
+                "\U0001f517 <b>لینک اشتراکت:</b>\n"
                 "<code>{link}</code>\n\n"
                 # Numbered, because this is where a first-time customer gets
                 # stuck: they have a link and no idea that it goes into an app
                 # rather than a browser. Three lines here are cheaper than the
                 # support ticket that follows their absence.
-                "\u0031\ufe0f\u20e3 روی لینک بالا بزنید تا کپی شود\n"
-                "\u0032\ufe0f\u20e3 برنامه‌ی خود را باز کنید (v2rayNG، Streisand، v2box…)\n"
-                "\u0033\ufe0f\u20e3 گزینه‌ی افزودن از لینک را بزنید و وصل شوید\n\n"
-                "💬 اگر جایی گیر کردید، از بخش پشتیبانی بپرسید — همین‌جا جواب می‌دهیم.\n"
+                "\u0031\ufe0f\u20e3 روی لینک بالا بزن تا کپی شه\n"
+                "\u0032\ufe0f\u20e3 برنامه‌ات رو باز کن (v2rayNG، Streisand، v2box…)\n"
+                "\u0033\ufe0f\u20e3 گزینهٔ افزودن از لینک رو بزن و وصل شو\n\n"
+                "💬 اگه جایی گیر کردی، از پشتیبانی بپرس — همین‌جا جواب می‌دیم.\n"
                 # The one moment a customer is demonstrably happy with us. A
                 # referral asked for here costs nothing, and it is the only
                 # place in the bot where the answer is likely to be yes.
-                "🎁 دوستانتان را دعوت کنید و هر دو هدیه بگیرید."
+                "🎁 حالا که راضی‌ای، دوستات رو هم بردار بیار دیگه 😄 هر دوتون هدیه می‌گیرید."
             ),
             action="dashboard",
         ),
@@ -390,11 +336,11 @@ CATALOG: dict[str, MessageTemplate] = {
             # Saying so beats saying nothing: the customer can open "my
             # services" and the link will be there.
             category=_C.CRITICAL,
-            title_fa="\U0001f389 سرویس شما فعال شد!",
+            title_fa="\U0001f389 \u0633\u0631\u0648\u06cc\u0633\u062a \u0641\u0639\u0627\u0644 \u0634\u062f!",
             body_fa=(
-                "خرید شما کامل شد و اکانتتان ساخته شد \u2705\n\n"
-                "\U0001f4ca لینک اتصال را از بخش «سرویس‌های من» بردارید.\n\n"
-                "\U0001f4ac اگر جایی گیر کردید، از بخش پشتیبانی بپرسید."
+                "خریدت کامل شد و اکانتت ساخته شد \u2705\n\n"
+                "\U0001f4ca لینک اتصال رو از بخش «سرویس‌های من» بردار.\n\n"
+                "\U0001f4ac اگه جایی گیر کردی، از پشتیبانی بپرس."
             ),
             action="dashboard",
         ),
@@ -411,7 +357,7 @@ CATALOG: dict[str, MessageTemplate] = {
             body_fa=(
                 "تیکت {reference}\n\n"
                 "{body}\n\n"
-                "برای ادامه‌ی گفتگو، روی همین پیام ریپلای کنید و پاسخ‌تان را بنویسید."
+                "برای ادامهٔ گفتگو، روی همین پیام ریپلای کن و جوابت رو بنویس."
             ),
             action="support",
         ),
@@ -424,8 +370,8 @@ CATALOG: dict[str, MessageTemplate] = {
             category=_C.CRITICAL,
             title_fa="رسید پرداخت",
             body_fa=(
-                "عکس رسید واریز {amount} تومان را همین‌جا بفرستید.\n\n"
-                "به همان پرداخت وصل می‌شود و بررسی‌اش را شروع می‌کنیم."
+                "عکس رسید واریز {amount} تومان رو همین‌جا بفرست.\n\n"
+                "به همون پرداخت وصل می‌شه و بررسیش رو شروع می‌کنیم."
             ),
             action=None,
         ),

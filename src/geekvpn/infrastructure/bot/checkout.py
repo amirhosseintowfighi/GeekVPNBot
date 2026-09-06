@@ -161,8 +161,8 @@ class BotCheckoutAdapter:
             # already visible on the customer's screen - and threw away the
             # panel error underneath it, which is the only part worth keeping.
             raise DeliveryPending(
-                "پرداخت شما انجام شد، ولی ساخت اکانت هنوز کامل نشده است. "
-                "پشتیبانی در جریان است و سرویس به‌زودی فعال می‌شود.",
+                "پرداختت انجام شد، ولی ساخت اکانت هنوز کامل نشده. "
+                "پشتیبانی در جریانه و سرویس به‌زودی فعال می‌شه.",
                 order_id=order.id,
             ) from failure
 
@@ -459,7 +459,7 @@ class BotCheckoutAdapter:
 
 #: Shown next to every manual payment so the customer knows what "in review"
 #: costs them in waiting.
-REVIEW_SLA_FA = "بررسی معمولاً کمتر از ۳۰ دقیقه طول می‌کشد."
+REVIEW_SLA_FA = "بررسی معمولاً کمتر از ۳۰ دقیقه طول می‌کشه."
 
 
 def _lines_for(plan_name_fa: str, quote: PriceQuote) -> list[InvoiceLine]:

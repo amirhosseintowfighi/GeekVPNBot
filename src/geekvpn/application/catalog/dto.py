@@ -155,7 +155,7 @@ class CouponPreview:
             is_valid=True,
             discount=discount.amount,
             total_after=total.amount,
-            message_fa="کد تخفیف اعمال شد.",
+            message_fa="کد تخفیف خورد ✅",
         )
 
     @classmethod
