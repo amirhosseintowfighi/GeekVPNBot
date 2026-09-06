@@ -100,7 +100,9 @@ def test_the_screen_the_customer_actually_reads_forbids_rounding():
     """
     from geekvpn.presentation.bot.ui.text import PAY_CARD_INSTRUCTIONS
 
-    assert "رند نکنید" in PAY_CARD_INSTRUCTIONS
+    # The stem only: the copy's register has changed once already and
+    # will again, but the instruction not to round must survive that.
+    assert "رند نک" in PAY_CARD_INSTRUCTIONS
     assert "{window}" in PAY_CARD_INSTRUCTIONS
     # The figure alone, in a block Telegram lets the customer tap to copy -
     # what stops them retyping it and dropping the identifier.
