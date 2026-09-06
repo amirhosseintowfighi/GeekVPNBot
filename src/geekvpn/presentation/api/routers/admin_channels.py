@@ -101,14 +101,14 @@ def reject_unreachable(payload: NewChannel) -> None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
-                "برای کانال خصوصی، لینک دعوت لازم است؛ وگرنه کاربر راهی برای"
-                " عضو شدن ندارد."
+                "برای کانال خصوصی، لینک دعوت لازمه؛ وگرنه کاربر راهی برای"
+                " عضو شدن نداره."
             ),
         )
     if payload.invite_url and not re.match(r"^https://t\.me/", payload.invite_url):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="لینک دعوت باید با https://t.me/ شروع شود.",
+            detail="لینک دعوت باید با https://t.me/ شروع شه.",
         )
 
 

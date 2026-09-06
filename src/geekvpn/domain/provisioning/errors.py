@@ -112,5 +112,5 @@ class DeliveryPending(ProvisioningError):
     """
 
     code = "delivery_pending"
-    message = "پرداخت انجام شد و سرویس به‌زودی فعال می‌شود."
+    message = "پرداخت انجام شد و سرویس به‌زودی فعال می‌شه."
 

@@ -171,7 +171,7 @@ class ZarinPalGateway:
         return RefundResult(
             succeeded=False,
             destination=RefundDestination.WALLET,
-            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شود.",
+            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شه.",
         )
 
 
@@ -248,7 +248,7 @@ class ZibalGateway:
         return RefundResult(
             succeeded=False,
             destination=RefundDestination.WALLET,
-            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شود.",
+            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شه.",
         )
 
 
@@ -329,7 +329,7 @@ class AqayePardakhtGateway:
         return RefundResult(
             succeeded=False,
             destination=RefundDestination.WALLET,
-            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شود.",
+            message_fa="بازگشت وجه این درگاه به کیف پول انجام می‌شه.",
         )
 
 

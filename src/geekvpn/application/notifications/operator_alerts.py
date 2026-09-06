@@ -40,7 +40,7 @@ RECEIPT_ALERT_FA = (
 )
 APPROVE_LABEL_FA = "\u2705 تأیید"
 REJECT_LABEL_FA = "\u274c رد"
-RECEIPT_ALERT_NO_IMAGE_FA = "برای این پرداخت تصویری ثبت نشده است."
+RECEIPT_ALERT_NO_IMAGE_FA = "برای این پرداخت تصویری ثبت نشده."
 
 
 class OperatorSender(Protocol):

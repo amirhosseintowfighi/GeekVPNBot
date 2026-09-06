@@ -229,8 +229,8 @@ async def delete_node(node_id: str, scope: ScopeDep) -> None:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail=(
-                f"این سرور {live} اشتراک فعال دارد و حذف نشد. "
-                "از صفحهٔ اشتراک‌ها آن‌ها را لغو یا منتقل کنید، بعد دوباره امتحان کنید."
+                f"این سرور {live} اشتراک فعال داره و حذف نشد. "
+                "از صفحهٔ اشتراک‌ها لغو یا منتقلشون کن، بعد دوباره امتحان کن."
             ),
         )
     if not await scope.nodes.delete(node_id):

@@ -151,8 +151,8 @@ def should_regenerate(remaining_count: int, *, floor: int = 3) -> bool:
     return remaining_count <= floor
 
 
-EXHAUSTED_MESSAGE_FA: Final = "همهٔ کدهای بازیابی مصرف شده‌اند. مجموعهٔ تازه‌ای بسازید."
-LOW_MESSAGE_FA: Final = "فقط {count} کد بازیابی باقی مانده است. مجموعهٔ تازه‌ای بسازید و چاپ کنید."
+EXHAUSTED_MESSAGE_FA: Final = "همهٔ کدهای بازیابی مصرف شدن. یه مجموعهٔ تازه بساز."
+LOW_MESSAGE_FA: Final = "فقط {count} کد بازیابی مونده. یه مجموعهٔ تازه بساز و چاپش کن."
 
 __all__ = [
     "ALPHABET",

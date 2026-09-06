@@ -72,17 +72,17 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
         logger.exception("gateway.callback_failed", payment_id=payment_id)
         return _page(
             "⚠️",
-            "نتیجه‌ی پرداخت مشخص نشد",
-            "اگر مبلغ از حسابتان کم شده، نگران نباشید — به پشتیبانی پیام بدهید "
-            "و همان‌جا پیگیری می‌کنیم.",
+            "نتیجهٔ پرداخت مشخص نشد",
+            "اگه مبلغ از حسابت کم شده، نگران نباش — به پشتیبانی پیام بده "
+            "و همون‌جا پیگیری می‌کنیم.",
             status_code=502,
         )
 
     if outcome == str(VerificationOutcome.CONFIRMED):
         return _page(
             "✅",
-            "پرداخت شما تأیید شد",
-            "به ربات برگردید — سرویس‌تان همان‌جا آماده است.",
+            "پرداختت تأیید شد",
+            "برگرد به ربات — سرویست همون‌جا آماده‌ست.",
         )
     if outcome == str(VerificationOutcome.INCONCLUSIVE):
         # Not a failure. The provider was unreachable, and the sweeper will ask
@@ -90,10 +90,10 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
         return _page(
             "⏳",
             "در حال بررسی پرداخت",
-            "چند لحظه دیگر نتیجه را در ربات به شما اطلاع می‌دهیم.",
+            "چند لحظهٔ دیگه نتیجه رو تو ربات بهت می‌گیم.",
         )
     return _page(
         "❌",
         "پرداخت انجام نشد",
-        "مبلغی از حساب شما کم نشده است. می‌توانید دوباره تلاش کنید.",
+        "چیزی از حسابت کم نشده. می‌تونی دوباره امتحان کنی.",
     )

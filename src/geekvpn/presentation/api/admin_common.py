@@ -65,7 +65,7 @@ async def admin_actor_id(admin: CurrentAdmin, scope: ScopeDep) -> int:
         raise NotFoundError("This administrator account no longer exists.")
     if record.telegram_id is None:
         raise ValidationError(
-            "برای این اقدام، حساب تلگرام مدیر باید متصل باشد.",
+            "برای این کار، حساب تلگرام مدیر باید وصل باشه.",
             admin_id=str(admin.subject_id),
         )
     return int(record.telegram_id)
@@ -83,7 +83,7 @@ async def claim_idempotency(container: ContainerDep, key: str, *, scope_label: s
     )
     if not claimed:
         raise ConflictError(
-            "این درخواست پیش‌تر با همین کلید ثبت شده است.",
+            "این درخواست قبلاً با همین کلید ثبت شده.",
             idempotency_key=key,
         )
 

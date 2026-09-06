@@ -146,7 +146,7 @@ def refresh_cookie_settings(*, deployed: bool, max_age_seconds: int) -> dict[str
 
 
 DENIED_MESSAGE_FA: Final = (
-    "درخواست معتبر نیست. لطفاً صفحه را دوباره بارگزاری کنید و دوباره تلاش کنید."
+    "درخواست معتبر نیست. صفحه را دوباره باز کن و یک بار دیگه امتحان کن."
 )
 
 __all__ = [

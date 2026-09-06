@@ -93,7 +93,7 @@ MAINTENANCE_MODE = SettingDefinition[bool](
 MAINTENANCE_MESSAGE = SettingDefinition[str](
     key="platform.maintenance_message",
     label_fa="پیام حالت تعمیرات",
-    default="سرویس موقتاً در حال به‌روزرسانی است. تا چند دقیقه دیگر برمی‌گردیم.",
+    default="سرویس موقتاً در حال به‌روزرسانیه. تا چند دقیقهٔ دیگه برمی‌گردیم.",
     type_=str,
     description="Message shown to customers while maintenance mode is on.",
 )

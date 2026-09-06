@@ -438,7 +438,7 @@ async def create_crypto(
             )
         ).scalars().first()
         if existing is not None:
-            raise ConflictError("این آدرس روی همین شبکه قبلاً ثبت شده است.")
+            raise ConflictError("این آدرس روی همین شبکه قبلاً ثبت شده.")
 
         row = CryptoAccountModel(
             id=uuid.uuid4().hex,
@@ -531,7 +531,7 @@ async def create_gateway(
             # One account per provider per shop. Two would be two merchant ids
             # for the same button, and which one a customer got would depend on
             # a sort order nobody set deliberately.
-            raise ConflictError("این درگاه برای این فروشگاه قبلاً تنظیم شده است.")
+            raise ConflictError("این درگاه برای این فروشگاه قبلاً تنظیم شده.")
 
         row = GatewayAccountModel(
             id=uuid.uuid4().hex,
@@ -595,7 +595,7 @@ async def create_card(
             )
         ).scalars().first()
         if existing is not None:
-            raise ConflictError("این شماره کارت قبلاً ثبت شده است.")
+            raise ConflictError("این شماره کارت قبلاً ثبت شده.")
 
         card = CardAccountModel(
             id=uuid.uuid4().hex,
@@ -811,11 +811,11 @@ async def payment_receipt(
 
     file_id = await read_scope(container, work)
     if not file_id:
-        raise NotFoundError("برای این پرداخت رسیدی ثبت نشده است.")
+        raise NotFoundError("برای این پرداخت رسیدی ثبت نشده.")
 
     token = container.settings.telegram.bot_token.get_secret_value()
     if not token:
-        raise NotFoundError("توکن ربات تنظیم نشده، بنابراین رسید قابل دریافت نیست.")
+        raise NotFoundError("توکن ربات تنظیم نشده، پس رسید رو نمی‌شه گرفت.")
 
     async with httpx.AsyncClient(timeout=TELEGRAM_TIMEOUT_SECONDS) as client:
         described = await client.get(
@@ -823,7 +823,7 @@ async def payment_receipt(
         )
         path = (described.json().get("result") or {}).get("file_path") if described.is_success else None
         if not path:
-            raise NotFoundError("تلگرام این رسید را برنگرداند. ممکن است منقضی شده باشد.")
+            raise NotFoundError("تلگرام این رسید رو برنگردوند. شاید منقضی شده باشه.")
 
         image = await client.get(f"https://api.telegram.org/file/bot{token}/{path}")
         if not image.is_success:

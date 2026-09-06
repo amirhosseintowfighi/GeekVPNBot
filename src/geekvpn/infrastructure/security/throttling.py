@@ -225,9 +225,9 @@ def combine(policy: Policy, verdicts: tuple[tuple[bool, int, int], ...]) -> Deci
     )
 
 
-RETRY_MESSAGE_FA: Final = "تعداد درخواست‌های شما زیاد بوده است. لطفاً {seconds} ثانیه دیگر تلاش کنید."
+RETRY_MESSAGE_FA: Final = "تعداد درخواست‌هات زیاد بوده. {seconds} ثانیهٔ دیگه دوباره امتحان کن."
 LOCKED_MESSAGE_FA: Final = (
-    "به دلیل تلاش‌های ناموفق، حساب شما موقتاً قفل شده است. {seconds} ثانیه دیگر تلاش کنید."
+    "به‌خاطر تلاش‌های ناموفق، حسابت موقتاً قفل شده. {seconds} ثانیهٔ دیگه دوباره امتحان کن."
 )
 
 
