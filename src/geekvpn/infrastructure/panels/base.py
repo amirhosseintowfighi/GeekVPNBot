@@ -15,6 +15,9 @@ import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
+from urllib.parse import urlsplit
+
+import structlog
 
 from geekvpn.domain.panels.enums import Capability, PanelKind, SubscriptionFormat
 from geekvpn.domain.panels.errors import CapabilityNotSupported
@@ -27,6 +30,8 @@ from geekvpn.domain.panels.values import (
     SubscriptionPayload,
 )
 from geekvpn.infrastructure.panels.http import PanelHttpClient
+
+logger = structlog.stdlib.get_logger(__name__)
 
 #: Refresh a panel token this long before it actually expires, so a request is
 #: never issued with a token that dies mid-flight.
@@ -149,6 +154,53 @@ class HttpPanelAdapter:
     async def reset_traffic(self, ref: PanelAccountRef, *, idempotency_key: str) -> Any:
         self.require(Capability.RESET_TRAFFIC)
         raise NotImplementedError  # pragma: no cover
+
+    async def username_behind(self, url: str) -> str | None:
+        """Ask the panel itself who a subscription link belongs to.
+
+        Every panel in this family serves `<sub path>/info` unauthenticated,
+        and the answer names the account. That is the whole lookup, and it is
+        the panel's own answer rather than ours - which is the point.
+
+        Four rounds of guessing went the other way: read every account, hunt
+        for the link under whichever key this fork spells it, fall back to the
+        id inside the token, then confirm that id is not a different customer
+        on a different server. Each guess cost a deploy and a customer trying
+        their link again, and none of it was ever needed.
+
+        Only the *path* of the pasted link is used, against this panel's own
+        base URL. The host the customer holds may be a second domain or a
+        reverse proxy, and it is not ours to fetch: asking a stranger's server
+        about a link is how a paste box becomes an outbound request tool.
+
+        `None` for every non-200: a token minted elsewhere is a 404 here, and
+        that is an answer, not a failure.
+        """
+        path = urlsplit(url).path.rstrip("/")
+        if not path:
+            return None
+        response = await self._http.request(
+            "GET",
+            f"{path}/info",
+            expected=(200,),
+            # A wrong token is a refusal, not a broken panel - including the
+            # auth statuses, which would otherwise raise and make one bad paste
+            # look like the whole server being down.
+            allow_status=(400, 401, 403, 404, 405, 422, 500),
+        )
+        if response.status_code != 200:
+            logger.info(
+                "panel.sub_info_refused", panel=self.kind.value, status=response.status_code
+            )
+            return None
+        try:
+            payload = self._http.json(response)
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        name = payload.get("username") or payload.get("user")
+        return name.strip() if isinstance(name, str) and name.strip() else None
 
     async def find_by_subscription(self, url: str) -> PanelAccount | None:
         """Nothing, unless the adapter can search its panel.

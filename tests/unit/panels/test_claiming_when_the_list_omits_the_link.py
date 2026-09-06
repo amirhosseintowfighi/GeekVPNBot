@@ -51,6 +51,9 @@ def _adapter(rows: list[dict[str, Any]], *, confirms: str | None) -> Any:
     adapter._http.request = AsyncMock(return_value=Mock())
     adapter._http.json = Mock(return_value={"users": rows})
     adapter._auth_headers = AsyncMock(return_value={})
+    # This suite is about the fallback scan, so the panel is made to give
+    # no answer of its own - see `username_behind`.
+    adapter.username_behind = AsyncMock(return_value=None)
     adapter.kind = Mock(value="pasarguard")
     adapter._panel_id = __import__("uuid").uuid4()
     # The real mapper, so a row matched by link returns an account rather than

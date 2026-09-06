@@ -261,6 +261,17 @@ class MarzneshinAdapter(HttpPanelAdapter):
         wanted = sub_token(url)
         if not wanted:
             return None
+
+        # Ask the panel first. It knows who the link belongs to; everything
+        # below is us guessing from a list, and the guessing is what kept
+        # getting this wrong. See `username_behind`.
+        named = await self.username_behind(url)
+        if named:
+            try:
+                return await self.get_account(self.ref(named))
+            except AccountNotFound:  # pragma: no cover - raced deletion
+                return None
+
         response = await self._http.request(
             "GET",
             "/api/users",

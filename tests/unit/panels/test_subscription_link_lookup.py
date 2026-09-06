@@ -70,6 +70,7 @@ def test_an_unreadable_account_list_is_not_the_same_as_no_match():
     # An envelope we did not expect: neither a list nor a dict holding one.
     adapter._http.json = Mock(return_value={"data": {"page": 1}})
     adapter._auth_headers = AsyncMock(return_value={})
+    adapter.username_behind = AsyncMock(return_value=None)
     adapter.kind = Mock(value="pasarguard")
 
     with pytest.raises(PanelContractViolation):
