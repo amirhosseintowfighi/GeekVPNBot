@@ -37,6 +37,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -201,6 +202,18 @@ class SubscriptionModel(TimestampMixin, Base):
         # two accounts on two nodes for one payment - with only one of them
         # reachable through get_by_order afterwards.
         UniqueConstraint("order_id", name="uq_subscriptions_order"),
+        # One adopted service per panel account. The claim checks first, but
+        # two taps of the same button are two transactions and both would find
+        # nothing; only a constraint survives that. Partial, on claimed rows,
+        # because a purchased subscription's username is generated for its
+        # order and cannot collide.
+        Index(
+            "ux_subscriptions_claimed_account",
+            "node_id",
+            "remote_username",
+            unique=True,
+            postgresql_where=text("order_id IS NULL"),
+        ),
         # Expiry reminders, churn, and the "expiring soon" audience.
         Index("ix_subscriptions_state_expires", "state", "expires_at"),
         Index("ix_subscriptions_user_state", "user_id", "state"),

@@ -77,8 +77,12 @@ class ClaimOutcome(enum.StrEnum):
     CLAIMED = "claimed"
     #: No panel we own has an account behind that link.
     NOT_FOUND = "not_found"
-    #: Found, but already recorded - possibly against this very customer.
+    #: Found, but already recorded against somebody else.
     ALREADY_CLAIMED = "already_claimed"
+    #: Already recorded against this very customer, which is a different
+    #: sentence: telling somebody their own service belongs to someone else
+    #: sends them to support over a link they pasted twice.
+    ALREADY_YOURS = "already_yours"
     #: Every panel refused to answer. Distinct from NOT_FOUND on purpose:
     #: telling somebody their real service does not exist because a panel was
     #: down is the one wrong answer here.
@@ -145,8 +149,14 @@ class ClaimService:
             )
 
         node, account = located
-        if await self._already_known(node.id, account):
-            return ClaimResult(ClaimOutcome.ALREADY_CLAIMED)
+        # One account, one service. Checked before anything is written, and
+        # backed by a unique index for the case this cannot see: two taps of
+        # the same button are two transactions, and both would find nothing.
+        owner = await self._subscriptions.owner_of_account(node.id, account.ref.username)
+        if owner is not None:
+            return ClaimResult(
+                ClaimOutcome.ALREADY_YOURS if owner == user_id else ClaimOutcome.ALREADY_CLAIMED
+            )
 
         subscription = self._build(
             node=node, account=account, user_id=user_id, reseller_id=reseller_id
@@ -196,15 +206,6 @@ class ClaimService:
             if account is not None:
                 return (node, account), False, asked
         return None, bool(counted) and failed == counted, asked
-
-    async def _already_known(self, node_id: str, account: PanelAccount) -> bool:
-        """Is this panel account already somebody's service here?
-
-        Matched on the remote username within the node, which is what the panel
-        itself keys on - not on the link, which can be rotated.
-        """
-        existing, _ = await self._subscriptions.search(node_id=node_id, limit=1000, offset=0)
-        return any(s.remote_username == account.ref.username for s in existing)
 
     def _build(
         self,

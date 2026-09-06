@@ -246,6 +246,19 @@ class SqlAlchemySubscriptionRepository:
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return subscription_to_domain(row) if row else None
 
+    async def owner_of_account(self, node_id: str, remote_username: str) -> int | None:
+        """Whose service this panel account already is, if anybody's.
+
+        Deliberately not shop-scoped. The same panel account adopted once in
+        our bot and once in a reseller's is still the same account twice, and
+        scoping the check would make the duplicate reappear one shop over.
+        """
+        stmt = select(SubscriptionModel.user_id).where(
+            SubscriptionModel.node_id == node_id,
+            SubscriptionModel.remote_username == remote_username,
+        )
+        return (await self._session.execute(stmt.limit(1))).scalar_one_or_none()
+
     async def list_for_user(
         self, user_id: int, *, active_only: bool = False
     ) -> Sequence[Subscription]:

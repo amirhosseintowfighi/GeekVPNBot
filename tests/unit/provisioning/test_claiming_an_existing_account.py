@@ -49,6 +49,12 @@ class FakeSubscriptions:
         found = [s for s in self.items.values() if node_id in (None, s.node_id)]
         return found, len(found)
 
+    async def owner_of_account(self, node_id: str, remote_username: str) -> int | None:
+        for item in self.items.values():
+            if item.node_id == node_id and item.remote_username == remote_username:
+                return item.user_id
+        return None
+
     async def add(self, subscription: Subscription) -> None:
         self.added.append(subscription)
         self.items[subscription.id] = subscription

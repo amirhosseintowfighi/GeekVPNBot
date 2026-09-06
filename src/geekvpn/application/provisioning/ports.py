@@ -173,6 +173,17 @@ class SubscriptionRepository(Protocol):
 
     async def update(self, subscription: Subscription) -> None: ...
 
+    async def owner_of_account(self, node_id: str, remote_username: str) -> int | None:
+        """Whose service this panel account already is, if anybody's.
+
+        A real query rather than a page the caller scans. The claim used to
+        read a thousand rows for one node and look through them, which answers
+        "no" for a node holding more than a thousand accounts - and answers it
+        without having looked, which is how the same subscription could be
+        adopted twice.
+        """
+        ...
+
     async def search(
         self,
         *,
