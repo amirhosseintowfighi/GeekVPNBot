@@ -55,8 +55,12 @@ class FakeSubscriptions:
 
 
 class FakeNode:
-    def __init__(self, node_id: str) -> None:
+    def __init__(
+        self, node_id: str, *, base_url: str = "", subscription_base_url: str | None = None
+    ) -> None:
         self.id = node_id
+        self.base_url = base_url
+        self.subscription_base_url = subscription_base_url
 
 
 class FakeNodes:

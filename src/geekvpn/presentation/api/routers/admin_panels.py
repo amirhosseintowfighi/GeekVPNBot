@@ -40,6 +40,7 @@ class NodeResponse(ApiModel):
     panel_kind: PanelKind
     state: NodeState
     base_url: str
+    subscription_base_url: str | None
     username: str
     has_password: bool
     verify_tls: bool
@@ -63,6 +64,7 @@ class NodeResponse(ApiModel):
             panel_kind=record.panel_kind,
             state=record.state,
             base_url=record.base_url,
+            subscription_base_url=record.subscription_base_url,
             username=record.username,
             has_password=record.has_password,
             verify_tls=record.verify_tls,
@@ -85,6 +87,9 @@ class CreateNodeRequest(ApiModel):
     name_fa: str = Field(min_length=1, max_length=128)
     panel_kind: PanelKind
     base_url: str = Field(min_length=8, max_length=256)
+    #: Where this panel's subscription links are actually served, when that is
+    #: not the API host. Empty means "the same host", which is the usual case.
+    subscription_base_url: str | None = Field(default=None, max_length=256)
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=256)
     country_code: str | None = Field(default=None, min_length=2, max_length=2)
@@ -107,6 +112,9 @@ class UpdateNodeRequest(ApiModel):
 
     name_fa: str | None = Field(default=None, min_length=1, max_length=128)
     base_url: str | None = Field(default=None, min_length=8, max_length=256)
+    #: An empty string clears it - `update` treats `None` as "leave alone", so
+    #: without that there would be no way to undo a wrong entry.
+    subscription_base_url: str | None = Field(default=None, max_length=256)
     username: str | None = Field(default=None, min_length=1, max_length=128)
     password: str | None = Field(default=None, min_length=1, max_length=256)
     country_code: str | None = Field(default=None, min_length=2, max_length=2)
@@ -170,6 +178,7 @@ async def create_node(payload: CreateNodeRequest, scope: ScopeDep) -> NodeRespon
         name_fa=payload.name_fa,
         panel_kind=payload.panel_kind,
         base_url=payload.base_url,
+        subscription_base_url=payload.subscription_base_url,
         username=payload.username,
         password=payload.password,
         country_code=payload.country_code,

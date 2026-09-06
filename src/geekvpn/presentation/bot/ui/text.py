@@ -427,11 +427,16 @@ SUB_SUSPENDED: Final = "\u23f8\ufe0f \u0645\u062a\u0648\u0642\u0641"
 SUB_PENDING: Final = "\u23f3 \u062f\u0631 \u062d\u0627\u0644 \u0622\u0645\u0627\u062f\u0647\u200c\u0633\u0627\u0632\u06cc"
 
 SUB_DETAIL: Final = (
-    "{icon} {name}\n\n"
+    "{icon} {name}\n"
+    "\n"
+    "\U0001f464 \u0646\u0627\u0645 \u06a9\u0627\u0631\u0628\u0631\u06cc: <code>{username}</code>\n"
     "{status_emoji} \u0648\u0636\u0639\u06cc\u062a: {status}\n"
     "\U0001f4c5 \u0627\u0646\u0642\u0636\u0627: {expires}\n"
-    "\u23f3 \u0628\u0627\u0642\u06cc\u200c\u0645\u0627\u0646\u062f\u0647: {remaining}\n\n"
-    "\U0001f4ca \u0645\u0635\u0631\u0641 \u062d\u062c\u0645:\n{bar} {used}\n\n"
+    "\u23f3 \u0628\u0627\u0642\u06cc\u200c\u0645\u0627\u0646\u062f\u0647: {remaining}\n"
+    "\n"
+    "\U0001f4ca \u0645\u0635\u0631\u0641 \u062d\u062c\u0645:\n"
+    "{bar} {used}\n"
+    "\n"
     "\U0001f4bb \u062f\u0633\u062a\u06af\u0627\u0647\u200c\u0647\u0627: {devices}"
 )
 BTN_GET_CONFIG: Final = (

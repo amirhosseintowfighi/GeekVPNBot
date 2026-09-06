@@ -247,6 +247,7 @@ def to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard
         device_limit=subscription.device_limit,
         subscription_url=subscription.subscription_url,
         created_at=subscription.started_at,
+        remote_username=subscription.remote_username,
     )
 
 

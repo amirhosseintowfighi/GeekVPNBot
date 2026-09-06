@@ -36,6 +36,8 @@ def node_to_record(model: NodeModel) -> NodeRecord:
         account_count=model.account_count,
         country_code=model.country_code,
         sort_order=model.sort_order,
+        base_url=model.base_url,
+        subscription_base_url=model.subscription_base_url,
     )
 
 
@@ -49,6 +51,7 @@ def node_to_admin_record(model: NodeModel) -> NodeAdminRecord:
         panel_kind=PanelKind(model.panel_kind),
         state=NodeState(model.state),
         base_url=model.base_url,
+        subscription_base_url=model.subscription_base_url,
         username=model.username,
         has_password=bool(model.password_encrypted),
         verify_tls=model.verify_tls,
@@ -159,6 +162,7 @@ class SqlAlchemyNodeRepository:
         base_url: str,
         username: str,
         password: str,
+        subscription_base_url: str | None = None,
         country_code: str | None,
         capacity: int,
         verify_tls: bool,
@@ -171,6 +175,7 @@ class SqlAlchemyNodeRepository:
             name_fa=name_fa,
             panel_kind=panel_kind.value,
             base_url=base_url,
+            subscription_base_url=subscription_base_url,
             username=username,
             password_encrypted=password,
             country_code=country_code,

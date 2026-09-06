@@ -216,6 +216,11 @@ class NodeModel(TimestampMixin, Base):
     name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
     panel_kind: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     base_url: Mapped[str] = mapped_column(String(256), nullable=False)
+    #: Where this panel's subscription links are actually served, when that is
+    #: not the API host. The panel builds links from its own base URL, which on
+    #: a split setup points at a host the customer cannot reach. NULL means
+    #: they are the same, which is the ordinary case.
+    subscription_base_url: Mapped[str | None] = mapped_column(String(256))
     country_code: Mapped[str | None] = mapped_column(String(2), index=True)
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="online", index=True)
 

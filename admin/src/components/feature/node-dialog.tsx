@@ -65,6 +65,7 @@ export function NodeDialog({
   const [nameFa, setNameFa] = React.useState('')
   const [panelKind, setPanelKind] = React.useState<string>('marzban')
   const [baseUrl, setBaseUrl] = React.useState('')
+  const [subBaseUrl, setSubBaseUrl] = React.useState('')
   const [username, setUsername] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [countryCode, setCountryCode] = React.useState('')
@@ -90,6 +91,7 @@ export function NodeDialog({
     setNameFa(node?.nameFa ?? '')
     setPanelKind(node?.panelKind ?? 'marzban')
     setBaseUrl(node?.baseUrl ?? '')
+    setSubBaseUrl(node?.subscriptionBaseUrl ?? '')
     setUsername(node?.username ?? '')
     setPassword('')
     setCountryCode(node?.countryCode ?? '')
@@ -147,6 +149,7 @@ export function NodeDialog({
     setCountryCode('')
     setCapacity('')
     setVerifyTls(true)
+    setSubBaseUrl('')
     setFailure(null)
   }
 
@@ -157,6 +160,9 @@ export function NodeDialog({
       const shared = {
         nameFa: nameFa.trim(),
         baseUrl: baseUrl.trim(),
+        // Sent even when empty: '' is how the field is cleared, and the API
+        // treats null as "leave alone".
+        subscriptionBaseUrl: subBaseUrl.trim(),
         username: username.trim(),
         // Two characters or nothing: the API rejects a one-letter code, and an
         // empty string is not the same as "not set".
@@ -256,6 +262,20 @@ export function NodeDialog({
               value={baseUrl}
               onChange={(event) => setBaseUrl(event.target.value)}
               placeholder="https://panel.example.com"
+            />
+          </Field>
+
+          <Field
+            label={'آدرس لینک اشتراک'}
+            hint={
+              'فقط اگه لینک اشتراکی که دست کاربر می‌دی روی یه دامنهٔ دیگه سرو می‌شه. خالی بذار یعنی همون آدرس بالا.'
+            }
+          >
+            <Input
+              ltr
+              value={subBaseUrl}
+              onChange={(event) => setSubBaseUrl(event.target.value)}
+              placeholder="https://sub.example.com"
             />
           </Field>
 

@@ -268,6 +268,9 @@ export interface NodeCreateBody {
   nameFa: string
   panelKind: string
   baseUrl: string
+  /** Where this panel's subscription links are actually served, when that is
+   *  not the API host. Empty means they are the same. */
+  subscriptionBaseUrl?: string | null
   username: string
   password: string
   countryCode?: string | null
@@ -283,6 +286,8 @@ export interface NodeUpdateBody {
   config?: Record<string, unknown>
   nameFa?: string
   baseUrl?: string
+  /** An empty string clears it. */
+  subscriptionBaseUrl?: string | null
   username?: string
   password?: string
   countryCode?: string | null
@@ -371,6 +376,7 @@ export interface PanelRow {
   panelKind: PanelKind
   state: NodeState
   baseUrl: string
+  subscriptionBaseUrl: string | null
   username: string
   hasPassword: boolean
   verifyTls: boolean

@@ -30,6 +30,7 @@ from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from geekvpn.application.ports.clock import Clock
+from geekvpn.application.provisioning.links import public_link
 from geekvpn.application.provisioning.node_selector import select_node
 from geekvpn.application.provisioning.ports import (
     EventPublisher,
@@ -231,7 +232,13 @@ class ProvisioningService:
             device_limit=order.device_limit,
             node_id=node.id,
             remote_id=account.ref.external_id,
-            subscription_url=account.subscription_url,
+            # The panel builds links from its own base URL, which on a split
+            # setup is the API host rather than the one the customer can
+            # reach. Rewritten here, at the one place the link is stored, so
+            # every screen and every notification shows the same working link.
+            subscription_url=public_link(
+                account.subscription_url, node.subscription_base_url
+            ),
             reseller_id=reseller_id,
         )
         await self._subscriptions.add(subscription)

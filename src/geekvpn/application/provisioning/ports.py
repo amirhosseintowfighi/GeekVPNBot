@@ -46,6 +46,15 @@ class NodeRecord:
     account_count: int
     country_code: str | None = None
     sort_order: int = 0
+    #: The panel's API address. Not a credential - it is on the servers screen
+    #: and in every log line - and carrying it lets a failed claim say which
+    #: hosts were actually asked, which a list of node ids cannot.
+    base_url: str = ""
+    #: The host this panel's subscription links are really served on, when
+    #: that differs from its API host. Selection ignores it; the claim uses it
+    #: to tell two panels apart, and delivery uses it to hand out a link the
+    #: customer can actually open. See `links.public_link`.
+    subscription_base_url: str | None = None
 
     @property
     def has_room(self) -> bool:
@@ -77,6 +86,8 @@ class NodeAdminRecord:
     panel_kind: PanelKind
     state: NodeState
     base_url: str
+    #: Optional. See `NodeRecord.subscription_base_url`.
+    subscription_base_url: str | None
     username: str
     has_password: bool
     verify_tls: bool

@@ -260,9 +260,23 @@ def plan_detail(
 # -- Dashboard ---------------------------------------------------------------
 
 
+def _card_name(card: SubscriptionCard) -> str:
+    """What to call this service.
+
+    A service adopted from a pasted link has no order behind it, so it has no
+    product and no plan name - and the label rendered as a bullet between two
+    empty strings. The panel username is the only name such a service has, and
+    it is the one support asks for anyway.
+    """
+    named = " \u00b7 ".join(
+        part for part in (card.product_name_fa, card.plan_name_fa) if part
+    )
+    return named or card.remote_username or T.ERR_NOT_FOUND
+
+
 def subscription_button_label(card: SubscriptionCard) -> str:
     state_emoji, _ = _STATE_LABEL.get(card.state, (E.INFO, ""))
-    return f"{state_emoji} {card.product_name_fa} \u00b7 {card.plan_name_fa}"
+    return f"{state_emoji} {_card_name(card)}"
 
 
 def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
@@ -288,7 +302,8 @@ def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
 
     return T.SUB_DETAIL.format(
         icon=E.ROCKET,
-        name=f"<b>{card.product_name_fa}</b> \u2014 {card.plan_name_fa}",
+        name=f"<b>{_card_name(card)}</b>",
+        username=card.remote_username or "\u2014",
         status_emoji=state_emoji,
         status=state_label,
         expires=expires,

@@ -81,6 +81,10 @@ class SubscriptionCard:
     device_limit: int = 2
     subscription_url: str | None = None
     created_at: datetime | None = None
+    #: The account's name on the panel. Shown because it is what support asks
+    #: for, and because a service adopted from a pasted link has no order
+    #: behind it and therefore no plan name - without this its card is blank.
+    remote_username: str = ""
 
     @property
     def is_unlimited(self) -> bool:
