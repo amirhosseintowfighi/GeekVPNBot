@@ -39,7 +39,7 @@ class DateRange:
             raise InvalidDateRange(start=self.start.isoformat(), end=self.end.isoformat())
         if self.days > MAX_RANGE_DAYS:
             raise InvalidDateRange(
-                "\u0628\u0627\u0632\u0647\u0654 \u0627\u0646\u062a\u062e\u0627\u0628\u06cc \u0628\u06cc\u0634 \u0627\u0632 \u062d\u062f \u0645\u062c\u0627\u0632 \u0627\u0633\u062a.",
+                "\u0628\u0627\u0632\u0647\u0654 \u0627\u0646\u062a\u062e\u0627\u0628\u06cc \u0628\u06cc\u0634\u062a\u0631 \u0627\u0632 \u062d\u062f \u0645\u062c\u0627\u0632\u0647.",
                 days=self.days,
                 maximum=MAX_RANGE_DAYS,
             )

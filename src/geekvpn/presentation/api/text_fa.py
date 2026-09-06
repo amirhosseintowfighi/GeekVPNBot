@@ -18,7 +18,7 @@ from typing import Final
 
 #: Shown when a code has no copy of its own - an internal error, or a failure
 #: the client had no part in causing.
-GENERIC: Final = "\u0645\u0634\u06a9\u0644\u06cc \u067e\u06cc\u0634 \u0622\u0645\u062f. \u0644\u0637\u0641\u0627\u064b \u062f\u0648\u0628\u0627\u0631\u0647 \u062a\u0644\u0627\u0634 \u06a9\u0646\u06cc\u062f."
+GENERIC: Final = "\u06cc\u0647 \u062c\u0627\u06cc \u06a9\u0627\u0631 \u0644\u0646\u06af\u06cc\u062f. \u062f\u0648\u0628\u0627\u0631\u0647 \u0627\u0645\u062a\u062d\u0627\u0646 \u06a9\u0646."
 
 MESSAGES: Final[dict[str, str]] = {
     # Authentication and access

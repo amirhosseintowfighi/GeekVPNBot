@@ -130,8 +130,7 @@ class CardTransferGateway:
         return VerificationResult(
             outcome=VerificationOutcome.INCONCLUSIVE,
             message_fa=(
-                "\u0631\u0633\u06cc\u062f \u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a \u0641\u0642\u0637 "
-                "\u062a\u0648\u0633\u0637 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f."
+                "\u0631\u0633\u06cc\u062f \u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a \u0631\u0648 \u0641\u0642\u0637 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u06a9\u0646\u0647."
             ),
         )
 
@@ -182,8 +181,7 @@ class CryptoTransferGateway:
             address=self.address,
             network=self.network,
             instructions_fa=(
-                "\u067e\u0633 \u0627\u0632 \u0627\u0646\u062a\u0642\u0627\u0644\u060c \u0634\u0646\u0627\u0633\u0647\u0654 "
-                "\u062a\u0631\u0627\u06a9\u0646\u0634 (TXID) \u0631\u0627 \u0627\u0631\u0633\u0627\u0644 \u06a9\u0646\u06cc\u062f."
+                "\u0628\u0639\u062f \u0627\u0632 \u0627\u0646\u062a\u0642\u0627\u0644\u060c \u0634\u0646\u0627\u0633\u0647\u0654 \u062a\u0631\u0627\u06a9\u0646\u0634 (TXID) \u0631\u0648 \u0628\u0641\u0631\u0633\u062a."
             ),
             metadata={"invoice_number": invoice_number},
         )
@@ -194,8 +192,7 @@ class CryptoTransferGateway:
             reference=reference,
             retry_after=timedelta(minutes=5),
             message_fa=(
-                "\u062a\u0631\u0627\u06a9\u0646\u0634 \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 "
-                "\u0628\u0631\u0631\u0633\u06cc \u0627\u0633\u062a."
+                "\u062a\u0631\u0627\u06a9\u0646\u0634 \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc\u0647."
             ),
         )
 

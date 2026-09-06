@@ -19,7 +19,7 @@ class InvalidDateRange(AnalyticsError):
     def __init__(self, message: str = "", **details: object) -> None:
         super().__init__(
             message
-            or "\u0628\u0627\u0632\u0647\u0654 \u0632\u0645\u0627\u0646\u06cc \u0646\u0627\u0645\u0639\u062a\u0628\u0631 \u0627\u0633\u062a.",
+            or "\u0628\u0627\u0632\u0647\u0654 \u0632\u0645\u0627\u0646\u06cc \u0645\u0639\u062a\u0628\u0631 \u0646\u06cc\u0633\u062a.",
             **details,
         )
 

@@ -145,10 +145,10 @@ class Verdict:
 
 _MESSAGES_FA: Final[dict[Outcome, str]] = {
     Outcome.SOLVED: "تأیید شد.",
-    Outcome.WRONG: "پاسخ نادرست است. دوباره تلاش کنید.",
-    Outcome.EXPIRED: "زمان پاسخ تمام شد. پرسش تازه‌ای بگیرید.",
-    Outcome.EXHAUSTED: "تعداد تلاش‌ها بیش از حد مجاز بود. پرسش تازه‌ای بگیرید.",
-    Outcome.MALFORMED: "لطفاً پاسخ را فقط به عدد بنویسید.",
+    Outcome.WRONG: "\u062c\u0648\u0627\u0628 \u062f\u0631\u0633\u062a \u0646\u06cc\u0633\u062a. \u062f\u0648\u0628\u0627\u0631\u0647 \u0627\u0645\u062a\u062d\u0627\u0646 \u06a9\u0646.",
+    Outcome.EXPIRED: "\u0648\u0642\u062a \u062a\u0645\u0648\u0645 \u0634\u062f. \u06cc\u0647 \u067e\u0631\u0633\u0634 \u062a\u0627\u0632\u0647 \u0628\u06af\u06cc\u0631.",
+    Outcome.EXHAUSTED: "\u062a\u0639\u062f\u0627\u062f \u062a\u0644\u0627\u0634\u200c\u0647\u0627 \u0628\u06cc\u0634\u062a\u0631 \u0627\u0632 \u062d\u062f \u0645\u062c\u0627\u0632 \u0628\u0648\u062f. \u06cc\u0647 \u067e\u0631\u0633\u0634 \u062a\u0627\u0632\u0647 \u0628\u06af\u06cc\u0631.",
+    Outcome.MALFORMED: "\u062c\u0648\u0627\u0628 \u0631\u0648 \u0641\u0642\u0637 \u0628\u0647 \u0639\u062f\u062f \u0628\u0646\u0648\u06cc\u0633.",
 }
 
 
@@ -186,14 +186,14 @@ def generate(*, now: datetime, challenge_id: str | None = None) -> Challenge:
 
     if kind is ChallengeKind.SUM:
         left, right = secrets.randbelow(9) + 1, secrets.randbelow(9) + 1
-        question = f"حاصل جمع {_word(left)} به علاوه {_word(right)} چند است؟"
+        question = f"حاصل جمع {_word(left)} به علاوه {_word(right)} چنده؟"
         answer = left + right
     elif kind is ChallengeKind.DIFFERENCE:
         left = secrets.randbelow(10) + 10
         right = secrets.randbelow(9) + 1
         # Ordered so the answer is never negative: a captcha that expects "منفی
         # دو" from a numeric keypad is a bug, not a test of humanity.
-        question = f"{_word(left)} منهای {_word(right)} چند است؟"
+        question = f"{_word(left)} منهای {_word(right)} چنده؟"
         answer = left - right
     else:
         pool: list[int] = []
@@ -202,7 +202,7 @@ def generate(*, now: datetime, challenge_id: str | None = None) -> Challenge:
             if candidate not in pool:
                 pool.append(candidate)
         shown = "، ".join(_word(value) for value in pool)
-        question = f"بزرگ‌ترین عدد را بنویسید: {shown}"
+        question = f"بزرگ‌ترین عدد رو بنویس: {shown}"
         answer = max(pool)
 
     return Challenge(

@@ -51,7 +51,7 @@ class TemplateNotFound(NotFoundError):
     """
 
     code = "notification_template_not_found"
-    message = "\u0645\u062a\u0646 \u0627\u06cc\u0646 \u0627\u0637\u0644\u0627\u0639\u06cc\u0647 \u062a\u0639\u0631\u06cc\u0641 \u0646\u0634\u062f\u0647 \u0627\u0633\u062a."
+    message = "\u0645\u062a\u0646 \u0627\u06cc\u0646 \u0627\u0637\u0644\u0627\u0639\u06cc\u0647 \u062a\u0639\u0631\u06cc\u0641 \u0646\u0634\u062f\u0647."
 
     def __init__(self, key: str) -> None:
         super().__init__(f"No Persian template registered for {key!r}.", key=key)
@@ -112,7 +112,7 @@ class UnknownAudience(NotificationError):
     """The audience names a rule, or a tier, that does not exist."""
 
     code = "unknown_audience"
-    message = "این مخاطب شناخته نشد."
+    message = "\u0627\u06cc\u0646 \u0645\u062e\u0627\u0637\u0628 \u0631\u0648 \u0646\u0634\u0646\u0627\u062e\u062a\u06cc\u0645."
 
 
 __all__ = [
