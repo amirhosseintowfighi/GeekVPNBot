@@ -129,9 +129,9 @@ function DecisionDialog({
           <DialogHeader>
             <DialogTitle>نمایندگی تأیید شد</DialogTitle>
             <DialogDescription>
-              این لینک را برایشان بفرستید تا رمز پنلشان را خودشان بسازند. یک‌بار
-              مصرف است و تا ۲۴ ساعت اعتبار دارد — بعد از بستن این پنجره دوباره
-              قابل دیدن نیست.
+              این لینک رو براشون بفرست تا رمز پنلشون رو خودشون بسازن. یک‌بار
+              مصرفه و تا ۲۴ ساعت اعتبار داره — بعد از بستن این پنجره دیگه
+              نمی‌بینیش.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
@@ -184,7 +184,7 @@ function DecisionDialog({
           ) : null}
           <Field
             label="درصد تخفیف"
-            hint="روی قیمت هر پلن اعمال می‌شود. بعداً هم قابل تغییر است."
+            hint="روی قیمت هر پلن اعمال می‌شه. بعداً هم قابل تغییره."
           >
             <Input
               dir="ltr"

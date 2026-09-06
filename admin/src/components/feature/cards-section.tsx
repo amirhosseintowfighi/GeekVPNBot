@@ -67,13 +67,13 @@ export function CardsSection() {
           </p>
         ) : cards.length === 0 ? (
           <p className="text-2xs text-muted-foreground">
-            {'هیچ کارتی ثبت نشده، بنابراین گزینهٔ کارت‌به‌کارت به مشتری نشان داده نمی‌شود.'}
+            {'هیچ کارتی ثبت نشده، پس گزینهٔ کارت‌به‌کارت به مشتری نشون داده نمی‌شه.'}
           </p>
         ) : (
           <>
             {active.length === 0 ? (
               <p className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-2xs text-warning">
-                {'هیچ کارتی فعال نیست. تا یکی را فعال نکنید، کارت‌به‌کارت در دسترس نیست.'}
+                {'هیچ کارتی فعال نیست. تا یکی رو فعال نکنی، کارت‌به‌کارت در دسترس نیست.'}
               </p>
             ) : null}
 
@@ -216,7 +216,7 @@ function CardDialog({
         <DialogHeader>
           <DialogTitle>{card ? 'ویرایش کارت' : 'کارت جدید'}</DialogTitle>
           <DialogDescription>
-            {'مشتری این شماره را می‌بیند و به آن واریز می‌کند. دقت در اینجا مستقیماً پول است.'}
+            {'مشتری این شماره رو می‌بینه و بهش واریز می‌کنه. دقت اینجا مستقیماً پوله.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -244,7 +244,7 @@ function CardDialog({
               <Input ltr value={sheba} onChange={(event) => setSheba(event.target.value)} />
             </Field>
 
-            <Field label={'ترتیب'} hint={'کوچک‌ترین عدد فعال، همان کارتی است که نشان داده می‌شود'}>
+            <Field label={'ترتیب'} hint={'کوچک‌ترین عدد فعال، همون کارتیه که نشون داده می‌شه'}>
               <Input
                 ltr
                 inputMode="numeric"

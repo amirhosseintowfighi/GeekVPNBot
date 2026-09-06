@@ -52,7 +52,7 @@ export default function TicketPage() {
     const text = body.trim()
     if (text.length < MIN_MESSAGE) {
       setFormError(
-        'پیام کوتاه است. کمی بیشتر توضیح بدهید.',
+        'پیام کوتاهه. یه کم بیشتر توضیح بده.',
       )
       return
     }
@@ -68,7 +68,7 @@ export default function TicketPage() {
       setFormError(
         err instanceof ApiError
           ? err.messageFa
-          : 'ارسال پیام ممکن نشد.',
+          : 'پیام فرستاده نشد.',
       )
     } finally {
       setBusy(false)
@@ -122,7 +122,7 @@ export default function TicketPage() {
               <p className="nums text-[10px] text-muted-foreground">
                 {(message.fromSupport
                   ? 'پشتیبانی'
-                  : 'شما') +
+                  : 'تو') +
                   ' · ' +
                   faDateTime(message.createdAt)}
               </p>
@@ -132,7 +132,7 @@ export default function TicketPage() {
 
         {closed ? (
           <p className="rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-            {'این تیکت بسته شده است. برای موضوع تازه، تیکت جدید باز کنید.'}
+            {'این تیکت بسته شده. برای موضوع تازه، یه تیکت جدید بزن.'}
           </p>
         ) : (
           <div className="space-y-2">
@@ -140,7 +140,7 @@ export default function TicketPage() {
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={3}
-              placeholder={'پاسخ شما...'}
+              placeholder={'جوابت...'}
               className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs leading-loose outline-none focus:border-primary"
             />
             {formError ? (

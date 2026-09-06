@@ -59,7 +59,7 @@ function SetPasswordForm() {
       setError(
         thrown instanceof ApiError
           ? thrown.messageFa
-          : 'تغییر رمز انجام نشد. لینک ممکن است منقضی شده باشد.',
+          : 'تغییر رمز انجام نشد. شاید لینک منقضی شده باشه.',
       )
     } finally {
       setSubmitting(false)
@@ -68,7 +68,7 @@ function SetPasswordForm() {
 
   if (!adminId || !token) {
     return (
-      <Shell title="لینک نامعتبر است">
+      <Shell title="این لینک معتبر نیست">
         <p className="text-sm text-muted-foreground">
           این لینک کامل نیست. از کسی که آن را برایتان فرستاده بخواهید دوباره
           ارسال کند.
@@ -79,10 +79,10 @@ function SetPasswordForm() {
 
   if (done) {
     return (
-      <Shell title="رمز شما ساخته شد">
+      <Shell title="رمزت ساخته شد">
         <p className="text-sm text-muted-foreground">
-          حالا می‌توانید با نام کاربری و همین رمز وارد پنل شوید. این لینک دیگر
-          کار نمی‌کند.
+          حالا می‌تونی با نام کاربری و همین رمز وارد پنل شی. این لینک دیگه
+          کار نمی‌کنه.
         </p>
         <Button className="mt-4 w-full" onClick={() => (window.location.href = '/sign-in')}>
           ورود به پنل
@@ -94,7 +94,7 @@ function SetPasswordForm() {
   return (
     <Shell
       title="ساخت رمز عبور"
-      description="یک رمز برای خودتان انتخاب کنید. این لینک فقط یک بار کار می‌کند."
+      description="یه رمز برای خودت انتخاب کن. این لینک فقط یک بار کار می‌کنه."
     >
       <form onSubmit={submit} className="space-y-4">
         <Field label="رمز عبور" hint={`حداقل ${MIN_LENGTH} کاراکتر`}>

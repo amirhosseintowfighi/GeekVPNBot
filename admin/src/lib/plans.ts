@@ -26,7 +26,7 @@ export const PLAN_TYPE_LABEL_FA: Record<PlanTypeValue, string> = {
 }
 
 export const PLAN_TYPE_HINT_FA: Record<PlanTypeValue, string> = {
-  unlimited: 'بدون سقف حجم. فقط مدت‌زمان می‌فروشید.',
-  traffic: 'حجم کل بسته. با تمام شدن حجم یا رسیدن تاریخ، هرکدام زودتر، تمام می‌شود.',
+  unlimited: 'بدون سقف حجم. فقط مدت‌زمان می‌فروشی.',
+  traffic: 'حجم کل بسته. با تموم شدن حجم یا رسیدن تاریخ، هرکدوم زودتر، تموم می‌شه.',
   duration: 'سقف مصرف روزانه. برای مدت‌های بلند بدون ریسک اشباع سرور.',
 }

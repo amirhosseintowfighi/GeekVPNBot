@@ -85,8 +85,8 @@ export default function ResellersPage() {
       ) : !data?.length ? (
         <EmptyState
           icon={Handshake}
-          title="هنوز نماینده‌ای ندارید"
-          description="یک نماینده بسازید تا با قیمت اختصاصی خودش بفروشد."
+          title="هنوز نماینده‌ای نداری"
+          description="یه نماینده بساز تا با قیمت اختصاصی خودش بفروشه."
         />
       ) : (
         <Card className="overflow-hidden">

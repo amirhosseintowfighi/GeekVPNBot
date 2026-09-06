@@ -266,7 +266,7 @@ function CampaignDialog({
         <DialogHeader>
           <DialogTitle>{'کمپین جدید'}</DialogTitle>
           <DialogDescription>
-            {'کمپین متوقف ساخته می‌شود. بعد از بررسی، از همین جدول فعالش کنید.'}
+            {'کمپین متوقف ساخته می‌شه. بعد از بررسی، از همین جدول فعالش کن.'}
           </DialogDescription>
         </DialogHeader>
 

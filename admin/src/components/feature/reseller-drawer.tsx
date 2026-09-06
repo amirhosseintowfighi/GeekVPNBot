@@ -100,7 +100,7 @@ export function ResellerDrawer({
           </DialogTitle>
           <DialogDescription>
             {reseller.inArrears
-              ? 'موجودی منفی است، بنابراین سرویس تمام مشتریان این نماینده غیرفعال شده و با مثبت شدن موجودی خودکار برمی‌گردد.'
+              ? 'موجودی منفیه، برای همین سرویس همهٔ مشتری‌های این نماینده غیرفعال شده و با مثبت شدن موجودی خودکار برمی‌گرده.'
               : `موجودی ${toman(reseller.balance)} — تخفیف ${faNumber(reseller.discountPercent)}٪`}
           </DialogDescription>
         </DialogHeader>
@@ -236,7 +236,7 @@ function CreditTab({
               placeholder="1000000"
             />
           </Field>
-          <Field label="بابت" hint="روی دفتر اعتبار ثبت می‌شود">
+          <Field label="بابت" hint="روی دفتر اعتبار ثبت می‌شه">
             <Input value={note} onChange={(event) => setNote(event.target.value)} />
           </Field>
           <Button
@@ -322,8 +322,8 @@ function PricesTab({
   return (
     <div className="space-y-3 pt-4">
       <p className="text-sm text-muted-foreground">
-        ستون «قیمت خرید» را شما تعیین می‌کنید و ستون «قیمت فروش» را نماینده. هر کدام
-        جداگانه ذخیره می‌شود.
+        ستون «قیمت خرید» رو تو تعیین می‌کنی و ستون «قیمت فروش» رو نماینده. هر کدوم
+        جداگانه ذخیره می‌شه.
       </p>
       <div className="max-h-80 overflow-y-auto rounded-md border">
         <table className="w-full text-sm">
@@ -480,7 +480,7 @@ function SettingsTab({
       </Field>
       <Field
         label="تعلیق"
-        hint="فروش جدید متوقف می‌شود. سرویس‌های فعلی مشتریانش دست‌نخورده می‌مانند."
+        hint="فروش جدید متوقف می‌شه. سرویس‌های فعلی مشتری‌هاش دست‌نخورده می‌مونن."
       >
         <Switch
           checked={status === 'suspended'}
@@ -544,8 +544,8 @@ function CardsTab({ resellerId, writable }: { resellerId: string; writable: bool
   return (
     <div className="space-y-4 pt-4">
       <p className="text-sm text-muted-foreground">
-        مشتری این نماینده به این کارت‌ها واریز می‌کند، نه به کارت شما. اگر هیچ
-        کارتی ثبت نشود، کارت‌به‌کارت در ربات این نماینده نمایش داده نمی‌شود.
+        مشتری این نماینده به این کارت‌ها واریز می‌کنه، نه به کارت تو. اگه هیچ
+        کارتی ثبت نشه، کارت‌به‌کارت تو ربات این نماینده نشون داده نمی‌شه.
       </p>
 
       {!data?.length ? (
@@ -631,8 +631,8 @@ function BotTab({
   return (
     <div className="space-y-4 pt-4">
       <p className="text-sm text-muted-foreground">
-        مشتریان این نماینده با ربات خودش و با قیمت‌های خودش خرید می‌کنند. توکن
-        را از <span dir="ltr">@BotFather</span> بگیرید.
+        مشتری‌های این نماینده با ربات خودش و با قیمت‌های خودش خرید می‌کنن. توکن
+        رو از <span dir="ltr">@BotFather</span> بگیر.
       </p>
 
       <div className="rounded-md border p-3 text-sm">
@@ -651,7 +651,7 @@ function BotTab({
           {/* The reseller can do this themselves from their own panel. It is
               here too because a new one always asks support to do it while
               they work out where anything is. */}
-          <Field label="توکن ربات" hint="ذخیره می‌شود ولی هرگز دوباره نمایش داده نمی‌شود">
+          <Field label="توکن ربات" hint="ذخیره می‌شه ولی هیچ‌وقت دوباره نشون داده نمی‌شه">
             <Input
               dir="ltr"
               value={token}
@@ -718,8 +718,8 @@ function CryptoTab({ resellerId, writable }: { resellerId: string; writable: boo
     <div className="mt-6 space-y-4 border-t pt-4">
       <div className="text-sm font-medium">آدرس‌های رمزارز</div>
       <p className="text-sm text-muted-foreground">
-        اگر هیچ آدرسی ثبت نشود، گزینهٔ رمزارز در ربات این نماینده نمایش داده
-        نمی‌شود — همان قاعدهٔ کارت‌ها.
+        اگه هیچ آدرسی ثبت نشه، گزینهٔ رمزارز تو ربات این نماینده نشون داده
+        نمی‌شه — همون قاعدهٔ کارت‌ها.
       </p>
 
       {!data?.length ? (

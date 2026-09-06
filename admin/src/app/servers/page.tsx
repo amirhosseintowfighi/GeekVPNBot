@@ -31,7 +31,7 @@ import { Progress, usageTone } from '@/components/ui/primitives'
  * maintenance must not destroy its history or its bound plans.
  */
 const CONFIRM_DELETE =
-  'این سرور حذف شود؟ اگر اشتراک فعالی روی آن باشد، حذف انجام نمی‌شود.'
+  'این سرور حذف شه؟ اگه اشتراک فعالی روش باشه، حذف انجام نمی‌شه.'
 
 const DELETE_FAILED = 'حذف سرور انجام نشد.'
 

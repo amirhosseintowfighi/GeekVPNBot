@@ -76,7 +76,7 @@ export default function PortalPage() {
     <div className="space-y-6">
       <PageHeader
         title={me.nameFa}
-        description={`تخفیف شما روی همهٔ پلن‌ها: ${faNumber(me.discountPercent)}٪`}
+        description={`تخفیفت روی همهٔ پلن‌ها: ${faNumber(me.discountPercent)}٪`}
       />
 
       <Card className="p-4">
@@ -88,8 +88,8 @@ export default function PortalPage() {
         </div>
         {me.inArrears ? (
           <p className="mt-2 text-sm text-destructive">
-            موجودی منفی است، بنابراین سرویس مشتریان شما تا تسویه غیرفعال شده و
-            بلافاصله بعد از مثبت شدن موجودی برمی‌گردد.
+            موجودی منفیه، برای همین سرویس مشتری‌هات تا تسویه غیرفعال شده و
+            بلافاصله بعد از مثبت شدن موجودی برمی‌گرده.
           </p>
         ) : null}
       </Card>
@@ -162,7 +162,7 @@ function BotCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void })
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-center gap-2 text-sm font-medium">
-        ربات اختصاصی شما
+        ربات اختصاصی خودت
         {me.hasBot ? (
           <Badge variant="success">{me.botUsername ?? 'فعال'}</Badge>
         ) : (
@@ -170,12 +170,12 @@ function BotCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void })
         )}
       </div>
       <p className="text-sm text-muted-foreground">
-        از <span dir="ltr">@BotFather</span> یک ربات بسازید و توکنش را اینجا وارد
-        کنید. مشتریان شما با همان ربات و با قیمت‌های شما خرید می‌کنند.
+        از <span dir="ltr">@BotFather</span> یه ربات بساز و توکنش رو اینجا وارد
+        کن. مشتری‌هات با همون ربات و با قیمت‌های خودت خرید می‌کنن.
       </p>
       {/* In the panel and never in a chat: a bot token is a full credential,
           and one typed into Telegram is in somebody's message history forever. */}
-      <Field label="توکن ربات" hint="فقط اینجا وارد کنید، هرگز در چت">
+      <Field label="توکن ربات" hint="فقط اینجا واردش کن، هیچ‌وقت تو چت">
         <Input
           dir="ltr"
           value={token}
@@ -234,10 +234,10 @@ function PricesCard({
 
   return (
     <Card className="space-y-3 p-4">
-      <div className="text-sm font-medium">قیمت‌های شما</div>
+      <div className="text-sm font-medium">قیمت‌های تو</div>
       <p className="text-sm text-muted-foreground">
-        «قیمت خرید» چیزی است که از ما می‌خرید. «قیمت فروش» را خودتان تعیین
-        می‌کنید — هر عددی که بخواهید.
+        «قیمت خرید» همونیه که از ما می‌خری. «قیمت فروش» رو خودت تعیین
+        می‌کنی — هر عددی که دلت خواست.
       </p>
       <div className="max-h-96 overflow-y-auto rounded-md border">
         <table className="w-full text-sm">
@@ -332,8 +332,8 @@ function TopupCard({
     <Card className="space-y-3 p-4">
       <div className="text-sm font-medium">شارژ حساب</div>
       <p className="text-sm text-muted-foreground">
-        مبلغ را واریز کنید و اینجا ثبتش کنید. بعد از تأیید، اعتبارتان بالا
-        می‌رود و می‌توانید سرویس بسازید.
+        مبلغ رو واریز کن و اینجا ثبتش کن. بعد از تأیید، اعتبارت بالا
+        می‌ره و می‌تونی سرویس بسازی.
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <Field label="مبلغ" hint="حداقل ۱۰٬۰۰۰ تومان">
@@ -345,7 +345,7 @@ function TopupCard({
             placeholder="1000000"
           />
         </Field>
-        <Field label="توضیح" hint="شماره پیگیری یا چهار رقم آخر کارتی که از آن فرستادید">
+        <Field label="توضیح" hint="شماره پیگیری یا چهار رقم آخر کارتی که ازش فرستادی">
           <Input value={note} onChange={(event) => setNote(event.target.value)} />
         </Field>
         <Button disabled={!valid || busy} onClick={() => void submit()}>
@@ -384,7 +384,7 @@ function SummaryCards({ summary }: { summary: ResellerSummary }) {
   // else's numbers.
   const cards = [
     { label: 'تعداد فروش', value: faNumber(summary.sales) },
-    { label: 'مجموع خرید شما', value: toman(summary.spent) },
+    { label: 'مجموع خرید تو', value: toman(summary.spent) },
     { label: 'مجموع شارژ', value: toman(summary.toppedUp) },
     { label: 'میانگین هر فروش', value: toman(summary.averageSale) },
   ]
@@ -422,10 +422,10 @@ function BrandCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void 
 
   return (
     <Card className="space-y-3 p-4">
-      <div className="text-sm font-medium">نام کسب‌وکار شما</div>
+      <div className="text-sm font-medium">نام کسب‌وکارت</div>
       <p className="text-sm text-muted-foreground">
-        رباتتان با همین نام به مشتریانتان سلام می‌کند و در پیام دعوت دوستان هم
-        همین می‌آید.
+        رباتت با همین اسم به مشتری‌هات سلام می‌کنه و تو پیام دعوت دوستان هم
+        همین میاد.
       </p>
       <Field label="نام" hint="خالی بگذارید تا نام نمایندگی‌تان استفاده شود">
         <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
@@ -462,7 +462,7 @@ function CustomersCard({ customers }: { customers: ResellerCustomers | undefined
   return (
     <Card className="space-y-4 p-4">
       <div className="text-sm font-medium">
-        مشتریان شما
+        مشتری‌های تو
         {customers ? (
           <span className="ms-2 text-muted-foreground">({faNumber(customers.total)})</span>
         ) : null}
@@ -488,8 +488,8 @@ function CustomersCard({ customers }: { customers: ResellerCustomers | undefined
       <div className="space-y-2 border-t pt-3">
         <div className="text-sm font-medium">پیام همگانی</div>
         <p className="text-sm text-muted-foreground">
-          به همهٔ مشتریانتان، از ربات خودتان. کسانی که ربات را بلاک کرده‌اند
-          شمرده می‌شوند ولی جلوی بقیه را نمی‌گیرند.
+          به همهٔ مشتری‌هات، از ربات خودت. کسایی که ربات رو بلاک کردن
+          شمرده می‌شن ولی جلوی بقیه رو نمی‌گیرن.
         </p>
         <textarea
           className="min-h-24 w-full rounded-md border bg-transparent p-2 text-sm"
@@ -546,10 +546,10 @@ function TextsCard() {
 
   return (
     <Card className="space-y-4 p-4">
-      <div className="text-sm font-medium">متن‌های ربات شما</div>
+      <div className="text-sm font-medium">متن‌های ربات تو</div>
       <p className="text-sm text-muted-foreground">
-        هر کدام را خالی بگذارید، متن پیش‌فرض استفاده می‌شود. اگر متنی عبارت‌هایی
-        مثل <code dir="ltr">{'{brand}'}</code> دارد، باید در نوشتهٔ شما هم بماند.
+        هر کدوم رو خالی بذاری، متن پیش‌فرض می‌ره. اگه متنی عبارت‌هایی
+        مثل <code dir="ltr">{'{brand}'}</code> داره، باید تو نوشتهٔ تو هم بمونه.
       </p>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
@@ -559,7 +559,7 @@ function TextsCard() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{row.labelFa}</span>
               {row.bodyFa ? (
-                <Badge variant="success">متن شما</Badge>
+                <Badge variant="success">متن تو</Badge>
               ) : (
                 <Badge variant="muted">پیش‌فرض</Badge>
               )}

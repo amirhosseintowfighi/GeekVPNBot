@@ -98,11 +98,11 @@ export function NewResellerDialog({
           <DialogHeader>
             <DialogTitle>نماینده ساخته شد</DialogTitle>
             <DialogDescription>
-              با این نام کاربری و رمز، از همین آدرس وارد پنل می‌شوند و فقط بخش
-              نمایندگی خودشان را می‌بینند.
+              با این نام کاربری و رمز، از همین آدرس وارد پنل می‌شن و فقط بخش
+              نمایندگی خودشون رو می‌بینن.
               <br />
-              این رمز فقط همین یک بار نمایش داده می‌شود؛ اگر بدون کپی کردن ببندید،
-              راهی برای دیدن دوباره‌اش نیست و باید حساب را بازنشانی کنید.
+              این رمز فقط همین یک بار نشون داده می‌شه؛ اگه بدون کپی کردن ببندی،
+              راهی برای دیدن دوباره‌اش نیست و باید حساب رو بازنشانی کنی.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
@@ -143,7 +143,7 @@ export function NewResellerDialog({
         <DialogHeader>
           <DialogTitle>نماینده جدید</DialogTitle>
           <DialogDescription>
-            یک حساب ورود و یک پرونده‌ی نمایندگی با هم ساخته می‌شوند.
+            یک حساب ورود و یک پروندهٔ نمایندگی با هم ساخته می‌شن.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
@@ -164,7 +164,7 @@ export function NewResellerDialog({
           </Field>
           <Field
             label="درصد تخفیف"
-            hint="روی قیمت هر پلن اعمال می‌شود. حداکثر ۹۰ — پلنی که برای نماینده رایگان تمام شود، اشتباه است."
+            hint="روی قیمت هر پلن اعمال می‌شه. حداکثر ۹۰ — پلنی که برای نماینده رایگان دربیاد، اشتباهه."
           >
             <Input
               dir="ltr"
@@ -173,7 +173,7 @@ export function NewResellerDialog({
               onChange={(event) => setDiscount(event.target.value)}
             />
           </Field>
-          <Field label="راه تماس" hint="اختیاری — شماره، آیدی تلگرام، هرچه لازم دارید">
+          <Field label="راه تماس" hint="اختیاری — شماره، آیدی تلگرام، هرچی لازم داری">
             <Input value={contact} onChange={(event) => setContact(event.target.value)} />
           </Field>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}

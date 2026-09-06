@@ -204,7 +204,7 @@ export function NodeDialog({
         <DialogHeader>
           <DialogTitle>{editing ? 'ویرایش سرور' : 'سرور جدید'}</DialogTitle>
           <DialogDescription>
-            {'اعتبارنامه‌ی پنل رمزنگاری‌شده ذخیره می‌شود. بعد از ساخت، اتصال را تست کنید.'}
+            {'اعتبارنامهٔ پنل رمزنگاری‌شده ذخیره می‌شه. بعد از ساخت، اتصال رو تست کن.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -249,7 +249,7 @@ export function NodeDialog({
 
           <Field
             label={'آدرس پنل'}
-            hint={'فقط ریشه، بدون مسیر. «/dashboard» صفحه‌ای است که خودتان می‌بینید، نه ریشه‌ی API.'}
+            hint={'فقط ریشه، بدون مسیر. «/dashboard» صفحه‌ایه که خودت می‌بینی، نه ریشهٔ API.'}
           >
             <Input
               ltr
@@ -309,7 +309,7 @@ export function NodeDialog({
             <span className="text-xs">
               {'بررسی گواهی TLS'}
               <span className="block text-2xs text-muted-foreground">
-                {'فقط برای پنلی با گواهی self-signed خاموش کنید'}
+                {'فقط برای پنلی با گواهی self-signed خاموشش کن'}
               </span>
             </span>
             <Switch checked={verifyTls} onCheckedChange={setVerifyTls} />
@@ -360,7 +360,7 @@ export function NodeDialog({
                     })}
                   </div>
                   <p className="text-2xs text-muted-foreground">
-                    {'اکانت‌های ساخته‌شده روی این سرور به گروه‌های انتخاب‌شده اضافه می‌شوند. اگر هیچ‌کدام انتخاب نشود، پیش‌فرض خود پنل اعمال می‌شود.'}
+                    {'اکانت‌های ساخته‌شده روی این سرور به گروه‌های انتخاب‌شده اضافه می‌شن. اگه هیچ‌کدوم انتخاب نشه، پیش‌فرض خود پنل اعمال می‌شه.'}
                   </p>
                 </>
               ) : null}

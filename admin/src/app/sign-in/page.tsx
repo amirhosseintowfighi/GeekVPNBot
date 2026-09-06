@@ -56,7 +56,7 @@ export default function SignInPage() {
         <CardHeader>
           <CardTitle>{'ورود به پنل'}</CardTitle>
           <CardDescription>
-            {'برای ادامه، وارد حساب مدیریتی خود شوید.'}
+            {'برای ادامه، وارد حساب مدیریتیت شو.'}
           </CardDescription>
         </CardHeader>
 

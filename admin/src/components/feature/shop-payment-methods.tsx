@@ -66,10 +66,10 @@ export function ShopPaymentMethodsCard() {
 
   return (
     <Card className="space-y-4 p-4">
-      <div className="text-sm font-medium">روش‌های پرداخت شما</div>
+      <div className="text-sm font-medium">روش‌های پرداخت تو</div>
       <p className="text-sm text-muted-foreground">
-        مشتریان شما به این‌ها پرداخت می‌کنند، نه به حساب‌های ما. فقط همان‌هایی
-        که ثبت کرده‌اید در ربات شما نشان داده می‌شوند.
+        مشتری‌های تو به این‌ها پرداخت می‌کنن، نه به حساب‌های ما. فقط همون‌هایی
+        که ثبت کردی تو ربات خودت نشون داده می‌شن.
       </p>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 

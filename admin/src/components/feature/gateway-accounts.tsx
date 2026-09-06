@@ -71,8 +71,8 @@ export function GatewayAccounts({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        درگاه بانکی. اگر هیچ‌کدام فعال نباشد، گزینه‌اش در ربات نمایش داده
-        نمی‌شود — همان قاعدهٔ کارت و رمزارز.
+        درگاه بانکی. اگه هیچ‌کدوم فعال نباشه، گزینه‌اش تو ربات نشون داده
+        نمی‌شه — همون قاعدهٔ کارت و رمزارز.
       </p>
 
       {!data?.length ? (

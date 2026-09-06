@@ -80,7 +80,7 @@ export default function WalletPage() {
       <PageHeader
         title={'کیف پول'}
         description={
-          balance ? 'موجودی: ' + toman(balance.balance) : 'شناسهٔ تلگرام کاربر را وارد کنید'
+          balance ? 'موجودی: ' + toman(balance.balance) : 'شناسهٔ تلگرام کاربر رو وارد کن'
         }
       />
 
@@ -112,7 +112,7 @@ export default function WalletPage() {
         {!userId ? (
           <EmptyState
             title={'کاربری انتخاب نشده'}
-            description={'برای دیدن دفتر کیف پول، شناسهٔ تلگرام کاربر را وارد کنید.'}
+            description={'برای دیدن دفتر کیف پول، شناسهٔ تلگرام کاربر رو وارد کن.'}
           />
         ) : error ? (
           <ErrorState

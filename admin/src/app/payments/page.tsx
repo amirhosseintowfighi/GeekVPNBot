@@ -106,11 +106,11 @@ export default function PaymentsPage() {
           <SkeletonTable rows={5} cols={5} />
         ) : rows.length === 0 ? (
           <EmptyState
-            title={'صف خالی است'}
+            title={'صف خالیه'}
             description={
               tab === 'pending_review'
-                ? 'هر رسیدی که مشتری بفرستد همین‌جا می‌نشیند تا تأییدش کنید.'
-                : 'پرداختی هست که مشتری هنوز رسیدش را نفرستاده باشد، اینجا دیده می‌شود.'
+                ? 'هر رسیدی که مشتری بفرسته میاد همین‌جا تا تأییدش کنی.'
+                : 'اگه پرداختی باشه که مشتری هنوز رسیدش رو نفرستاده، همین‌جا می‌بینیش.'
             }
           />
         ) : (
@@ -262,8 +262,8 @@ function ReviewDialog({
           <DialogTitle>{rejecting ? 'رد پرداخت' : 'تأیید پرداخت'}</DialogTitle>
           <DialogDescription>
             {rejecting
-              ? 'دلیل را مشتری در ربات می‌خواند. مشخص بنویسید.'
-              : 'با تأیید، سفارش پرداخت‌شده می‌شود و ساخت اکانت آغاز می‌شود.'}
+              ? 'این دلیل رو مشتری تو ربات می‌خونه. واضح بنویس.'
+              : 'با تأیید، سفارش پرداخت‌شده می‌شه و ساخت اکانت شروع می‌شه.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -287,12 +287,12 @@ function ReviewDialog({
             </a>
           ) : (
             <p className="rounded-md border border-border px-3 py-2 text-2xs text-muted-foreground">
-              {'برای این پرداخت رسیدی ثبت نشده است.'}
+              {'برای این پرداخت رسیدی ثبت نشده.'}
             </p>
           )}
 
           {rejecting ? (
-            <Field label={'دلیل رد'} hint={'برای مشتری فرستاده می‌شود'}>
+            <Field label={'دلیل رد'} hint={'برای مشتری فرستاده می‌شه'}>
               <Textarea
                 rows={3}
                 value={reason}
@@ -303,7 +303,7 @@ function ReviewDialog({
           ) : (
             <Field
               label={'مبلغ واریزشده (تومان)'}
-              hint={'اگر مشتری مبلغ دیگری واریز کرده، همان را وارد کنید'}
+              hint={'اگه مشتری مبلغ دیگه‌ای واریز کرده، همون رو وارد کن'}
             >
               <Input
                 ltr
