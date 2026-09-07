@@ -103,33 +103,52 @@ def test_the_menu_is_coloured_at_all() -> None:
         if button.style is not None
     ]
 
-    assert len(coloured) >= 5
+    assert coloured
 
 
-def test_buying_is_the_first_coloured_thing() -> None:
-    """Whatever else moves around, the shop stays the one a customer's eye
-    lands on first."""
+def test_buying_is_the_only_green_thing() -> None:
+    """The bug this replaced: the shop was blue while the wallet and the
+    referral programme were green, so the loudest buttons on the customer's
+    permanent keyboard were the two features they had not come for.
+
+    Green means "the thing this screen exists for" everywhere else in the
+    module. Here that is the shop, and nothing else."""
+    green = [
+        button.text
+        for row in K.main_menu().keyboard
+        for button in row
+        if button.style == "success"
+    ]
+
+    assert green == [K.TAP_SHOP]
+
+
+def test_the_shop_gets_the_whole_first_row() -> None:
+    """The only reason to make something full width is that it matters more
+    than anything that would sit beside it. That was given to the reseller
+    programme, which almost nobody taps."""
     first_row = K.main_menu().keyboard[0]
 
-    assert first_row[0].text == K.TAP_SHOP
-    assert first_row[0].style == "primary"
+    assert [button.text for button in first_row] == [K.TAP_SHOP]
 
 
-def test_the_help_row_does_not_compete() -> None:
+def test_the_ancillary_buttons_do_not_compete() -> None:
     """Profile, FAQ and settings are where somebody goes when something is
     already wrong. Colouring them puts them in the same visual rank as buying,
-    which is what a wall of uniform colour does - it stops meaning anything.
-
-    So the rule is not "few coloured buttons", it is "one row that is not".
-    """
-    last_row = K.main_menu().keyboard[-1]
-
-    assert {button.text for button in last_row} == {
-        K.TAP_PROFILE,
-        K.TAP_FAQ,
-        K.TAP_SETTINGS,
+    which is what a wall of uniform colour does - it stops meaning anything."""
+    quiet = {
+        button.text
+        for row in K.main_menu().keyboard
+        for button in row
+        if button.style is None
     }
-    assert all(button.style is None for button in last_row)
+
+    assert {K.TAP_PROFILE, K.TAP_FAQ, K.TAP_SETTINGS, K.TAP_STATUS} <= quiet
+
+
+def test_no_row_is_wider_than_three() -> None:
+    """Persian labels ellipsise past three columns on a narrow phone."""
+    assert all(len(row) <= 3 for row in K.main_menu().keyboard)
 
 
 def test_only_the_three_known_colours_are_used() -> None:

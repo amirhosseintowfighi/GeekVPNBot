@@ -13,6 +13,13 @@ chosen once and applied everywhere:
 That gives a consistent, learnable geometry instead of a keyboard that looks
 mirrored on some screens and not others.
 
+The persistent keyboard in `main_menu` is the one exception, and deliberately.
+Layout direction is not the same question as where a reader's eye starts: a
+Persian speaker scanning a two-button row begins on the right, so the
+more-used of a pair goes *second* there. It reads as backwards in the source
+and correct on the phone, which is why it is written down here rather than
+left for the next person to "fix".
+
 Width: three columns is the practical maximum before Persian labels get
 ellipsised on a narrow phone. Most menus use two.
 """
@@ -151,44 +158,56 @@ def main_menu() -> ReplyKeyboardMarkup:
     """The persistent reply keyboard.
 
     A reply keyboard rather than an inline one because it survives scrolling
-    and is always one tap away -- which matters for a bot that is someone's
+    and is always one tap away - which matters for a bot that is someone's
     only interface to a service they paid for.
 
-    Ordering within each row puts the more-used action first (leftmost),
-    matching the inline convention above.
+    Two things were wrong with the previous layout, and both showed up the
+    moment anybody looked at it on a phone.
+
+    **The colour said the opposite of what it meant.** Everywhere else in this
+    module green is "the thing this screen exists for" and blue is "a way
+    further in". Here the buy button was blue while the wallet and the referral
+    programme were green, so the loudest things on the customer's permanent
+    keyboard were the two features they had not come for, and the one that
+    takes their money looked like a navigation link.
+
+    **The grid had no shape.** Rows of 2/2/2/1/3, with the single full-width
+    row - the widest, most prominent element on the screen - given to the
+    reseller programme, which almost nobody taps.
+
+    So: one green button, and it is the shop. Full width, first row, because
+    the only reason to make something full width is that it matters more than
+    everything beside it. Then the two screens a paying customer opens daily,
+    then the rest, plain.
+
+    Ordering inside a row: Telegram lays buttons out left to right whatever the
+    UI language, but a Persian reader's eye still starts on the right. So the
+    more-used of a pair goes *second* in the call - which reads as backwards
+    here and correct on the phone.
     """
     builder = ReplyKeyboardBuilder()
-    # Coloured top to bottom in descending order of what a customer came for.
-    # Only two were coloured before, on the reasoning that colouring all nine
-    # says nothing - but nine buttons in one uniform grey say nothing either,
-    # and this keyboard is on screen permanently, under every message.
-    #
-    # The bottom row stays plain on purpose: profile, help and settings are
-    # where a customer goes when something is already wrong, and they are the
-    # one part of this keyboard that should not compete.
-    #
-    # Requires Bot API 9.4 - older clients render the same buttons uncoloured
-    # rather than failing.
+    # The one green button on the keyboard, and the one reason the bot exists.
+    builder.row(KeyboardButton(text=TAP_SHOP, style=ButtonStyle.SUCCESS))
+    # What somebody who has already bought opens: their services, their money.
     builder.row(
-        KeyboardButton(text=TAP_SHOP, style=ButtonStyle.PRIMARY),
+        KeyboardButton(text=TAP_WALLET, style=ButtonStyle.PRIMARY),
         KeyboardButton(text=TAP_DASHBOARD, style=ButtonStyle.PRIMARY),
     )
+    # Offers and help. Plain: they should be findable, not competing with the
+    # row above for a customer who came to top up.
     builder.row(
-        KeyboardButton(text=TAP_WALLET, style=ButtonStyle.SUCCESS),
-        KeyboardButton(text=TAP_REFERRAL, style=ButtonStyle.SUCCESS),
+        KeyboardButton(text=TAP_SUPPORT),
+        KeyboardButton(text=TAP_REFERRAL),
     )
+    # Everything a customer opens once and rarely again.
     builder.row(
-        KeyboardButton(text=TAP_SUPPORT, style=ButtonStyle.PRIMARY),
-        KeyboardButton(text=TAP_STATUS),
-    )
-    # Green, and its own row. It is the only button here that is not about the
-    # customer's own service - it is an offer, and one that pays for itself the
-    # first time somebody takes it.
-    builder.row(KeyboardButton(text=TAP_RESELLER, style=ButtonStyle.SUCCESS))
-    builder.row(
-        KeyboardButton(text=TAP_PROFILE),
-        KeyboardButton(text=TAP_FAQ),
         KeyboardButton(text=TAP_SETTINGS),
+        KeyboardButton(text=TAP_FAQ),
+        KeyboardButton(text=TAP_PROFILE),
+    )
+    builder.row(
+        KeyboardButton(text=TAP_RESELLER),
+        KeyboardButton(text=TAP_STATUS),
     )
     return builder.as_markup(
         resize_keyboard=True,
