@@ -98,7 +98,14 @@ class AtlasPayGateway:
 
     base_url: str = BASE_URL
     key: str = "atlaspay"
-    title_fa: str = "کارت به کارت خودکار"
+    #: Names the difference a customer can act on, not the mechanism.
+    #:
+    #: "کارت به کارت خودکار" sat directly under the manual "کارت به کارت" and
+    #: read as a duplicate of it - the operator who configured this provider
+    #: looked at their own bot and reported the button missing. The thing that
+    #: is actually different is the wait: seconds here, up to half an hour
+    #: through the review queue.
+    title_fa: str = "کارت به کارت (تأیید فوری)"
     method: PaymentMethod = PaymentMethod.GATEWAY
     capabilities: GatewayCapabilities = field(default_factory=lambda: CAPABILITIES)
 
