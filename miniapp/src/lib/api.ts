@@ -18,7 +18,9 @@ import type {
   CouponPreview,
   CryptoPaymentDetails,
   FaqSection,
+  GatewayScreen,
   NotificationPreferences,
+  PaymentMethodOption,
   PendingPayment,
   ProfileSummary,
   Quote,
@@ -144,6 +146,16 @@ export const api = {
       coupon_code: couponCode,
     }),
 
+  /** Card and crypto used to be constants here. They are not. */
+  paymentMethods: () => request<PaymentMethodOption[]>('/api/miniapp/payment-methods'),
+
+  beginGatewayPayment: (planId: string, gatewayKey: string, couponCode?: string) =>
+    post<GatewayScreen>('/api/miniapp/checkout/gateway', {
+      plan_id: planId,
+      gateway_key: gatewayKey,
+      coupon_code: couponCode,
+    }),
+
   beginCryptoPayment: (planId: string, couponCode?: string) =>
     post<CryptoPaymentDetails>('/api/miniapp/checkout/crypto', {
       plan_id: planId,
@@ -197,8 +209,8 @@ export const api = {
     ),
 
   // Same shape as the checkout calls above, and the same trap.
-  beginTopup: (amount: number, method: 'card' | 'crypto') =>
-    post<CardPaymentDetails | CryptoPaymentDetails>('/api/miniapp/wallet/topup', {
+  beginTopup: (amount: number, method: string) =>
+    post<CardPaymentDetails | CryptoPaymentDetails | GatewayScreen>('/api/miniapp/wallet/topup', {
       amount,
       method,
     }),

@@ -21,6 +21,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
+    GatewayScreen,
     WalletSnapshot,
 )
 from geekvpn.application.bot.services import BotServices
@@ -85,17 +86,20 @@ def _preset_keyboard() -> InlineKeyboardMarkup:
     return builder
 
 
-def _method_keyboard() -> InlineKeyboardMarkup:
-    # The same colours as the purchase screen's methods. A customer topping up
-    # and a customer buying are looking at the same two choices, and the bot
-    # should not paint them differently depending on which door they came in.
-    return K.stack(
-        [
-            [K.btn(T.PAY_CARD, WalletCB(action="m_card", ref="-"), style=K.GO)],
-            [K.btn(T.PAY_CRYPTO, WalletCB(action="m_crypto", ref="-"), style=K.GO)],
-            [K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)],
-        ]
-    )
+def _method_keyboard(methods: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    """Whatever this shop can take money by - asked, not assumed.
+
+    It used to be two hardcoded buttons, card and crypto, so this screen was
+    the one place a configured gateway could never appear: the purchase screen
+    had been made registry-driven and this one was missed. It also offered
+    crypto to shops that had no address registered, which ended in an apology.
+    """
+    rows: list[list[Any]] = [
+        [K.btn(label, WalletCB(action="method", ref=key), style=K.GO)]
+        for key, label in methods
+    ]
+    rows.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
+    return K.stack(rows)
 
 
 async def _snapshot(services: BotServices, user: Any) -> WalletSnapshot:
@@ -146,16 +150,24 @@ async def on_topup(query: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(WalletCB.filter(F.action == "amount"))
-async def on_preset(query: CallbackQuery, callback_data: WalletCB, state: FSMContext) -> None:
+async def on_preset(
+    query: CallbackQuery, callback_data: WalletCB, state: FSMContext, services: BotServices
+) -> None:
     await toast(query)
     await state.update_data(amount=int(callback_data.ref))
     await state.set_state(Wallet.choosing_method)
     body = f"{T.PAY_CHOOSE}\n\n{T.LBL_TOTAL}: <b>{toman(int(callback_data.ref))}</b>"
-    await safe_edit(query, body, markup=_method_keyboard())
+    methods = await services.checkout.methods()
+    if not methods:
+        await safe_edit(query, T.PAY_NO_METHODS, markup=K.single(K.home_button()))
+        return
+    await safe_edit(query, body, markup=_method_keyboard(methods))
 
 
 @router.message(Wallet.entering_amount, F.text)
-async def on_amount_text(message: Message, state: FSMContext) -> None:
+async def on_amount_text(
+    message: Message, state: FSMContext, services: BotServices
+) -> None:
     """Parse a typed amount.
 
     `normalize_input` folds Persian/Arabic digits to ASCII; we then strip
@@ -180,7 +192,11 @@ async def on_amount_text(message: Message, state: FSMContext) -> None:
     await state.update_data(amount=amount)
     await state.set_state(Wallet.choosing_method)
     body = f"{T.PAY_CHOOSE}\n\n{T.LBL_TOTAL}: <b>{toman(amount)}</b>"
-    await answer(message, body, reply_markup=_method_keyboard())
+    methods = await services.checkout.methods()
+    if not methods:
+        await answer(message, T.PAY_NO_METHODS, reply_markup=K.main_menu())
+        return
+    await answer(message, body, reply_markup=_method_keyboard(methods))
 
 
 async def _begin_topup(
@@ -203,14 +219,24 @@ async def _begin_topup(
         await safe_edit(query, customer_message(failure), markup=K.single(K.home_button()))
         return
 
+    if isinstance(details, GatewayScreen):
+        # An online provider draws its own screen and settles by itself, so
+        # there is no receipt to wait for and no state to keep.
+        await state.clear()
+        rows = [[K.url_btn(T.BTN_PAY_ONLINE, details.url)]] if details.url else []
+        await safe_edit(
+            query,
+            details.body_fa or T.PAY_GATEWAY_READY,
+            markup=K.stack(rows, home=True),
+        )
+        return
+
     payment = details.payment
     if payment is None:
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return
     await state.update_data(payment_id=str(payment.payment_id))
 
-    # The port returns one of exactly two shapes, so there is no third branch
-    # to guard: a new payment method would fail the type check here first.
     if isinstance(details, CardPaymentDetails):
         await state.set_state(Wallet.awaiting_receipt)
         body = _card_body(details, amount=payment.amount)
@@ -226,22 +252,17 @@ async def _begin_topup(
     await safe_edit(query, body, markup=markup)
 
 
-@router.callback_query(WalletCB.filter(F.action == "m_card"))
-async def on_topup_card(
-    query: CallbackQuery, state: FSMContext, services: BotServices, user: Any = None
+@router.callback_query(WalletCB.filter(F.action == "method"))
+async def on_topup_method(
+    query: CallbackQuery,
+    callback_data: WalletCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
 ) -> None:
     await toast(query)
     if user is not None:
-        await _begin_topup(query, state, services, user, "card")
-
-
-@router.callback_query(WalletCB.filter(F.action == "m_crypto"))
-async def on_topup_crypto(
-    query: CallbackQuery, state: FSMContext, services: BotServices, user: Any = None
-) -> None:
-    await toast(query)
-    if user is not None:
-        await _begin_topup(query, state, services, user, "crypto")
+        await _begin_topup(query, state, services, user, callback_data.ref)
 
 
 @router.message(Wallet.awaiting_receipt, F.photo)

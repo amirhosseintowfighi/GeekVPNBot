@@ -205,3 +205,11 @@ export function truncate(value: string, limit: number): string {
   if (value.length <= limit) return value
   return value.slice(0, Math.max(0, limit - 1)) + '\u2026'
 }
+
+/**
+ * Instructions arrive formatted for Telegram, which renders HTML. This app
+ * renders text, so the tags come out.
+ */
+export function plainText(html: string): string {
+  return html.replace(/<[^>]+>/g, '')
+}

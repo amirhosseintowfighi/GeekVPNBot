@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { CreditCard, Bitcoin, Tag, Wallet as WalletIcon, X } from 'lucide-react'
+import { CreditCard, Bitcoin, Landmark, Tag, Wallet as WalletIcon, X } from 'lucide-react'
 
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState } from '@/components/shell/states'
@@ -14,11 +14,34 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { api, ApiError, fetcher } from '@/lib/api'
-import { faDuration, gib, normalizeInput, toman } from '@/lib/fa'
-import { haptic } from '@/lib/telegram'
-import type { Quote, Storefront, WalletSnapshot } from '@/lib/types'
+import { faDuration, gib, normalizeInput, plainText, toman } from '@/lib/fa'
+import { haptic, openLink } from '@/lib/telegram'
+import type {
+  GatewayScreen,
+  PaymentMethodOption,
+  Quote,
+  Storefront,
+  WalletSnapshot,
+} from '@/lib/types'
 
-type Method = 'wallet' | 'card' | 'crypto'
+/**
+ * The wallet is ours; everything else is whatever the shop configured. The
+ * three were a union of literals and the screen drew them as constants, with
+ * a line promising a bank gateway "soon" - so a shop that had configured one
+ * still had no way to be paid through it.
+ */
+type Method = 'wallet' | string
+
+const METHOD_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  card: CreditCard,
+  crypto: Bitcoin,
+}
+
+const METHOD_NOTE: Record<string, string> = {
+  card: 'پس از ارسال رسید، توسط پشتیبانی بررسی می‌شود',
+  crypto: 'پس از ثبت شناسه تراکنش، بررسی می‌شود',
+}
+
 
 /**
  * Review and pay.
@@ -44,6 +67,8 @@ export default function CheckoutPage() {
   const [couponMessage, setCouponMessage] = React.useState<string | null>(null)
   const [couponPending, setCouponPending] = React.useState(false)
   const [method, setMethod] = React.useState<Method>('wallet')
+  const [gateway, setGateway] = React.useState<GatewayScreen | null>(null)
+  const methods = useSWR<PaymentMethodOption[]>('/api/miniapp/payment-methods', fetcher)
   const [submitting, setSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
@@ -88,8 +113,9 @@ export default function CheckoutPage() {
   // If the wallet cannot cover the order, silently pre-selecting it would
   // hand the customer a disabled confirm button with no explanation.
   React.useEffect(() => {
-    if (quote && !walletCovers && method === 'wallet') setMethod('card')
-  }, [quote, walletCovers, method])
+    const first = methods.data?.[0]?.key
+    if (quote && !walletCovers && method === 'wallet' && first) setMethod(first)
+  }, [quote, walletCovers, method, methods.data])
 
   async function applyCoupon() {
     const code = normalizeInput(couponInput).trim().toUpperCase()
@@ -134,6 +160,15 @@ export default function CheckoutPage() {
         await api.payFromWallet(planId, coupon)
         haptic.notify('success')
         router.replace('/services?purchased=1')
+        return
+      }
+      if (method !== 'card' && method !== 'crypto') {
+        // An online provider. It draws its own screen: a link, instructions,
+        // or both - and no payment row for the customer to go and look at.
+        const screen = await api.beginGatewayPayment(planId, method, coupon)
+        haptic.impact('medium')
+        setGateway(screen)
+        if (screen.url) openLink(screen.url)
         return
       }
       const details =
@@ -266,25 +301,31 @@ export default function CheckoutPage() {
                 : `\u0645\u0648\u062c\u0648\u062f\u06cc \u06a9\u0627\u0641\u06cc \u0646\u06cc\u0633\u062a (${toman(balance)})`
             }
           />
-          <MethodOption
-            selected={method === 'card'}
-            onSelect={() => setMethod('card')}
-            icon={CreditCard}
-            title={'\u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a'}
-            note={'\u067e\u0633 \u0627\u0632 \u0627\u0631\u0633\u0627\u0644 \u0631\u0633\u06cc\u062f\u060c \u062a\u0648\u0633\u0637 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f'}
-          />
-          <MethodOption
-            selected={method === 'crypto'}
-            onSelect={() => setMethod('crypto')}
-            icon={Bitcoin}
-            title={'\u067e\u0631\u062f\u0627\u062e\u062a \u0628\u0627 \u0631\u0645\u0632\u0627\u0631\u0632'}
-            note={'\u067e\u0633 \u0627\u0632 \u062b\u0628\u062a \u0634\u0646\u0627\u0633\u0647 \u062a\u0631\u0627\u06a9\u0646\u0634\u060c \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f'}
-          />
-
-          <p className="pt-1 text-[11px] leading-loose text-muted-foreground">
-            {'\u062f\u0631\u06af\u0627\u0647 \u0628\u0627\u0646\u06a9\u06cc \u0628\u0647\u200c\u0632\u0648\u062f\u06cc \u0627\u0636\u0627\u0641\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
-          </p>
+          {(methods.data ?? []).map((option) => (
+            <MethodOption
+              key={option.key}
+              selected={method === option.key}
+              onSelect={() => setMethod(option.key)}
+              icon={METHOD_ICON[option.key] ?? Landmark}
+              title={option.labelFa}
+              note={METHOD_NOTE[option.key] ?? 'پرداخت آنلاین'}
+            />
+          ))}
         </Card>
+
+        {/* What the provider wants read here, once it has been asked. */}
+        {gateway ? (
+          <Card className="space-y-3 p-4">
+            <p className="whitespace-pre-line text-sm leading-loose">
+              {plainText(gateway.bodyFa)}
+            </p>
+            {gateway.url ? (
+              <Button full onClick={() => openLink(gateway.url)}>
+                {'صفحهٔ پرداخت'}
+              </Button>
+            ) : null}
+          </Card>
+        ) : null}
 
         {submitError ? (
           <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">

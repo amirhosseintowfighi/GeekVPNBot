@@ -229,6 +229,22 @@ export interface NotificationPreferences {
   quietHours: boolean
 }
 
+/** One way this shop can take money, named by whoever configured it. */
+export interface PaymentMethodOption {
+  key: string
+  labelFa: string
+}
+
+/**
+ * What an online gateway wants shown. A redirect provider gives a link and
+ * nothing else; a card-to-card one gives instructions that have to be read
+ * here, because the transfer happens in a banking app.
+ */
+export interface GatewayScreen {
+  url: string
+  bodyFa: string
+}
+
 export interface CardPaymentDetails {
   cardNumber: string
   cardHolderFa: string

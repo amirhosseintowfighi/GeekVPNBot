@@ -240,7 +240,7 @@ class BotCheckoutAdapter:
 
     async def begin_topup(
         self, user_id: uuid.UUID, *, amount: int, method: str
-    ) -> CardPaymentDetails | CryptoPaymentDetails:
+    ) -> CardPaymentDetails | CryptoPaymentDetails | GatewayScreen:
         """No order is placed: a top-up buys nothing, it moves money inward."""
         telegram_id = await self._require_telegram_id(user_id)
         year = self._jalali_year
@@ -254,6 +254,15 @@ class BotCheckoutAdapter:
             )
 
         result = await self._bridge.run(work)
+        if result.instruction.method is PaymentMethod.GATEWAY:
+            # An online provider, which shapes neither like a card nor like a
+            # crypto address: it has its own screen, the same one a purchase
+            # draws. Topping up used to offer exactly two buttons and could
+            # not have reached this branch at all.
+            return GatewayScreen(
+                url=result.instruction.redirect_url or "",
+                body_fa=result.instruction.instructions_fa or "",
+            )
         if method == CRYPTO:
             return CryptoPaymentDetails(
                 network=result.instruction.network or "",

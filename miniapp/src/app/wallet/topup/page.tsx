@@ -2,15 +2,17 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { Bitcoin, CreditCard } from 'lucide-react'
+import useSWR from 'swr'
+import { Bitcoin, CreditCard, Landmark } from 'lucide-react'
 
 import { PageHeader } from '@/components/shell/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { api, ApiError } from '@/lib/api'
-import { enDigits, faNumber, normalizeInput, toman } from '@/lib/fa'
-import { haptic } from '@/lib/telegram'
+import { api, ApiError, fetcher } from '@/lib/api'
+import { enDigits, faNumber, normalizeInput, plainText, toman } from '@/lib/fa'
+import { haptic, openLink } from '@/lib/telegram'
+import type { GatewayScreen, PaymentMethodOption } from '@/lib/types'
 
 /**
  * Bounds and presets copied from the bot's wallet handler. They are duplicated
@@ -25,9 +27,19 @@ const PRESETS = [200_000, 500_000, 1_000_000, 2_000_000] as const
 export default function TopupPage() {
   const router = useRouter()
   const [raw, setRaw] = React.useState('')
-  const [method, setMethod] = React.useState<'card' | 'crypto'>('card')
+  // Asked, not assumed - the same two buttons were hardcoded here as on the
+  // checkout screen, so a configured gateway could top up nothing.
+  const methods = useSWR<PaymentMethodOption[]>('/api/miniapp/payment-methods', fetcher)
+  const [method, setMethod] = React.useState('card')
+  const [gateway, setGateway] = React.useState<GatewayScreen | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  // "card" is only a guess until the list arrives, and a shop may not have it.
+  React.useEffect(() => {
+    const list = methods.data
+    if (list?.length && !list.some((option) => option.key === method)) setMethod(list[0].key)
+  }, [methods.data, method])
 
   // Persian digits are accepted on input and normalised before parsing, so a
   // customer typing on a Persian keyboard is not told their number is invalid.
@@ -40,8 +52,13 @@ export default function TopupPage() {
     setError(null)
     try {
       const details = await api.beginTopup(amount, method)
-      if (!details.payment) throw new Error('top-up returned no payment')
       haptic.impact('medium')
+      if (!('payment' in details)) {
+        setGateway(details)
+        if (details.url) openLink(details.url)
+        return
+      }
+      if (!details.payment) throw new Error('top-up returned no payment')
       router.push(`/payments/${details.payment.paymentId}`)
     } catch (err) {
       haptic.notify('error')
@@ -109,32 +126,38 @@ export default function TopupPage() {
           </p>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={method === 'card' ? 'default' : 'outline'}
-              onClick={() => {
-                haptic.select()
-                setMethod('card')
-              }}
-            >
-              <CreditCard className="size-4" aria-hidden />
-              {'\u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a'}
-            </Button>
-            <Button
-              variant={method === 'crypto' ? 'default' : 'outline'}
-              onClick={() => {
-                haptic.select()
-                setMethod('crypto')
-              }}
-            >
-              <Bitcoin className="size-4" aria-hidden />
-              {'\u0631\u0645\u0632\u0627\u0631\u0632'}
-            </Button>
+            {(methods.data ?? []).map((option) => {
+              const Icon =
+                option.key === 'card' ? CreditCard : option.key === 'crypto' ? Bitcoin : Landmark
+              return (
+                <Button
+                  key={option.key}
+                  variant={method === option.key ? 'default' : 'outline'}
+                  onClick={() => {
+                    haptic.select()
+                    setMethod(option.key)
+                  }}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  {option.labelFa}
+                </Button>
+              )
+            })}
           </div>
-
-          <p className="text-[11px] leading-loose text-muted-foreground">
-            {'\u0647\u0631 \u062f\u0648 \u0631\u0648\u0634 \u067e\u0633 \u0627\u0632 \u0628\u0631\u0631\u0633\u06cc \u062f\u0633\u062a\u06cc \u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0627\u0636\u0627\u0641\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
-          </p>
         </Card>
+
+        {gateway ? (
+          <Card className="space-y-3 p-4">
+            <p className="whitespace-pre-line text-sm leading-loose">
+              {plainText(gateway.bodyFa)}
+            </p>
+            {gateway.url ? (
+              <Button full onClick={() => openLink(gateway.url)}>
+                {'صفحهٔ پرداخت'}
+              </Button>
+            ) : null}
+          </Card>
+        ) : null}
 
         {error ? (
           <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">

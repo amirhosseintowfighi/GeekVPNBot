@@ -214,7 +214,17 @@ class TopupRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     amount: int = Field(gt=0)
-    method: str = Field(pattern="^(card|crypto)$")
+    #: Any key the registry registered, not a fixed pair. It was
+    #: `^(card|crypto)$`, so a configured gateway was rejected here even once
+    #: the screen offered it. The registry is what decides whether the key
+    #: means anything; this only keeps the shape sane.
+    method: str = Field(min_length=2, max_length=32, pattern="^[a-z0-9_]+$")
+
+
+class GatewayRequest(PlanRequest):
+    """A plan plus which online provider to pay it through."""
+
+    gateway_key: str = Field(min_length=2, max_length=32, pattern="^[a-z0-9_]+$")
 
 
 class ReceiptRequest(ApiModel):
@@ -424,6 +434,33 @@ async def checkout_card(
     )
     await uow.commit()
     return details
+
+
+@router.get("/payment-methods", summary="How this shop can take money")
+async def payment_methods(user: CurrentMiniAppUser, services: ServicesDep) -> Any:
+    """Asked, not assumed.
+
+    The Mini App drew card and crypto as constants and a line promising a bank
+    gateway "soon" - so a shop that had configured one still could not be paid
+    through it, and a shop with no crypto address offered a button that ended
+    in an apology.
+    """
+    return [{"key": key, "label_fa": label} for key, label in await services.checkout.methods()]
+
+
+@router.post("/checkout/gateway", summary="Start an online-gateway payment")
+async def checkout_gateway(
+    payload: GatewayRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
+) -> Any:
+    """Whatever the provider wants shown - a link, instructions, or both."""
+    screen = await services.checkout.begin_gateway(
+        user.id,
+        plan_id=payload.plan_id,
+        gateway_key=payload.gateway_key,
+        coupon_code=payload.coupon_code,
+    )
+    await uow.commit()
+    return screen
 
 
 @router.post("/checkout/crypto", summary="Start a crypto payment")

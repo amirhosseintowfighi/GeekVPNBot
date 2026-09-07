@@ -153,7 +153,7 @@ class CheckoutService(Protocol):
 
     async def begin_topup(
         self, user_id: uuid.UUID, *, amount: int, method: str
-    ) -> CardPaymentDetails | CryptoPaymentDetails: ...
+    ) -> CardPaymentDetails | CryptoPaymentDetails | GatewayScreen: ...
 
     async def awaiting_proof(self, user_id: uuid.UUID) -> list[PendingPayment]:
         """Payments this customer still owes us a receipt for.
