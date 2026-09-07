@@ -81,7 +81,7 @@ async def test_a_gateway_top_up_returns_the_screen_the_provider_asked_for() -> N
         async def telegram_id(self, user_id: uuid.UUID) -> int:
             return 555
 
-        async def run(self, work):  # noqa: ANN001 - a stub scope, shaped by the call
+        async def run(self, work):
             return _Result()
 
     adapter = BotCheckoutAdapter(  # type: ignore[arg-type]
