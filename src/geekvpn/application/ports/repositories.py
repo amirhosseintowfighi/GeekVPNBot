@@ -42,6 +42,34 @@ class UserRepository(Protocol):
 
 
 @runtime_checkable
+class ReferralRepository(Protocol):
+    """The edge from a referrer to somebody who arrived on their link.
+
+    An edge per invitee, written once at registration. Five different screens
+    read this table - the customer's own referral page, the operator's
+    programme report, three analytics queries - and until now nothing wrote to
+    it, so every one of them answered "nobody has ever used your link".
+    """
+
+    async def record_signup(
+        self,
+        *,
+        referral_id: str,
+        referrer_telegram_id: int,
+        invitee_telegram_id: int,
+        code: str,
+        joined_at: datetime,
+    ) -> bool:
+        """Record the edge. `False` if this invitee already had one.
+
+        Idempotent because `/start ref_X` is a link people tap twice, and
+        because the invitee column is unique - a second insert would abort the
+        whole registration transaction over a duplicate tap.
+        """
+        ...
+
+
+@runtime_checkable
 class AdminRepository(Protocol):
     async def get(self, admin_id: uuid.UUID) -> Admin | None: ...
 

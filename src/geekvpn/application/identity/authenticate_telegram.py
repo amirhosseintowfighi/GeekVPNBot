@@ -17,6 +17,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import structlog
+
 from geekvpn.application.identity.dto import (
     AuthenticationResult,
     RequestContext,
@@ -26,11 +28,13 @@ from geekvpn.application.identity.referral import generate_referral_code
 from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.ports.audit import AuditRecorder
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.ports.repositories import UserRepository
+from geekvpn.application.ports.repositories import ReferralRepository, UserRepository
 from geekvpn.application.ports.telegram_auth import TelegramAuthVerifier, TelegramIdentity
 from geekvpn.domain.audit.entry import AuditAction
 from geekvpn.domain.identity.enums import Language, SubjectType
 from geekvpn.domain.identity.user import User
+
+logger = structlog.stdlib.get_logger(__name__)
 
 _START_PARAM_REFERRAL_PREFIX = "ref_"
 
@@ -51,8 +55,12 @@ class AuthenticateTelegramUser:
         clock: Clock,
         audit: AuditRecorder,
         request_max_age_seconds: int = DEFAULT_REQUEST_MAX_AGE_SECONDS,
+        #: Optional so every existing construction still works, but the whole
+        #: referral programme is dead without it - see `_record_referral`.
+        referrals: ReferralRepository | None = None,
     ) -> None:
         self._users = users
+        self._referrals = referrals
         self._verifier = verifier
         self._sessions = sessions
         self._clock = clock
@@ -173,6 +181,7 @@ class AuthenticateTelegramUser:
             now=now,
         )
         await self._users.add(user)
+        await self._record_referral(user, now=now)
         await self._audit.record(
             AuditAction.USER_REGISTERED,
             actor_type=SubjectType.USER,
@@ -182,6 +191,37 @@ class AuthenticateTelegramUser:
             referred_by_code=user.referred_by_code,
         )
         return user
+
+    async def _record_referral(self, user: User, *, now: datetime) -> None:
+        """Write the edge from whoever invited this person.
+
+        `referred_by_code` on the user was the only thing the deep link ever
+        produced, and nothing joined on it: the five screens that report the
+        programme all count rows in `referrals`, which nothing wrote. So a link
+        that worked perfectly answered "nobody has used it yet".
+
+        Best effort by design. A referrer who has since been deleted, a code
+        that no longer resolves, a repository that is not wired - none of those
+        is a reason to fail somebody's registration over a bonus.
+        """
+        code = user.referred_by_code
+        if not code or self._referrals is None:
+            return
+        try:
+            referrer = await self._users.get_by_referral_code(code)
+            if referrer is None or referrer.telegram_id == user.telegram_id:
+                return
+            await self._referrals.record_signup(
+                referral_id=str(uuid.uuid4()),
+                referrer_telegram_id=referrer.telegram_id,
+                invitee_telegram_id=user.telegram_id,
+                code=code,
+                joined_at=now,
+            )
+        except Exception:
+            logger.warning(
+                "referral.edge_not_recorded", code=code, telegram_id=user.telegram_id
+            )
 
     async def _unique_referral_code(self, *, attempts: int = 8) -> str:
         """Collision-check the code instead of trusting entropy blindly.

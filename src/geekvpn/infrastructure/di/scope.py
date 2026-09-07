@@ -89,6 +89,9 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SqlAlchemyOrderRepository,
     SqlAlchemySubscriptionRepository,
 )
+from geekvpn.infrastructure.persistence.repositories.referrals import (
+    SqlAlchemyReferralRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.reseller_applications import (
     SqlAlchemyApplicationRepository,
     SqlAlchemySetupTokens,
@@ -276,7 +279,17 @@ class RequestScope:
             request_max_age_seconds=(
                 self.container.settings.telegram.mini_app_request_max_age_seconds
             ),
+            # Without this the deep link still records `referred_by_code` on
+            # the user and nothing else, so every screen that reports the
+            # programme counts rows nobody writes.
+            referrals=self.referrals,
         )
+
+    @cached_property
+    def referrals(self) -> SqlAlchemyReferralRepository:
+        """The referrer-to-invitee edge. Not shop-scoped: somebody who arrived
+        on one person's link did not arrive on anybody else's."""
+        return SqlAlchemyReferralRepository(self.session)
 
     @cached_property
     def authenticate_admin(self) -> AuthenticateAdmin:
