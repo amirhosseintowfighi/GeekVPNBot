@@ -364,8 +364,15 @@ class GatewayAccountModel(TimestampMixin, Base):
     )
 
     __table_args__ = (
+        # The third list. A provider lives in `iranian_gateways.BUILDERS`, in
+        # the request schema's Literal, and here - and adding one to the first
+        # two while forgetting this raised an IntegrityError nothing caught.
+        # Kept rather than dropped: it is the only thing stopping a typo in a
+        # provider name from becoming a row that registers no gateway at all,
+        # which would read as configured in the panel and never appear as a
+        # payment method. A test compares it against the registry.
         CheckConstraint(
-            "provider IN ('zarinpal', 'zibal', 'aqayepardakht')",
+            "provider IN ('zarinpal', 'zibal', 'aqayepardakht', 'atlaspay')",
             name="ck_gateway_accounts_provider",
         ),
     )

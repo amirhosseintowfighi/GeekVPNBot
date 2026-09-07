@@ -307,3 +307,29 @@ def test_the_api_accepts_the_same_providers_the_registry_builds():
     allowed = set(typing.get_args(GatewayBody.model_fields["provider"].annotation))
 
     assert allowed == set(BUILDERS)
+
+
+def test_the_database_accepts_the_same_providers_too():
+    """The list that was forgotten.
+
+    A provider lives in three places: the builder registry, the request
+    schema, and a CHECK constraint on the table. Adding one to the first two
+    and not the third stored nothing - the insert raised an IntegrityError,
+    the API answered 500, and the panel showed the generic "something went
+    wrong", which names none of this.
+    """
+    import re
+
+    from geekvpn.infrastructure.payments.iranian_gateways import BUILDERS
+    from geekvpn.infrastructure.persistence.models.payments import GatewayAccountModel
+
+    # By suffix: the metadata's naming convention rewrites the declared name
+    # in place, so the object no longer answers to what the source called it.
+    constraint = next(
+        item
+        for item in GatewayAccountModel.__table__.constraints
+        if str(getattr(item, "name", "")).endswith("ck_gateway_accounts_provider")
+    )
+    allowed = set(re.findall(r"'([a-z0-9_]+)'", str(constraint.sqltext)))
+
+    assert allowed == set(BUILDERS)
