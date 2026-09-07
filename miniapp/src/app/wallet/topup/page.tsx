@@ -37,8 +37,8 @@ export default function TopupPage() {
 
   // "card" is only a guess until the list arrives, and a shop may not have it.
   React.useEffect(() => {
-    const list = methods.data
-    if (list?.length && !list.some((option) => option.key === method)) setMethod(list[0].key)
+    const first = methods.data?.[0]
+    if (first && !methods.data?.some((option) => option.key === method)) setMethod(first.key)
   }, [methods.data, method])
 
   // Persian digits are accepted on input and normalised before parsing, so a
