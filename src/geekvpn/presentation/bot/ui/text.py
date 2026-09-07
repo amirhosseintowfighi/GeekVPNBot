@@ -51,7 +51,11 @@ MENU_FAQ: Final = "\u0633\u0648\u0627\u0644\u0627\u062a \u0645\u062a\u062f\u0627
 MENU_RESELLER: Final = "نمایندگی"
 MENU_SETTINGS: Final = "\u062a\u0646\u0638\u06cc\u0645\u0627\u062a"
 #: The label on Telegram's own menu button, which opens the Mini App.
-MENU_BUTTON_MINI_APP: Final = "\u0628\u0627\u0632 \u06a9\u0631\u062f\u0646 \u0628\u0631\u0646\u0627\u0645\u0647"
+#:
+#: The one string here that is deliberately not Persian. Telegram caps this at
+#: 16 characters and renders it beside its own chrome, where the short English
+#: word is what people already recognise as the button that opens an app.
+MENU_BUTTON_MINI_APP: Final = "open app"
 MENU_STATUS: Final = "\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0648\u0631\u0647\u0627"
 
 # -- Generic buttons ---------------------------------------------------------
