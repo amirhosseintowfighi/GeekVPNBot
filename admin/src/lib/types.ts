@@ -60,7 +60,16 @@ export type TransactionKind =
 export type ServerHealth = 'online' | 'degraded' | 'offline' | 'maintenance' | 'retired'
 export type TicketState = 'open' | 'waiting_user' | 'answered' | 'closed'
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'diamond'
-export type PanelKind = 'xui' | 'marzban' | 'marzneshin' | 'hiddify'
+/** Mirrors `domain.panels.enums.PanelKind`. It had drifted: two kinds that do
+ *  not exist ('xui', 'hiddify') and three that do left out - including
+ *  'pasarguard', which is the panel this platform actually runs on. Nothing
+ *  broke, because nothing compared against it. */
+export type PanelKind =
+  | 'pasarguard'
+  | 'marzban'
+  | 'marzneshin'
+  | 'sanaei'
+  | 'alireza'
 export type UserState = 'active' | 'suspended' | 'banned'
 /** domain/provisioning/enums.py OrderState. */
 export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'

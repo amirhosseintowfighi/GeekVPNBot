@@ -18,11 +18,16 @@ import { Card } from '@/components/ui/card'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+// Typed as a total record on purpose: a panel kind added to the backend and
+// forgotten here is a compile error rather than a blank cell. It had already
+// happened - this listed X-UI and Hiddify, neither of which exists, and not
+// PasarGuard, which is the panel every node here runs.
 const PANEL_KIND_LABEL: Record<PanelKind, string> = {
-  xui: 'X-UI',
+  pasarguard: 'PasarGuard',
   marzban: 'Marzban',
   marzneshin: 'Marzneshin',
-  hiddify: 'Hiddify',
+  sanaei: '3x-ui (Sanaei)',
+  alireza: 'x-ui (Alireza)',
 }
 
 /**

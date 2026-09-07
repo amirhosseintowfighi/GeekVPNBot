@@ -35,6 +35,19 @@ const CONFIRM_DELETE =
 
 const DELETE_FAILED = 'حذف سرور انجام نشد.'
 
+/**
+ * A PasarGuard node that will create accounts with no access.
+ *
+ * Not a health check - the panel answers, the account is created, and the
+ * create returns 200. The customer is simply handed a subscription link that
+ * resolves to nothing, and there is no other place an operator would find out.
+ */
+function needsGroups(server: ServerRow): boolean {
+  if (server.panelKind !== 'pasarguard') return false
+  const chosen = server.config?.defaultGroups
+  return !Array.isArray(chosen) || chosen.length === 0
+}
+
 export default function ServersPage() {
   const [creating, setCreating] = React.useState(false)
   const { can } = useSession()
@@ -93,7 +106,20 @@ export default function ServersPage() {
                   server.capacity > 0 ? Math.min(1, server.accountCount / server.capacity) : 0
                 return (
                   <TableRow key={server.id}>
-                    <TableCell>{server.nameFa}</TableCell>
+                    <TableCell>
+                      {server.nameFa}
+                      {/* On PasarGuard an account in no group has no access at
+                          all, so a node with none configured hands every
+                          customer it serves a link that loads nothing - and
+                          the node itself looks perfectly healthy. Two nodes
+                          pointing at one panel, one configured and one not,
+                          is how half the customers get a dead service. */}
+                      {needsGroups(server) ? (
+                        <Badge variant="warning" className="ms-2">
+                          بدون گروه
+                        </Badge>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {server.countryCode ?? '\u2014'}
                     </TableCell>
