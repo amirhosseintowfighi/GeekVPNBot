@@ -201,6 +201,9 @@ class PlanRequest(ApiModel):
 
     plan_id: uuid.UUID
     coupon_code: str | None = Field(default=None, max_length=64)
+    #: Present when this purchase extends a service the customer already has
+    #: rather than adding another. Checkout refuses one that is not theirs.
+    renews_subscription_id: str | None = Field(default=None, max_length=64)
 
 
 class CouponPreviewRequest(ApiModel):
@@ -419,7 +422,10 @@ async def checkout_wallet(
     payload: PlanRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
 ) -> Any:
     card = await services.checkout.pay_from_wallet(
-        user.id, plan_id=payload.plan_id, coupon_code=payload.coupon_code
+        user.id,
+        plan_id=payload.plan_id,
+        coupon_code=payload.coupon_code,
+        renews_subscription_id=payload.renews_subscription_id,
     )
     await uow.commit()
     return {"subscription_id": str(card.subscription_id)}
@@ -430,7 +436,10 @@ async def checkout_card(
     payload: PlanRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
 ) -> Any:
     details = await services.checkout.begin_card(
-        user.id, plan_id=payload.plan_id, coupon_code=payload.coupon_code
+        user.id,
+        plan_id=payload.plan_id,
+        coupon_code=payload.coupon_code,
+        renews_subscription_id=payload.renews_subscription_id,
     )
     await uow.commit()
     return details
@@ -458,6 +467,7 @@ async def checkout_gateway(
         plan_id=payload.plan_id,
         gateway_key=payload.gateway_key,
         coupon_code=payload.coupon_code,
+        renews_subscription_id=payload.renews_subscription_id,
     )
     await uow.commit()
     return screen
@@ -468,7 +478,10 @@ async def checkout_crypto(
     payload: PlanRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
 ) -> Any:
     details = await services.checkout.begin_crypto(
-        user.id, plan_id=payload.plan_id, coupon_code=payload.coupon_code
+        user.id,
+        plan_id=payload.plan_id,
+        coupon_code=payload.coupon_code,
+        renews_subscription_id=payload.renews_subscription_id,
     )
     await uow.commit()
     return details
@@ -610,31 +623,6 @@ async def rotate_link(
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
     await uow.commit()
     return card
-
-
-@router.get(
-    "/subscriptions/{subscription_id}/renewal-options",
-    summary="Plans this subscription can renew onto",
-)
-async def renewal_options(subscription_id: str, user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
-    """Every published plan on the same product, priced for this customer.
-
-    Scoped to the product rather than the whole catalogue: renewing is meant to
-    keep or upgrade the package someone already has, and offering an unrelated
-    product here is a different purchase wearing a renewal button.
-    """
-    subscription = await scope.subscriptions.get(subscription_id)
-    if subscription is None or subscription.user_id != user.telegram_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
-
-    plan = await scope.catalog_plans.get(uuid.UUID(subscription.plan_id))
-    if plan is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="The plan no longer exists.")
-
-    siblings = await scope.catalog_plans.list_for_product(plan.product_id, published_only=True)
-    return [
-        await scope.quoting.quote_view(plan_id=sibling.id, user_id=user.id) for sibling in siblings
-    ]
 
 
 # -- wallet ----------------------------------------------------------------

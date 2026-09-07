@@ -192,8 +192,11 @@ def test_the_card_screen_hands_over_both_numbers_to_copy():
     ]
 
     assert "6037991199119911" in copied
-    # Latin digits, no separators: it is pasted into an amount field.
-    assert "200543" in copied
+    # Latin digits, no separators, and in Rial: it is pasted into a banking
+    # app's amount field, and every one of them counts in Rial. The Toman
+    # figure transfers a tenth of the invoice, which matches nothing.
+    assert "2005430" in copied
+    assert "200543" not in copied
 
 
 def test_leaving_the_card_screen_is_the_red_one():

@@ -49,7 +49,7 @@ from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
-from geekvpn.presentation.bot.ui.fa import fa_relative, normalize_input, toman
+from geekvpn.presentation.bot.ui.fa import fa_relative, normalize_input, rial, toman
 
 logger = get_logger("bot.purchase")
 
@@ -176,7 +176,11 @@ async def _render_review(
             product_name=product.name,
             quote=quote,
             features=product.features,
-        ),
+        )
+        # Otherwise the renewal screen and the shop lead to the same words,
+        # and the customer cannot tell whether they are about to extend the
+        # service they installed or be handed a second one to install.
+        + ("\n\n" + T.RENEW_EXTENDS if data.get("renew_of") else ""),
         markup=_review_keyboard(has_coupon=bool(coupon)),
     )
 
@@ -364,11 +368,18 @@ async def on_pay(
 
     plan_uuid = uuid.UUID(str(plan_id))
     method = callback_data.method
+    # Set only by the renewal screen. Present, it extends the account the
+    # customer already installed instead of issuing a second one; absent, this
+    # is an ordinary purchase and reads exactly as it did before.
+    renews = data.get("renew_of") or None
 
     try:
         if method == "wallet":
             await services.checkout.pay_from_wallet(
-                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+                user_id=user.id,
+                plan_id=plan_uuid,
+                coupon_code=coupon,
+                renews_subscription_id=renews,
             )
             await state.clear()
             cashback = data.get("cashback") or 0
@@ -401,7 +412,10 @@ async def on_pay(
 
         if method == "card":
             details = await services.checkout.begin_card(
-                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+                user_id=user.id,
+                plan_id=plan_uuid,
+                coupon_code=coupon,
+                renews_subscription_id=renews,
             )
             if details.payment is None:
                 await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
@@ -417,7 +431,10 @@ async def on_pay(
 
         if method == "crypto":
             crypto = await services.checkout.begin_crypto(
-                user_id=user.id, plan_id=plan_uuid, coupon_code=coupon
+                user_id=user.id,
+                plan_id=plan_uuid,
+                coupon_code=coupon,
+                renews_subscription_id=renews,
             )
             if crypto.payment is None:
                 await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
@@ -434,7 +451,11 @@ async def on_pay(
         # Anything else is an online gateway, by its own key - which is what
         # the registry registered it under and what the payment row will store.
         screen = await services.checkout.begin_gateway(
-            user_id=user.id, plan_id=plan_uuid, gateway_key=method, coupon_code=coupon
+            user_id=user.id,
+            plan_id=plan_uuid,
+            gateway_key=method,
+            coupon_code=coupon,
+            renews_subscription_id=renews,
         )
         await state.clear()
         # The provider decides which of the two screens this is. A redirect
@@ -475,8 +496,9 @@ def card_keyboard(
     return K.stack(
         [
             [K.copy_btn(T.BTN_COPY_CARD, details.card_number, style=K.YES)],
-            # Latin digits, no separators: this is pasted into an amount field.
-            [K.copy_btn(T.BTN_COPY_AMOUNT, str(amount), style=K.GO)],
+            # Latin digits, no separators, and in Rial: this is pasted into a
+            # banking app's amount field, and every one of them counts in Rial.
+            [K.copy_btn(T.BTN_COPY_AMOUNT, str(rial(amount)), style=K.GO)],
             [K.btn(T.BTN_CANCEL, NavCB(to=cancel_to), style=K.NO)],
         ]
     )
@@ -485,11 +507,10 @@ def card_keyboard(
 def _card_body(details: CardPaymentDetails, *, amount: int) -> str:
     return T.PAY_CARD_INSTRUCTIONS.format(
         amount=f"<b>{toman(amount)}</b>",
-        # Latin digits, no separators, nothing but the number: this one is for
-        # tapping to copy and pasting straight into a banking app, which is
-        # what stops a customer retyping it and dropping the last three digits
-        # that identify their receipt.
-        amount_plain=amount,
+        # Latin digits, no separators, nothing but the number - and in Rial,
+        # which is the unit the banking app on the other side of this transfer
+        # asks for. Pasting the Toman figure sends a tenth of the invoice.
+        amount_plain=rial(amount),
         card_number=details.card_number,
         card_holder=details.card_holder_fa,
         bank=details.bank_fa,

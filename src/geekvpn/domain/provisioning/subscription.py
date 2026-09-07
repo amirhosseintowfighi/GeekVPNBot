@@ -297,12 +297,25 @@ class Subscription(AggregateRoot[str]):
 
     # ---- Lifecycle ------------------------------------------------------
 
-    def renew(self, *, days: int, now: datetime, quota_mib: int | None = None) -> None:
+    def renew(
+        self,
+        *,
+        days: int,
+        now: datetime,
+        quota_mib: int | None = None,
+        plan_id: str | None = None,
+        order_id: str | None = None,
+    ) -> None:
         """Extend the term and start a fresh allowance.
 
         An expired subscription is extended from *now*; a live one from its
         current expiry, so renewing early never costs the customer the days
         they already paid for.
+
+        ``plan_id`` and ``order_id`` are the package being renewed *onto*,
+        which need not be the one this service started on. The device limit is
+        deliberately not among them: the panel's renew call cannot change it,
+        so recording a new one here would state a limit nothing enforces.
 
         ``quota_mib`` is the new term's allowance in full, not an increment,
         and usage resets with it. The two readings must agree: the panel is
@@ -317,6 +330,14 @@ class Subscription(AggregateRoot[str]):
         self._guard_changeable()
         if days <= 0:
             raise OrderValidationError("A renewal must add at least one day.", days=days)
+        # A renewal may be onto a different package - a 20GB customer moving up
+        # to 100GB, or an adopted account being put on a package for the first
+        # time. Without this the quota changed and every screen went on naming
+        # the old plan, because the card reads its name through `order_id`.
+        if plan_id is not None:
+            self.plan_id = plan_id
+        if order_id is not None:
+            self.order_id = order_id
         base = self.expires_at if self.expires_at > now else now
         self.expires_at = base + timedelta(days=days)
         if quota_mib is not None:

@@ -119,8 +119,20 @@ class CheckoutService(Protocol):
     can trigger by submitting a convincing-looking receipt.
     """
 
+    #: Every one of these takes `renews_subscription_id`, and it is the whole
+    #: difference between extending a service and issuing a second one. The
+    #: field existed on `Order` from the first release and nothing ever set it,
+    #: so `ProvisioningService._renew` - which extends the panel account the
+    #: customer already installed - was unreachable code, and pressing "renew"
+    #: created a new account with new config every time.
+
     async def pay_from_wallet(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> SubscriptionCard: ...
 
     async def methods(self) -> list[tuple[str, str]]:
@@ -139,16 +151,27 @@ class CheckoutService(Protocol):
         plan_id: uuid.UUID,
         gateway_key: str,
         coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> GatewayScreen:
         """Start an online payment and say what the customer should see."""
         ...
 
     async def begin_card(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> CardPaymentDetails: ...
 
     async def begin_crypto(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> CryptoPaymentDetails: ...
 
     async def begin_topup(

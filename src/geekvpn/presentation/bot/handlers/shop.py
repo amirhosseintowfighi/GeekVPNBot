@@ -160,6 +160,10 @@ async def on_open_shop(
     scope: Any = None,
 ) -> None:
     await state.set_state(Purchase.browsing)
+    # A renewal abandoned halfway leaves its target in the FSM data, and
+    # nothing else clears it - so the next plan bought from the shop would
+    # silently extend that service instead of adding a new one.
+    await state.update_data(renew_of=None)
     await toast(query)
     if user is None or scope is None:
         return

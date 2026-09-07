@@ -93,6 +93,7 @@ async def test_a_gateway_top_up_returns_the_screen_the_provider_asked_for() -> N
         session=object(),
         plans=object(),
         coupons=object(),
+        subscriptions=object(),
         clock=object(),
         jalali_year=1405,
     )

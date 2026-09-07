@@ -314,7 +314,16 @@ class ProvisioningService:
             await self._fail(order, reason=error.code)
             raise ProvisioningFailed(error.code, retryable=error.retryable) from error
 
-        subscription.renew(days=order.duration_days, now=now, quota_mib=order.traffic_mib)
+        subscription.renew(
+            days=order.duration_days,
+            now=now,
+            quota_mib=order.traffic_mib,
+            # The package the customer just bought, which may not be the one
+            # they had: renewal is also how an upgrade and how an adopted
+            # account's first purchase arrive here.
+            plan_id=order.plan_id,
+            order_id=order.id,
+        )
         await self._subscriptions.update(subscription)
 
         order.mark_active(subscription_id=subscription.id, at=now)

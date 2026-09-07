@@ -129,10 +129,14 @@ export const api = {
       code,
     }),
 
-  payFromWallet: (planId: string, couponCode?: string) =>
+  // `renewsSubscriptionId` is what separates extending the service somebody
+  // already installed from handing them a second one to install. The backend
+  // refuses an id that is not theirs.
+  payFromWallet: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
     post<{ subscription_id: string }>('/api/miniapp/checkout/wallet', {
       plan_id: planId,
       coupon_code: couponCode,
+      renews_subscription_id: renewsSubscriptionId,
     }),
 
   // `CardPaymentDetails`, not `PendingPayment`. These endpoints answer with
@@ -140,26 +144,34 @@ export const api = {
   // `paymentId` off the top level produced undefined - and the caller pushed
   // the customer to /payments/undefined, a route that renders a skeleton and
   // never resolves.
-  beginCardPayment: (planId: string, couponCode?: string) =>
+  beginCardPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
     post<CardPaymentDetails>('/api/miniapp/checkout/card', {
       plan_id: planId,
       coupon_code: couponCode,
+      renews_subscription_id: renewsSubscriptionId,
     }),
 
   /** Card and crypto used to be constants here. They are not. */
   paymentMethods: () => request<PaymentMethodOption[]>('/api/miniapp/payment-methods'),
 
-  beginGatewayPayment: (planId: string, gatewayKey: string, couponCode?: string) =>
+  beginGatewayPayment: (
+    planId: string,
+    gatewayKey: string,
+    couponCode?: string,
+    renewsSubscriptionId?: string,
+  ) =>
     post<GatewayScreen>('/api/miniapp/checkout/gateway', {
       plan_id: planId,
       gateway_key: gatewayKey,
       coupon_code: couponCode,
+      renews_subscription_id: renewsSubscriptionId,
     }),
 
-  beginCryptoPayment: (planId: string, couponCode?: string) =>
+  beginCryptoPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
     post<CryptoPaymentDetails>('/api/miniapp/checkout/crypto', {
       plan_id: planId,
       coupon_code: couponCode,
+      renews_subscription_id: renewsSubscriptionId,
     }),
 
   /** Card-to-card receipt. Goes to a human reviewer, not an auto-approver. */
@@ -192,11 +204,6 @@ export const api = {
   rotateLink: (subscriptionId: string) =>
     post<SubscriptionCard>(
       `/api/miniapp/subscriptions/${subscriptionId}/rotate`,
-    ),
-
-  renewalOptions: (subscriptionId: string) =>
-    request<Storefront>(
-      `/api/miniapp/subscriptions/${subscriptionId}/renewal-options`,
     ),
 
   // -- wallet ------------------------------------------------------------

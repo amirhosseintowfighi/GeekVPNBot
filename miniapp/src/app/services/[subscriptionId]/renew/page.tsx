@@ -14,24 +14,23 @@ import type { Storefront } from '@/lib/types'
 /**
  * Renewal.
  *
- * The backend returns renewal options as a storefront, filtered to what this
- * subscription can actually move to. That is why this screen reuses the shop
- * card verbatim instead of inventing a renewal-specific one - a renewal is a
- * purchase, and the price shown must go through the same quoting pipeline.
+ * Every package on sale, which is what a renewal may move onto: the same one,
+ * a larger one, or - for an account adopted from a pasted link, which has no
+ * package behind it at all - its first one. This used to call a
+ * `renewal-options` endpoint that answered with a list of quotes while this
+ * page read a storefront out of it, so the screen was permanently empty; and
+ * that endpoint refused an adopted subscription outright.
  *
- * Selecting a plan hands off to the ordinary checkout route. There is no
- * separate renewal checkout, so coupons, cashback disclosure and the payment
- * methods stay in one place.
+ * Selecting a plan hands off to the ordinary checkout route, carrying the
+ * subscription being renewed. There is no separate renewal checkout, so
+ * coupons, cashback disclosure and the payment methods stay in one place.
  */
 export default function RenewPage() {
   const params = useParams<{ subscriptionId: string }>()
   const router = useRouter()
   const subscriptionId = params.subscriptionId
 
-  const { data, error, mutate } = useSWR<Storefront>(
-    `/api/miniapp/subscriptions/${subscriptionId}/renewal-options`,
-    fetcher,
-  )
+  const { data, error, mutate } = useSWR<Storefront>('/api/miniapp/storefront', fetcher)
 
   const products = (data?.categories ?? []).flatMap((c) => c.products)
   const hasPlans = products.some((p) => p.plans.length > 0)
@@ -70,7 +69,9 @@ export default function RenewPage() {
                     <StaggerItem key={plan.planId}>
                       <PlanCard
                         plan={plan}
-                        onSelect={() => router.push(`/shop/${plan.planId}`)}
+                        onSelect={() =>
+                          router.push(`/shop/${plan.planId}?renewOf=${subscriptionId}`)
+                        }
                       />
                     </StaggerItem>
                   ))}

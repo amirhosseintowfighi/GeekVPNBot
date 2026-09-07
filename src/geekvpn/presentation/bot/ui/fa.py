@@ -319,3 +319,13 @@ def truncate(value: str, limit: int) -> str:
         return value
     cut = value[: limit - 1].rstrip(ZWNJ + " ")
     return f"{cut}\u2026"
+
+
+def rial(toman_amount: int) -> int:
+    """Toman to Rial - the unit banks count in, and customers do not.
+
+    Prices are quoted, stored and displayed in Toman everywhere in this
+    project. Only the figure a customer pastes into a transfer form crosses
+    into Rial, so the conversion lives here rather than anywhere near money.
+    """
+    return toman_amount * 10

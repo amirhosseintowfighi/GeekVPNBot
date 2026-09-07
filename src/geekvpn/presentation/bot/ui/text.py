@@ -277,7 +277,8 @@ PAY_CARD_INSTRUCTIONS: Final = (
     "\U0001f3e6 \u0628\u0627\u0646\u06a9: {bank}\n"
     "\n"
     "\U0001f4b0 \u0645\u0628\u0644\u063a: {amount}\n"
-    "\U0001f522 \u0628\u0631\u0627\u06cc \u06a9\u067e\u06cc: <code>{amount_plain}</code>\n"
+    "\U0001f522 \u0628\u0631\u0627\u06cc \u06a9\u067e\u06cc "
+    "(\u0628\u0647 \u0631\u06cc\u0627\u0644): <code>{amount_plain}</code>\n"
     "\n"
     "\u26a0\ufe0f <b>\u0645\u0628\u0644\u063a \u0631\u0648 \u0631\u0646\u062f \u0646\u06a9\u0646.</b> \u0633\u0647 \u0631\u0642\u0645 \u0622\u062e\u0631\u060c \u0634\u0646\u0627\u0633\u0647\u0654 \u0627\u062e\u062a\u0635\u0627\u0635\u06cc \u0641\u0627\u06a9\u062a\u0648\u0631 \u062a\u0648\u0626\u0647 \u0648 \u0631\u0633\u06cc\u062f\u062a \u0628\u0627 \u0647\u0645\u06cc\u0646 \u0639\u062f\u062f \u0634\u0646\u0627\u0633\u0627\u06cc\u06cc \u0645\u06cc\u200c\u0634\u0647. \u062d\u062a\u06cc \u06f1\u06f0\u06f0 \u062a\u0648\u0645\u0627\u0646 \u06a9\u0645 \u06cc\u0627 \u0632\u06cc\u0627\u062f\u060c \u062a\u0623\u06cc\u06cc\u062f \u0631\u0648 \u0639\u0642\u0628 \u0645\u06cc\u200c\u0646\u062f\u0627\u0632\u0647.\n"
     "\u23f3 \u0627\u06cc\u0646 \u0641\u0627\u06a9\u062a\u0648\u0631 \u0641\u0642\u0637 <b>{window}</b> \u0627\u0639\u062a\u0628\u0627\u0631 \u062f\u0627\u0631\u0647.\n"
@@ -288,7 +289,10 @@ PAY_CARD_INSTRUCTIONS: Final = (
 )
 
 BTN_COPY_CARD: Final = "\U0001f4cb کپی شماره کارت"
-BTN_COPY_AMOUNT: Final = "\U0001f4cb کپی مبلغ"
+#: Rial, not Toman. Every banking app in the market asks for the figure in
+#: Rial, so a Toman number pasted straight in transfers a tenth of the invoice
+#: - and a tenth is not a rounding error, it is a payment that never matches.
+BTN_COPY_AMOUNT: Final = "\U0001f4cb کپی مبلغ (ریال)"
 PAY_CARD_ASK_RECEIPT: Final = (
 
     "\U0001f4f8 \u0639\u06a9\u0633 \u06cc\u0627 \u0627\u0633\u06a9\u0631\u06cc\u0646\u200c\u0634\u0627\u062a \u0631\u0633\u06cc\u062f \u0631\u0648 \u0628\u0641\u0631\u0633\u062a.\n"
@@ -484,6 +488,10 @@ RENEW_SAME_PLAN: Final = (
     "\U0001f504 \u062a\u0645\u062f\u06cc\u062f \u0647\u0645\u06cc\u0646 \u0628\u0633\u062a\u0647"
 )
 RENEW_UPGRADE: Final = "\u2b06\ufe0f \u0627\u0631\u062a\u0642\u0627 \u0628\u0647 \u0628\u0633\u062a\u0647\u0654 \u0628\u0627\u0644\u0627\u062a\u0631"
+RENEW_EXTENDS: Final = (
+    "🔁 <b>این یه تمدیده.</b> همین سرویس فعلیت تمدید می‌شه و لینک و "
+    "کانفیگت عوض نمی‌شه — حجم و تاریخ انقضاش می‌شه همین بستهٔ جدید."
+)
 RENEW_NOTHING: Final = "\u0633\u0631\u0648\u06cc\u0633 \u0641\u0639\u0627\u0644\u06cc \u0628\u0631\u0627\u06cc \u062a\u0645\u062f\u06cc\u062f \u0646\u062f\u0627\u0631\u06cc."
 
 # -- Wallet ------------------------------------------------------------------

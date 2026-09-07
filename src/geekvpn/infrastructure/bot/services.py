@@ -76,6 +76,7 @@ def build_bot_services(
             session=scope.session,
             plans=scope.catalog_plans,
             coupons=scope.catalog_coupons,
+            subscriptions=scope.subscriptions,
             clock=container.clock,
             jalali_year=jalali_year,
             fetch_receipt=fetch_receipt,

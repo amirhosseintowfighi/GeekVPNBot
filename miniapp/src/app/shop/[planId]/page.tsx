@@ -56,6 +56,17 @@ export default function CheckoutPage() {
   const params = useParams<{ planId: string }>()
   const router = useRouter()
   const planId = params.planId
+  // Set by the renewal screen. Present, this purchase extends that service
+  // instead of adding a second one; the backend refuses an id that is not
+  // the caller's own.
+  //
+  // Read from `location` rather than `useSearchParams`, which forces every
+  // page that calls it into a Suspense boundary at build time. The value is
+  // only ever needed on a button press, long after mount.
+  const [renewOf, setRenewOf] = React.useState<string | undefined>(undefined)
+  React.useEffect(() => {
+    setRenewOf(new URLSearchParams(window.location.search).get('renewOf') ?? undefined)
+  }, [])
 
   const storefront = useSWR<Storefront>('/api/miniapp/storefront', fetcher)
   const wallet = useSWR<WalletSnapshot>('/api/miniapp/wallet', fetcher)
@@ -157,7 +168,7 @@ export default function CheckoutPage() {
     try {
       const coupon = appliedCoupon ?? undefined
       if (method === 'wallet') {
-        await api.payFromWallet(planId, coupon)
+        await api.payFromWallet(planId, coupon, renewOf)
         haptic.notify('success')
         router.replace('/services?purchased=1')
         return
@@ -165,7 +176,7 @@ export default function CheckoutPage() {
       if (method !== 'card' && method !== 'crypto') {
         // An online provider. It draws its own screen: a link, instructions,
         // or both - and no payment row for the customer to go and look at.
-        const screen = await api.beginGatewayPayment(planId, method, coupon)
+        const screen = await api.beginGatewayPayment(planId, method, coupon, renewOf)
         haptic.impact('medium')
         setGateway(screen)
         if (screen.url) openLink(screen.url)
@@ -173,8 +184,8 @@ export default function CheckoutPage() {
       }
       const details =
         method === 'card'
-          ? await api.beginCardPayment(planId, coupon)
-          : await api.beginCryptoPayment(planId, coupon)
+          ? await api.beginCardPayment(planId, coupon, renewOf)
+          : await api.beginCryptoPayment(planId, coupon, renewOf)
       if (!details.payment) throw new Error('checkout returned no payment')
       haptic.impact('medium')
       router.push(`/payments/${details.payment.paymentId}`)
@@ -207,6 +218,14 @@ export default function CheckoutPage() {
       />
 
       <div className="space-y-4 pb-28">
+        {/* Which of the two purchases this is. Without it the renewal screen
+            and the shop end on identical words. */}
+        {renewOf ? (
+          <Card className="p-4 text-xs leading-loose text-muted-foreground">
+            {'این یه تمدیده — همین سرویس فعلیت تمدید می‌شه و لینک و کانفیگت عوض نمی‌شه.'}
+          </Card>
+        ) : null}
+
         {/* What is being bought */}
         {plan ? (
           <Card className="space-y-2 p-4">

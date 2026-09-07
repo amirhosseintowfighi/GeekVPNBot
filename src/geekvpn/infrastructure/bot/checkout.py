@@ -64,6 +64,7 @@ from geekvpn.infrastructure.persistence.repositories.catalog import (
 )
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SqlAlchemyOrderRepository,
+    SqlAlchemySubscriptionRepository,
 )
 
 #: MiB per GiB; plans are sold in GiB and orders record MiB.
@@ -107,6 +108,7 @@ class BotCheckoutAdapter:
         session: AsyncSession,
         plans: SqlAlchemyPlanRepository,
         coupons: SqlAlchemyCouponRepository,
+        subscriptions: SqlAlchemySubscriptionRepository,
         clock: Clock,
         jalali_year: int,
         crypto_network: str = "TRC20",
@@ -123,6 +125,7 @@ class BotCheckoutAdapter:
         self._session = session
         self._plans = plans
         self._coupons = coupons
+        self._subscriptions = subscriptions
         self._clock = clock
         self._jalali_year = jalali_year
         self._crypto_network = crypto_network
@@ -131,7 +134,12 @@ class BotCheckoutAdapter:
     # -- buying a plan -----------------------------------------------------
 
     async def pay_from_wallet(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> SubscriptionCard:
         """Debit the wallet and deliver the service in one call.
 
@@ -141,7 +149,9 @@ class BotCheckoutAdapter:
         transaction commits. Provisioning then runs here, so what the customer
         waits for is the panel rather than a reviewer.
         """
-        _, order = await self._begin(user_id, plan_id, coupon_code, gateway_key=WALLET)
+        _, order = await self._begin(
+            user_id, plan_id, coupon_code, gateway_key=WALLET, renews=renews_subscription_id
+        )
 
         # The order was marked PAID by the *other* scope. This session created
         # it moments ago and still holds the PENDING copy in its identity map,
@@ -196,6 +206,7 @@ class BotCheckoutAdapter:
         plan_id: uuid.UUID,
         gateway_key: str,
         coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> GatewayScreen:
         """Where to send the customer, and what to tell them before they go.
 
@@ -208,7 +219,9 @@ class BotCheckoutAdapter:
         Returning both means the handler renders whatever the provider gave and
         the bot stays free of provider names.
         """
-        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=gateway_key)
+        result, _ = await self._begin(
+            user_id, plan_id, coupon_code, gateway_key=gateway_key, renews=renews_subscription_id
+        )
         url = result.instruction.redirect_url or ""
         body = result.instruction.instructions_fa or ""
         if not url and not body:
@@ -219,15 +232,29 @@ class BotCheckoutAdapter:
         return GatewayScreen(url=url, body_fa=body)
 
     async def begin_card(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> CardPaymentDetails:
-        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=CARD)
+        result, _ = await self._begin(
+            user_id, plan_id, coupon_code, gateway_key=CARD, renews=renews_subscription_id
+        )
         return _card_details(result)
 
     async def begin_crypto(
-        self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None
+        self,
+        user_id: uuid.UUID,
+        *,
+        plan_id: uuid.UUID,
+        coupon_code: str | None = None,
+        renews_subscription_id: str | None = None,
     ) -> CryptoPaymentDetails:
-        result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=CRYPTO)
+        result, _ = await self._begin(
+            user_id, plan_id, coupon_code, gateway_key=CRYPTO, renews=renews_subscription_id
+        )
         return CryptoPaymentDetails(
             network=result.instruction.network or "",
             asset=result.instruction.network or "",
@@ -330,11 +357,19 @@ class BotCheckoutAdapter:
         coupon_code: str | None,
         *,
         gateway_key: str,
+        renews: str | None = None,
     ) -> tuple[CheckoutResult, Order]:
         telegram_id = await self._require_telegram_id(user_id)
         plan = await self._plans.get(plan_id)
         if plan is None:
             raise LookupError(f"No plan {plan_id}.")
+        if renews is not None:
+            # The id arrives from a callback or a request body, and a renewal
+            # rewrites the target's quota outright. Unchecked, anyone could
+            # buy a 20GB renewal onto a stranger's 100GB service and shrink it.
+            target = await self._subscriptions.get(renews)
+            if target is None or target.user_id != telegram_id:
+                raise LookupError(f"No subscription {renews} for this customer.")
         # Read from order history rather than defaulted. Left False, a
         # first-purchase-only coupon is redeemable forever and every
         # returning customer is priced as a new one.
@@ -361,6 +396,11 @@ class BotCheckoutAdapter:
             device_limit=plan.device_limit,
             discount=quote.base_price - quote.total,
             coupon_code=coupon_code,
+            # What makes this a renewal rather than a second service. Both
+            # fields, because provisioning branches on the flag and then reads
+            # the id - and an order with one and not the other fails there.
+            is_renewal=renews is not None,
+            renews_subscription_id=renews,
         )
 
         # Committed before a single Rial moves.
