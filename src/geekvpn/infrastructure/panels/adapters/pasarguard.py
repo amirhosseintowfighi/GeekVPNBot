@@ -21,6 +21,8 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import Any, ClassVar
 
+import structlog
+
 from geekvpn.domain.panels.enums import AccountState, Capability, PanelKind, SubscriptionFormat
 from geekvpn.domain.panels.errors import (
     AccountAlreadyExists,
@@ -56,6 +58,8 @@ from geekvpn.infrastructure.panels.adapters._common import (
 from geekvpn.infrastructure.panels.base import HttpPanelAdapter
 from geekvpn.infrastructure.panels.config import PasarGuardConfig
 from geekvpn.infrastructure.panels.registry import register_panel
+
+logger = structlog.stdlib.get_logger(__name__)
 
 #: PasarGuard status strings -> our five states.
 _STATE_MAP = {
@@ -146,9 +150,9 @@ class PasarGuardAdapter(HttpPanelAdapter):
         }
         if spec.expires_at is not None:
             body["expire"] = int(spec.expires_at.timestamp())
-        groups = spec.group_tags or self._config.default_groups
+        groups = tuple(spec.group_tags or self._config.default_groups)
         if groups:
-            body["group_ids"] = list(groups)
+            body["group_ids"] = [_group_id(value) for value in groups]
         if spec.device_limit is not None:
             body["ip_limit"] = spec.device_limit
 
@@ -171,7 +175,10 @@ class PasarGuardAdapter(HttpPanelAdapter):
             if (existing.usage.quota.total_bytes or 0) == (spec.quota.total_bytes or 0):
                 return existing
             raise AccountAlreadyExists(panel=self.kind.value, username=spec.username)
-        return self._to_account(self._http.json(response))
+
+        created = self._http.json(response)
+        _check_groups_landed(created, asked=groups, panel=self.kind.value, username=spec.username)
+        return self._to_account(created)
 
     async def get_account(self, ref: PanelAccountRef) -> PanelAccount:
         response = await self._http.request(
@@ -481,4 +488,64 @@ class PasarGuardAdapter(HttpPanelAdapter):
             expires_at=to_utc(item.get("expire"), panel=self.kind.value, field="expire"),
             subscription_url=self._absolute(item.get("subscription_url")),
             links=tuple(str(link) for link in links) if isinstance(links, list) else (),
+        )
+
+
+def _group_id(value: str | int) -> str | int:
+    """A group id in the shape the panel stores it.
+
+    PasarGuard keys groups by integer, and the operator's choice arrives here
+    as a string because it made the trip through JSON and an HTML form. A
+    panel that validates strictly rejects `["1"]`, and one that does not may
+    accept the request and match nothing - which is the same outcome from the
+    customer's side: an account with no access and a link that loads nothing.
+    """
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    return int(text) if text.lstrip("-").isdigit() else text
+
+
+def _check_groups_landed(
+    payload: Any, *, asked: tuple[str, ...], panel: str, username: str
+) -> None:
+    """Say so when the groups we asked for are not on the account we got back.
+
+    Nothing here raises. The account exists and the customer has paid; failing
+    the order would leave them with neither. But an account created with no
+    groups hands them a subscription link that resolves to nothing, and until
+    now that happened in total silence - the create returned 200, the order
+    completed, and the first anybody heard of it was a customer saying the
+    config does not work.
+
+    Also fires when no groups were asked for at all, because on this panel
+    that is not a neutral default: an account in no group has no access.
+    """
+    if not isinstance(payload, dict):
+        return
+    if not asked:
+        logger.warning(
+            "panel.account_created_without_groups",
+            panel=panel,
+            username=username,
+            detail=(
+                "this node has no default groups configured, and a PasarGuard "
+                "account in no group has no access at all"
+            ),
+        )
+        return
+
+    granted = payload.get("group_ids")
+    if granted is None:
+        # Some builds answer the create without echoing the groups. Nothing to
+        # check, and inventing a complaint would be worse than staying quiet.
+        return
+    if not isinstance(granted, list) or not granted:
+        logger.warning(
+            "panel.groups_not_applied",
+            panel=panel,
+            username=username,
+            asked=list(asked),
+            granted=granted,
+            detail="the panel accepted the create but attached no groups",
         )

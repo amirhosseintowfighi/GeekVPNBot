@@ -20,7 +20,21 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 MEMORY_COST_KIB = 65_536  # 64 MiB
 TIME_COST = 3
-PARALLELISM = 4
+#: One lane, which is what the OWASP baseline quoted above actually says - the
+#: 4 here was never justified by anything.
+#:
+#: It was also killing the API. Each hash spawned four threads, and glibc gives
+#: every thread its own malloc arena which it does not hand back; four uvicorn
+#: workers each growing arenas around a 64 MiB allocation walked the container
+#: into its 1 GiB limit, and the kernel killed whichever worker was holding the
+#: login request. nginx saw the connection close mid-response and answered 502,
+#: so signing in failed roughly every other attempt with no traceback anywhere
+#: - the process was killed, not raised.
+#:
+#: Lowering lanes does not weaken the hash: memory and time cost are unchanged,
+#: so the work per guess is the same. It only stops one hash from fanning out
+#: across four threads.
+PARALLELISM = 1
 HASH_LENGTH = 32
 SALT_LENGTH = 16
 
