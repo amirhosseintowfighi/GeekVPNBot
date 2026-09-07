@@ -106,6 +106,7 @@ from geekvpn.infrastructure.persistence.repositories.session import (
 from geekvpn.infrastructure.persistence.repositories.settings import DbSettingsStore
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
 from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
+from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
 
 
 # Deliberately not `slots=True`: `cached_property` needs a real instance
@@ -297,6 +298,9 @@ class RequestScope:
             admins=self.admins,
             passwords=self.container.passwords,
             totp=self.container.totp,
+            # Without this an administrator who loses their authenticator has
+            # no way back in but an UPDATE against production.
+            recovery=ScryptRecoveryCodes(),
             sessions=self.sessions,
             clock=self.container.clock,
             audit=self.audit,

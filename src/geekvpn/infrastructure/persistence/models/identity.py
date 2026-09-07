@@ -118,6 +118,12 @@ class AdminModel(TimestampMixin, Base):
     denied_permissions: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     totp_secret: Mapped[str | None] = mapped_column(String(64))
     is_totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: scrypt hashes of the single-use codes that get somebody back in when
+    #: their TOTP device is gone. Hashes only - these are short, human-typed
+    #: secrets that live for months on a printed page.
+    recovery_code_hashes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

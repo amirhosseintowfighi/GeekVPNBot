@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Response, status
 
+from geekvpn.domain.audit.entry import AuditAction
+from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import TwoFactorInvalidError
 from geekvpn.domain.identity.session import RevocationReason
 from geekvpn.presentation.api.schemas_auth import (
@@ -19,6 +21,7 @@ from geekvpn.presentation.api.schemas_auth import (
     AdminLoginResponse,
     AdminResponse,
     MessageResponse,
+    RecoveryCodesResponse,
     TokenResponse,
 )
 from geekvpn.presentation.api.security import (
@@ -81,6 +84,7 @@ async def login(
         username=payload.username,
         password=payload.password,
         totp_code=payload.totp_code,
+        recovery_code=payload.recovery_code,
         context=context,
     )
     assert result.admin is not None  # noqa: S101 - guaranteed by the use case
@@ -138,6 +142,45 @@ async def me(subject: CurrentAdmin, scope: ScopeDep) -> AdminResponse:
         is_totp_enabled=admin.is_totp_enabled,
         last_login_at=admin.last_login_at,
     )
+
+
+@router.post(
+    "/recovery-codes",
+    response_model=RecoveryCodesResponse,
+    summary="Issue a fresh set of recovery codes",
+)
+async def issue_recovery_codes(
+    subject: CurrentAdmin, scope: ScopeDep
+) -> RecoveryCodesResponse:
+    """Generate ten single-use codes, show them once, store only the hashes.
+
+    Replaces any existing set rather than adding to it. A new set is asked for
+    because the old one is spent, lost or compromised, and in all three cases
+    leaving the old codes alive defeats the reason for asking.
+
+    Requires an already-signed-in session, so this is not a way in - it is a
+    way to prepare for the day the authenticator is not.
+    """
+    from geekvpn.domain.base.errors import NotFoundError
+    from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
+    from geekvpn.infrastructure.security.recovery_codes import CODE_COUNT
+
+    admin = await scope.admins.get(subject.subject_id)
+    if admin is None:  # pragma: no cover
+        raise NotFoundError("Administrator not found.")
+
+    codes, hashes = ScryptRecoveryCodes().issue(CODE_COUNT)
+    admin.issue_recovery_codes(hashes)
+    await scope.admins.update(admin)
+    await scope.audit.record(
+        AuditAction.AUTH_TOTP_ENABLED,
+        actor_type=SubjectType.ADMIN,
+        actor_id=admin.id,
+        actor_label=admin.username,
+        detail="recovery codes issued",
+        count=len(codes),
+    )
+    return RecoveryCodesResponse(codes=list(codes), remaining=len(codes))
 
 
 async def _reject_replayed_totp(scope: ScopeDep, username: str, code: str) -> None:

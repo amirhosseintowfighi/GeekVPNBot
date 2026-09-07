@@ -45,6 +45,7 @@ class SqlAlchemyAdminRepository:
                 denied_permissions=_dump(admin.denied_permissions),
                 totp_secret=admin.totp_secret,
                 is_totp_enabled=admin.is_totp_enabled,
+                recovery_code_hashes=list(admin.recovery_code_hashes),
                 telegram_id=admin.telegram_id,
                 failed_attempts=admin.failed_attempts,
                 locked_until=admin.locked_until,
@@ -67,6 +68,7 @@ class SqlAlchemyAdminRepository:
         model.denied_permissions = _dump(admin.denied_permissions)
         model.totp_secret = admin.totp_secret
         model.is_totp_enabled = admin.is_totp_enabled
+        model.recovery_code_hashes = list(admin.recovery_code_hashes)
         model.telegram_id = admin.telegram_id
         model.failed_attempts = admin.failed_attempts
         model.locked_until = admin.locked_until
@@ -117,6 +119,7 @@ def _to_domain(model: AdminModel) -> Admin:
         denied_permissions=_load(model.denied_permissions),
         totp_secret=model.totp_secret,
         is_totp_enabled=model.is_totp_enabled,
+        recovery_code_hashes=tuple(model.recovery_code_hashes or ()),
         telegram_id=model.telegram_id,
         failed_attempts=model.failed_attempts,
         locked_until=model.locked_until,

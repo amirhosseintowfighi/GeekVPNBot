@@ -233,7 +233,18 @@ export const api = {
   // ignored: the session that matters is the httpOnly cookie the backend sets
   // alongside it, which every later request carries without JavaScript ever
   // touching a credential.
-  signIn: (body: { username: string; password: string; totpCode?: string }) =>
+  // Shown once and never again - only the hashes are stored.
+  issueRecoveryCodes: () =>
+    mutate<{ codes: string[]; remaining: number }>(
+      'POST',
+      `${ROOT}/auth/recovery-codes`,
+    ),
+  signIn: (body: {
+    username: string
+    password: string
+    totpCode?: string
+    recoveryCode?: string
+  }) =>
     mutate<void>('POST', `${ROOT}/auth/login`, body),
   signOut: () => mutate<void>('POST', `${ROOT}/auth/sign-out`),
 

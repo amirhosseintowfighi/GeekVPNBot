@@ -42,6 +42,10 @@ class AdminLoginRequest(ApiModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=1, max_length=256)
     totp_code: str | None = Field(default=None, max_length=8)
+    #: Used instead of `totp_code` when the authenticator is gone. Same
+    #: endpoint on purpose - a recovery path that differs from the normal path
+    #: is a recovery path nobody has tested.
+    recovery_code: str | None = Field(default=None, max_length=32)
 
 
 class RefreshRequest(ApiModel):
@@ -139,3 +143,14 @@ class SettingUpdateRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     value: object
+
+
+class RecoveryCodesResponse(ApiModel):
+    """The one and only time these are readable.
+
+    Only the hashes are stored, so there is no second chance to fetch them -
+    which is the point, and which the copy on the screen has to say plainly.
+    """
+
+    codes: list[str]
+    remaining: int

@@ -24,6 +24,8 @@ export default function SignInPage() {
   const [username, setUsername] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [totpCode, setTotpCode] = React.useState('')
+  const [recoveryCode, setRecoveryCode] = React.useState('')
+  const [useRecovery, setUseRecovery] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
 
@@ -37,7 +39,8 @@ export default function SignInPage() {
         password,
         // An operator without 2FA must not send an empty string: the backend
         // reads a present code as a claim to have one and rejects it.
-        totpCode: totpCode.trim() || undefined,
+        totpCode: useRecovery ? undefined : totpCode.trim() || undefined,
+        recoveryCode: useRecovery ? recoveryCode.trim() || undefined : undefined,
       })
       window.location.href = '/'
     } catch (cause) {
@@ -86,21 +89,49 @@ export default function SignInPage() {
               />
             </Field>
 
-            <Field
-              label={'کد دومرحله‌ای'}
-              htmlFor="totp"
-              hint={'اگر فعال نیست، خالی بگذارید.'}
+            {useRecovery ? (
+              <Field
+                label={'کد بازیابی'}
+                htmlFor="recovery"
+                hint={'یکی از کدهایی که موقع فعال کردن دومرحله‌ای گرفتی. هر کد فقط یک بار کار می‌کنه.'}
+              >
+                <Input
+                  id="recovery"
+                  name="recovery"
+                  dir="ltr"
+                  autoComplete="off"
+                  placeholder="XXXX-XXXX"
+                  value={recoveryCode}
+                  onChange={(event) => setRecoveryCode(event.target.value)}
+                />
+              </Field>
+            ) : (
+              <Field
+                label={'کد دومرحله‌ای'}
+                htmlFor="totp"
+                hint={'اگه فعال نیست، خالی بذار.'}
+              >
+                <Input
+                  id="totp"
+                  name="totp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  dir="ltr"
+                  value={totpCode}
+                  onChange={(event) => setTotpCode(event.target.value)}
+                />
+              </Field>
+            )}
+
+            <button
+              type="button"
+              className="text-start text-xs text-muted-foreground underline"
+              onClick={() => setUseRecovery((current) => !current)}
             >
-              <Input
-                id="totp"
-                name="totp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                dir="ltr"
-                value={totpCode}
-                onChange={(event) => setTotpCode(event.target.value)}
-              />
-            </Field>
+              {useRecovery
+                ? 'برگرد به کد دومرحله‌ای'
+                : 'گوشیت رو نداری؟ با کد بازیابی وارد شو'}
+            </button>
 
             {error ? (
               <p role="alert" className="text-xs text-destructive">

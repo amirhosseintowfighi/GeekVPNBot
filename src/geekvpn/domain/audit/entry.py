@@ -40,6 +40,10 @@ class AuditAction(enum.StrEnum):
     AUTH_TOTP_ENABLED = "auth.totp.enabled"
     AUTH_TOTP_DISABLED = "auth.totp.disabled"
     AUTH_TOTP_FAILED = "auth.totp.failed"
+    #: A recovery code was spent to sign in. Its own action, because "somebody
+    #: got in without their authenticator" is exactly the line a person
+    #: reviewing a breach is looking for.
+    AUTH_RECOVERY_CODE_USED = "auth.recovery_code.used"
     AUTH_PERMISSION_DENIED = "auth.permission.denied"
     AUTH_IP_REJECTED = "auth.ip.rejected"
 

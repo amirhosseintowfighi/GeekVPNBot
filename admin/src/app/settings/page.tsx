@@ -8,6 +8,7 @@ import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { CardsSection } from '@/components/feature/cards-section'
+import { RecoveryCodes } from '@/components/feature/recovery-codes'
 import { RequiredChannels } from '@/components/feature/required-channels'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -120,6 +121,11 @@ export default function SettingsPage() {
           bot at all, rather than buried in the key/value list below - it is
           a gate, not a policy number. */}
       <RequiredChannels scope="platform" />
+
+      {/* Here rather than beside a TOTP setup screen, because there is not
+          one - enrolment happens out of band. Somewhere signed-in and
+          findable beats nowhere, which is where it was. */}
+      <RecoveryCodes />
 
       {error ? (
         <ErrorState

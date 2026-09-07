@@ -39,6 +39,7 @@ class Admin(AggregateRoot[uuid.UUID]):
         "locked_until",
         "password_changed_at",
         "password_hash",
+        "recovery_code_hashes",
         "role",
         "status",
         "telegram_id",
@@ -59,6 +60,7 @@ class Admin(AggregateRoot[uuid.UUID]):
         denied_permissions: frozenset[Permission] = frozenset(),
         totp_secret: str | None = None,
         is_totp_enabled: bool = False,
+        recovery_code_hashes: tuple[str, ...] = (),
         telegram_id: int | None = None,
         failed_attempts: int = 0,
         locked_until: datetime | None = None,
@@ -76,12 +78,37 @@ class Admin(AggregateRoot[uuid.UUID]):
         self.denied_permissions = denied_permissions
         self.totp_secret = totp_secret
         self.is_totp_enabled = is_totp_enabled
+        self.recovery_code_hashes = recovery_code_hashes
         self.telegram_id = telegram_id
         self.failed_attempts = failed_attempts
         self.locked_until = locked_until
         self.last_login_at = last_login_at
         self.password_changed_at = password_changed_at
         self.created_at = created_at
+
+    # -- recovery ----------------------------------------------------------
+
+    @property
+    def has_recovery_codes(self) -> bool:
+        return bool(self.recovery_code_hashes)
+
+    def issue_recovery_codes(self, hashes: tuple[str, ...]) -> None:
+        """Replace the set wholesale.
+
+        Never merged. A new set is issued because the old one is compromised,
+        lost, or nearly spent, and in all three cases keeping the old codes
+        alive defeats the reason for asking.
+        """
+        self.recovery_code_hashes = hashes
+
+    def burn_recovery_code(self, remaining: tuple[str, ...]) -> None:
+        """Record what is left after one was spent.
+
+        The checking lives in `infrastructure.security.recovery_codes` because
+        it is scrypt, and the domain does not hash. What belongs here is the
+        rule: a code that works twice is a password, and a weak one.
+        """
+        self.recovery_code_hashes = remaining
 
     # -- authorisation -----------------------------------------------------
 

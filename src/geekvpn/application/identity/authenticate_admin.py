@@ -19,7 +19,7 @@ from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.ports.audit import AuditRecorder
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.ports.ip_allowlist import IpAllowlistPort
-from geekvpn.application.ports.passwords import PasswordHasher, TotpService
+from geekvpn.application.ports.passwords import PasswordHasher, RecoveryCodes, TotpService
 from geekvpn.application.ports.rate_limiter import RateLimiter
 from geekvpn.application.ports.repositories import AdminRepository
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
@@ -45,6 +45,9 @@ class AuthenticateAdmin:
         admins: AdminRepository,
         passwords: PasswordHasher,
         totp: TotpService,
+        #: Optional so every existing construction keeps working, but an
+        #: administrator who loses their device has no way back without it.
+        recovery: RecoveryCodes | None = None,
         sessions: SessionService,
         clock: Clock,
         audit: AuditRecorder,
@@ -59,6 +62,7 @@ class AuthenticateAdmin:
         # of verifying it (see `_dummy_verify`).
         self._dummy_hash = passwords.hash(secrets.token_urlsafe(32))
         self._totp = totp
+        self._recovery = recovery
         self._sessions = sessions
         self._clock = clock
         self._audit = audit
@@ -71,6 +75,10 @@ class AuthenticateAdmin:
         username: str,
         password: str,
         totp_code: str | None = None,
+        #: The way back in when the phone with the authenticator is gone.
+        #: Same endpoint, same rate limit, same audit trail - a recovery path
+        #: that differs from the normal path is a recovery path nobody tests.
+        recovery_code: str | None = None,
         context: RequestContext,
     ) -> AuthenticationResult:
         now = self._clock.now()
@@ -109,7 +117,7 @@ class AuthenticateAdmin:
             await self._fail(username=username, context=context, reason="bad_password", admin=admin)
             raise InvalidCredentialsError()
 
-        await self._verify_second_factor(admin, totp_code, context)
+        await self._verify_second_factor(admin, totp_code, recovery_code, context)
 
         # Transparently upgrade the hash when Argon2 parameters change.
         if self._passwords.needs_rehash(admin.password_hash):
@@ -191,10 +199,21 @@ class AuthenticateAdmin:
                 raise AccountLockedError(retry_after_seconds=verdict.retry_after_seconds)
 
     async def _verify_second_factor(
-        self, admin: Admin, totp_code: str | None, context: RequestContext
+        self,
+        admin: Admin,
+        totp_code: str | None,
+        recovery_code: str | None,
+        context: RequestContext,
     ) -> None:
         if not admin.requires_totp:
             return
+
+        # Before the secret check, because the whole point is to work when the
+        # authenticator does not - including when no secret was ever enrolled.
+        if recovery_code and self._recovery is not None:
+            await self._spend_recovery_code(admin, recovery_code, context)
+            return
+
         if not admin.totp_secret:
             # A super admin without an enrolled secret cannot be let in with a
             # password alone; enrolment happens out of band.
@@ -211,6 +230,41 @@ class AuthenticateAdmin:
                 ip=context.ip,
             )
             raise TwoFactorInvalidError()
+
+    async def _spend_recovery_code(
+        self, admin: Admin, code: str, context: RequestContext
+    ) -> None:
+        """Accept a single-use code, and burn it whether or not it was right.
+
+        Burnt on success only - a wrong guess must not destroy a code the
+        owner still needs. The audit entry is written either way, because a
+        recovery attempt is exactly the event somebody reviewing a breach
+        needs to see, and a *failed* one even more so.
+        """
+        assert self._recovery is not None  # noqa: S101 - the caller checked
+        result = self._recovery.consume(admin.recovery_code_hashes, code)
+        if not result.accepted:
+            await self._audit.record(
+                AuditAction.AUTH_TOTP_FAILED,
+                outcome=AuditOutcome.FAILURE,
+                actor_type=SubjectType.ADMIN,
+                actor_id=admin.id,
+                actor_label=admin.username,
+                ip=context.ip,
+                method="recovery_code",
+            )
+            raise TwoFactorInvalidError()
+
+        admin.burn_recovery_code(result.remaining)
+        await self._audit.record(
+            AuditAction.AUTH_RECOVERY_CODE_USED,
+            actor_type=SubjectType.ADMIN,
+            actor_id=admin.id,
+            actor_label=admin.username,
+            ip=context.ip,
+            method="recovery_code",
+            remaining_recovery_codes=len(result.remaining),
+        )
 
     async def _fail(
         self,
