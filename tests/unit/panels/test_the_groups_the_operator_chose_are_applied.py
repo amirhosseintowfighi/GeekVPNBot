@@ -33,7 +33,9 @@ def _events(logs: list[dict]) -> list[str]:
     return [entry["event"] for entry in logs if entry.get("event") in wanted]
 
 
-def _adapter(*, default_groups=(), created=None):
+def _adapter(*, default_groups=(), created=None, read_back=None):
+    """`created` is the create response; `read_back` is what a follow-up GET
+    answers, for the builds that do not echo the groups on a create."""
     from geekvpn.infrastructure.panels.factory import PanelFactory
 
     server = with_auth(FakePanelServer())
@@ -46,6 +48,14 @@ def _adapter(*, default_groups=(), created=None):
         return httpx.Response(200, json=created if created is not None else user_payload())
 
     server.route("POST", "/api/user", handler=handler)
+    # `False` means "register no GET route", so the read-back 404s the way it
+    # would against a panel that refuses it.
+    if read_back is not False:
+        server.prefix(
+            "GET",
+            "/api/user/",
+            json=read_back if read_back is not None else user_payload(),
+        )
     adapter = PanelFactory().build(
         PanelKind.PASARGUARD,
         {
@@ -156,10 +166,47 @@ async def test_a_create_that_worked_says_nothing():
 
 
 @pytest.mark.asyncio
-async def test_a_panel_that_does_not_echo_the_groups_is_not_accused():
-    """Some builds answer a create without repeating what they applied.
-    Complaining there would train the operator to ignore the warning."""
-    adapter, _ = _adapter(default_groups=("1",), created=user_payload())
+async def test_a_panel_that_does_not_echo_the_groups_is_read_back():
+    """The blind spot in the first version of this check.
+
+    Some builds answer a create without repeating what they applied, and that
+    case simply returned - so on exactly the panels where groups were going
+    missing, the check said nothing. A check that reports fine because it never
+    looked is the bug it was written to catch.
+    """
+    adapter, _ = _adapter(
+        default_groups=("1",),
+        created=user_payload(),
+        read_back=user_payload(group_ids=[]),
+    )
+
+    with capture_logs() as logs:
+        await adapter.create_account(SPEC, idempotency_key="k")
+
+    assert _events(logs) == ["panel.groups_not_applied"]
+
+
+@pytest.mark.asyncio
+async def test_a_read_back_that_finds_the_groups_says_nothing():
+    adapter, _ = _adapter(
+        default_groups=("1",),
+        created=user_payload(),
+        read_back=user_payload(group_ids=[1]),
+    )
+
+    with capture_logs() as logs:
+        await adapter.create_account(SPEC, idempotency_key="k")
+
+    assert _events(logs) == []
+
+
+@pytest.mark.asyncio
+async def test_a_read_back_we_cannot_make_does_not_cry_wolf():
+    """"We could not look" and "the panel says none" are different answers, and
+    only the second is worth waking somebody for."""
+    adapter, _ = _adapter(
+        default_groups=("1",), created=user_payload(), read_back=False
+    )
 
     with capture_logs() as logs:
         await adapter.create_account(SPEC, idempotency_key="k")

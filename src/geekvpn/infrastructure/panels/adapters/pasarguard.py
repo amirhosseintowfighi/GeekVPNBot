@@ -177,7 +177,7 @@ class PasarGuardAdapter(HttpPanelAdapter):
             raise AccountAlreadyExists(panel=self.kind.value, username=spec.username)
 
         created = self._http.json(response)
-        _check_groups_landed(created, asked=groups, panel=self.kind.value, username=spec.username)
+        await self._verify_groups(created, asked=groups, username=spec.username)
         return self._to_account(created)
 
     async def get_account(self, ref: PanelAccountRef) -> PanelAccount:
@@ -273,6 +273,78 @@ class PasarGuardAdapter(HttpPanelAdapter):
         if response.status_code == 404:
             raise AccountNotFound(panel=self.kind.value, username=ref.username)
         return self._to_account(self._http.json(response))
+
+    async def _verify_groups(
+        self, created: Any, *, asked: tuple[str, ...], username: str
+    ) -> None:
+        """Check that the groups we asked for are actually on the account.
+
+        Nothing here raises. The account exists and the customer has paid, so
+        failing the order would leave them with neither. But an account in no
+        group has no access on this panel, which means a subscription link that
+        loads nothing - and that used to happen in total silence: the create
+        returned 200, the order completed, and the first anybody heard was a
+        customer saying their config does not work.
+
+        Reads the account back when the create does not echo `group_ids`. The
+        first version of this check skipped that case and said nothing, which
+        made it useless on exactly the panel builds where the groups were going
+        missing - a check that reports fine because it never looked, which is
+        the bug it was written to catch.
+        """
+        if not asked:
+            logger.warning(
+                "panel.account_created_without_groups",
+                panel=self.kind.value,
+                username=username,
+                detail=(
+                    "this node has no default groups configured, and a PasarGuard "
+                    "account in no group has no access at all"
+                ),
+            )
+            return
+
+        granted = created.get("group_ids") if isinstance(created, dict) else None
+        if granted is None:
+            granted = await self._groups_on(username)
+
+        if granted is None:
+            # We could not look. Saying "no groups" here would be the same
+            # mistake in the other direction: an alarm nobody can act on, from
+            # a check that did not actually find anything.
+            return
+        if isinstance(granted, list) and granted:
+            return
+        logger.warning(
+            "panel.groups_not_applied",
+            panel=self.kind.value,
+            username=username,
+            asked=[_group_id(value) for value in asked],
+            granted=granted,
+            detail="the panel accepted the create but the account is in no group",
+        )
+
+    async def _groups_on(self, username: str) -> Any:
+        """The account's groups, read back. `None` when we could not look.
+
+        `None` and `[]` are kept apart on purpose: one is "we do not know", the
+        other is "the panel says none", and only the second is worth waking
+        somebody for.
+        """
+        try:
+            response = await self._http.request(
+                "GET",
+                f"/api/user/{username}",
+                headers=await self._auth_headers(),
+                expected=(200,),
+                allow_status=(404,),
+            )
+            if response.status_code != 200:
+                return None
+            payload = self._http.json(response)
+        except Exception:
+            return None
+        return payload.get("group_ids") if isinstance(payload, dict) else None
 
     async def find_by_subscription(self, url: str) -> PanelAccount | None:
         """Match a pasted link against this panel's own subscription URLs.
@@ -506,46 +578,3 @@ def _group_id(value: str | int) -> str | int:
     return int(text) if text.lstrip("-").isdigit() else text
 
 
-def _check_groups_landed(
-    payload: Any, *, asked: tuple[str, ...], panel: str, username: str
-) -> None:
-    """Say so when the groups we asked for are not on the account we got back.
-
-    Nothing here raises. The account exists and the customer has paid; failing
-    the order would leave them with neither. But an account created with no
-    groups hands them a subscription link that resolves to nothing, and until
-    now that happened in total silence - the create returned 200, the order
-    completed, and the first anybody heard of it was a customer saying the
-    config does not work.
-
-    Also fires when no groups were asked for at all, because on this panel
-    that is not a neutral default: an account in no group has no access.
-    """
-    if not isinstance(payload, dict):
-        return
-    if not asked:
-        logger.warning(
-            "panel.account_created_without_groups",
-            panel=panel,
-            username=username,
-            detail=(
-                "this node has no default groups configured, and a PasarGuard "
-                "account in no group has no access at all"
-            ),
-        )
-        return
-
-    granted = payload.get("group_ids")
-    if granted is None:
-        # Some builds answer the create without echoing the groups. Nothing to
-        # check, and inventing a complaint would be worse than staying quiet.
-        return
-    if not isinstance(granted, list) or not granted:
-        logger.warning(
-            "panel.groups_not_applied",
-            panel=panel,
-            username=username,
-            asked=list(asked),
-            granted=granted,
-            detail="the panel accepted the create but attached no groups",
-        )
