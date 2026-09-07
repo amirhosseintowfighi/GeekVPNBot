@@ -32,6 +32,7 @@ import { Switch } from '@/components/ui/switch'
 const GROUP_TITLES: Record<string, string> = {
   wallet: 'کیف پول',
   pricing: 'قیمت‌گذاری',
+  payments: 'پرداخت',
   platform: 'پلتفرم',
   identity: 'ثبت‌نام و کاربران',
   security: 'امنیت',

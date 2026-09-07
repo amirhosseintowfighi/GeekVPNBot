@@ -59,6 +59,7 @@ from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.signup_bonus import SignupBonusService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
+from geekvpn.application.platform.settings_service import CARD_LABEL_FA, CRYPTO_LABEL_FA
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.order_service import INVOICE_ORDER_KEY, OrderPaymentBridge
 from geekvpn.application.support.search_service import SearchService
@@ -87,6 +88,7 @@ from geekvpn.infrastructure.persistence.models.payments import (
     GatewayAccountModel,
 )
 from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
+from geekvpn.infrastructure.persistence.models.settings import SettingModel
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SyncOrderRepository,
 )
@@ -244,6 +246,7 @@ def build_gateway_registry(
     """
     registry = GatewayRegistry()
     registry.register(WalletGateway())
+    labels = _method_labels(session)
 
     stmt = (
         select(CardAccountModel)
@@ -262,13 +265,13 @@ def build_gateway_registry(
     cards = list(session.execute(stmt).scalars().all())
     card = secrets.choice(cards) if cards else None
     if card is not None:
-        registry.register(
-            CardTransferGateway(
-                card_number=card.card_number,
-                card_holder_fa=card.holder_fa,
-                bank_name_fa=card.bank_fa,
-            )
+        transfer = CardTransferGateway(
+            card_number=card.card_number,
+            card_holder_fa=card.holder_fa,
+            bank_name_fa=card.bank_fa,
         )
+        _rename(transfer, labels.get(CARD_LABEL_FA.key))
+        registry.register(transfer)
     else:
         # Not an error: a fresh install has no card yet. The bot simply will
         # not offer card-to-card, which is better than offering a button that
@@ -296,9 +299,9 @@ def build_gateway_registry(
         # Random among the active ones, for the same reason cards are: spread
         # the traffic, with no shared turn counter to keep.
         chosen = secrets.choice(wallets)
-        registry.register(
-            CryptoTransferGateway(address=chosen.address, network=chosen.network)
-        )
+        crypto = CryptoTransferGateway(address=chosen.address, network=chosen.network)
+        _rename(crypto, labels.get(CRYPTO_LABEL_FA.key))
+        registry.register(crypto)
 
     # Online gateways, one per configured provider.
     #
@@ -317,15 +320,40 @@ def build_gateway_registry(
     )
     for account in session.execute(gateway_stmt).scalars().all():
         try:
-            registry.register(
-                build_online_gateway(account.provider, account.merchant_id_encrypted)
-            )
+            gateway = build_online_gateway(account.provider, account.merchant_id_encrypted)
+            _rename(gateway, account.label_fa)
+            registry.register(gateway)
         except KeyError:
             # A provider this build cannot construct - a row from a newer
             # version, or one renamed. Skipped rather than raised: the other
             # payment methods must keep working.
             logger.warning("payments.unknown_gateway", provider=account.provider)
     return registry
+
+
+def _rename(gateway: Any, label: str | None) -> None:
+    """Put the operator's name on a button, if they chose one.
+
+    Blank is not a name. An empty string would render a button with no text at
+    all, which Telegram refuses - and the refusal takes the whole payment
+    screen with it, not just the one button.
+    """
+    if label and label.strip():
+        gateway.title_fa = label.strip()
+
+
+def _method_labels(session: Session) -> dict[str, str]:
+    """The two labels that have no account row of their own.
+
+    Read here rather than through `SettingsService`, which is async and cannot
+    be awaited while a registry is being built. Two keys, read once per scope.
+    """
+    rows = session.execute(
+        select(SettingModel.key, SettingModel.value).where(
+            SettingModel.key.in_((CARD_LABEL_FA.key, CRYPTO_LABEL_FA.key))
+        )
+    ).all()
+    return {row[0]: str(row[1]) for row in rows if row[1]}
 
 
 class _DeferredEventPublisher:

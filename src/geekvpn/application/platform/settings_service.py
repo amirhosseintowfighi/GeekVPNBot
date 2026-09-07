@@ -126,6 +126,29 @@ SUPPORT_HOURS = SettingDefinition[str](
     description="Human-readable support hours, in Persian.",
 )
 
+#: What the payment buttons say.
+#:
+#: The label used to be a constant on each adapter class, so renaming "کارت به
+#: کارت" meant a deployment. These are the two methods with no row of their own
+#: to hang a name on - an online gateway carries its label on its account row,
+#: because a shop may have several and each wants its own.
+#:
+#: Empty means the adapter's own name, which is what every shop gets until
+#: somebody decides otherwise.
+CARD_LABEL_FA = SettingDefinition[str](
+    key="payments.label.card_fa",
+    label_fa="نام دکمهٔ کارت به کارت",
+    default="",
+    type_=str,
+    description="Overrides the card-to-card button's label. Empty keeps the default.",
+)
+CRYPTO_LABEL_FA = SettingDefinition[str](
+    key="payments.label.crypto_fa",
+    label_fa="نام دکمهٔ رمزارز",
+    default="",
+    type_=str,
+    description="Overrides the crypto button's label. Empty keeps the default.",
+)
 SIGNUP_BONUS_TOMAN = SettingDefinition[int](
     key="wallet.signup_bonus_toman",
     label_fa="هدیهٔ کاربر جدید (تومان)",
@@ -155,6 +178,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         SUPPORT_HOURS,
         SIGNUP_BONUS_TOMAN,
         SIGNUP_BONUS_NOTE_FA,
+        CARD_LABEL_FA,
+        CRYPTO_LABEL_FA,
     )
 }
 

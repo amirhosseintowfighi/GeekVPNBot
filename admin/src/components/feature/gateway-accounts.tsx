@@ -53,6 +53,7 @@ export function GatewayAccounts({
   )
   const [provider, setProvider] = React.useState<string>('zarinpal')
   const [merchantId, setMerchantId] = React.useState('')
+  const [labelFa, setLabelFa] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -60,8 +61,14 @@ export function GatewayAccounts({
     setBusy(true)
     setError(null)
     try {
-      await api.addGateway({ provider, merchantId: merchantId.trim(), resellerId })
+      await api.addGateway({
+        provider,
+        merchantId: merchantId.trim(),
+        labelFa: labelFa.trim(),
+        resellerId,
+      })
       setMerchantId('')
+      setLabelFa('')
       await mutate()
     } catch (thrown) {
       setError(thrown instanceof ApiError ? thrown.messageFa : 'ثبت درگاه انجام نشد.')
@@ -87,6 +94,7 @@ export function GatewayAccounts({
                 {LABEL[row.provider]}
                 <div className="text-xs text-muted-foreground">
                   {row.hasMerchantId ? 'شناسه ثبت شده' : 'بدون شناسه'}
+                  {row.labelFa ? ' · ' + row.labelFa : ''}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -139,6 +147,16 @@ export function GatewayAccounts({
             />
           </Field>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Field
+            label="نام دکمه در ربات"
+            hint="اختیاری — خالی یعنی نام پیش‌فرض همون درگاه."
+          >
+            <Input
+              value={labelFa}
+              onChange={(event) => setLabelFa(event.target.value)}
+              placeholder="مثلاً: پرداخت آنلاین"
+            />
+          </Field>
           <Button disabled={merchantId.trim().length < 4 || busy} onClick={() => void add()}>
             افزودن درگاه
           </Button>

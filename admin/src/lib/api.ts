@@ -565,15 +565,19 @@ export const api = {
   addGateway: (body: {
     provider: string
     merchantId: string
+    labelFa?: string
     resellerId?: string | null
   }) =>
     mutate<GatewayRow>('POST', `${ROOT}/payments/gateways`, {
       provider: body.provider,
       merchantId: body.merchantId,
+      labelFa: body.labelFa ?? '',
       resellerId: body.resellerId ?? null,
       active: true,
       sortOrder: 0,
     }),
+  renameGateway: (gatewayId: string, labelFa: string) =>
+    mutate<GatewayRow>('PATCH', `${ROOT}/payments/gateways/${gatewayId}`, { labelFa }),
   setGatewayActive: (gatewayId: string, active: boolean) =>
     mutate<GatewayRow>('PATCH', `${ROOT}/payments/gateways/${gatewayId}`, { active }),
 

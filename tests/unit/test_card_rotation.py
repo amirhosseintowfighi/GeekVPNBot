@@ -51,8 +51,15 @@ class Session:
         text = str(stmt).lower()
         for kind, rows in self._by_table.items():
             if kind in text:
-                return SimpleNamespace(scalars=lambda rows=rows: SimpleNamespace(all=lambda: rows))
-        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+                return SimpleNamespace(
+                    scalars=lambda rows=rows: SimpleNamespace(all=lambda: rows),
+                    # The label lookup reads rows directly rather than through
+                    # `scalars()`, because it selects two columns.
+                    all=lambda: [],
+                )
+        return SimpleNamespace(
+            scalars=lambda: SimpleNamespace(all=lambda: []), all=lambda: []
+        )
 
 
 def card(number: str) -> SimpleNamespace:

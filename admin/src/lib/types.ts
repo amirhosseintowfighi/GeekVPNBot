@@ -949,6 +949,8 @@ export interface ResellerTextRow {
 export interface GatewayRow {
   id: string
   provider: 'zarinpal' | 'zibal' | 'aqayepardakht' | 'atlaspay'
+  /** What the button says in the bot. Empty means the adapter's own name. */
+  labelFa: string
   hasMerchantId: boolean
   active: boolean
   sortOrder: number

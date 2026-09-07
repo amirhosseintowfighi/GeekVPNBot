@@ -359,6 +359,9 @@ class GatewayAccountModel(TimestampMixin, Base):
     )
     active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: What the button says, when the operator has chosen. NULL is the
+    #: adapter's own name - which is what every shop has until it does not.
+    label_fa: Mapped[str | None] = mapped_column(String(64))
     reseller_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
     )

@@ -312,6 +312,8 @@ class GatewayBody(ApiModel):
     #: provider, and it is the only thing between somebody and a payment
     #: request billed to that shop.
     merchant_id: str = Field(min_length=4, max_length=128)
+    #: What the button says in the bot. Empty keeps the adapter's own name.
+    label_fa: str = Field(default="", max_length=64)
     sort_order: int = 0
     active: bool = True
     reseller_id: uuid.UUID | None = None
@@ -321,6 +323,8 @@ class GatewayPatchBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     merchant_id: str | None = Field(default=None, min_length=4, max_length=128)
+    #: An empty string clears it, which restores the adapter's own name.
+    label_fa: str | None = Field(default=None, max_length=64)
     sort_order: int | None = None
     active: bool | None = None
 
@@ -334,6 +338,7 @@ def _gateway_dict(row: GatewayAccountModel) -> dict[str, Any]:
         "hasMerchantId": bool(row.merchant_id_encrypted),
         "active": row.active,
         "sortOrder": row.sort_order,
+        "labelFa": row.label_fa or "",
         "resellerId": None if row.reseller_id is None else str(row.reseller_id),
     }
 
@@ -541,6 +546,7 @@ async def create_gateway(
             merchant_id_encrypted=payload.merchant_id,
             active=payload.active,
             sort_order=payload.sort_order,
+            label_fa=payload.label_fa.strip() or None,
             reseller_id=payload.reseller_id,
         )
         scope.session.add(row)
@@ -570,6 +576,12 @@ async def update_gateway(
         if row is None:
             raise NotFoundError("این درگاه پیدا نشد.")
         for field, value in payload.model_dump(exclude_unset=True).items():
+            if field == "label_fa":
+                # Blank clears it. A button with an empty caption is one
+                # Telegram refuses, and the refusal takes the whole payment
+                # screen with it.
+                row.label_fa = (value or "").strip() or None
+                continue
             setattr(row, "merchant_id_encrypted" if field == "merchant_id" else field, value)
         scope.session.flush()
         return _gateway_dict(row)
