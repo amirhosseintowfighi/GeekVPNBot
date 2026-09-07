@@ -53,6 +53,7 @@ from geekvpn.application.payments.adapters import (
     WalletGateway,
 )
 from geekvpn.application.payments.checkout_service import CheckoutService
+from geekvpn.application.payments.referral_rewards import ReferralRewards
 from geekvpn.application.payments.refund_service import RefundService
 from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.signup_bonus import SignupBonusService
@@ -67,7 +68,7 @@ from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.payments.events import PaymentApproved, ProofSubmitted
 from geekvpn.domain.payments.gateway import GatewayRegistry
-from geekvpn.domain.provisioning.events import SubscriptionActivated
+from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
@@ -108,6 +109,9 @@ from geekvpn.infrastructure.persistence.repositories.sync_payments import (
     SyncPaymentRepository,
     SyncReceiptDigestRepository,
     SyncWalletRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_referrals import (
+    SyncReferralLedger,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_support import (
     SyncTemplateRepository,
@@ -384,6 +388,11 @@ class SyncScope:
             purchases=self.purchase_notifications,
         )
         table[PaymentApproved.name] = self.order_bridge.on_payment_approved
+        # The other half of the referral programme. `referral_accruals`
+        # computed both sides of it into every quote and nothing read the
+        # result, so the bot advertised a share of a friend's first purchase
+        # and no wallet was ever credited.
+        table[OrderPaid.name] = self._pay_referrer
         # The service exists now, and the customer is owed the link. Written
         # long ago as `on_service_provisioned` and subscribed by nothing, so a
         # paying customer watched a chat go quiet.
@@ -394,6 +403,39 @@ class SyncScope:
         for name, handler in table.items():
             publisher.subscribe(name, handler)
         return publisher
+
+    @cached_property
+    def referral_ledger(self) -> SyncReferralLedger:
+        return SyncReferralLedger(self.session)
+
+    @cached_property
+    def referral_rewards(self) -> ReferralRewards:
+        """Pays the referrer when the person they invited buys.
+
+        The policy is passed as a callable rather than a value: settings change
+        between one order and the next, and a policy captured when this scope
+        was built would pay yesterday's rate for as long as the process lived.
+        """
+        return ReferralRewards(
+            ledger=self.referral_ledger,
+            # The real wallet service, so the referrer is told their money
+            # arrived. Reachable only because the subscription below is lazy -
+            # see `_pay_referrer`.
+            wallets=self.wallet,
+            policy=self.referral_ledger.policy,
+            clock=self.container.clock,
+        )
+
+    def _pay_referrer(self, event: object) -> None:
+        """Resolve the service at call time, not at subscription time.
+
+        `referral_rewards` needs `self.wallet`, and `self.wallet` publishes to
+        `self.events` - so building it *while* `self.events` is being built is
+        a straight recursion. Deferring the lookup to the moment an order is
+        actually paid breaks the cycle without giving the handler a crippled
+        wallet that credits money and tells nobody.
+        """
+        self.referral_rewards.on_order_paid(event)
 
     @cached_property
     def operator_directory(self) -> SyncOperatorDirectory:
