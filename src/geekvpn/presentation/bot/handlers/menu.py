@@ -47,18 +47,28 @@ def home_keyboard(*, is_admin: bool = False) -> InlineKeyboardMarkup:
     call - it is discovery: an operator should not have to be told a command
     exists to run the business from their phone.
     """
+    # Same shape and the same colour rule as the persistent keyboard in
+    # `keyboards.main_menu`: full width and green for the two buttons that make
+    # money, blue for the two screens a paying customer opens daily, plain for
+    # the rest. Two keyboards that disagree about which button matters teach
+    # nothing, and this is the screen every customer lands on.
+    #
+    # Second in a row is first to the eye - Telegram lays these out left to
+    # right whatever the language, and a Persian reader starts on the right.
     rows = [
+        [K.btn(f"{E.BUY} {T.MENU_SHOP}", NavCB(to="shop"), style=K.YES)],
         [
-            K.btn(f"{E.SHOP} {T.MENU_SHOP}", NavCB(to="shop"), style=K.GO),
-            K.btn(f"{E.DASHBOARD} {T.MENU_DASHBOARD}", NavCB(to="dashboard")),
+            K.btn(f"{E.WALLET} {T.MENU_WALLET}", NavCB(to="wallet"), style=K.GO),
+            K.btn(f"{E.DASHBOARD} {T.MENU_DASHBOARD}", NavCB(to="dashboard"), style=K.GO),
         ],
+        [K.btn(f"🤝 {T.MENU_RESELLER}", NavCB(to="reseller"), style=K.YES)],
         [
-            K.btn(f"{E.WALLET} {T.MENU_WALLET}", NavCB(to="wallet"), style=K.YES),
+            K.btn(f"{E.STATUS} {T.MENU_STATUS}", NavCB(to="status")),
             K.btn(f"{E.REFERRAL} {T.MENU_REFERRAL}", NavCB(to="referral")),
         ],
         [
-            K.btn(f"{E.SUPPORT} {T.MENU_SUPPORT}", NavCB(to="support")),
             K.btn(f"{E.FAQ} {T.MENU_FAQ}", NavCB(to="faq")),
+            K.btn(f"{E.SUPPORT} {T.MENU_SUPPORT}", NavCB(to="support")),
         ],
     ]
     if is_admin:

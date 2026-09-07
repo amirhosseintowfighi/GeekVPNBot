@@ -17,7 +17,13 @@ CLOSE: Final = "\u2716\ufe0f"
 REFRESH: Final = "\U0001f504"
 
 # Sections
+#: The neutral cart, used as the fallback icon for a category that has not
+#: chosen one. Kept separate from `BUY` on purpose: a fire emoji beside a
+#: category name reads as "hot deal", which is a claim we would be making
+#: about every category that forgot to set an icon.
 SHOP: Final = "\U0001f6d2"
+#: The buy button on the menus, and only there.
+BUY: Final = "\U0001f525"
 DASHBOARD: Final = "\U0001f4ca"
 WALLET: Final = "\U0001f45b"
 REFERRAL: Final = "\U0001f381"

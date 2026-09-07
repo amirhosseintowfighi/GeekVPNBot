@@ -171,3 +171,59 @@ def test_only_the_three_known_colours_are_used() -> None:
     }
 
     assert used <= {"primary", "success", "danger"}
+
+
+# -- the two keyboards agree -----------------------------------------------
+#
+# There are two: the persistent one under every message, and the inline one on
+# the home screen. They drifted - the persistent keyboard was restyled and the
+# home screen was not, so the button the customer actually looked at still had
+# the old colours and the old order. Two keyboards that disagree about which
+# button matters teach nothing.
+
+
+def _home() -> list[list[tuple[str, str | None]]]:
+    from geekvpn.presentation.bot.handlers.menu import home_keyboard
+
+    return [
+        [(button.text, button.style) for button in row]
+        for row in home_keyboard().inline_keyboard
+    ]
+
+
+def test_the_home_screen_leads_with_the_same_green_button() -> None:
+    rows = _home()
+
+    assert len(rows[0]) == 1
+    assert rows[0][0][1] == "success"
+    assert rows[0][0][0].endswith(K.T.MENU_SHOP)
+
+
+def test_the_home_screen_offers_the_reseller_programme_too() -> None:
+    """It was on the persistent keyboard and nowhere else, so a customer who
+    scrolled the chat instead of looking down never saw the offer."""
+    labels = [label for row in _home() for label, _ in row]
+
+    assert any(label.endswith(K.T.MENU_RESELLER) for label in labels)
+
+
+def test_both_keyboards_colour_the_same_two_things_green() -> None:
+    home = {label for row in _home() for label, style in row if style == "success"}
+    persistent = {
+        button.text
+        for row in K.main_menu().keyboard
+        for button in row
+        if button.style == "success"
+    }
+
+    assert home == persistent
+
+
+def test_the_buy_button_is_not_the_generic_category_icon() -> None:
+    """`E.SHOP` is also the fallback icon for a category with no icon of its
+    own, so reusing it for the buy button meant one could not change without
+    the other."""
+    from geekvpn.presentation.bot.ui import emoji as E
+
+    assert E.BUY != E.SHOP
+    assert K.TAP_SHOP.startswith(E.BUY)

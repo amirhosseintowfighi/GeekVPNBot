@@ -142,7 +142,7 @@ def home_button() -> InlineKeyboardButton:
 #:
 #: Defined once, and matched against the same constant, so the caption and the
 #: handler cannot describe different strings.
-TAP_SHOP: Final = f"{E.SHOP} {T.MENU_SHOP}"
+TAP_SHOP: Final = f"{E.BUY} {T.MENU_SHOP}"
 TAP_DASHBOARD: Final = f"{E.DASHBOARD} {T.MENU_DASHBOARD}"
 TAP_WALLET: Final = f"{E.WALLET} {T.MENU_WALLET}"
 TAP_REFERRAL: Final = f"{E.REFERRAL} {T.MENU_REFERRAL}"
