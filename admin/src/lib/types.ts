@@ -948,7 +948,7 @@ export interface ResellerTextRow {
 /** A configured online payment provider. The merchant id never comes back. */
 export interface GatewayRow {
   id: string
-  provider: 'zarinpal' | 'zibal' | 'aqayepardakht'
+  provider: 'zarinpal' | 'zibal' | 'aqayepardakht' | 'atlaspay'
   hasMerchantId: boolean
   active: boolean
   sortOrder: number

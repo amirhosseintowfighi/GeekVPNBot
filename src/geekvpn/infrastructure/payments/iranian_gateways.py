@@ -35,6 +35,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.payments.atlaspay import AtlasPayGateway
 
 logger = get_logger(__name__)
 
@@ -339,6 +340,9 @@ BUILDERS: Final[dict[str, type]] = {
     "zarinpal": ZarinPalGateway,
     "zibal": ZibalGateway,
     "aqayepardakht": AqayePardakhtGateway,
+    # Card-to-card with automatic confirmation rather than a redirect, and it
+    # takes Toman. Its own module because almost nothing above is true of it.
+    "atlaspay": AtlasPayGateway,
 }
 
 
@@ -351,6 +355,7 @@ __all__ = [
     "ONLINE_CAPABILITIES",
     "RIAL_PER_TOMAN",
     "AqayePardakhtGateway",
+    "AtlasPayGateway",
     "GatewayCallFailed",
     "ZarinPalGateway",
     "ZibalGateway",

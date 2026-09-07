@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
     CryptoPaymentDetails,
+    GatewayScreen,
     PendingPayment,
     SubscriptionCard,
 )
@@ -195,14 +196,27 @@ class BotCheckoutAdapter:
         plan_id: uuid.UUID,
         gateway_key: str,
         coupon_code: str | None = None,
-    ) -> str:
+    ) -> GatewayScreen:
+        """Where to send the customer, and what to tell them before they go.
+
+        Two shapes of gateway now, and they are not the same screen. A redirect
+        provider gives a link and nothing else - the bank page says the rest. A
+        card-to-card provider gives instructions the customer has to *read*
+        here, because the transfer happens in their banking app and every digit
+        of it comes from this message.
+
+        Returning both means the handler renders whatever the provider gave and
+        the bot stays free of provider names.
+        """
         result, _ = await self._begin(user_id, plan_id, coupon_code, gateway_key=gateway_key)
         url = result.instruction.redirect_url or ""
-        if not url:
-            # A payment screen with nowhere to go. Raised rather than shown,
-            # so the handler apologises instead of rendering a dead button.
-            raise RuntimeError("The gateway did not return a payment link.")
-        return url
+        body = result.instruction.instructions_fa or ""
+        if not url and not body:
+            # A payment screen with nowhere to go and nothing to say. Raised
+            # rather than shown, so the handler apologises instead of
+            # rendering a dead button.
+            raise RuntimeError("The gateway returned neither a link nor instructions.")
+        return GatewayScreen(url=url, body_fa=body)
 
     async def begin_card(
         self, user_id: uuid.UUID, *, plan_id: uuid.UUID, coupon_code: str | None = None

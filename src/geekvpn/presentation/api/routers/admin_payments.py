@@ -305,7 +305,9 @@ class CryptoPatchBody(ApiModel):
 class GatewayBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["zarinpal", "zibal", "aqayepardakht"]
+    # Kept in step with `iranian_gateways.BUILDERS` - a provider accepted
+    # here but absent there is a row that silently registers nothing.
+    provider: Literal["zarinpal", "zibal", "aqayepardakht", "atlaspay"]
     #: Goes in encrypted and never comes back. It identifies the shop to the
     #: provider, and it is the only thing between somebody and a payment
     #: request billed to that shop.

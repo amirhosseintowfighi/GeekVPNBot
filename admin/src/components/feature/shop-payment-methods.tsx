@@ -21,6 +21,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   zarinpal: 'زرین‌پال',
   zibal: 'زیبال',
   aqayepardakht: 'آقای پرداخت',
+  atlaspay: 'اطلس‌پی',
 }
 
 /**

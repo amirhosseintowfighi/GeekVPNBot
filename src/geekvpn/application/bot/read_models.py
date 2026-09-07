@@ -228,6 +228,25 @@ class PendingPayment:
 
 
 @dataclass(frozen=True, slots=True)
+class GatewayScreen:
+    """What an online gateway wants shown to the customer.
+
+    Two shapes of provider, and they are not the same screen. A redirect
+    gateway gives a link and nothing else - the bank page says the rest. A
+    card-to-card gateway gives instructions the customer has to *read* here,
+    because the transfer happens in their banking app and every digit of it
+    comes from this message.
+
+    Carrying both keeps the bot free of provider names: it renders whatever it
+    was given. Never both empty - the checkout refuses that rather than drawing
+    a screen with nothing on it.
+    """
+
+    url: str = ""
+    body_fa: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class CardPaymentDetails:
     card_number: str
     card_holder_fa: str

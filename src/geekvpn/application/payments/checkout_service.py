@@ -253,7 +253,16 @@ class CheckoutService:
                 metadata=dict(instruction.metadata),
             )
         else:
-            payment.send_to_gateway(gateway_key=gateway.key, reference=instruction.payment_id)
+            payment.send_to_gateway(
+                gateway_key=gateway.key,
+                # The provider's own id for this order when it gave us one.
+                # Our payment id is a fine reference for a gateway that hands
+                # it back on a callback; a gateway that must be *polled* needs
+                # the handle it answers to, and there is nowhere else to keep
+                # it - `verify` is given the reference and nothing more.
+                reference=instruction.metadata.get("gatewayReference")
+                or instruction.payment_id,
+            )
 
         self._invoices.save(invoice)
         self._payments.save(payment)

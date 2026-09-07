@@ -21,12 +21,14 @@ const PROVIDERS = [
   { value: 'zarinpal', label: 'زرین‌پال' },
   { value: 'zibal', label: 'زیبال' },
   { value: 'aqayepardakht', label: 'آقای پرداخت' },
+  { value: 'atlaspay', label: 'اطلس‌پی' },
 ] as const
 
 const LABEL: Record<GatewayRow['provider'], string> = {
   zarinpal: 'زرین‌پال',
   zibal: 'زیبال',
   aqayepardakht: 'آقای پرداخت',
+  atlaspay: 'اطلس‌پی',
 }
 
 /**
@@ -127,7 +129,7 @@ export function GatewayAccounts({
               provider, and it is the only thing between somebody and a payment
               request billed to that shop. */}
           <Field
-            label="شناسهٔ پذیرنده"
+            label={provider === 'atlaspay' ? 'کلید API' : 'شناسهٔ پذیرنده'}
             hint="مرچنت‌کد زرین‌پال، مرچنت زیبال، یا پین آقای پرداخت"
           >
             <Input

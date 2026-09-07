@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 from geekvpn.application.bot.read_models import (
     CardPaymentDetails,
     CryptoPaymentDetails,
+    GatewayScreen,
     NotificationPreferences,
     PendingPayment,
     ProfileSummary,
@@ -138,8 +139,8 @@ class CheckoutService(Protocol):
         plan_id: uuid.UUID,
         gateway_key: str,
         coupon_code: str | None = None,
-    ) -> str:
-        """Start an online payment and return where to send the customer."""
+    ) -> GatewayScreen:
+        """Start an online payment and say what the customer should see."""
         ...
 
     async def begin_card(

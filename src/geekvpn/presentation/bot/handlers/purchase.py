@@ -433,14 +433,21 @@ async def on_pay(
 
         # Anything else is an online gateway, by its own key - which is what
         # the registry registered it under and what the payment row will store.
-        url = await services.checkout.begin_gateway(
+        screen = await services.checkout.begin_gateway(
             user_id=user.id, plan_id=plan_uuid, gateway_key=method, coupon_code=coupon
         )
         await state.clear()
+        # The provider decides which of the two screens this is. A redirect
+        # gateway sends a link and the bank page says the rest; a card-to-card
+        # one sends the card, which the customer has to read *here* because the
+        # transfer happens in their banking app and every digit comes from this
+        # message. Its link is still offered - it is how a receipt is uploaded
+        # when the automatic matcher does not fire.
+        rows = [[K.url_btn(T.BTN_PAY_ONLINE, screen.url)]] if screen.url else []
         await safe_edit(
             query,
-            T.PAY_GATEWAY_READY,
-            markup=K.stack([[K.url_btn(T.BTN_PAY_ONLINE, url)]], home=True),
+            screen.body_fa or T.PAY_GATEWAY_READY,
+            markup=K.stack(rows, home=True),
         )
     except Exception as failure:
         # Logged, not merely apologised for. This `except` used to swallow the
