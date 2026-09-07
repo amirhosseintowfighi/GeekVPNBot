@@ -38,7 +38,15 @@ def test_the_platform_can_add_an_online_gateway():
     assert "<GatewayAccounts" in _settings()
 
 
-def test_a_reseller_still_gets_the_same_section():
+def test_the_platform_can_add_a_crypto_wallet():
+    """The third way, and it had the same gap: a private function inside the
+    reseller drawer taking a required shop id, so the one storefront it could
+    not configure was ours."""
+    assert "<CryptoAccounts" in _settings()
+
+
+@pytest.mark.parametrize("component", ["<GatewayAccounts", "<CryptoAccounts"])
+def test_a_reseller_gets_the_same_component(component: str):
     """One component, two mounts. Two copies would be two places for the
-    validation and the confirm to drift."""
-    assert "<GatewayAccounts" in DRAWER.read_text(encoding="utf-8")
+    validation and the wording to drift."""
+    assert component in DRAWER.read_text(encoding="utf-8")

@@ -539,10 +539,15 @@ export const api = {
       active: true,
       sortOrder: 0,
     }),
-  resellerCrypto: (id: string) =>
-    fetcher<CryptoRow[]>(`${ROOT}/payments/crypto` + `?resellerId=${id}`),
+  // Optional shop, like `gateways` above: omitted means the platform's own.
+  // These took a required id, so the one screen that could not call them was
+  // ours - the operator could add a wallet for every shop except this one.
+  resellerCrypto: (id?: string) =>
+    fetcher<CryptoRow[]>(
+      `${ROOT}/payments/crypto` + (id ? `?resellerId=${id}` : ''),
+    ),
   addResellerCrypto: (
-    id: string,
+    id: string | undefined,
     body: { address: string; network: string; asset: string },
   ) =>
     mutate<CryptoRow>('POST', `${ROOT}/payments/crypto`, {

@@ -8,6 +8,7 @@ import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { CardsSection } from '@/components/feature/cards-section'
+import { CryptoAccounts } from '@/components/feature/crypto-accounts'
 import { GatewayAccounts } from '@/components/feature/gateway-accounts'
 import { RecoveryCodes } from '@/components/feature/recovery-codes'
 import { RequiredChannels } from '@/components/feature/required-channels'
@@ -129,6 +130,18 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <GatewayAccounts writable={editable} />
+        </CardContent>
+      </Card>
+
+      {/* And the third way. It was a private function inside the reseller
+          drawer taking a required shop id, so the one storefront it could not
+          configure was ours. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{'رمزارز'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CryptoAccounts writable={editable} />
         </CardContent>
       </Card>
 
