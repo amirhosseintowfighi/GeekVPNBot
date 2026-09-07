@@ -171,14 +171,14 @@ def main_menu() -> ReplyKeyboardMarkup:
     keyboard were the two features they had not come for, and the one that
     takes their money looked like a navigation link.
 
-    **The grid had no shape.** Rows of 2/2/2/1/3, with the single full-width
-    row - the widest, most prominent element on the screen - given to the
-    reseller programme, which almost nobody taps.
+    **The grid had no shape.** Rows of 2/2/2/1/3, with the one full-width row
+    stranded at the bottom under three coloured rows, where the widest element
+    on the screen was also the last one read.
 
-    So: one green button, and it is the shop. Full width, first row, because
-    the only reason to make something full width is that it matters more than
-    everything beside it. Then the two screens a paying customer opens daily,
-    then the rest, plain.
+    So: full width is reserved for the two buttons that have to be noticed -
+    the shop, and the reseller offer under it - and green means the same two.
+    Between and below them sit the screens a customer opens for themselves,
+    in descending order of how often, plain.
 
     Ordering inside a row: Telegram lays buttons out left to right whatever the
     UI language, but a Persian reader's eye still starts on the right. So the
@@ -186,28 +186,31 @@ def main_menu() -> ReplyKeyboardMarkup:
     here and correct on the phone.
     """
     builder = ReplyKeyboardBuilder()
-    # The one green button on the keyboard, and the one reason the bot exists.
+    # Green, full width: the reason the bot exists.
     builder.row(KeyboardButton(text=TAP_SHOP, style=ButtonStyle.SUCCESS))
     # What somebody who has already bought opens: their services, their money.
     builder.row(
         KeyboardButton(text=TAP_WALLET, style=ButtonStyle.PRIMARY),
         KeyboardButton(text=TAP_DASHBOARD, style=ButtonStyle.PRIMARY),
     )
-    # Offers and help. Plain: they should be findable, not competing with the
-    # row above for a customer who came to top up.
+    # The second green button, and the only one here that is an offer rather
+    # than a customer's own account. Full width because it has to be noticed by
+    # people who did not come looking for it - that is the whole point of a
+    # reseller programme, and it pays for itself the first time somebody takes
+    # it up. Below the two rows above rather than beside them, so it competes
+    # with nothing a paying customer opens daily.
+    builder.row(KeyboardButton(text=TAP_RESELLER, style=ButtonStyle.SUCCESS))
+    # Help, offers and status. Plain: findable, not competing.
     builder.row(
-        KeyboardButton(text=TAP_SUPPORT),
+        KeyboardButton(text=TAP_STATUS),
         KeyboardButton(text=TAP_REFERRAL),
+        KeyboardButton(text=TAP_SUPPORT),
     )
     # Everything a customer opens once and rarely again.
     builder.row(
         KeyboardButton(text=TAP_SETTINGS),
         KeyboardButton(text=TAP_FAQ),
         KeyboardButton(text=TAP_PROFILE),
-    )
-    builder.row(
-        KeyboardButton(text=TAP_RESELLER),
-        KeyboardButton(text=TAP_STATUS),
     )
     return builder.as_markup(
         resize_keyboard=True,

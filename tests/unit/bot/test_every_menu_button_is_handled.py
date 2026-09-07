@@ -106,13 +106,13 @@ def test_the_menu_is_coloured_at_all() -> None:
     assert coloured
 
 
-def test_buying_is_the_only_green_thing() -> None:
+def test_green_means_the_two_things_being_sold() -> None:
     """The bug this replaced: the shop was blue while the wallet and the
     referral programme were green, so the loudest buttons on the customer's
     permanent keyboard were the two features they had not come for.
 
-    Green means "the thing this screen exists for" everywhere else in the
-    module. Here that is the shop, and nothing else."""
+    Green is now the shop and the reseller offer - the two buttons that make
+    money - and the order matters: the shop is read first."""
     green = [
         button.text
         for row in K.main_menu().keyboard
@@ -120,16 +120,26 @@ def test_buying_is_the_only_green_thing() -> None:
         if button.style == "success"
     ]
 
-    assert green == [K.TAP_SHOP]
+    assert green == [K.TAP_SHOP, K.TAP_RESELLER]
 
 
-def test_the_shop_gets_the_whole_first_row() -> None:
-    """The only reason to make something full width is that it matters more
-    than anything that would sit beside it. That was given to the reseller
-    programme, which almost nobody taps."""
-    first_row = K.main_menu().keyboard[0]
+def test_the_two_green_buttons_get_a_row_each() -> None:
+    """Full width is what makes something impossible to skim past, so it is
+    reserved for exactly the two that must not be."""
+    rows = [[button.text for button in row] for row in K.main_menu().keyboard]
 
-    assert [button.text for button in first_row] == [K.TAP_SHOP]
+    assert rows[0] == [K.TAP_SHOP]
+    assert [K.TAP_RESELLER] in rows
+
+
+def test_the_offer_sits_below_the_customers_own_screens() -> None:
+    """An offer that pushes the wallet and the service list further down the
+    keyboard costs a daily tap to win an occasional one."""
+    rows = [[button.text for button in row] for row in K.main_menu().keyboard]
+    own = next(i for i, row in enumerate(rows) if K.TAP_WALLET in row)
+    offer = rows.index([K.TAP_RESELLER])
+
+    assert own < offer
 
 
 def test_the_ancillary_buttons_do_not_compete() -> None:
