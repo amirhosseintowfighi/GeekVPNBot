@@ -8,6 +8,7 @@ import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { CardsSection } from '@/components/feature/cards-section'
+import { GatewayAccounts } from '@/components/feature/gateway-accounts'
 import { RecoveryCodes } from '@/components/feature/recovery-codes'
 import { RequiredChannels } from '@/components/feature/required-channels'
 import { PageHeader } from '@/components/shell/page-header'
@@ -116,6 +117,20 @@ export default function SettingsPage() {
       {/* Cards first: without one the platform cannot take money at all, which
           outranks every pricing policy below it. */}
       <CardsSection />
+
+      {/* Beside the cards, because they are the same decision - the ways this
+          shop takes money. The component was written to serve both the
+          operator and a reseller and was mounted only inside the reseller
+          drawer, so the platform's own gateways could be configured for every
+          shop except ours. `resellerId` omitted means the platform. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{'درگاه بانکی'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <GatewayAccounts writable={editable} />
+        </CardContent>
+      </Card>
 
       {/* Beside the other things that decide whether a customer can use the
           bot at all, rather than buried in the key/value list below - it is
