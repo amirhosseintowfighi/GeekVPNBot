@@ -39,6 +39,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import AdminStatus, AuthMethod, Language, SubjectType, UserStatus
 from geekvpn.domain.identity.permissions import AdminRole
 from geekvpn.domain.identity.session import DeviceInfo, RefreshToken, RevocationReason, Session
@@ -276,3 +277,66 @@ class RefreshTokenModel(Base):
         Index("ix_refresh_tokens_session_id", "session_id"),
         Index("ix_refresh_tokens_expires_at", "expires_at"),
     )
+
+
+class AppLoginRequestModel(Base):
+    """An Android app waiting to be approved in the bot. See `AppLinkLogin`.
+
+    Only hashes of the two secrets are stored, like refresh tokens: a row read
+    out of a backup cannot be turned into a signed-in phone.
+    """
+
+    __tablename__ = "app_login_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    poll_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    device_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False)
+    app_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(45))
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(f"status IN ({_values(AppLoginStatus)})", name="app_login_requests_status"),
+        UniqueConstraint("code_hash", name="uq_app_login_requests_code_hash"),
+        UniqueConstraint("poll_token_hash", name="uq_app_login_requests_poll_token_hash"),
+        Index("ix_app_login_requests_expires_at", "expires_at"),
+    )
+
+    def to_domain(self) -> AppLoginRequest:
+        return AppLoginRequest(
+            id=self.id,
+            code_hash=self.code_hash,
+            poll_token_hash=self.poll_token_hash,
+            device_id=self.device_id,
+            device_name=self.device_name,
+            platform=self.platform,
+            app_version=self.app_version,
+            ip=self.ip,
+            status=AppLoginStatus(self.status),
+            created_at=self.created_at,
+            expires_at=self.expires_at,
+            telegram_user_id=self.telegram_user_id,
+        )
+
+    @classmethod
+    def from_domain(cls, request: AppLoginRequest) -> AppLoginRequestModel:
+        return cls(
+            id=request.id,
+            code_hash=request.code_hash,
+            poll_token_hash=request.poll_token_hash,
+            device_id=request.device_id,
+            device_name=request.device_name,
+            platform=request.platform,
+            app_version=request.app_version,
+            ip=request.ip,
+            status=request.status.value,
+            created_at=request.created_at,
+            expires_at=request.expires_at,
+            telegram_user_id=request.telegram_user_id,
+        )

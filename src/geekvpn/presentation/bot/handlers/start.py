@@ -13,12 +13,13 @@ from __future__ import annotations
 from typing import Any
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.identity.app_link_login import START_PARAM_PREFIX as APP_LOGIN_PREFIX
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.channel_gate import (
     PASS_TTL_SECONDS,
@@ -28,6 +29,7 @@ from geekvpn.presentation.bot.channel_gate import (
     gate_text,
     unjoined,
 )
+from geekvpn.presentation.bot.handlers import app_login
 from geekvpn.presentation.bot.handlers.admin import is_admin
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -64,8 +66,9 @@ async def on_start(
     suspended: bool = False,
     bot: Any = None,
     stickers: Any = None,
+    command: CommandObject | None = None,
 ) -> None:
-    """`/start`, including `/start ref_XXXX` deep links.
+    """`/start`, including `/start ref_XXXX` and `/start applogin_XXXX` deep links.
 
     Clears FSM state unconditionally. `/start` is the universal escape hatch:
     whatever broken flow a user is stuck in, this always returns them to a
@@ -78,6 +81,16 @@ async def on_start(
         return
     if user is None:
         await answer(message, T.ERR_GENERIC)
+        return
+
+    # Before anything referral-related: an app sign-in link is a question the
+    # customer is waiting on, not a welcome. The identity middleware has
+    # already created the account for a first-time visitor the usual way.
+    payload = (command.args or "").strip() if command else ""
+    if payload.startswith(APP_LOGIN_PREFIX):
+        await app_login.handle_start(
+            message, scope=scope, user=user, code=payload[len(APP_LOGIN_PREFIX) :]
+        )
         return
 
     # The first thing a new customer sees. Best effort, and before the text

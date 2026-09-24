@@ -15,6 +15,7 @@ from geekvpn.application.bot import ports
 from geekvpn.application.bot.read_models import ServerHealth
 from geekvpn.application.bot.read_models import SubscriptionState as CardState
 from geekvpn.application.provisioning.ports import NodeRecord
+from geekvpn.domain.catalog.enums import ProductTier
 from geekvpn.domain.identity.enums import Language, UserStatus
 from geekvpn.domain.identity.user import User
 from geekvpn.domain.panels.enums import PanelKind
@@ -182,6 +183,69 @@ async def test_the_plan_name_comes_from_the_order_that_created_it() -> None:
 
     assert card.plan_name_fa == "پلن نقره‌ای"
     assert card.state is CardState.ACTIVE
+
+
+class FakePlans:
+    def __init__(self, product_id: uuid.UUID | None) -> None:
+        self.product_id = product_id
+        self.lookups = 0
+
+    async def get(self, plan_id: uuid.UUID):
+        self.lookups += 1
+        if self.product_id is None:
+            return None
+
+        class _Plan:
+            product_id = self.product_id
+
+        return _Plan()
+
+
+class FakeProducts:
+    def __init__(self, tier: ProductTier) -> None:
+        self.tier = tier
+
+    async def get(self, product_id: uuid.UUID):
+        class _Product:
+            tier = self.tier
+
+        return _Product()
+
+
+async def test_the_card_carries_the_tier_of_the_product_it_was_sold_under() -> None:
+    """The Android app shows the clean-IP scanner only for `direct` services."""
+    plans = FakePlans(product_id=uuid.uuid4())
+    reader = SqlSubscriptionCardReader(
+        users=FakeUsers(make_user()),  # type: ignore[arg-type]
+        subscriptions=FakeSubscriptions(  # type: ignore[arg-type]
+            [make_subscription(quota_mib=1024, used_mib=0)] * 2
+        ),
+        orders=FakeOrders(),  # type: ignore[arg-type]
+        plans=plans,  # type: ignore[arg-type]
+        products=FakeProducts(ProductTier.DIRECT),  # type: ignore[arg-type]
+    )
+
+    cards = await reader.list_for_user(USER_ID)
+
+    assert [card.tier for card in cards] == [ProductTier.DIRECT, ProductTier.DIRECT]
+    # One lookup per plan, not per service.
+    assert plans.lookups == 1
+
+
+async def test_a_service_whose_plan_is_gone_has_no_tier_rather_than_no_card() -> None:
+    reader = SqlSubscriptionCardReader(
+        users=FakeUsers(make_user()),  # type: ignore[arg-type]
+        subscriptions=FakeSubscriptions(  # type: ignore[arg-type]
+            [make_subscription(quota_mib=1024, used_mib=0)]
+        ),
+        orders=FakeOrders(),  # type: ignore[arg-type]
+        plans=FakePlans(product_id=None),  # type: ignore[arg-type]
+        products=FakeProducts(ProductTier.TUNNEL),  # type: ignore[arg-type]
+    )
+
+    [card] = await reader.list_for_user(USER_ID)
+
+    assert card.tier is None
 
 
 # -- server status ---------------------------------------------------------

@@ -37,6 +37,7 @@ from geekvpn.presentation.api.routers import (
     admin_support,
     admin_users,
     admin_wallet,
+    app_auth,
     auth,
     catalog,
     gateway_callback,
@@ -230,5 +231,9 @@ def create_app(
     # No API_V1_PREFIX: the Mini App calls /api/miniapp/* and its own router
     # already carries that prefix.
     app.include_router(miniapp.router)
+    # No API_V1_PREFIX either: the Android app's sign-in lives at
+    # /api/app/auth/*, and after it the app is an ordinary Bearer client of
+    # /api/v1/auth/* and /api/miniapp/*.
+    app.include_router(app_auth.router)
 
     return app

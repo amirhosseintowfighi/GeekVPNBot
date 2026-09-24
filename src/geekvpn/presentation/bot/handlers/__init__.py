@@ -9,6 +9,7 @@ siblings to hand reply-keyboard taps over to the inline flows.
 """
 
 from geekvpn.presentation.bot.handlers import (
+    app_login,
     common,
     dashboard,
     fallback,
@@ -28,6 +29,7 @@ from geekvpn.presentation.bot.handlers import (
 )
 
 __all__ = [
+    "app_login",
     "common",
     "dashboard",
     "fallback",

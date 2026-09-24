@@ -298,6 +298,8 @@ class PlanCard(ApiModel):
 class ProductCard(ApiModel):
     product_id: uuid.UUID
     category_id: uuid.UUID
+    #: direct | tunnel | elite
+    tier: str
     name_fa: str
     tagline_fa: str | None
     description_fa: str | None
@@ -356,6 +358,7 @@ async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> StorefrontRes
                     ProductCard(
                         product_id=product.id,
                         category_id=category.id,
+                        tier=product.tier,
                         name_fa=product.name,
                         tagline_fa=product.tagline,
                         description_fa=product.description,

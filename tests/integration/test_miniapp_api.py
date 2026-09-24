@@ -41,9 +41,10 @@ def test_no_header_is_refused(api, path) -> None:
 
 
 @pytest.mark.parametrize("path", PROTECTED)
-def test_a_bearer_token_is_not_accepted_where_initdata_is_required(api, path) -> None:
-    """The Mini App scheme is `tma`. Accepting a Bearer here would let an
-    access token stand in for a signature Telegram vouched for."""
+def test_a_bearer_value_that_is_not_a_valid_access_token_is_refused(api, path) -> None:
+    """The Android app calls these routes with `Bearer <access token>`, so the
+    scheme itself is accepted - but only a token that verifies. A valid token
+    working here is covered in `test_app_auth_api.py`."""
     assert api.get(path, headers={"Authorization": "Bearer whatever"}).status_code == 401
 
 

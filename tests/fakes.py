@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -16,6 +17,7 @@ from geekvpn.application.ports.rate_limiter import RateLimitVerdict
 from geekvpn.application.ports.settings_store import SettingRecord
 from geekvpn.domain.audit.entry import AuditAction, AuditEntry, AuditOutcome
 from geekvpn.domain.identity.admin import Admin
+from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.session import RefreshToken, RevocationReason, Session
 from geekvpn.domain.identity.user import User
@@ -354,3 +356,65 @@ class FakeAsyncSession:
     async def delete(self, _obj: Any) -> None: ...
 
     def add(self, _obj: Any) -> None: ...
+
+
+class InMemoryAppLoginRepository:
+    """Same contract as the SQL one: each transition states the state it leaves,
+    and reports whether this caller won."""
+
+    def __init__(self) -> None:
+        self.items: dict[uuid.UUID, AppLoginRequest] = {}
+
+    async def add(self, request: AppLoginRequest) -> None:
+        self.items[request.id] = request
+
+    async def get(self, request_id: uuid.UUID) -> AppLoginRequest | None:
+        return self.items.get(request_id)
+
+    async def get_by_code_hash(self, code_hash: str) -> AppLoginRequest | None:
+        return next((r for r in self.items.values() if r.code_hash == code_hash), None)
+
+    async def get_by_poll_token_hash(self, poll_token_hash: str) -> AppLoginRequest | None:
+        return next((r for r in self.items.values() if r.poll_token_hash == poll_token_hash), None)
+
+    async def claim(self, request_id: uuid.UUID, *, telegram_user_id: int, now: datetime) -> bool:
+        request = self.items.get(request_id)
+        if (
+            request is None
+            or request.status is not AppLoginStatus.PENDING
+            or request.telegram_user_id is not None
+            or request.expires_at <= now
+        ):
+            return False
+        self.items[request_id] = replace(request, telegram_user_id=telegram_user_id)
+        return True
+
+    async def decide(
+        self,
+        request_id: uuid.UUID,
+        *,
+        telegram_user_id: int,
+        status: AppLoginStatus,
+        now: datetime,
+    ) -> bool:
+        request = self.items.get(request_id)
+        if (
+            request is None
+            or request.status is not AppLoginStatus.PENDING
+            or request.telegram_user_id != telegram_user_id
+            or request.expires_at <= now
+        ):
+            return False
+        self.items[request_id] = replace(request, status=status)
+        return True
+
+    async def consume(self, request_id: uuid.UUID, *, now: datetime) -> bool:
+        request = self.items.get(request_id)
+        if (
+            request is None
+            or request.status is not AppLoginStatus.APPROVED
+            or request.expires_at <= now
+        ):
+            return False
+        self.items[request_id] = replace(request, status=AppLoginStatus.CONSUMED)
+        return True
