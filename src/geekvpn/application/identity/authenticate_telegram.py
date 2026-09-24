@@ -32,6 +32,7 @@ from geekvpn.application.ports.repositories import ReferralRepository, UserRepos
 from geekvpn.application.ports.telegram_auth import TelegramAuthVerifier, TelegramIdentity
 from geekvpn.domain.audit.entry import AuditAction
 from geekvpn.domain.identity.enums import Language, SubjectType
+from geekvpn.domain.identity.errors import InvalidTelegramAuthError
 from geekvpn.domain.identity.user import User
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -85,7 +86,21 @@ class AuthenticateTelegramUser:
             init_data, max_age_seconds=self._request_max_age_seconds
         )
         user, _ = await self._resolve(identity, now=self._clock.now())
-        return _to_profile(user)
+        return to_profile(user)
+
+    async def profile_of(self, user_id: uuid.UUID) -> UserProfile:
+        """The customer behind a verified access token, for per-request use.
+
+        The token is already proven, so this only answers "does the account
+        still exist, and may it still come in?" - a customer suspended after
+        their token was issued is refused on the next call, not 15 minutes
+        later when the token runs out.
+        """
+        user = await self._users.get(user_id)
+        if user is None:
+            raise InvalidTelegramAuthError()
+        user.ensure_can_authenticate()
+        return to_profile(user)
 
     async def from_login_widget(
         self, payload: dict[str, str], *, context: RequestContext
@@ -160,7 +175,7 @@ class AuthenticateTelegramUser:
             tokens=tokens,
             subject_type=SubjectType.USER,
             method=identity.method,
-            user=_to_profile(user),
+            user=to_profile(user),
             is_new_user=is_new,
         )
 
@@ -266,7 +281,7 @@ def _referral_from_start_param(start_param: str | None) -> str | None:
     return code or None
 
 
-def _to_profile(user: User) -> UserProfile:
+def to_profile(user: User) -> UserProfile:
     return UserProfile(
         id=user.id,
         telegram_id=user.telegram_id,

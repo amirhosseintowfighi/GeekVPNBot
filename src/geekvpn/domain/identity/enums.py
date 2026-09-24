@@ -52,5 +52,7 @@ class AuthMethod(enum.StrEnum):
     TELEGRAM_MINI_APP = "telegram_mini_app"
     TELEGRAM_LOGIN_WIDGET = "telegram_login_widget"
     TELEGRAM_BOT = "telegram_bot"
+    #: The Android app, approved from inside the bot (see `AppLinkLogin`).
+    TELEGRAM_APP_LINK = "telegram_app_link"
     ADMIN_PASSWORD = "admin_password"  # noqa: S105 - a constant name, not a credential
     REFRESH = "refresh"

@@ -19,6 +19,7 @@ from geekvpn.infrastructure.persistence.models.catalog import (
 )
 from geekvpn.infrastructure.persistence.models.identity import (
     AdminModel,
+    AppLoginRequestModel,
     RefreshTokenModel,
     SessionModel,
     UserModel,
@@ -65,6 +66,7 @@ from geekvpn.infrastructure.persistence.models.support import (
 
 __all__ = [
     "AdminModel",
+    "AppLoginRequestModel",
     "AuditLogModel",
     "BroadcastModel",
     "CampaignModel",

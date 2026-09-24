@@ -14,6 +14,7 @@ from typing import Protocol, runtime_checkable
 
 from geekvpn.domain.audit.entry import AuditEntry
 from geekvpn.domain.identity.admin import Admin
+from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.session import RefreshToken, RevocationReason, Session
 from geekvpn.domain.identity.user import User
@@ -154,3 +155,41 @@ class AuditLogRepository(Protocol):
         limit: int = 50,
         offset: int = 0,
     ) -> Sequence[AuditEntry]: ...
+
+
+@runtime_checkable
+class AppLoginRepository(Protocol):
+    """App sign-in requests.
+
+    Every state change is a conditional write that reports whether it won,
+    never a read followed by a write: two taps on "approve", or two polls
+    racing for the same tokens, must produce exactly one winner. The same
+    pattern the refresh-token claim uses.
+    """
+
+    async def add(self, request: AppLoginRequest) -> None: ...
+
+    async def get(self, request_id: uuid.UUID) -> AppLoginRequest | None: ...
+
+    async def get_by_code_hash(self, code_hash: str) -> AppLoginRequest | None: ...
+
+    async def get_by_poll_token_hash(self, poll_token_hash: str) -> AppLoginRequest | None: ...
+
+    async def claim(self, request_id: uuid.UUID, *, telegram_user_id: int, now: datetime) -> bool:
+        """Bind a pending, unexpired, unclaimed request to the account that opened its link."""
+        ...
+
+    async def decide(
+        self,
+        request_id: uuid.UUID,
+        *,
+        telegram_user_id: int,
+        status: AppLoginStatus,
+        now: datetime,
+    ) -> bool:
+        """Move a pending, unexpired request claimed by this account to `status`."""
+        ...
+
+    async def consume(self, request_id: uuid.UUID, *, now: datetime) -> bool:
+        """Move an approved, unexpired request to consumed. At most one caller wins."""
+        ...

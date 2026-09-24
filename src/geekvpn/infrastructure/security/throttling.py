@@ -87,6 +87,12 @@ POLICIES: Final[dict[str, Policy]] = {
     "auth.refresh": Policy("auth.refresh", limit=60, window_seconds=3600, scope=Scope.SUBJECT),
     "auth.telegram": Policy("auth.telegram", limit=20, window_seconds=300, scope=Scope.IP),
     "auth.captcha": Policy("auth.captcha", limit=20, window_seconds=600, scope=Scope.IP),
+    # Android app sign-in. Starting is limited like a Telegram login (the use
+    # case adds its own per-device limit). Polling is looser: each poll waits up
+    # to 25s, and Iranian mobile carriers put many phones behind one CGNAT
+    # address, so a strict per-IP ceiling would lock out a whole neighbourhood.
+    "auth.app_link": Policy("auth.app_link", limit=20, window_seconds=300, scope=Scope.IP),
+    "auth.app_poll": Policy("auth.app_poll", limit=120, window_seconds=300, scope=Scope.IP),
     # --- money --------------------------------------------------------------
     # Tight on purpose. Each of these creates a row a human then has to review,
     # so the limit protects the operator's queue as much as the server.

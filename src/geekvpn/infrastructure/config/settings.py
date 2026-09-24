@@ -163,6 +163,11 @@ class TelegramSettings(Section):
     #: the Mini App could only be reached by whatever URL happened to be typed
     #: into BotFather by hand. Empty leaves the menu button alone.
     mini_app_url: str = ""
+    #: The platform bot's @username, without the @. The Android app's sign-in
+    #: link is `t.me/<this>?start=applogin_...`, and the API process has no
+    #: bot of its own to ask. Empty disables app sign-in (the start endpoint
+    #: answers 503) rather than handing out a link to nowhere.
+    bot_username: str = ""
     #: Sticker pack the bot decorates its screens from, by set name - the
     #: part after `t.me/addstickers/`. Empty disables stickers entirely.
     #:

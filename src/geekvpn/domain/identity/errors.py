@@ -11,6 +11,7 @@ from __future__ import annotations
 from geekvpn.domain.base.errors import (
     AuthenticationError,
     ConflictError,
+    NotFoundError,
     PermissionDeniedError,
 )
 
@@ -84,3 +85,39 @@ class MissingPermissionError(PermissionDeniedError):
 class AdminAlreadyExistsError(ConflictError):
     code = "admin_already_exists"
     message = "An administrator with these details already exists."
+
+
+# -- app sign-in (AppLinkLogin) ------------------------------------------------
+
+
+class AppLoginNotFoundError(NotFoundError):
+    """No request behind this code or poll token.
+
+    Also what a guessed or mistyped value gets: a reply that told "never
+    existed" apart from "already used" would let somebody probe for codes.
+    """
+
+    code = "app_login_not_found"
+    message = "This sign-in request does not exist."
+
+
+class AppLoginExpiredError(ConflictError):
+    code = "app_login_expired"
+    message = "This sign-in request has expired."
+
+
+class AppLoginAlreadyUsedError(ConflictError):
+    """The link was already opened, or the request was already decided.
+
+    One link, one Telegram account, one decision: a forwarded link that a
+    second person opens must not give them a button that signs the first
+    person's phone into their account.
+    """
+
+    code = "app_login_already_used"
+    message = "This sign-in request has already been used."
+
+
+class AppLoginNotYoursError(PermissionDeniedError):
+    code = "app_login_not_yours"
+    message = "This sign-in request belongs to someone else."

@@ -29,7 +29,7 @@ from geekvpn.presentation.bot.states import Profile
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
-from geekvpn.presentation.bot.ui.callbacks import NavCB, ProfileCB
+from geekvpn.presentation.bot.ui.callbacks import DeviceCB, NavCB, ProfileCB
 from geekvpn.presentation.bot.ui.fa import isolate, normalize_input
 
 router = Router(name="profile")
@@ -42,6 +42,7 @@ def _keyboard() -> InlineKeyboardMarkup:
     return K.stack(
         [
             [K.btn(T.BTN_EDIT_NAME, ProfileCB(action="edit_name", ref="-"))],
+            [K.btn(T.BTN_DEVICES, DeviceCB(action="list"))],
             [K.btn(f"\u2699\ufe0f {T.MENU_SETTINGS}", NavCB(to="settings"))],
             [K.home_button()],
         ]

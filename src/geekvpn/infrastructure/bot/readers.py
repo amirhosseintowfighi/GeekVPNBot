@@ -32,10 +32,15 @@ from geekvpn.application.bot.read_models import (
 from geekvpn.application.bot.read_models import (
     SubscriptionState as CardState,
 )
+from geekvpn.domain.catalog.enums import ProductTier
 from geekvpn.domain.provisioning.enums import NodeState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.persistence.models.provisioning import ReferralModel
+from geekvpn.infrastructure.persistence.repositories.catalog import (
+    SqlAlchemyPlanRepository,
+    SqlAlchemyProductRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.nodes import SqlAlchemyNodeRepository
 from geekvpn.infrastructure.persistence.repositories.provisioning import (
     SqlAlchemyOrderRepository,
@@ -76,10 +81,14 @@ class SqlSubscriptionCardReader:
         users: SqlAlchemyUserRepository,
         subscriptions: SqlAlchemySubscriptionRepository,
         orders: SqlAlchemyOrderRepository,
+        plans: SqlAlchemyPlanRepository | None = None,
+        products: SqlAlchemyProductRepository | None = None,
     ) -> None:
         self._users = users
         self._subscriptions = subscriptions
         self._orders = orders
+        self._plans = plans
+        self._products = products
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[SubscriptionCard]:
         telegram_id = await _telegram_id(self._users, user_id)
@@ -87,6 +96,7 @@ class SqlSubscriptionCardReader:
             return []
 
         cards: list[SubscriptionCard] = []
+        tiers: dict[str, ProductTier | None] = {}
         for subscription in await self._subscriptions.list_for_user(telegram_id):
             # A claimed account has no order behind it, and asking the
             # order repository for `None` is not a lookup worth making.
@@ -95,8 +105,26 @@ class SqlSubscriptionCardReader:
                 if subscription.order_id
                 else None
             )
-            cards.append(to_card(subscription, order))
+            plan_id = subscription.plan_id or ""
+            if plan_id not in tiers:
+                tiers[plan_id] = await self._tier_of(plan_id)
+            cards.append(to_card(subscription, order, tier=tiers[plan_id]))
         return cards
+
+    async def _tier_of(self, plan_id: str) -> ProductTier | None:
+        """The product tier behind a plan, or None when there is no answer.
+
+        Best effort: an archived plan or a product that has since been deleted
+        leaves the card without a tier rather than failing the whole list.
+        """
+        if not plan_id or self._plans is None or self._products is None:
+            return None
+        try:
+            plan = await self._plans.get(uuid.UUID(plan_id))
+            product = await self._products.get(plan.product_id) if plan else None
+        except ValueError:
+            return None
+        return product.tier if product else None
 
     async def rotate_link(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> SubscriptionCard:
         """Not implemented: a fresh link is a panel call, not a read.
@@ -233,7 +261,9 @@ def _load_percent(load_ratio: float, capacity: int) -> int | None:
     return int(min(1.0, load_ratio) * 100)
 
 
-def to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard:
+def to_card(
+    subscription: Subscription, order: Order | None, *, tier: ProductTier | None = None
+) -> SubscriptionCard:
     quota_mib = subscription.traffic_limit_mib
     return SubscriptionCard(
         subscription_id=_as_uuid(subscription.id),
@@ -248,6 +278,7 @@ def to_card(subscription: Subscription, order: Order | None) -> SubscriptionCard
         subscription_url=subscription.subscription_url,
         created_at=subscription.started_at,
         remote_username=subscription.remote_username,
+        tier=tier,
     )
 
 

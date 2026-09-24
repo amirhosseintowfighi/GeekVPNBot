@@ -46,6 +46,32 @@ a browser history, a proxy log, or a screenshot is a permanent login. 24 hours
 is Telegram's own recommendation and matches how long a Mini App session is
 realistically kept open.
 
+### Android app (approved in the bot)
+
+The app has no Telegram signature of its own, so the bot vouches for it:
+
+1. `POST /api/app/auth/link/start` with `{deviceId, deviceName, platform, appVersion}`
+   returns `{requestId, pollToken, deepLink, expiresIn}`. The deep link is
+   `t.me/<TELEGRAM__BOT_USERNAME>?start=applogin_<code>`. The code and the poll
+   token are 32 random bytes each; only their SHA-256 is stored
+   (`app_login_requests`). The request lives 5 minutes. Rate-limited per device
+   and per IP.
+2. The customer opens the link. `/start applogin_<code>` binds the request to
+   that Telegram account (first opener only; a second open is refused) and
+   shows "approve" / "cancel". Only that account may press them.
+3. `POST /api/app/auth/link/poll` with `{pollToken}` long-polls up to 25 s and
+   answers `pending | denied | expired`, or `approved` with a token pair and the
+   user. Tokens are handed out once; the request is then `consumed` and a
+   repeat poll reads `expired`.
+
+The session is an ordinary customer session (`auth_method=telegram_app_link`,
+customer `SessionPolicy`), so refresh, rotation, reuse detection and logout are
+the ones below. The app then calls `/api/miniapp/*` with
+`Authorization: Bearer <access token>`: that dependency accepts both `tma` and
+Bearer, and holds a Bearer token to the same checks as `/api/v1/auth/me`
+(signature, expiry, revocation list, customer subject, account not suspended).
+In the bot, Profile -> "connected devices" lists app sessions and revokes one.
+
 ## Access tokens (JWT)
 
 - `HS256`. There is exactly one issuer and one verifier, both ours. RS256 buys
@@ -125,6 +151,8 @@ Every branch above writes an audit entry.
 | POST | `/api/v1/auth/logout-all` | bearer |
 | GET | `/api/v1/auth/me` | bearer (customer) |
 | GET | `/api/v1/auth/sessions` | bearer (customer) |
+| POST | `/api/app/auth/link/start` | public, rate-limited |
+| POST | `/api/app/auth/link/poll` | poll token |
 | POST | `/api/v1/admin/auth/login` | public |
 | GET | `/api/v1/admin/auth/me` | bearer (admin) |
 

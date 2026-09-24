@@ -29,6 +29,7 @@ from geekvpn.application.catalog.policy_provider import PricingPolicyProvider
 from geekvpn.application.catalog.promotion_admin import PromotionAdminService
 from geekvpn.application.catalog.quoting_service import QuotingService
 from geekvpn.application.catalog.storefront_service import StorefrontService
+from geekvpn.application.identity.app_link_login import AppLinkLogin
 from geekvpn.application.identity.authenticate_admin import AuthenticateAdmin
 from geekvpn.application.identity.authenticate_telegram import AuthenticateTelegramUser
 from geekvpn.application.identity.authorization import AuthorizationService
@@ -69,6 +70,9 @@ from geekvpn.infrastructure.di.sync_scope import (
 from geekvpn.infrastructure.notifications.telegram import HttpTelegramSender
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
+from geekvpn.infrastructure.persistence.repositories.app_login import (
+    SqlAlchemyAppLoginRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.audit import SqlAlchemyAuditLogRepository
 from geekvpn.infrastructure.persistence.repositories.catalog import (
     SqlAlchemyCampaignRepository,
@@ -284,6 +288,24 @@ class RequestScope:
             # the user and nothing else, so every screen that reports the
             # programme counts rows nobody writes.
             referrals=self.referrals,
+        )
+
+    @cached_property
+    def app_login_requests(self) -> SqlAlchemyAppLoginRepository:
+        return SqlAlchemyAppLoginRepository(self.session)
+
+    @cached_property
+    def app_link_login(self) -> AppLinkLogin:
+        """The Android app's sign-in: the API starts and polls, the bot approves."""
+        return AppLinkLogin(
+            requests=self.app_login_requests,
+            users=self.users,
+            sessions=self.sessions,
+            session_records=self.session_repository,
+            secrets=self.container.refresh_tokens,
+            rate_limiter=self.container.rate_limiter,
+            clock=self.container.clock,
+            audit=self.audit,
         )
 
     @cached_property

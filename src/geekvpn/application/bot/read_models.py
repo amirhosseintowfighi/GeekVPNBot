@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from geekvpn.domain.catalog.enums import ProductTier
 from geekvpn.domain.catalog.rewards import LoyaltyTier
 
 
@@ -85,6 +86,11 @@ class SubscriptionCard:
     #: for, and because a service adopted from a pasted link has no order
     #: behind it and therefore no plan name - without this its card is blank.
     remote_username: str = ""
+    #: direct | tunnel | elite, from the plan's product. The Android app shows
+    #: the Cloudflare clean-IP scanner only for `direct`, where the address is
+    #: the part a customer can change. None for a service adopted from a link,
+    #: which has no plan to ask.
+    tier: ProductTier | None = None
 
     @property
     def is_unlimited(self) -> bool:

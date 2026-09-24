@@ -131,3 +131,22 @@ class NoopCB(CallbackData, prefix="noop"):
     """
 
     tag: str = ""
+
+
+class AppLoginCB(CallbackData, prefix="al"):
+    """Approve or cancel an Android app sign-in.
+
+    `rid` is the request id as 32 hex characters. It is not a secret - the
+    decision is checked against the account the request was claimed by, not
+    against who can see this button.
+    """
+
+    rid: str
+    act: str  # ok | no
+
+
+class DeviceCB(CallbackData, prefix="dev"):
+    """The customer's signed-in app devices."""
+
+    action: str  # list | cut
+    ref: str = ""  # session id as 32 hex characters, for `cut`
