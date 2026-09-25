@@ -150,3 +150,9 @@ class DeviceCB(CallbackData, prefix="dev"):
 
     action: str  # list | cut
     ref: str = ""  # session id as 32 hex characters, for `cut`
+
+
+class AppPasswordCB(CallbackData, prefix="apw"):
+    """The profile's "sign in to the app with a username" screen."""
+
+    action: str  # menu | set | remove | remove_ok

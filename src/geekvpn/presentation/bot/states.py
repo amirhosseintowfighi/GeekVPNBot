@@ -59,6 +59,9 @@ class Support(StatesGroup):
 
 class Profile(StatesGroup):
     editing_name = State()
+    #: Choosing an app username, then its password (see `AppPasswordLogin`).
+    app_username = State()
+    app_password = State()
     editing_phone = State()
     editing_email = State()
     confirming_delete = State()

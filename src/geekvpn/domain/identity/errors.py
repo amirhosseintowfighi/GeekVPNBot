@@ -13,6 +13,7 @@ from geekvpn.domain.base.errors import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
+    ValidationError,
 )
 
 
@@ -121,3 +122,18 @@ class AppLoginAlreadyUsedError(ConflictError):
 class AppLoginNotYoursError(PermissionDeniedError):
     code = "app_login_not_yours"
     message = "This sign-in request belongs to someone else."
+
+
+class AppUsernameInvalidError(ValidationError):
+    code = "app_username_invalid"
+    message = "The username must be 4-32 letters, digits or underscores, starting with a letter."
+
+
+class AppUsernameTakenError(ConflictError):
+    code = "app_username_taken"
+    message = "This username is already taken."
+
+
+class AppPasswordWeakError(ValidationError):
+    code = "app_password_weak"
+    message = "The password must be 8-128 characters and must not be the username."

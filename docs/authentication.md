@@ -72,6 +72,30 @@ Bearer, and holds a Bearer token to the same checks as `/api/v1/auth/me`
 (signature, expiry, revocation list, customer subject, account not suspended).
 In the bot, Profile -> "connected devices" lists app sessions and revokes one.
 
+### Android app (username and password)
+
+A second way into the same account, for a phone without Telegram. The customer
+sets it in the bot: Profile -> "ورود به اپ با نام کاربری" asks for a username
+(4-32 of `a-z 0-9 _`, starting with a letter, case-insensitive, unique) and a
+password (8-128 characters, not the username). The bot deletes the message
+with the password as soon as it arrives. Only an Argon2id hash is stored, in
+`app_credentials` (one row per customer). Only the platform's own bot offers
+it; a reseller's customer is a different account.
+
+`POST /api/app/auth/password` with `{username, password, deviceName, platform,
+appVersion}` returns `{tokens, user}` in the same shape as an approved poll.
+A wrong password, an unknown username and a malformed username all answer the
+same 401 `invalid_credentials`, and each costs one Argon2 verification, so
+neither the reply nor its timing tells which usernames exist. Attempts are
+rate-limited per username (10 / 15 min) and per IP (30 / 15 min; failures
+only at the middleware), because Iranian carriers put many phones behind one
+address.
+
+The session has `auth_method=app_password` and appears in the bot's device
+list with the phone's name. Changing or removing the password in the bot
+revokes every `app_password` session of that customer; Telegram-approved
+phones are left signed in.
+
 ## Access tokens (JWT)
 
 - `HS256`. There is exactly one issuer and one verifier, both ours. RS256 buys
@@ -153,6 +177,7 @@ Every branch above writes an audit entry.
 | GET | `/api/v1/auth/sessions` | bearer (customer) |
 | POST | `/api/app/auth/link/start` | public, rate-limited |
 | POST | `/api/app/auth/link/poll` | poll token |
+| POST | `/api/app/auth/password` | username + password, rate-limited |
 | POST | `/api/v1/admin/auth/login` | public |
 | GET | `/api/v1/admin/auth/me` | bearer (admin) |
 

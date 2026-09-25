@@ -30,6 +30,7 @@ from geekvpn.application.catalog.promotion_admin import PromotionAdminService
 from geekvpn.application.catalog.quoting_service import QuotingService
 from geekvpn.application.catalog.storefront_service import StorefrontService
 from geekvpn.application.identity.app_link_login import AppLinkLogin
+from geekvpn.application.identity.app_password_login import AppPasswordLogin
 from geekvpn.application.identity.authenticate_admin import AuthenticateAdmin
 from geekvpn.application.identity.authenticate_telegram import AuthenticateTelegramUser
 from geekvpn.application.identity.authorization import AuthorizationService
@@ -70,6 +71,9 @@ from geekvpn.infrastructure.di.sync_scope import (
 from geekvpn.infrastructure.notifications.telegram import HttpTelegramSender
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
+from geekvpn.infrastructure.persistence.repositories.app_credentials import (
+    SqlAlchemyAppCredentialRepository,
+)
 from geekvpn.infrastructure.persistence.repositories.app_login import (
     SqlAlchemyAppLoginRepository,
 )
@@ -303,6 +307,24 @@ class RequestScope:
             sessions=self.sessions,
             session_records=self.session_repository,
             secrets=self.container.refresh_tokens,
+            rate_limiter=self.container.rate_limiter,
+            clock=self.container.clock,
+            audit=self.audit,
+        )
+
+    @cached_property
+    def app_credentials(self) -> SqlAlchemyAppCredentialRepository:
+        return SqlAlchemyAppCredentialRepository(self.session)
+
+    @cached_property
+    def app_password_login(self) -> AppPasswordLogin:
+        """The Android app's password sign-in; the bot sets the password."""
+        return AppPasswordLogin(
+            credentials=self.app_credentials,
+            users=self.users,
+            passwords=self.container.passwords,
+            sessions=self.sessions,
+            session_records=self.session_repository,
             rate_limiter=self.container.rate_limiter,
             clock=self.container.clock,
             audit=self.audit,

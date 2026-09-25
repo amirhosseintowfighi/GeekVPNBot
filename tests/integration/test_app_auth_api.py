@@ -33,6 +33,7 @@ pytestmark = pytest.mark.integration
 
 START = "/api/app/auth/link/start"
 POLL = "/api/app/auth/link/poll"
+PASSWORD = "/api/app/auth/password"
 DEVICE = {"deviceId": "d3a1", "deviceName": "Pixel 6", "platform": "android", "appVersion": "0.1.0"}
 
 
@@ -88,6 +89,23 @@ def test_start_refuses_unknown_fields(api_with_bot: TestClient) -> None:
 def test_polling_an_unknown_token_is_a_404(api: TestClient) -> None:
     response = api.post(POLL, json={"pollToken": "x" * 43, "wait": False})
     assert response.status_code == 404
+
+
+def test_a_password_login_for_an_unknown_username_is_a_plain_401(api: TestClient) -> None:
+    response = api.post(
+        PASSWORD,
+        json={"username": "nobody_here", "password": "x" * 12, "deviceName": "Pixel 6"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["title"] == "invalid_credentials"
+
+
+def test_a_password_login_refuses_unknown_fields(api: TestClient) -> None:
+    response = api.post(
+        PASSWORD, json={"username": "ali_92", "password": "x" * 12, "telegramId": 1}
+    )
+    assert response.status_code == 422
 
 
 # -- Mini App routes accept both schemes ----------------------------------------
@@ -216,6 +234,7 @@ def test_a_token_for_an_account_that_no_longer_exists_is_refused(
 APP_CALLS = [
     ("POST", "/api/app/auth/link/start"),
     ("POST", "/api/app/auth/link/poll"),
+    ("POST", "/api/app/auth/password"),
     ("POST", "/api/v1/auth/refresh"),
     ("POST", "/api/v1/auth/logout"),
     ("GET", "/api/v1/auth/sessions"),
