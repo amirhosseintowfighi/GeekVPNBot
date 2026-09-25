@@ -17,6 +17,7 @@ from geekvpn.application.ports.rate_limiter import RateLimitVerdict
 from geekvpn.application.ports.settings_store import SettingRecord
 from geekvpn.domain.audit.entry import AuditAction, AuditEntry, AuditOutcome
 from geekvpn.domain.identity.admin import Admin
+from geekvpn.domain.identity.app_credentials import AppCredential
 from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.session import RefreshToken, RevocationReason, Session
@@ -418,3 +419,26 @@ class InMemoryAppLoginRepository:
             return False
         self.items[request_id] = replace(request, status=AppLoginStatus.CONSUMED)
         return True
+
+
+class InMemoryAppCredentialRepository:
+    """One row per customer; a username held by someone else is refused."""
+
+    def __init__(self) -> None:
+        self.items: dict[uuid.UUID, AppCredential] = {}
+
+    async def get_by_user(self, user_id: uuid.UUID) -> AppCredential | None:
+        return self.items.get(user_id)
+
+    async def get_by_username(self, username: str) -> AppCredential | None:
+        return next((c for c in self.items.values() if c.username == username), None)
+
+    async def save(self, credential: AppCredential) -> bool:
+        holder = await self.get_by_username(credential.username)
+        if holder is not None and holder.user_id != credential.user_id:
+            return False
+        self.items[credential.user_id] = credential
+        return True
+
+    async def delete(self, user_id: uuid.UUID) -> bool:
+        return self.items.pop(user_id, None) is not None

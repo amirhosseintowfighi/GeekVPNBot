@@ -1,4 +1,5 @@
-"""The bot's half of the Android app sign-in, and the list of signed-in devices.
+"""The bot's half of the Android app sign-in, the signed-in devices, and the
+app username and password.
 
 `/start applogin_<code>` arrives here from `start.py` (checked before the
 referral prefix). The account that opened the link gets a prompt naming the
@@ -8,11 +9,15 @@ collect a normal customer session. See `AppLinkLogin` for the whole flow.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta, timezone
+from html import escape
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from geekvpn.domain.identity.app_login import AppLoginStatus
@@ -21,12 +26,16 @@ from geekvpn.domain.identity.errors import (
     AppLoginExpiredError,
     AppLoginNotFoundError,
     AppLoginNotYoursError,
+    AppPasswordWeakError,
+    AppUsernameInvalidError,
+    AppUsernameTakenError,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
+from geekvpn.presentation.bot.states import Profile
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T
-from geekvpn.presentation.bot.ui.callbacks import AppLoginCB, DeviceCB
+from geekvpn.presentation.bot.ui.callbacks import AppLoginCB, AppPasswordCB, DeviceCB
 from geekvpn.presentation.bot.ui.fa import fa_datetime, isolate
 
 logger = get_logger(__name__)
@@ -184,4 +193,144 @@ async def on_disconnect(
     else:
         await toast(query)
     body, markup = await _devices_screen(scope, user)
+    await safe_edit(query, body, markup=markup)
+
+
+# -- app username and password (from the profile screen) -----------------------
+
+
+def _password_menu(username: str | None) -> tuple[str, InlineKeyboardMarkup]:
+    if username is None:
+        return T.APP_CREDS_INTRO, K.stack(
+            [[K.btn(T.BTN_APP_CREDS_SET, AppPasswordCB(action="set"), style=K.YES)]],
+            back_to="profile",
+        )
+    return T.APP_CREDS_CURRENT.format(username=escape(username)), K.stack(
+        [
+            [K.btn(T.BTN_APP_CREDS_CHANGE, AppPasswordCB(action="set"))],
+            [K.btn(T.BTN_APP_CREDS_REMOVE, AppPasswordCB(action="remove"), style=K.NO)],
+        ],
+        back_to="profile",
+    )
+
+
+def _cancel_keyboard() -> InlineKeyboardMarkup:
+    return K.single(K.btn(T.BTN_CANCEL, AppPasswordCB(action="menu"), style=K.NO))
+
+
+@router.callback_query(AppPasswordCB.filter(F.action == "menu"))
+async def on_password_menu(
+    query: CallbackQuery, state: FSMContext, scope: Any = None, user: Any = None
+) -> None:
+    await state.clear()
+    await toast(query)
+    if scope is None or user is None:
+        return
+    if scope.reseller is not None:
+        await safe_edit(query, T.APP_LOGIN_WRONG_BOT, markup=K.stack([], back_to="profile"))
+        return
+    body, markup = _password_menu(await scope.app_password_login.username_of(user.id))
+    await safe_edit(query, body, markup=markup)
+
+
+@router.callback_query(AppPasswordCB.filter(F.action == "set"))
+async def on_password_set(query: CallbackQuery, state: FSMContext, scope: Any = None) -> None:
+    await toast(query)
+    if scope is None or scope.reseller is not None:
+        return
+    await state.set_state(Profile.app_username)
+    await safe_edit(query, T.APP_CREDS_ASK_USERNAME, markup=_cancel_keyboard())
+
+
+@router.message(Profile.app_username, F.text)
+async def on_app_username(
+    message: Message, state: FSMContext, scope: Any = None, user: Any = None
+) -> None:
+    if scope is None or user is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+    try:
+        username = await scope.app_password_login.is_available(
+            message.text or "", user_id=user.id
+        )
+    except AppUsernameInvalidError:
+        await answer(message, T.APP_CREDS_USERNAME_INVALID, reply_markup=_cancel_keyboard())
+        return
+    except AppUsernameTakenError:
+        await answer(message, T.APP_CREDS_USERNAME_TAKEN, reply_markup=_cancel_keyboard())
+        return
+    await state.update_data(app_username=username)
+    await state.set_state(Profile.app_password)
+    await answer(message, T.APP_CREDS_ASK_SECOND, reply_markup=_cancel_keyboard())
+
+
+@router.message(Profile.app_password, F.text)
+async def on_app_password(
+    message: Message, state: FSMContext, scope: Any = None, user: Any = None
+) -> None:
+    password = message.text or ""
+    # Out of the chat history before anything else, whatever happens next.
+    with contextlib.suppress(TelegramAPIError):
+        await message.delete()
+    if scope is None or user is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+    username = (await state.get_data()).get("app_username")
+    if not username:
+        await state.set_state(Profile.app_username)
+        await answer(message, T.APP_CREDS_ASK_USERNAME, reply_markup=_cancel_keyboard())
+        return
+    try:
+        stored = await scope.app_password_login.set_credentials(
+            user.id, username=username, password=password
+        )
+    except AppPasswordWeakError:
+        await answer(message, T.APP_CREDS_TOO_SHORT, reply_markup=_cancel_keyboard())
+        return
+    except AppUsernameTakenError:
+        await state.set_state(Profile.app_username)
+        await answer(message, T.APP_CREDS_USERNAME_TAKEN, reply_markup=_cancel_keyboard())
+        return
+    except AppUsernameInvalidError:
+        await state.clear()
+        await answer(message, T.APP_LOGIN_WRONG_BOT)
+        return
+    await state.clear()
+    logger.info("app_password.set", user_id=str(user.id))
+    await answer(
+        message,
+        T.APP_CREDS_SAVED.format(username=escape(stored)),
+        reply_markup=K.stack([], back_to="profile"),
+    )
+
+
+@router.callback_query(AppPasswordCB.filter(F.action == "remove"))
+async def on_password_remove(query: CallbackQuery) -> None:
+    await toast(query)
+    await safe_edit(
+        query,
+        T.APP_CREDS_REMOVE_CONFIRM,
+        markup=K.stack(
+            [
+                [
+                    K.btn(
+                        T.BTN_APP_CREDS_REMOVE_OK,
+                        AppPasswordCB(action="remove_ok"),
+                        style=K.NO,
+                    )
+                ]
+            ],
+            back_to="profile",
+        ),
+    )
+
+
+@router.callback_query(AppPasswordCB.filter(F.action == "remove_ok"))
+async def on_password_remove_ok(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
+    if scope is None or user is None:
+        await toast(query)
+        return
+    await scope.app_password_login.remove_credentials(user.id)
+    await toast(query, T.APP_CREDS_REMOVED)
+    body, markup = _password_menu(None)
     await safe_edit(query, body, markup=markup)

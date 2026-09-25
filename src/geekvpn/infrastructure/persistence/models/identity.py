@@ -39,6 +39,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from geekvpn.domain.identity.app_credentials import AppCredential
 from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import AdminStatus, AuthMethod, Language, SubjectType, UserStatus
 from geekvpn.domain.identity.permissions import AdminRole
@@ -339,4 +340,36 @@ class AppLoginRequestModel(Base):
             created_at=request.created_at,
             expires_at=request.expires_at,
             telegram_user_id=request.telegram_user_id,
+        )
+
+
+class AppCredentialModel(Base):
+    """A customer's Android app username and Argon2id hash. See `AppPasswordLogin`.
+
+    Its own table rather than columns on `users`: the user row is rewritten
+    from Telegram's payload on every authentication, and most customers never
+    set a password at all.
+    """
+
+    __tablename__ = "app_credentials"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("username", name="uq_app_credentials_username"),
+        # Normalised on the way in; this keeps a hand-written UPDATE honest.
+        CheckConstraint("username = lower(username)", name="app_credentials_username_lower"),
+    )
+
+    def to_domain(self) -> AppCredential:
+        return AppCredential(
+            user_id=self.user_id,
+            username=self.username,
+            password_hash=self.password_hash,
+            updated_at=self.updated_at,
         )

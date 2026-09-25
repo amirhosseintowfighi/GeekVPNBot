@@ -51,6 +51,9 @@ class AuditAction(enum.StrEnum):
     USER_REGISTERED = "user.registered"
     USER_SUSPENDED = "user.suspended"
     USER_REINSTATED = "user.reinstated"
+    #: A customer set or replaced their Android app username and password.
+    USER_APP_PASSWORD_CHANGED = "user.app_password.changed"  # noqa: S105 - a constant name, not a credential
+    USER_APP_PASSWORD_REMOVED = "user.app_password.removed"  # noqa: S105 - a constant name, not a credential
     ADMIN_CREATED = "admin.created"
     ADMIN_UPDATED = "admin.updated"
     ADMIN_ROLE_CHANGED = "admin.role.changed"

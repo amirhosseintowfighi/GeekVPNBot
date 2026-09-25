@@ -66,6 +66,10 @@ START_LIMIT_PER_IP = 20
 START_LIMIT_PER_DEVICE = 5
 START_RATE_WINDOW_SECONDS = 600
 
+#: Sessions the Android app holds, however it signed in. The bot's device list
+#: shows these and only these.
+APP_AUTH_METHODS = frozenset({AuthMethod.TELEGRAM_APP_LINK, AuthMethod.APP_PASSWORD})
+
 _MAX_DEVICE_ID = 64
 _MAX_DEVICE_NAME = 64
 _MAX_PLATFORM = 16
@@ -257,7 +261,7 @@ class AppLinkLogin:
                 last_used_at=session.last_used_at,
             )
             for session in sessions
-            if session.auth_method is AuthMethod.TELEGRAM_APP_LINK
+            if session.auth_method in APP_AUTH_METHODS
         ]
 
     async def disconnect(self, user_id: uuid.UUID, session_id: uuid.UUID) -> bool:
@@ -272,7 +276,7 @@ class AppLinkLogin:
             session is None
             or session.subject_type is not SubjectType.USER
             or session.subject_id != user_id
-            or session.auth_method is not AuthMethod.TELEGRAM_APP_LINK
+            or session.auth_method not in APP_AUTH_METHODS
         ):
             return False
         await self._sessions.revoke(session_id, reason=RevocationReason.LOGOUT)

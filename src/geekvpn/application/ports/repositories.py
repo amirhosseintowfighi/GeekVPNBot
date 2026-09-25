@@ -14,6 +14,7 @@ from typing import Protocol, runtime_checkable
 
 from geekvpn.domain.audit.entry import AuditEntry
 from geekvpn.domain.identity.admin import Admin
+from geekvpn.domain.identity.app_credentials import AppCredential
 from geekvpn.domain.identity.app_login import AppLoginRequest, AppLoginStatus
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.session import RefreshToken, RevocationReason, Session
@@ -158,6 +159,25 @@ class AuditLogRepository(Protocol):
 
 
 @runtime_checkable
+class AppCredentialRepository(Protocol):
+    """Customers' app usernames and password hashes, one row per customer."""
+
+    async def get_by_user(self, user_id: uuid.UUID) -> AppCredential | None: ...
+
+    async def get_by_username(self, username: str) -> AppCredential | None: ...
+
+    async def save(self, credential: AppCredential) -> bool:
+        """Insert or replace this customer's row.
+
+        False when the username belongs to another customer, including one
+        who took it between our check and this write (the unique index
+        decides, not a prior SELECT).
+        """
+        ...
+
+    async def delete(self, user_id: uuid.UUID) -> bool: ...
+
+
 class AppLoginRepository(Protocol):
     """App sign-in requests.
 

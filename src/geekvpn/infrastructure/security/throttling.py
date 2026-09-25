@@ -93,6 +93,12 @@ POLICIES: Final[dict[str, Policy]] = {
     # address, so a strict per-IP ceiling would lock out a whole neighbourhood.
     "auth.app_link": Policy("auth.app_link", limit=20, window_seconds=300, scope=Scope.IP),
     "auth.app_poll": Policy("auth.app_poll", limit=120, window_seconds=300, scope=Scope.IP),
+    # Password sign-in: failures only, per IP, so a carrier NAT full of
+    # customers typing the right password is never blocked. The use case adds
+    # a tighter per-username limit, which is the one that stops guessing.
+    "auth.app_password": Policy(
+        "auth.app_password", limit=30, window_seconds=900, scope=Scope.IP, failures_only=True
+    ),
     # --- money --------------------------------------------------------------
     # Tight on purpose. Each of these creates a row a human then has to review,
     # so the limit protects the operator's queue as much as the server.
