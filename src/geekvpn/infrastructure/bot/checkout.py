@@ -229,7 +229,7 @@ class BotCheckoutAdapter:
             # rather than shown, so the handler apologises instead of
             # rendering a dead button.
             raise RuntimeError("The gateway returned neither a link nor instructions.")
-        return GatewayScreen(url=url, body_fa=body)
+        return GatewayScreen(url=url, body_fa=body, payment_id=payment_uuid(result.payment.id))
 
     async def begin_card(
         self,
@@ -289,6 +289,7 @@ class BotCheckoutAdapter:
             return GatewayScreen(
                 url=result.instruction.redirect_url or "",
                 body_fa=result.instruction.instructions_fa or "",
+                payment_id=payment_uuid(result.payment.id),
             )
         if method == CRYPTO:
             return CryptoPaymentDetails(

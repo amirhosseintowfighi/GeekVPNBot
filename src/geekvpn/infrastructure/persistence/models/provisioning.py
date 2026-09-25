@@ -335,3 +335,16 @@ class FunnelEventModel(Base):
         Index("ix_funnel_stage_occurred", "stage", "occurred_at"),
         Index("ix_funnel_user_stage", "user_id", "stage"),
     )
+
+
+class FreeTrialClaimModel(Base):
+    """Who has had the Android app's free trial. See `FreeTrial`.
+
+    Keyed by the Telegram id, like orders. The primary key is the whole
+    once-per-customer rule: a second claim loses on the insert.
+    """
+
+    __tablename__ = "free_trial_claims"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

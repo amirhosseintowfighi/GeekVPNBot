@@ -285,6 +285,64 @@ def _markup(buttons: Sequence[tuple[str, str]]) -> dict[str, Any]:
     }
 
 
+class HttpTelegramFiles:
+    """A receipt photo the Android app uploaded, put into Telegram and read back.
+
+    Receipts live in Telegram: the operator reviews the photo there and
+    `PaymentProof` records its file id. The app cannot upload to Telegram
+    itself, so the API sends the photo to the customer's own chat - which also
+    leaves them a copy with a line saying it is being reviewed - and keeps the
+    file id Telegram answers with.
+    """
+
+    def __init__(self, token: str) -> None:
+        self._token = token
+
+    def send_photo(
+        self, *, chat_id: int, image: bytes, content_type: str, caption: str
+    ) -> str:
+        """Send the photo and return the file id of its largest size."""
+        response = httpx.post(
+            f"https://api.telegram.org/bot{self._token}/sendPhoto",
+            data={"chat_id": str(chat_id), "caption": caption},
+            files={"photo": ("receipt", image, content_type)},
+            timeout=TIMEOUT_SECONDS,
+        )
+        sizes = self._result(response, method="sendPhoto").get("photo") or []
+        if not sizes:
+            raise TelegramApiError("Telegram returned no photo sizes.")
+        return str(sizes[-1]["file_id"])
+
+    def download(self, file_id: str) -> bytes:
+        response = httpx.get(
+            f"https://api.telegram.org/bot{self._token}/getFile",
+            params={"file_id": file_id},
+            timeout=TIMEOUT_SECONDS,
+        )
+        path = str(self._result(response, method="getFile").get("file_path") or "")
+        if not path:
+            raise TelegramApiError("Telegram returned no file path.")
+        content = httpx.get(
+            f"https://api.telegram.org/file/bot{self._token}/{path}", timeout=TIMEOUT_SECONDS
+        )
+        if content.status_code != httpx.codes.OK:
+            raise TelegramApiError(f"HTTP {content.status_code}")
+        return content.content
+
+    @staticmethod
+    def _result(response: httpx.Response, *, method: str) -> dict[str, Any]:
+        try:
+            body = response.json()
+        except ValueError:  # pragma: no cover - a gateway page, not JSON
+            body = {"description": response.text[:200]}
+        if response.status_code == httpx.codes.OK and body.get("ok"):
+            result = body.get("result")
+            return result if isinstance(result, dict) else {}
+        description = str(body.get("description", "")) or f"HTTP {response.status_code}"
+        logger.info("notify.files.refused", method=method, description=description)
+        raise TelegramApiError(description)
+
+
 class TelegramIdIsTheUserId:
     """`ChatIdResolver` for a system whose user ids are Telegram ids.
 
