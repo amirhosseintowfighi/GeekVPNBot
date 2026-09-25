@@ -128,6 +128,21 @@ class EventPublisher(Protocol):
 
 
 @runtime_checkable
+class FreeTrialRepository(Protocol):
+    """Who has had the free trial. One row per customer, never removed."""
+
+    async def has_claimed(self, user_id: int) -> bool: ...
+
+    async def claim(self, user_id: int, *, at: datetime) -> bool:
+        """Record the claim. False when the customer already had one.
+
+        The row's primary key decides, not a read before the write: two taps
+        in flight at once must not both get a trial.
+        """
+        ...
+
+
+@runtime_checkable
 class OrderRepository(Protocol):
     async def get(self, order_id: str) -> Order | None: ...
 
@@ -248,6 +263,7 @@ class PanelProvider(Protocol):
 
 __all__ = [
     "EventPublisher",
+    "FreeTrialRepository",
     "IdGenerator",
     "NodeAdminRecord",
     "NodeRecord",

@@ -250,6 +250,9 @@ class GatewayScreen:
 
     url: str = ""
     body_fa: str = ""
+    #: The payment this screen is for, so a client can follow it after the
+    #: customer comes back from the bank. None only where no payment exists.
+    payment_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

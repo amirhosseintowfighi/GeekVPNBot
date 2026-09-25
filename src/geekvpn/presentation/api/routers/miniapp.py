@@ -18,14 +18,14 @@ import functools
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.datastructures import DefaultPlaceholder
 from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from pydantic import ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from geekvpn.application.bot.read_models import NotificationPreferences
+from geekvpn.application.bot.read_models import GatewayScreen, NotificationPreferences
 from geekvpn.application.payments.receipt_intent import (
     RECEIPT_INTENT_TTL_SECONDS,
     RECEIPT_REQUESTED_TEMPLATE,
@@ -36,12 +36,18 @@ from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
+from geekvpn.infrastructure.bot.services import build_bot_services
+from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
 from geekvpn.presentation.api.miniapp_security import CurrentMiniAppUser, ServicesDep
+from geekvpn.presentation.api.routers.gateway_callback import remember_app_payment
 from geekvpn.presentation.api.security import ScopeDep
+
+logger = get_logger(__name__)
 
 
 #: The Mini App reads camelCase everywhere. Endpoints with a response model
@@ -462,7 +468,12 @@ async def payment_methods(user: CurrentMiniAppUser, services: ServicesDep) -> An
 
 @router.post("/checkout/gateway", summary="Start an online-gateway payment")
 async def checkout_gateway(
-    payload: GatewayRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
+    payload: GatewayRequest,
+    request: Request,
+    user: CurrentMiniAppUser,
+    services: ServicesDep,
+    container: ContainerDep,
+    uow: UnitOfWorkDep,
 ) -> Any:
     """Whatever the provider wants shown - a link, instructions, or both."""
     screen = await services.checkout.begin_gateway(
@@ -473,7 +484,23 @@ async def checkout_gateway(
         renews_subscription_id=payload.renews_subscription_id,
     )
     await uow.commit()
+    await _remember_if_app(request, container, screen)
     return screen
+
+
+async def _remember_if_app(request: Request, container: Container, screen: GatewayScreen) -> None:
+    """The app signs in with a Bearer token; the Mini App never does.
+
+    Remembered so the page the bank returns to can hand the customer back to
+    the app. Best effort: a cache that is down costs a button, not a payment.
+    """
+    authorization = request.headers.get("authorization") or ""
+    if screen.payment_id is None or not authorization.lower().startswith("bearer "):
+        return
+    try:
+        await remember_app_payment(container.cache, screen.payment_id)
+    except Exception:
+        logger.warning("miniapp.app_return_not_remembered", exc_info=True)
 
 
 @router.post("/checkout/crypto", summary="Start a crypto payment")
@@ -521,6 +548,89 @@ async def attach_txid(
     return payment
 
 
+async def _awaiting_receipt(
+    container: Container, telegram_id: int, payment_id: uuid.UUID
+) -> Payment:
+    """This customer's payment, if it is still waiting for a receipt.
+
+    404 for "not yours" as well as "not waiting", so the response cannot be
+    used to discover which payment ids exist.
+    """
+    stored_id = payment_id.hex
+
+    def find(scope: SyncScope) -> Payment | None:
+        for candidate in scope.payments.list_for_user(telegram_id, limit=_PENDING_LIMIT):
+            if candidate.id == stored_id and candidate.state is PaymentState.AWAITING_PROOF:
+                return candidate
+        return None
+
+    payment = await read_scope(container, find)
+    if payment is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No payment is awaiting a receipt.")
+    return payment
+
+
+#: A phone photo of a banking app's receipt is well under this.
+MAX_RECEIPT_BYTES = 8 * 1024 * 1024
+_RECEIPT_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+RECEIPT_CAPTION_FA = "رسید پرداختت از اپ رسید و در صف بررسیه. نتیجه رو همین‌جا خبر می‌دیم."
+
+
+@router.post(
+    "/payments/{payment_id}/receipt-photo",
+    summary="Upload a card receipt photo from the app",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                kind: {"schema": {"type": "string", "format": "binary"}}
+                for kind in sorted(_RECEIPT_TYPES)
+            },
+        }
+    },
+)
+async def upload_receipt_photo(
+    payment_id: uuid.UUID,
+    request: Request,
+    user: CurrentMiniAppUser,
+    scope: ScopeDep,
+    container: ContainerDep,
+    uow: UnitOfWorkDep,
+) -> Any:
+    """The Android app's receipt: the image is the body, its type the header.
+
+    The photo goes to the customer's own bot chat first, because a receipt is
+    a Telegram file: that is where the operator reviews it and what the
+    payment's proof records. From there it is the same `attach_receipt` a
+    photo sent in the chat goes through, fingerprint and all.
+    """
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if content_type not in _RECEIPT_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Send a JPEG, PNG or WebP image."
+        )
+    image = bytearray()
+    async for chunk in request.stream():
+        image.extend(chunk)
+        if len(image) > MAX_RECEIPT_BYTES:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE, detail="The receipt image is too large."
+            )
+    if not image:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="The image is empty.")
+
+    await _awaiting_receipt(container, user.telegram_id, payment_id)
+    file_id = await scope.receipt_to_telegram(
+        user.telegram_id, bytes(image), content_type=content_type, caption=RECEIPT_CAPTION_FA
+    )
+    services = build_bot_services(scope, fetch_receipt=scope.telegram_file)
+    payment = await services.checkout.attach_receipt(
+        user.id, payment_id=payment_id, file_id=file_id
+    )
+    await uow.commit()
+    return payment
+
+
 @router.post(
     "/payments/{payment_id}/receipt-request",
     status_code=status.HTTP_202_ACCEPTED,
@@ -542,18 +652,7 @@ async def request_receipt(
     """
     telegram_id = user.telegram_id
     stored_id = payment_id.hex
-
-    def find(scope: SyncScope) -> Payment | None:
-        for candidate in scope.payments.list_for_user(telegram_id, limit=_PENDING_LIMIT):
-            if candidate.id == stored_id and candidate.state is PaymentState.AWAITING_PROOF:
-                return candidate
-        return None
-
-    payment = await read_scope(container, find)
-    if payment is None:
-        # 404 for "not yours" as well as "not waiting", so the response cannot
-        # be used to discover which payment ids exist.
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No payment is awaiting a receipt.")
+    payment = await _awaiting_receipt(container, telegram_id, payment_id)
 
     await container.cache.set(
         receipt_intent_key(telegram_id), stored_id, ttl_seconds=RECEIPT_INTENT_TTL_SECONDS
@@ -628,6 +727,54 @@ async def rotate_link(
     return card
 
 
+# -- free trial ------------------------------------------------------------
+
+
+class TrialOfferResponse(ApiModel):
+    available: bool
+    traffic_mib: int
+    duration_days: int
+
+
+class TrialClaimResponse(ApiModel):
+    subscription_ids: list[str]
+    #: Services whose panel account has not come up yet. They are in the retry
+    #: queue; the app says they are on the way rather than that they failed.
+    pending: int
+
+
+@router.get(
+    "/trial", response_model=TrialOfferResponse, summary="Can this customer have the free trial"
+)
+async def trial_offer(user: CurrentMiniAppUser, scope: ScopeDep) -> TrialOfferResponse:
+    offer = await scope.free_trial.offer(user.telegram_id)
+    return TrialOfferResponse(
+        available=offer.available,
+        traffic_mib=offer.traffic_mib,
+        duration_days=offer.duration_days,
+    )
+
+
+@router.post("/trial", response_model=TrialClaimResponse, summary="Claim the free trial")
+async def claim_trial(
+    user: CurrentMiniAppUser, scope: ScopeDep, uow: UnitOfWorkDep
+) -> TrialClaimResponse:
+    """One tunnel and one direct service, once per customer.
+
+    Committed between placing and delivering: once the claim and its paid
+    orders are stored the trial is owed, and a panel that fails afterwards
+    leaves the orders to the retry queue instead of losing the claim.
+    """
+    orders = await scope.free_trial.place(user.telegram_id)
+    await uow.commit()
+    delivery = await scope.free_trial.deliver(orders)
+    await uow.commit()
+    return TrialClaimResponse(
+        subscription_ids=[str(subscription.id) for subscription in delivery.subscriptions],
+        pending=delivery.pending,
+    )
+
+
 # -- wallet ----------------------------------------------------------------
 
 
@@ -656,12 +803,19 @@ async def wallet_transactions(
 
 @router.post("/wallet/topup", summary="Start a wallet top-up")
 async def topup(
-    payload: TopupRequest, user: CurrentMiniAppUser, services: ServicesDep, uow: UnitOfWorkDep
+    payload: TopupRequest,
+    request: Request,
+    user: CurrentMiniAppUser,
+    services: ServicesDep,
+    container: ContainerDep,
+    uow: UnitOfWorkDep,
 ) -> Any:
     details = await services.checkout.begin_topup(
         user.id, amount=payload.amount, method=payload.method
     )
     await uow.commit()
+    if isinstance(details, GatewayScreen):
+        await _remember_if_app(request, container, details)
     return details
 
 

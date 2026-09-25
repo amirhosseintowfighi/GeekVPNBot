@@ -85,7 +85,27 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class FreeTrialAlreadyClaimed(ConflictError):
+    """One free trial per customer, and this one has had it."""
+
+    code = "free_trial_already_claimed"
+    message = "This customer has already had the free trial."
+
+
+class FreeTrialUnavailable(ConflictError):
+    """Nothing on sale that a trial could be cut from.
+
+    The trial borrows a real plan for its product and tier, so a shop with no
+    published tunnel or direct plan has nothing to give.
+    """
+
+    code = "free_trial_unavailable"
+    message = "No plan is available for a free trial."
+
+
 __all__ = [
+    "FreeTrialAlreadyClaimed",
+    "FreeTrialUnavailable",
     "IllegalOrderTransition",
     "IllegalSubscriptionTransition",
     "NoCapacityAvailable",

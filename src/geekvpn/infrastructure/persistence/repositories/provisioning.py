@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from geekvpn.domain.base.errors import NotFoundError
-from geekvpn.domain.provisioning.enums import OrderState, SubscriptionState
+from geekvpn.domain.provisioning.enums import OrderSource, OrderState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.persistence.mappers.provisioning import (
@@ -163,6 +163,8 @@ class SqlAlchemyOrderRepository:
     async def has_completed_order(self, user_id: int) -> bool:
         """Used for first-purchase pricing and referral conversion.
 
+        Free trials do not count either; see `FreeTrial`.
+
         Cancelled and failed orders deliberately do not count: a customer whose
         only order failed has still never successfully bought anything, and
         charging them the returning-customer price would be indefensible.
@@ -176,6 +178,9 @@ class SqlAlchemyOrderRepository:
                 # purchase, whatever they have bought from us.
                 self._shop(OrderModel.reseller_id),
                 OrderModel.state.in_((OrderState.ACTIVE.value, OrderState.REFUNDED.value)),
+                # A free trial is not a purchase: it must not cost the customer
+                # their first-purchase price or count as a referral conversion.
+                OrderModel.source != OrderSource.TRIAL.value,
             )
             .limit(1)
         )

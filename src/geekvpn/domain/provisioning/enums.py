@@ -103,6 +103,9 @@ class OrderSource(StrEnum):
     #: subscription also carries the reseller id; this is what makes the
     #: *order* attributable without a join.
     RESELLER = "reseller"
+    #: The free trial the Android app hands out. Free and not a purchase:
+    #: first-purchase pricing and referral conversion leave these out.
+    TRIAL = "trial"
 
 
 __all__ = ["NodeState", "OrderSource", "OrderState", "SubscriptionState"]

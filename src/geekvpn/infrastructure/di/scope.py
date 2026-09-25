@@ -42,6 +42,7 @@ from geekvpn.application.platform.settings_service import (
     SettingsService,
 )
 from geekvpn.application.provisioning.claim_service import ClaimService
+from geekvpn.application.provisioning.free_trial import FreeTrial
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.application.provisioning.subscription_admin import (
@@ -68,7 +69,7 @@ from geekvpn.infrastructure.di.sync_scope import (
     Uuid4IdGenerator,
     build_sync_scope,
 )
-from geekvpn.infrastructure.notifications.telegram import HttpTelegramSender
+from geekvpn.infrastructure.notifications.telegram import HttpTelegramFiles, HttpTelegramSender
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
 from geekvpn.infrastructure.persistence.repositories.app_credentials import (
@@ -87,6 +88,9 @@ from geekvpn.infrastructure.persistence.repositories.catalog import (
 )
 from geekvpn.infrastructure.persistence.repositories.channels import (
     SqlRequiredChannelRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.free_trials import (
+    SqlAlchemyFreeTrialRepository,
 )
 from geekvpn.infrastructure.persistence.repositories.nodes import (
     SqlAlchemyNodeRepository,
@@ -423,6 +427,38 @@ class RequestScope:
 
         await run_in_threadpool(_call)
 
+    async def receipt_to_telegram(
+        self, telegram_id: int, image: bytes, *, content_type: str, caption: str
+    ) -> str:
+        """Put a receipt the app uploaded into this shop's bot chat; its file id.
+
+        This shop's bot, for the same reason as `notify_customer`: it is the
+        only bot the customer has spoken to, and the operator reviews the photo
+        from that bot's chat.
+        """
+
+        def work(sync: SyncScope) -> str:
+            return self._telegram_files(sync).send_photo(
+                chat_id=telegram_id, image=image, content_type=content_type, caption=caption
+            )
+
+        return await self.in_shop(work)
+
+    async def telegram_file(self, file_id: str) -> bytes:
+        """The bytes behind a file id in this shop's bot, to fingerprint a receipt."""
+
+        def work(sync: SyncScope) -> bytes:
+            return self._telegram_files(sync).download(file_id)
+
+        return await self.in_shop(work)
+
+    @staticmethod
+    def _telegram_files(sync: SyncScope) -> HttpTelegramFiles:
+        token = sync._bot_token()
+        if not token:
+            raise RuntimeError("This shop has no bot to send from.")
+        return HttpTelegramFiles(token)
+
     # -- resellers ---------------------------------------------------------
 
     @cached_property
@@ -465,6 +501,25 @@ class RequestScope:
             plans=self.catalog_plans,
             orders=self.order_service,
             provisioning=self.provisioning,
+            jalali_year=year,
+        )
+
+    @cached_property
+    def free_trials(self) -> SqlAlchemyFreeTrialRepository:
+        return SqlAlchemyFreeTrialRepository(self.session)
+
+    @cached_property
+    def free_trial(self) -> FreeTrial:
+        """The Android app's free trial, delivered like any other order."""
+        year, _, _ = to_jalali(self.container.clock.now().date())
+        return FreeTrial(
+            claims=self.free_trials,
+            products=self.catalog_products,
+            plans=self.catalog_plans,
+            orders=self.order_service,
+            order_repository=self.orders,
+            provisioning=self.provisioning,
+            clock=self.container.clock,
             jalali_year=year,
         )
 
