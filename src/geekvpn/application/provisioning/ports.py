@@ -175,6 +175,17 @@ class SyncOrderRepository(Protocol):
 
 
 @runtime_checkable
+class CouponReleaser(Protocol):
+    """Hands a coupon use back when the order that spent it is never paid.
+
+    Synchronous, because payment rejection runs in the payment scope and the
+    release belongs in the same transaction as the rejection.
+    """
+
+    def release(self, *, code: str, order_id: str) -> None: ...
+
+
+@runtime_checkable
 class SubscriptionRepository(Protocol):
     async def get(self, subscription_id: str) -> Subscription | None: ...
 

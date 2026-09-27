@@ -61,13 +61,23 @@ from geekvpn.application.payments.verification_service import VerificationServic
 from geekvpn.application.payments.wallet_service import WalletService
 from geekvpn.application.platform.settings_service import CARD_LABEL_FA, CRYPTO_LABEL_FA
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.provisioning.order_service import INVOICE_ORDER_KEY, OrderPaymentBridge
+from geekvpn.application.provisioning.order_service import (
+    INVOICE_ORDER_KEY,
+    OrderPaymentBridge,
+    UnpaidOrderRelease,
+)
 from geekvpn.application.support.search_service import SearchService
 from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
-from geekvpn.domain.payments.events import PaymentApproved, ProofSubmitted
+from geekvpn.domain.payments.events import (
+    PaymentApproved,
+    PaymentExpiredEvent,
+    PaymentFailed,
+    PaymentRejected,
+    ProofSubmitted,
+)
 from geekvpn.domain.payments.gateway import GatewayRegistry
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
 from geekvpn.infrastructure.di.container import Container
@@ -95,6 +105,7 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
 from geekvpn.infrastructure.persistence.repositories.subscription_reader import (
     SqlSubscriptionReader,
 )
+from geekvpn.infrastructure.persistence.repositories.sync_catalog import SyncCouponReleaser
 from geekvpn.infrastructure.persistence.repositories.sync_directory import (
     SyncUserDirectory,
 )
@@ -430,6 +441,10 @@ class SyncScope:
         table[ProofSubmitted.name] = self.receipt_alerts.on_proof_submitted
         for name, handler in table.items():
             publisher.subscribe(name, handler)
+        # Beside the customer's notification, not instead of it: `table` holds
+        # one handler per name and `PaymentRejected` already has one.
+        for abandoned in (PaymentRejected, PaymentFailed, PaymentExpiredEvent):
+            publisher.subscribe(abandoned.name, self.unpaid_orders.on_payment_abandoned)
         return publisher
 
     @cached_property
@@ -510,6 +525,24 @@ class SyncScope:
             events=LoggingEventPublisher(),
             order_id_for_invoice=self._order_id_for_invoice,
         )
+
+    @cached_property
+    def unpaid_orders(self) -> UnpaidOrderRelease:
+        """Cancels an order whose payment never landed and returns its coupon.
+
+        Same logging-only publisher as the bridge, for the same re-entry reason.
+        """
+        return UnpaidOrderRelease(
+            orders=self.orders,
+            coupons=SyncCouponReleaser(self.session),
+            events=LoggingEventPublisher(),
+            invoice_for_payment=self._invoice_for_payment,
+            order_id_for_invoice=self._order_id_for_invoice,
+        )
+
+    def _invoice_for_payment(self, payment_id: str) -> str | None:
+        payment = self.payments.get(payment_id)
+        return payment.invoice_id if payment is not None else None
 
     def _order_id_for_invoice(self, invoice_id: str) -> str | None:
         """The order an invoice was raised for, from its own metadata.

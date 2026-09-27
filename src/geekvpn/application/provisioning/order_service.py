@@ -12,6 +12,8 @@ Two classes live here because they run in two different scopes:
 * :class:`OrderPaymentBridge` is synchronous, because payment approval runs in
   the synchronous scope, and the order must move to PAID inside the same
   transaction that approves the payment.
+* :class:`UnpaidOrderRelease` is its mirror image for the payments that never
+  land, and synchronous for the same reason.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from collections.abc import Callable
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import (
+    CouponReleaser,
     EventPublisher,
     IdGenerator,
     OrderNumberGenerator,
@@ -197,4 +200,59 @@ class OrderPaymentBridge:
         return self._orders.get(order_id) if order_id else None
 
 
-__all__ = ["INVOICE_ORDER_KEY", "OrderPaymentBridge", "OrderService"]
+class UnpaidOrderRelease:
+    """Cancels an order whose payment was rejected, failed or expired, and
+    gives back the coupon it spent.
+
+    The coupon is counted when the order is placed, not when it is paid: two
+    checkouts racing one single-use code must not both get the discount. The
+    price of that is this class. Without it a rejected receipt left the order
+    PENDING forever and the code burnt, so a customer who mistyped a card
+    number lost a one-time discount along with the purchase.
+
+    Only a PENDING order is touched. A late rejection for an order another
+    payment already settled must not refund a discount that was used.
+    """
+
+    __slots__ = ("_coupons", "_events", "_invoice_for_payment", "_order_id_for_invoice", "_orders")
+
+    def __init__(
+        self,
+        *,
+        orders: SyncOrderRepository,
+        coupons: CouponReleaser,
+        events: EventPublisher,
+        invoice_for_payment: Callable[[str], str | None],
+        order_id_for_invoice: Callable[[str], str | None] | None = None,
+    ) -> None:
+        self._orders = orders
+        self._coupons = coupons
+        self._events = events
+        # Callables, like the bridge's, so provisioning does not import billing.
+        self._invoice_for_payment = invoice_for_payment
+        self._order_id_for_invoice = order_id_for_invoice
+
+    def on_payment_abandoned(self, event: object) -> Order | None:
+        """Handle ``PaymentRejected``, ``PaymentFailed`` and ``PaymentExpiredEvent``."""
+        payment_id = getattr(event, "payment_id", None)
+        if not isinstance(payment_id, str):
+            return None
+        invoice_id = self._invoice_for_payment(payment_id)
+        if invoice_id is None:
+            return None
+        order = self._orders.get_by_invoice(invoice_id)
+        if order is None and self._order_id_for_invoice is not None:
+            order_id = self._order_id_for_invoice(invoice_id)
+            order = self._orders.get(order_id) if order_id else None
+        if order is None or order.state is not OrderState.PENDING:
+            return order
+
+        order.cancel()
+        self._orders.update(order)
+        if order.coupon_code:
+            self._coupons.release(code=order.coupon_code, order_id=order.id)
+        self._events.publish_all(order.collect_events())
+        return order
+
+
+__all__ = ["INVOICE_ORDER_KEY", "OrderPaymentBridge", "OrderService", "UnpaidOrderRelease"]

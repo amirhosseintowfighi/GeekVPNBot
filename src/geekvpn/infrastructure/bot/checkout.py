@@ -509,7 +509,8 @@ class BotCheckoutAdapter:
         await self._coupons.record_redemption(
             coupon_id=coupon.id,
             user_id=user_id,
-            order_id=None,
+            # The row `UnpaidOrderRelease` deletes if this order is never paid.
+            order_id=_order_uuid(order_id),
             discount=discount.amount,
             redeemed_at=self._clock.now(),
         )
@@ -524,6 +525,13 @@ class BotCheckoutAdapter:
 #: Shown next to every manual payment so the customer knows what "in review"
 #: costs them in waiting.
 REVIEW_SLA_FA = "بررسی معمولاً کمتر از ۳۰ دقیقه طول می‌کشه."
+
+
+def _order_uuid(order_id: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(order_id)
+    except ValueError:
+        return None
 
 
 def _lines_for(plan_name_fa: str, quote: PriceQuote) -> list[InvoiceLine]:

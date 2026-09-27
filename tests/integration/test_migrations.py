@@ -171,8 +171,10 @@ def test_upgrade_head_succeeds_on_an_empty_database(empty_database) -> None:
 
     tables = set(inspect(empty_database).get_table_names())
     assert "alembic_version" in tables
-    # 30 model tables plus Alembic's own bookkeeping.
-    assert len(tables - {"alembic_version"}) == 30
+    # Every model table and nothing else, besides Alembic's own bookkeeping.
+    # Compared by name rather than counted: a hard-coded 30 went stale at the
+    # 31st table and stayed red, unseen, wherever Postgres was not running.
+    assert tables - {"alembic_version"} == set(Base.metadata.tables)
 
 
 def test_the_version_column_is_wide_enough_for_every_revision(empty_database) -> None:
