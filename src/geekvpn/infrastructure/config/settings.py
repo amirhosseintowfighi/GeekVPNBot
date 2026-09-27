@@ -301,6 +301,29 @@ class AuthSettings(Section):
         return timedelta(hours=self.admin_absolute_ttl_hours)
 
 
+class AppReleaseSettings(Section):
+    """Where the Android app learns about its own updates (`GET /api/app/version`).
+
+    The app is not on Google Play, so nothing else tells a customer a new
+    version exists. Releases are the GitHub Releases the app's CI publishes
+    for a `v*` tag; this API only reads the latest one and hands it on.
+    """
+
+    #: `owner/repo` of the app. Empty switches update checks off: the endpoint
+    #: answers with no release rather than guessing a repository.
+    github_repo: str = ""
+    #: A copy of the release files reachable from Iran, e.g.
+    #: `https://dl.example.ir/geekvpn`. The APK is then fetched from
+    #: `<this>/<file name>` instead of GitHub. The app checks the SHA-256
+    #: GitHub publishes for each file, so a mirror cannot swap the content.
+    mirror_base_url: str = ""
+    #: Versions older than this (e.g. `1.2.0`) are told the update is required.
+    min_version: str = ""
+    #: How long one answer from GitHub is reused. The unauthenticated API
+    #: allows 60 requests an hour per address.
+    cache_seconds: int = 600
+
+
 class Settings(BaseSettings):
     """Root settings object. Inject it; never read ``os.environ`` elsewhere."""
 
@@ -319,6 +342,7 @@ class Settings(BaseSettings):
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    app_release: AppReleaseSettings = Field(default_factory=AppReleaseSettings)
 
     @property
     def jwt_secret(self) -> str:

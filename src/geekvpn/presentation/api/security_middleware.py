@@ -326,6 +326,7 @@ DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     ("/api/app/auth/link/start", "auth.app_link"),
     ("/api/app/auth/link/poll", "auth.app_poll"),
     ("/api/app/auth/password", "auth.app_password"),
+    ("/api/app/version", "app.version"),
     ("/api/v1/admin/analytics/export", "analytics.export"),
     ("/api/v1/admin/analytics", "analytics.dashboard"),
     # Broadcasts are limited like every other admin mutation. They used to have
