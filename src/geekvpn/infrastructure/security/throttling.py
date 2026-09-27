@@ -96,6 +96,9 @@ POLICIES: Final[dict[str, Policy]] = {
     # Password sign-in: failures only, per IP, so a carrier NAT full of
     # customers typing the right password is never blocked. The use case adds
     # a tighter per-username limit, which is the one that stops guessing.
+    # Every app start asks once; the answer is cached, so the limit only has
+    # to stop a loop, and a carrier NAT puts many phones behind one address.
+    "app.version": Policy("app.version", limit=300, window_seconds=300, scope=Scope.IP),
     "auth.app_password": Policy(
         "auth.app_password", limit=30, window_seconds=900, scope=Scope.IP, failures_only=True
     ),
