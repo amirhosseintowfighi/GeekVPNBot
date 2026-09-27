@@ -20,6 +20,7 @@ from geekvpn.application.bot.read_models import (
     CryptoPaymentDetails,
     GatewayScreen,
     NotificationPreferences,
+    OwnerOptions,
     PendingPayment,
     ProfileSummary,
     ReferralSummary,
@@ -215,4 +216,30 @@ class TrialService(Protocol):
         :raises FreeTrialAlreadyClaimed: this customer has had it.
         :raises FreeTrialUnavailable: switched off, or nothing to base it on.
         """
+        ...
+
+
+@runtime_checkable
+class ServiceOwnership(Protocol):
+    """What a customer may change about a service they own.
+
+    Every method checks ownership itself: ids arrive from callback data, and a
+    customer must not be able to rename, re-bill or give away somebody else's
+    service by editing a button.
+    """
+
+    async def options(self) -> OwnerOptions: ...
+
+    async def set_auto_renew(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, enabled: bool
+    ) -> SubscriptionCard: ...
+
+    async def rename(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, name: str | None
+    ) -> SubscriptionCard: ...
+
+    async def transfer(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, to_telegram_id: int
+    ) -> None:
+        """:raises LookupError: no such recipient in this shop."""
         ...

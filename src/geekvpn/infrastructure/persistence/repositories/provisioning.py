@@ -375,6 +375,23 @@ class SqlAlchemySubscriptionRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 
+    async def list_auto_renew_due(
+        self, *, before: datetime, limit: int = 200
+    ) -> Sequence[Subscription]:
+        """Active services whose owner asked for auto-renewal, ending soon."""
+        stmt = (
+            select(SubscriptionModel)
+            .where(
+                SubscriptionModel.state == SubscriptionState.ACTIVE.value,
+                SubscriptionModel.auto_renew.is_(True),
+                SubscriptionModel.expires_at <= before,
+            )
+            .order_by(SubscriptionModel.expires_at)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows]
+
     async def list_for_sync(
         self, *, stale_before: datetime, limit: int = 200
     ) -> Sequence[Subscription]:

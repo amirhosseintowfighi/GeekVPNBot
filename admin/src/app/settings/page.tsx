@@ -30,6 +30,9 @@ import { Switch } from '@/components/ui/switch'
  * setting appears the moment the backend declares it.
  */
 const GROUP_TITLES: Record<string, string> = {
+  services: 'سرویس‌ها',
+  alerts: 'اعلان‌های مدیریت',
+  renewal: 'تمدید',
   trial: 'اکانت تست',
   wallet: 'کیف پول',
   pricing: 'قیمت‌گذاری',

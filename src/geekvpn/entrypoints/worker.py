@@ -38,6 +38,7 @@ import contextlib
 import signal
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from types import FrameType
 
@@ -45,6 +46,7 @@ from sqlalchemy import select
 
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.domain.notifications.enums import JobKind
+from geekvpn.infrastructure.bot.auto_renew import build_auto_renewal
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.di.scope import build_scope
@@ -91,6 +93,10 @@ EXPIRY_SWEEP_INTERVAL_SECONDS = 300
 LOCK_TTL_SECONDS = 300
 LOCK_KEY = "worker:tick"
 
+#: Auto-renewal looks a day ahead, so every quarter of an hour is plenty; the
+#: attempt log keeps a slow tick from charging anybody twice.
+AUTO_RENEW_INTERVAL_SECONDS = 900
+
 
 class Worker:
     """Runs scheduled jobs until told to stop."""
@@ -98,6 +104,13 @@ class Worker:
     def __init__(self, container: Container) -> None:
         self._container = container
         self._stopping = asyncio.Event()
+        #: Jobs added after the three counters in `run`: name, interval, job.
+        #: A table rather than a fourth hand-kept counter, the kind that was
+        #: once read every tick and never written.
+        self._periodic: list[tuple[str, float, Callable[[], Awaitable[None]]]] = [
+            ("auto_renew", AUTO_RENEW_INTERVAL_SECONDS, self._auto_renew),
+        ]
+        self._next_run: dict[str, float] = {}
 
     def request_stop(self) -> None:
         """Finish the current tick, then exit. Wired to SIGTERM and SIGINT."""
@@ -163,6 +176,7 @@ class Worker:
                 await self._sync_usage()
             if run_expiry_sweep:
                 await self._expire_lapsed()
+            await self._run_periodic()
             await self._run_scheduled_jobs()
         except Exception:
             # Never let one bad tick kill the process; the next one may succeed.
@@ -231,6 +245,33 @@ class Worker:
                 await scope.aclose()
         if expired:
             logger.info("worker.subscriptions_expired", count=expired)
+
+    async def _run_periodic(self) -> None:
+        """Run each job in `_periodic` whose interval has passed.
+
+        One job failing is logged and does not stop the others: a panel that
+        refuses a renewal must not also cancel tonight's backup.
+        """
+        now = time.monotonic()
+        for name, interval, job in self._periodic:
+            if self._next_run.get(name, 0.0) > now:
+                continue
+            self._next_run[name] = now + interval
+            try:
+                await job()
+            except Exception:
+                logger.exception("worker.job_failed", job=name)
+
+    async def _auto_renew(self) -> None:
+        report = await build_auto_renewal(self._container).run()
+        if report.examined:
+            logger.info(
+                "worker.auto_renewed",
+                examined=report.examined,
+                renewed=report.renewed,
+                short=report.short,
+                failed=report.failed,
+            )
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.

@@ -216,6 +216,68 @@ TRIAL_AFTER_MESSAGE_FA = SettingDefinition[str](
     description="Sent after the trial is delivered. Empty sends nothing extra.",
 )
 
+AUTO_RENEW_ENABLED = SettingDefinition[bool](
+    key="renewal.auto_enabled",
+    label_fa="تمدید خودکار از کیف پول",
+    default=True,
+    type_=bool,
+    description=(
+        "Let customers turn on renewal from their wallet. Off hides the switch"
+        " and stops every pending auto-renewal."
+    ),
+)
+
+#: Where operator alerts go. Zero means the private chat of every admin who
+#: linked Telegram, which is what every shop had before these existed. A group
+#: id (negative) sends there instead, so any admin in the group can act on a
+#: receipt while the owner is asleep, and a busy shop can keep receipts from
+#: drowning its tickets.
+ALERTS_RECEIPTS_CHAT = SettingDefinition[int](
+    key="alerts.receipts_chat_id",
+    label_fa="گروه رسیدهای کارت به کارت (آیدی عددی)",
+    default=0,
+    type_=int,
+    description="Chat id that receives receipts to approve. 0 sends to each admin privately.",
+)
+ALERTS_PAYMENTS_CHAT = SettingDefinition[int](
+    key="alerts.payments_chat_id",
+    label_fa="گروه سایر واریزی‌ها (آیدی عددی)",
+    default=0,
+    type_=int,
+    description="Chat id for crypto proofs. 0 uses the receipts group.",
+)
+ALERTS_TICKETS_CHAT = SettingDefinition[int](
+    key="alerts.tickets_chat_id",
+    label_fa="گروه تیکت‌ها (آیدی عددی)",
+    default=0,
+    type_=int,
+    description="Chat id told about new tickets and customer replies. 0 sends to each admin.",
+)
+ALERTS_REPORTS_CHAT = SettingDefinition[int](
+    key="alerts.reports_chat_id",
+    label_fa="گروه گزارش‌ها (آیدی عددی)",
+    default=0,
+    type_=int,
+    description=(
+        "Chat id for reports: purchases, renewals, transfers, renames. 0 sends to each admin."
+    ),
+)
+
+RENAME_ENABLED = SettingDefinition[bool](
+    key="services.rename_enabled",
+    label_fa="تغییر نام سرویس توسط کاربر",
+    default=True,
+    type_=bool,
+    description="Let customers give their services a name of their own in the bot.",
+)
+TRANSFER_ENABLED = SettingDefinition[bool](
+    key="services.transfer_enabled",
+    label_fa="انتقال سرویس به کاربر دیگر",
+    default=True,
+    type_=bool,
+    description="Let customers hand a service to another customer of this shop.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -234,6 +296,13 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         TRIAL_DURATION_DAYS,
         TRIAL_INTRO_FA,
         TRIAL_AFTER_MESSAGE_FA,
+        AUTO_RENEW_ENABLED,
+        ALERTS_RECEIPTS_CHAT,
+        ALERTS_PAYMENTS_CHAT,
+        ALERTS_TICKETS_CHAT,
+        ALERTS_REPORTS_CHAT,
+        RENAME_ENABLED,
+        TRANSFER_ENABLED,
     )
 }
 

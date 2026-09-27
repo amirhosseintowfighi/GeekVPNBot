@@ -33,6 +33,7 @@ from geekvpn.presentation.bot.handlers import (
     renewal,
     reseller,
     server_status,
+    service_owner,
     shop,
     start,
     support,
@@ -75,6 +76,7 @@ ROUTERS = (
     faq,
     server_status,
     trial,
+    service_owner,
     fallback,
 )
 

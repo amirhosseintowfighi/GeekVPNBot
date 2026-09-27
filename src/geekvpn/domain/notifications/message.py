@@ -376,6 +376,40 @@ CATALOG: dict[str, MessageTemplate] = {
             action=None,
         ),
         MessageTemplate(
+            key="renewal.auto_done",
+            category=_C.CRITICAL,
+            title_fa="سرویست خودکار تمدید شد",
+            body_fa="سرویس {plan} از کیف پولت تمدید شد و {amount} کسر شد. کاری لازم نیست بکنی.",
+            action="dashboard",
+        ),
+        MessageTemplate(
+            key="renewal.auto_short",
+            category=_C.CRITICAL,
+            title_fa="تمدید خودکار انجام نشد",
+            body_fa=(
+                "موجودی کیف پولت برای تمدید خودکار {plan} کافی نبود ({amount} کم داری). "
+                "کیف پولت رو شارژ کن و از «سرویس‌های من» تمدیدش کن تا قطع نشی."
+            ),
+            action="wallet",
+        ),
+        MessageTemplate(
+            key="renewal.auto_failed",
+            category=_C.CRITICAL,
+            title_fa="تمدید خودکار انجام نشد",
+            body_fa=(
+                "تمدید خودکار {plan} انجام نشد و پولی هم کسر نشد. "
+                "از «سرویس‌های من» دستی تمدیدش کن یا به پشتیبانی بگو."
+            ),
+            action="dashboard",
+        ),
+        MessageTemplate(
+            key="subscription.transferred_in",
+            category=_C.CRITICAL,
+            title_fa="یک سرویس بهت منتقل شد",
+            body_fa="سرویس {plan} به حسابت منتقل شد و تو «سرویس‌های من» پیداش می‌کنی.",
+            action="dashboard",
+        ),
+        MessageTemplate(
             key="broadcast.custom",
             category=_C.NEWS,
             title_fa="{title}",

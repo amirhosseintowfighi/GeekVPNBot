@@ -21,6 +21,7 @@ from geekvpn.application.bot.ports import (
     ProfileReader,
     ReferralReader,
     ServerStatusReader,
+    ServiceOwnership,
     SubscriptionReader,
     TicketReader,
     TrialService,
@@ -41,3 +42,4 @@ class BotServices:
     #: Optional so the many test bundles built before it existed stay valid;
     #: `build_bot_services` always provides it.
     trial: TrialService | None = None
+    ownership: ServiceOwnership | None = None

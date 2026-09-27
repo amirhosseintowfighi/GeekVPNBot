@@ -37,6 +37,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -192,6 +193,10 @@ class SubscriptionModel(TimestampMixin, Base):
     #: What tells an arrears suspension apart from an operator's decision,
     #: so paying a debt does not undo somebody's ban.
     suspend_reason_fa: Mapped[str | None] = mapped_column(String(512))
+    auto_renew: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    display_name: Mapped[str | None] = mapped_column(String(32))
 
     __table_args__ = (
         CheckConstraint(f"state IN ({_quoted(SUBSCRIPTION_STATES)})", name="subscriptions_state"),

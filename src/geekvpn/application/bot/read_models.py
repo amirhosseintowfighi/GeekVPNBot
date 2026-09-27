@@ -91,6 +91,12 @@ class SubscriptionCard:
     #: the part a customer can change. None for a service adopted from a link,
     #: which has no plan to ask.
     tier: ProductTier | None = None
+    #: The customer's own choice to renew from the wallet before it ends.
+    auto_renew: bool = False
+    #: A name the customer gave it. Shown in place of the plan name.
+    display_name: str | None = None
+    #: The panel's last-seen for this account, when the panel reports one.
+    last_connected_at: datetime | None = None
 
     @property
     def is_unlimited(self) -> bool:
@@ -333,3 +339,12 @@ class TrialClaimCard:
     pending: int
     #: Sent after the configs. Empty sends nothing extra.
     after_message_fa: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerOptions:
+    """Which of the owner's own controls this shop has switched on."""
+
+    auto_renew: bool = False
+    rename: bool = False
+    transfer: bool = False

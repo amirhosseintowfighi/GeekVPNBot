@@ -279,6 +279,9 @@ def to_card(
         created_at=subscription.started_at,
         remote_username=subscription.remote_username,
         tier=tier,
+        auto_renew=subscription.auto_renew,
+        display_name=subscription.display_name,
+        last_connected_at=subscription.last_connected_at,
     )
 
 

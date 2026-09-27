@@ -1008,3 +1008,37 @@ TRIAL_ONLY_PENDING: Final = (
 )
 TRIAL_ALREADY_CLAIMED: Final = "قبلاً اکانت تست گرفتی. برای ادامه، یکی از پلن‌ها رو بخر 🙂"
 TRIAL_UNAVAILABLE: Final = "الان اکانت تست ارائه نمی‌شه."
+
+# -- the owner's controls on a service ---------------------------------------
+
+SUB_LAST_SEEN_LINE: Final = "🕓 آخرین اتصال: {when} پیش"
+SUB_LAST_SEEN_NEVER: Final = "🕓 آخرین اتصال: هنوز وصل نشده"
+SUB_ONLINE_NOW: Final = "🟢 همین الان آنلاین"
+SUB_AUTO_RENEW_ON_LINE: Final = "🔁 تمدید خودکار از کیف پول: روشن"
+BTN_AUTO_RENEW_ON: Final = "🔁 تمدید خودکار: روشن ✅"
+BTN_AUTO_RENEW_OFF: Final = "🔁 تمدید خودکار: خاموش"
+AUTO_RENEW_TURNED_ON: Final = "تمدید خودکار روشن شد. یک روز قبل از تموم شدن، از کیف پولت تمدید می‌شه."
+AUTO_RENEW_TURNED_OFF: Final = "تمدید خودکار خاموش شد."
+BTN_RENAME: Final = "✏️ تغییر نام"
+RENAME_ASK: Final = (
+    "یه اسم برای این سرویس بفرست (حداکثر ۳۲ حرف)؛ مثلاً «گوشی من».\n"
+    "برای برگشتن به اسم پیش‌فرض، یک خط تیره <code>-</code> بفرست."
+)
+RENAME_TOO_LONG: Final = "این اسم طولانیه. حداکثر ۳۲ حرف."
+RENAME_DONE: Final = "✅ اسم سرویس عوض شد."
+BTN_TRANSFER: Final = "🔄 انتقال به کاربر دیگر"
+TRANSFER_ASK: Final = (
+    "آیدی عددی کسی که می‌خوای سرویس رو بهش بدی بفرست.\n"
+    "\n"
+    "اون شخص باید قبلاً ربات رو استارت کرده باشه. آیدی عددیش رو تو «پروفایل» ربات می‌بینه."
+)
+TRANSFER_BAD_ID: Final = "این آیدی عددی نیست. فقط عدد بفرست."
+TRANSFER_SELF: Final = "این سرویس همین الان مال خودته 🙂"
+TRANSFER_NO_SUCH_USER: Final = "کاربری با این آیدی تو ربات پیدا نشد. اول باید ربات رو استارت کنه."
+TRANSFER_CONFIRM: Final = (
+    "⚠️ مطمئنی؟ سرویس <b>{name}</b> به کاربر <code>{to_id}</code> منتقل می‌شه "
+    "و دیگه تو «سرویس‌های من» تو نمیاد. این کار برگشت‌پذیر نیست."
+)
+BTN_TRANSFER_CONFIRM: Final = "✅ بله، منتقل کن"
+TRANSFER_DONE: Final = "✅ سرویس منتقل شد."
+FEATURE_OFF: Final = "این قابلیت الان غیرفعاله."

@@ -28,6 +28,7 @@ _EXPECTED = {
     "preferences": ports.PreferencesStore,
     "checkout": ports.CheckoutService,
     "trial": ports.TrialService,
+    "ownership": ports.ServiceOwnership,
 }
 
 

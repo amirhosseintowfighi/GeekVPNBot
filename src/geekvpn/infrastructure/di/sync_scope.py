@@ -36,7 +36,9 @@ from geekvpn.application.notifications.operator_alerts import (
     RECEIPT_ALERT_FA,
     RECEIPT_ALERT_NO_IMAGE_FA,
     REJECT_LABEL_FA,
+    AlertKind,
     DeliveryNotifications,
+    OperatorReports,
     ReceiptAlerts,
 )
 from geekvpn.application.notifications.ports import Channel, EventPublisher
@@ -59,7 +61,15 @@ from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.signup_bonus import SignupBonusService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
-from geekvpn.application.platform.settings_service import CARD_LABEL_FA, CRYPTO_LABEL_FA
+from geekvpn.application.platform.settings_service import (
+    ALERTS_PAYMENTS_CHAT,
+    ALERTS_RECEIPTS_CHAT,
+    ALERTS_REPORTS_CHAT,
+    ALERTS_TICKETS_CHAT,
+    CARD_LABEL_FA,
+    CRYPTO_LABEL_FA,
+    SettingDefinition,
+)
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.order_service import (
     INVOICE_ORDER_KEY,
@@ -80,6 +90,7 @@ from geekvpn.domain.payments.events import (
 )
 from geekvpn.domain.payments.gateway import GatewayRegistry
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
+from geekvpn.domain.support.events import TicketOpened, TicketReplied
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
@@ -126,6 +137,7 @@ from geekvpn.infrastructure.persistence.repositories.sync_payments import (
 from geekvpn.infrastructure.persistence.repositories.sync_referrals import (
     SyncReferralLedger,
 )
+from geekvpn.infrastructure.persistence.repositories.sync_settings import SyncSettings
 from geekvpn.infrastructure.persistence.repositories.sync_support import (
     SyncTemplateRepository,
     SyncTicketRepository,
@@ -133,6 +145,16 @@ from geekvpn.infrastructure.persistence.repositories.sync_support import (
 
 logger = get_logger(__name__)
 
+
+
+#: The setting that names each operator stream's chat. PAYMENT is resolved in
+#: `_alert_chat`, because it falls back to the receipts group.
+_ALERT_SETTING: dict[AlertKind, SettingDefinition[int]] = {
+    AlertKind.RECEIPT: ALERTS_RECEIPTS_CHAT,
+    AlertKind.PAYMENT: ALERTS_PAYMENTS_CHAT,
+    AlertKind.TICKET: ALERTS_TICKETS_CHAT,
+    AlertKind.REPORT: ALERTS_REPORTS_CHAT,
+}
 
 class Uuid4IdGenerator:
     """Concrete ``IdGenerator``.
@@ -443,6 +465,9 @@ class SyncScope:
             publisher.subscribe(name, handler)
         # Beside the customer's notification, not instead of it: `table` holds
         # one handler per name and `PaymentRejected` already has one.
+        # And the tickets. Nothing told an operator a customer had written.
+        publisher.subscribe(TicketOpened.name, self.operator_reports.on_ticket_opened)
+        publisher.subscribe(TicketReplied.name, self.operator_reports.on_ticket_replied)
         for abandoned in (PaymentRejected, PaymentFailed, PaymentExpiredEvent):
             publisher.subscribe(abandoned.name, self.unpaid_orders.on_payment_abandoned)
         return publisher
@@ -508,7 +533,27 @@ class SyncScope:
             reject_label=REJECT_LABEL_FA,
             caption=RECEIPT_ALERT_FA,
             no_image_caption=RECEIPT_ALERT_NO_IMAGE_FA,
+            reports=self.operator_reports,
         )
+
+    @cached_property
+    def operator_reports(self) -> OperatorReports:
+        """Operator alerts, each kind to the chat an operator chose for it."""
+        return OperatorReports(
+            sender=HttpOperatorSender(
+                self.container.settings.telegram.bot_token.get_secret_value()
+            ),
+            directory=self.operator_directory,
+            route=self._alert_chat,
+        )
+
+    def _alert_chat(self, kind: AlertKind) -> int:
+        settings = SyncSettings(self.session)
+        if kind is AlertKind.PAYMENT:
+            # Unset falls back to the receipts group, not to private chats: an
+            # operator who made one group expects every payment in it.
+            return settings.get(ALERTS_PAYMENTS_CHAT) or settings.get(ALERTS_RECEIPTS_CHAT)
+        return settings.get(_ALERT_SETTING[kind])
 
     @cached_property
     def order_bridge(self) -> OrderPaymentBridge:

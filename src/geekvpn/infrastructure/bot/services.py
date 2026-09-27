@@ -17,6 +17,7 @@ from collections.abc import Awaitable, Callable
 from geekvpn.application.bot.services import BotServices
 from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.infrastructure.bot.checkout import BotCheckoutAdapter
+from geekvpn.infrastructure.bot.ownership import BotServiceOwnership
 from geekvpn.infrastructure.bot.readers import (
     SqlProfileReader,
     SqlReferralSummaryReader,
@@ -89,6 +90,15 @@ def build_bot_services(
             settings=scope.settings_service,
             session=scope.session,
             telegram_id=bridge.telegram_id,
+        ),
+        ownership=BotServiceOwnership(
+            users=scope.users,
+            subscriptions=scope.subscriptions,
+            orders=scope.orders,
+            session=scope.session,
+            settings=scope.settings_service,
+            bridge=bridge,
+            reseller_id=scope.reseller.id if scope.reseller is not None else None,
         ),
     )
 

@@ -8,7 +8,7 @@ Telegram client, which is how we can assert RTL correctness in CI.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from geekvpn.application.bot.read_models import (
     NotificationPreferences,
@@ -268,6 +268,10 @@ def _card_name(card: SubscriptionCard) -> str:
     empty strings. The panel username is the only name such a service has, and
     it is the one support asks for anyway.
     """
+    if card.display_name:
+        # The customer's own name for it wins: "گوشی مامان" says more to them
+        # than the package it was bought as.
+        return card.display_name
     named = " \u00b7 ".join(
         part for part in (card.product_name_fa, card.plan_name_fa) if part
     )
@@ -300,7 +304,7 @@ def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
     # live panel query - so the plan's allowance is the only honest number here.
     devices = fa_digits(card.device_limit)
 
-    return T.SUB_DETAIL.format(
+    body = T.SUB_DETAIL.format(
         icon=E.ROCKET,
         name=f"<b>{_card_name(card)}</b>",
         username=card.remote_username or "\u2014",
@@ -312,6 +316,29 @@ def subscription_detail(card: SubscriptionCard, *, now: datetime) -> str:
         used=used,
         devices=devices,
     )
+    extra = [_last_seen_line(card, now=now)]
+    if card.auto_renew:
+        extra.append(T.SUB_AUTO_RENEW_ON_LINE)
+    return body + "\n" + "\n".join(extra)
+
+
+#: Seen this recently counts as connected now. The panels refresh their
+#: last-seen every minute or so; anything tighter would flicker.
+_ONLINE_WINDOW = timedelta(minutes=3)
+
+
+def _last_seen_line(card: SubscriptionCard, *, now: datetime) -> str:
+    """When the panel last saw this account, which is the first thing support asks.
+
+    A service that was never seen and one whose panel does not report it look
+    the same here; both honestly read "not connected yet".
+    """
+    if card.last_connected_at is None:
+        return T.SUB_LAST_SEEN_NEVER
+    ago = now - card.last_connected_at
+    if ago <= _ONLINE_WINDOW:
+        return T.SUB_ONLINE_NOW
+    return T.SUB_LAST_SEEN_LINE.format(when=fa_relative(ago))
 
 
 # -- Wallet ------------------------------------------------------------------
