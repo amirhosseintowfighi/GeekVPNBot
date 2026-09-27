@@ -37,6 +37,7 @@ from geekvpn.presentation.bot.handlers import (
     start,
     support,
     system,
+    trial,
     wallet,
 )
 from geekvpn.presentation.bot.handlers import (
@@ -73,6 +74,7 @@ ROUTERS = (
     settings_handlers,
     faq,
     server_status,
+    trial,
     fallback,
 )
 

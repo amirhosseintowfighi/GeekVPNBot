@@ -37,6 +37,9 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
     label_fa: str = ""
     is_secret: bool = False
     write_permission: Permission = Permission.SETTINGS_WRITE
+    #: Lowest accepted number. A negative trial size or a zero-day warning is
+    #: not a preference, it is a typo that would surface at the customer.
+    minimum: int | None = None
 
     @property
     def kind(self) -> str:
@@ -70,11 +73,17 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
             raise ValidationError(f"{self.key} must be a boolean.", key=self.key)
         if self.type_ is float and isinstance(raw, int):
             return float(raw)  # type: ignore[return-value]
-        if not isinstance(raw, self.type_):
+        if not isinstance(raw, self.type_) or (self.type_ is int and isinstance(raw, bool)):
             raise ValidationError(
                 f"{self.key} must be of type {self.type_.__name__}.",
                 key=self.key,
                 expected=self.type_.__name__,
+            )
+        if self.minimum is not None and isinstance(raw, int | float) and raw < self.minimum:
+            raise ValidationError(
+                f"{self.key} must be at least {self.minimum}.",
+                key=self.key,
+                minimum=self.minimum,
             )
         return raw  # type: ignore[return-value]
 
@@ -167,6 +176,46 @@ SIGNUP_BONUS_NOTE_FA = SettingDefinition[str](
     description="What the customer sees beside this credit in their wallet history.",
 )
 
+#: The free trial. It used to be constants in `free_trial.py`, so an operator
+#: who wanted a bigger test, or none at all, needed a deployment.
+TRIAL_ENABLED = SettingDefinition[bool](
+    key="trial.enabled",
+    label_fa="اکانت تست رایگان",
+    default=True,
+    type_=bool,
+    description="Offer the one-time free trial in the bot and the Mini App.",
+)
+TRIAL_TRAFFIC_MIB = SettingDefinition[int](
+    key="trial.traffic_mib",
+    label_fa="حجم اکانت تست (مگابایت)",
+    default=50,
+    type_=int,
+    minimum=1,
+    description="Traffic each trial service gets, in MiB.",
+)
+TRIAL_DURATION_DAYS = SettingDefinition[int](
+    key="trial.duration_days",
+    label_fa="مدت اکانت تست (روز)",
+    default=2,
+    type_=int,
+    minimum=1,
+    description="How long a trial service lasts, in days.",
+)
+TRIAL_INTRO_FA = SettingDefinition[str](
+    key="trial.intro_fa",
+    label_fa="متن دکمهٔ دریافت اکانت تست",
+    default="",
+    type_=str,
+    description="Shown when the customer taps the trial button. Empty uses the built-in text.",
+)
+TRIAL_AFTER_MESSAGE_FA = SettingDefinition[str](
+    key="trial.after_message_fa",
+    label_fa="پیام بعد از دریافت اکانت تست",
+    default="",
+    type_=str,
+    description="Sent after the trial is delivered. Empty sends nothing extra.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -180,6 +229,11 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         SIGNUP_BONUS_NOTE_FA,
         CARD_LABEL_FA,
         CRYPTO_LABEL_FA,
+        TRIAL_ENABLED,
+        TRIAL_TRAFFIC_MIB,
+        TRIAL_DURATION_DAYS,
+        TRIAL_INTRO_FA,
+        TRIAL_AFTER_MESSAGE_FA,
     )
 }
 

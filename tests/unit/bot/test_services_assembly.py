@@ -27,6 +27,7 @@ _EXPECTED = {
     "tickets": ports.TicketReader,
     "preferences": ports.PreferencesStore,
     "checkout": ports.CheckoutService,
+    "trial": ports.TrialService,
 }
 
 
@@ -61,6 +62,8 @@ class FakeScope:
     catalog_products = object()
     catalog_coupons = object()
     provisioning = object()
+    free_trial = object()
+    settings_service = object()
 
 
 def test_every_slot_in_the_bundle_is_filled_by_something_satisfying_its_port() -> None:

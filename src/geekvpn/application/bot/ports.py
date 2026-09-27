@@ -27,6 +27,8 @@ from geekvpn.application.bot.read_models import (
     SubscriptionCard,
     TicketCard,
     TicketMessageCard,
+    TrialClaimCard,
+    TrialOfferCard,
     WalletSnapshot,
     WalletTransaction,
 )
@@ -195,3 +197,22 @@ class CheckoutService(Protocol):
     async def attach_txid(
         self, user_id: uuid.UUID, *, payment_id: uuid.UUID, txid: str
     ) -> PendingPayment: ...
+
+
+@runtime_checkable
+class TrialService(Protocol):
+    """The one-time free trial, from inside the bot.
+
+    It existed only in the Android app and the Mini App, so a customer who
+    never left Telegram - most of them - could not try before buying.
+    """
+
+    async def offer(self, user_id: uuid.UUID) -> TrialOfferCard: ...
+
+    async def claim(self, user_id: uuid.UUID) -> TrialClaimCard:
+        """Claim and deliver.
+
+        :raises FreeTrialAlreadyClaimed: this customer has had it.
+        :raises FreeTrialUnavailable: switched off, or nothing to base it on.
+        """
+        ...

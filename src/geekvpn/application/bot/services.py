@@ -23,6 +23,7 @@ from geekvpn.application.bot.ports import (
     ServerStatusReader,
     SubscriptionReader,
     TicketReader,
+    TrialService,
     WalletReader,
 )
 
@@ -37,3 +38,6 @@ class BotServices:
     tickets: TicketReader
     preferences: PreferencesStore
     checkout: CheckoutService
+    #: Optional so the many test bundles built before it existed stay valid;
+    #: `build_bot_services` always provides it.
+    trial: TrialService | None = None

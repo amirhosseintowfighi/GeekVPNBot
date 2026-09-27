@@ -29,6 +29,7 @@ from geekvpn.infrastructure.bot.sync_readers import (
     SyncTicketCardReader,
     SyncWalletCardReader,
 )
+from geekvpn.infrastructure.bot.trial import BotTrialAdapter
 from geekvpn.infrastructure.di.scope import RequestScope
 
 
@@ -82,6 +83,12 @@ def build_bot_services(
             clock=container.clock,
             jalali_year=jalali_year,
             fetch_receipt=fetch_receipt,
+        ),
+        trial=BotTrialAdapter(
+            trial=scope.free_trial,
+            settings=scope.settings_service,
+            session=scope.session,
+            telegram_id=bridge.telegram_id,
         ),
     )
 

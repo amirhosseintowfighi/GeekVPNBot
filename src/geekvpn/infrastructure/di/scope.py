@@ -39,10 +39,13 @@ from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.platform.settings_service import (
     SIGNUP_BONUS_NOTE_FA,
     SIGNUP_BONUS_TOMAN,
+    TRIAL_DURATION_DAYS,
+    TRIAL_ENABLED,
+    TRIAL_TRAFFIC_MIB,
     SettingsService,
 )
 from geekvpn.application.provisioning.claim_service import ClaimService
-from geekvpn.application.provisioning.free_trial import FreeTrial
+from geekvpn.application.provisioning.free_trial import FreeTrial, TrialTerms
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.application.provisioning.subscription_admin import (
@@ -521,6 +524,15 @@ class RequestScope:
             provisioning=self.provisioning,
             clock=self.container.clock,
             jalali_year=year,
+            terms=self._trial_terms,
+        )
+
+    async def _trial_terms(self) -> TrialTerms:
+        settings = self.settings_service
+        return TrialTerms(
+            enabled=await settings.get(TRIAL_ENABLED),
+            traffic_mib=await settings.get(TRIAL_TRAFFIC_MIB),
+            duration_days=await settings.get(TRIAL_DURATION_DAYS),
         )
 
     @cached_property

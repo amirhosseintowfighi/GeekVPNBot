@@ -312,3 +312,24 @@ class NotificationPreferences:
 
     def allows(self, key: str) -> bool:
         return bool(self.as_dict().get(key, True))
+
+
+@dataclass(frozen=True, slots=True)
+class TrialOfferCard:
+    """Whether the trial button should be offered, and what it gives."""
+
+    available: bool
+    traffic_mib: int
+    duration_days: int
+    #: The operator's own words for the trial screen. Empty uses the built-in.
+    intro_fa: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class TrialClaimCard:
+    """What a claim produced: the services that came up, and those still coming."""
+
+    cards: tuple[SubscriptionCard, ...]
+    pending: int
+    #: Sent after the configs. Empty sends nothing extra.
+    after_message_fa: str = ""

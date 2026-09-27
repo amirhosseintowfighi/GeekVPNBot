@@ -20,7 +20,7 @@ conversion leave out: a trial is not a purchase.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from geekvpn.application.ports.catalog import PlanRepository, ProductRepository
@@ -53,6 +53,19 @@ TRIAL_NAME_FA = "تست رایگان"
 
 
 @dataclass(frozen=True, slots=True)
+class TrialTerms:
+    """What an operator decided the trial is, read fresh for every customer."""
+
+    enabled: bool = True
+    traffic_mib: int = TRIAL_TRAFFIC_MIB
+    duration_days: int = TRIAL_DURATION_DAYS
+
+
+async def _default_terms() -> TrialTerms:
+    return TrialTerms()
+
+
+@dataclass(frozen=True, slots=True)
 class TrialOffer:
     """Whether this customer can still have the trial, and what it is."""
 
@@ -81,7 +94,12 @@ class FreeTrial:
         provisioning: ProvisioningService,
         clock: Clock,
         jalali_year: int,
+        #: A callable rather than a value: the operator changes the settings
+        #: between one customer and the next, and terms captured when this
+        #: service was built would hand out yesterday's trial.
+        terms: Callable[[], Awaitable[TrialTerms]] = _default_terms,
     ) -> None:
+        self._terms = terms
         self._claims = claims
         self._products = products
         self._plans = plans
@@ -93,9 +111,18 @@ class FreeTrial:
 
     async def offer(self, user_id: int) -> TrialOffer:
         """Available only to someone who has not had it and while a plan exists."""
-        if await self._claims.has_claimed(user_id):
-            return TrialOffer(available=False)
-        return TrialOffer(available=bool(await self._plans_by_tier()))
+        terms = await self._terms()
+        if not terms.enabled or await self._claims.has_claimed(user_id):
+            return TrialOffer(
+                available=False,
+                traffic_mib=terms.traffic_mib,
+                duration_days=terms.duration_days,
+            )
+        return TrialOffer(
+            available=bool(await self._plans_by_tier()),
+            traffic_mib=terms.traffic_mib,
+            duration_days=terms.duration_days,
+        )
 
     async def place(self, user_id: int) -> list[Order]:
         """Claim the trial and record one paid order per tier.
@@ -103,6 +130,9 @@ class FreeTrial:
         :raises FreeTrialUnavailable: no tier has a published plan.
         :raises FreeTrialAlreadyClaimed: this customer has had it.
         """
+        terms = await self._terms()
+        if not terms.enabled:
+            raise FreeTrialUnavailable("The free trial is switched off.")
         chosen = await self._plans_by_tier()
         if not chosen:
             raise FreeTrialUnavailable("No plan is available for a free trial.")
@@ -119,11 +149,11 @@ class FreeTrial:
                 jalali_year=self._jalali_year,
                 plan_id=str(plan.id),
                 plan_name_fa=TRIAL_NAME_FA,
-                duration_days=TRIAL_DURATION_DAYS,
+                duration_days=terms.duration_days,
                 list_price=Money(0),
                 total=Money(0),
                 product_id=str(product.id),
-                traffic_mib=TRIAL_TRAFFIC_MIB,
+                traffic_mib=terms.traffic_mib,
                 device_limit=TRIAL_DEVICE_LIMIT,
                 source=OrderSource.TRIAL,
             )
@@ -179,4 +209,5 @@ __all__ = [
     "FreeTrial",
     "TrialDelivery",
     "TrialOffer",
+    "TrialTerms",
 ]

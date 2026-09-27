@@ -25,6 +25,7 @@ from geekvpn.presentation.bot.handlers import (
     start,
     support,
     system,
+    trial,
     wallet,
 )
 
@@ -45,5 +46,6 @@ __all__ = [
     "start",
     "support",
     "system",
+    "trial",
     "wallet",
 ]

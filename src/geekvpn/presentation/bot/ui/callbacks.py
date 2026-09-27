@@ -123,6 +123,12 @@ class AdminCB(CallbackData, prefix="adm"):
     ref: str = ""
 
 
+class TrialCB(CallbackData, prefix="trl"):
+    """The free trial screen."""
+
+    action: str  # view | claim
+
+
 class NoopCB(CallbackData, prefix="noop"):
     """A button that exists only as a label (page counters, headers).
 

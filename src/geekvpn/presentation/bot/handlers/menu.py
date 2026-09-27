@@ -32,14 +32,14 @@ from geekvpn.presentation.bot.ui import emoji as E
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
-from geekvpn.presentation.bot.ui.callbacks import AdminCB, NavCB, NoopCB
+from geekvpn.presentation.bot.ui.callbacks import AdminCB, NavCB, NoopCB, TrialCB
 
 router = Router(name="menu")
 
 _LIVE_STATES = (SubscriptionState.ACTIVE, SubscriptionState.EXPIRING)
 
 
-def home_keyboard(*, is_admin: bool = False) -> InlineKeyboardMarkup:
+def home_keyboard(*, is_admin: bool = False, offer_trial: bool = False) -> InlineKeyboardMarkup:
     """The home screen.
 
     The operator row appears only for someone who already holds an admin
@@ -71,6 +71,10 @@ def home_keyboard(*, is_admin: bool = False) -> InlineKeyboardMarkup:
             K.btn(f"{E.SUPPORT} {T.MENU_SUPPORT}", NavCB(to="support")),
         ],
     ]
+    if offer_trial:
+        # Under the shop, not above it: the trial is how somebody decides to
+        # buy, and it disappears for good once it has been had.
+        rows.insert(1, [K.btn(f"{E.TRIAL} {T.MENU_TRIAL}", TrialCB(action="view"), style=K.YES)])
     if is_admin:
         rows.append([K.btn(A.MENU_BUTTON, AdminCB(action="menu"))])
     return K.stack(rows)
@@ -104,6 +108,14 @@ async def render_home(
     except Exception:
         cards = []
 
+    offer_trial = False
+    if services.trial is not None:
+        try:
+            offer_trial = (await services.trial.offer(user.id)).available
+        except Exception:
+            # Same tolerance as above: a trial lookup is never worth a broken menu.
+            offer_trial = False
+
     active = sum(1 for c in cards if c.state in _LIVE_STATES)
     tier = tier_of(snapshot.lifetime_spend)
 
@@ -115,7 +127,7 @@ async def render_home(
         tier_emoji=tier_emoji(tier),
         active_count=active,
     )
-    return body, home_keyboard(is_admin=is_admin)
+    return body, home_keyboard(is_admin=is_admin, offer_trial=offer_trial)
 
 
 @router.callback_query(NavCB.filter(F.to == "home"))
