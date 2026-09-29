@@ -143,6 +143,11 @@ class RequestScope:
     #: This shop's rewritten screens, by constant name. Empty for ours and for
     #: a reseller who has changed nothing, which is the common case.
     reseller_texts: dict[str, str] | None = None
+    #: The main bot's own rewritten screens, which a reseller's texts fall
+    #: back to before the built-in copy.
+    platform_texts: dict[str, str] | None = None
+    #: Whether the rules screen is switched on.
+    rules_enabled: bool = False
 
     # -- repositories ------------------------------------------------------
 

@@ -38,7 +38,7 @@ def test_every_setting_has_a_label_an_operator_can_read():
 
 
 def test_every_setting_declares_how_to_render_it():
-    known = {"boolean", "text", "number", "toman", "bps", "count"}
+    known = {"boolean", "text", "number", "toman", "bps", "count", "map"}
     wrong = {key: d.kind for key, d in SETTING_REGISTRY.items() if d.kind not in known}
 
     assert not wrong, wrong

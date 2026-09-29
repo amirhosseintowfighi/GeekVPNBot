@@ -20,6 +20,7 @@ from aiogram.types import TelegramObject, Update
 from aiogram.types import User as TelegramUser
 
 from geekvpn.application.identity.dto import RequestContext
+from geekvpn.application.platform.settings_service import RULES_ENABLED, TEXT_OVERRIDES
 from geekvpn.application.ports.telegram_auth import TelegramIdentity
 from geekvpn.domain.identity.enums import AuthMethod
 from geekvpn.domain.identity.errors import AccountSuspendedError
@@ -94,6 +95,7 @@ class IdentityMiddleware(BaseMiddleware):
             # be a query every time a customer taps a button.
             if scope.reseller is not None:
                 scope.reseller_texts = await scope.resellers.texts(scope.reseller.id)
+            await _load_platform_texts(scope)
             data["reseller"] = scope.reseller
             data["is_new_user"] = result.is_new_user
             # Built here, not in `create_dispatcher`: the bundle needs this
@@ -112,6 +114,19 @@ class IdentityMiddleware(BaseMiddleware):
             outcome = await handler(event, data)
             await uow.commit()
             return outcome
+
+
+async def _load_platform_texts(scope: Any) -> None:
+    """The main bot's rewritten screens and the rules switch, once per update.
+
+    A settings table that cannot be read leaves the built-in copy in place:
+    the greeting is not worth failing an update over.
+    """
+    try:
+        scope.platform_texts = await scope.settings_service.get(TEXT_OVERRIDES)
+        scope.rules_enabled = await scope.settings_service.get(RULES_ENABLED)
+    except Exception:
+        logger.warning("bot.platform_texts_unreadable", exc_info=True)
 
 
 async def _shop(scope: Any, reseller_id: Any) -> Any:

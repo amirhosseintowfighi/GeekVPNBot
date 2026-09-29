@@ -118,7 +118,10 @@ async def on_start(
         reply_markup=K.main_menu(),
     )
     body, markup = await render_home(
-        user=user, services=services, is_admin=await is_admin(scope, user)
+        user=user,
+        services=services,
+        is_admin=await is_admin(scope, user),
+        scope=scope,
     )
     await answer(message, body, reply_markup=markup)
 
@@ -162,7 +165,10 @@ async def on_skip_name(
     if user is None:
         return
     body, markup = await render_home(
-        user=user, services=services, is_admin=await is_admin(scope, user)
+        user=user,
+        services=services,
+        is_admin=await is_admin(scope, user),
+        scope=scope,
     )
     await safe_edit(query, body, markup=markup)
 
@@ -242,7 +248,10 @@ async def on_gate_recheck(
 
     await state.clear()
     body, markup = await render_home(
-        user=user, services=services, is_admin=await is_admin(scope, user)
+        user=user,
+        services=services,
+        is_admin=await is_admin(scope, user),
+        scope=scope,
     )
     await safe_edit(query, T.GATE_PASSED)
     # `Message`, not the inaccessible stub aiogram hands back for a message too

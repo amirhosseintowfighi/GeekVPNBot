@@ -59,6 +59,10 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
         """
         if self.type_ is bool:
             return "boolean"
+        if self.type_ is dict:
+            # Edited from the bot's admin menu, one screen at a time; a form
+            # field could only show it as a blob.
+            return "map"
         if self.type_ is int and self.key.endswith("_toman"):
             return "toman"
         if self.type_ in (int, float):
@@ -361,6 +365,31 @@ REMINDER_TRAFFIC_PERCENTS = SettingDefinition[str](
     description="Percent of traffic used at which the customer is warned, comma separated.",
 )
 
+def _text_map(raw: Any) -> str | None:
+    if not all(isinstance(k, str) and isinstance(v, str) for k, v in raw.items()):
+        return "every key and value must be text"
+    return None
+
+
+#: The main bot's own wording for the screens a reseller may also rewrite,
+#: by constant name. Edited from the bot's admin menu; empty follows the
+#: built-in copy, so improving a message improves it wherever it was left alone.
+TEXT_OVERRIDES = SettingDefinition[dict[str, Any]](
+    key="texts.overrides",
+    label_fa="متن‌های سفارشی ربات",
+    default={},
+    type_=dict,
+    validator=_text_map,
+    description="Screen texts rewritten for the main bot, by constant name.",
+)
+RULES_ENABLED = SettingDefinition[bool](
+    key="texts.rules_enabled",
+    label_fa="نمایش بخش قوانین",
+    default=False,
+    type_=bool,
+    description="Show a rules button on the home screen and answer /rules.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -392,6 +421,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         TOPUP_MAX_TOMAN,
         REMINDER_EXPIRY_DAYS,
         REMINDER_TRAFFIC_PERCENTS,
+        TEXT_OVERRIDES,
+        RULES_ENABLED,
     )
 }
 

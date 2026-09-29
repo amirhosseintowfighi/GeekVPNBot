@@ -39,7 +39,9 @@ router = Router(name="menu")
 _LIVE_STATES = (SubscriptionState.ACTIVE, SubscriptionState.EXPIRING)
 
 
-def home_keyboard(*, is_admin: bool = False, offer_trial: bool = False) -> InlineKeyboardMarkup:
+def home_keyboard(
+    *, is_admin: bool = False, offer_trial: bool = False, rules: bool = False
+) -> InlineKeyboardMarkup:
     """The home screen.
 
     The operator row appears only for someone who already holds an admin
@@ -75,6 +77,8 @@ def home_keyboard(*, is_admin: bool = False, offer_trial: bool = False) -> Inlin
         # Under the shop, not above it: the trial is how somebody decides to
         # buy, and it disappears for good once it has been had.
         rows.insert(1, [K.btn(f"{E.TRIAL} {T.MENU_TRIAL}", TrialCB(action="view"), style=K.YES)])
+    if rules:
+        rows.append([K.btn(f"📜 {T.MENU_RULES}", NavCB(to="rules"))])
     if is_admin:
         rows.append([K.btn(A.MENU_BUTTON, AdminCB(action="menu"))])
     return K.stack(rows)
@@ -87,6 +91,7 @@ async def render_home(
     name: str | None = None,
     now: datetime | None = None,
     is_admin: bool = False,
+    scope: Any = None,
 ) -> tuple[str, InlineKeyboardMarkup]:
     """Load and compose the home screen.
 
@@ -127,7 +132,11 @@ async def render_home(
         tier_emoji=tier_emoji(tier),
         active_count=active,
     )
-    return body, home_keyboard(is_admin=is_admin, offer_trial=offer_trial)
+    return body, home_keyboard(
+        is_admin=is_admin,
+        offer_trial=offer_trial,
+        rules=bool(getattr(scope, "rules_enabled", False)),
+    )
 
 
 @router.callback_query(NavCB.filter(F.to == "home"))
@@ -143,7 +152,10 @@ async def on_home(
     if user is None:
         return
     body, markup = await render_home(
-        user=user, services=services, is_admin=await is_admin(scope, user)
+        user=user,
+        services=services,
+        is_admin=await is_admin(scope, user),
+        scope=scope,
     )
     await safe_edit(query, body, markup=markup)
 

@@ -40,6 +40,7 @@ EDITABLE: Final[dict[str, str]] = {
     "FAQ_INTRO": "متن سوالات متداول",
     "PAY_CHOOSE": "بالای انتخاب روش پرداخت",
     "DASH_EMPTY": "وقتی مشتری سرویسی ندارد",
+    "RULES": "قوانین ربات",
 }
 
 
@@ -69,7 +70,9 @@ def resolve(scope: Any, key: str) -> str:
     reseller's customer our words under their name.
     """
     texts = getattr(scope, "reseller_texts", None) or {}
-    return texts.get(key) or default_for(key)
+    platform = getattr(scope, "platform_texts", None) or {}
+    # A reseller's own words, then the main bot's, then the built-in copy.
+    return texts.get(key) or platform.get(key) or default_for(key)
 
 
 __all__ = ["EDITABLE", "default_for", "placeholders", "resolve"]
