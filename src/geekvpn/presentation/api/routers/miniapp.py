@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -37,11 +37,15 @@ from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
+from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
 from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
+from geekvpn.infrastructure.di.scope import RequestScope
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.persistence.models.provisioning import AutoRenewalModel
+from geekvpn.infrastructure.persistence.repositories.auto_renew import SqlAutoRenewals
 from geekvpn.infrastructure.persistence.repositories.usage_history import SqlUsageHistory
 from geekvpn.infrastructure.push.tokens import MAX_TOKEN_LENGTH, forget_token, register_token
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
@@ -737,6 +741,85 @@ async def rotate_link(
     return card
 
 
+async def _own_subscription(
+    scope: RequestScope, subscription_id: uuid.UUID, telegram_id: int
+) -> Subscription:
+    """The caller's service, or 404 - also for somebody else's, so ids cannot be probed."""
+    # Ids are stored both ways: hex from provisioning, dashed from a claim.
+    subscription = await scope.subscriptions.get(subscription_id.hex) or await scope.subscriptions.get(
+        str(subscription_id)
+    )
+    if subscription is None or subscription.user_id != telegram_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+    return subscription
+
+
+class AutoRenewView(ApiModel):
+    enabled: bool
+    #: Whether this service can be renewed automatically at all (the
+    #: platform's own services with a plan behind them).
+    available: bool
+    last_result: str | None = None
+    last_attempt_at: datetime | None = None
+
+
+class AutoRenewRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+def _auto_renew_view(subscription: Subscription, row: AutoRenewalModel | None) -> AutoRenewView:
+    return AutoRenewView(
+        enabled=bool(row and row.enabled),
+        available=subscription.reseller_id is None and subscription.plan_id is not None,
+        last_result=row.last_result if row else None,
+        last_attempt_at=row.last_attempt_at if row else None,
+    )
+
+
+@router.get(
+    "/subscriptions/{subscription_id}/auto-renew",
+    response_model=AutoRenewView,
+    summary="Whether this service renews itself from the wallet",
+)
+async def auto_renew(
+    subscription_id: uuid.UUID, user: CurrentMiniAppUser, scope: ScopeDep
+) -> AutoRenewView:
+    subscription = await _own_subscription(scope, subscription_id, user.telegram_id)
+    return _auto_renew_view(subscription, await SqlAutoRenewals(scope.session).get(subscription.id))
+
+
+@router.put(
+    "/subscriptions/{subscription_id}/auto-renew",
+    response_model=AutoRenewView,
+    summary="Switch renewing from the wallet on or off",
+)
+async def set_auto_renew(
+    subscription_id: uuid.UUID,
+    payload: AutoRenewRequest,
+    user: CurrentMiniAppUser,
+    scope: ScopeDep,
+    uow: UnitOfWorkDep,
+) -> AutoRenewView:
+    """The worker buys the same plan again shortly before it runs out (``auto_renew``)."""
+    subscription = await _own_subscription(scope, subscription_id, user.telegram_id)
+    if payload.enabled and (subscription.reseller_id is not None or subscription.plan_id is None):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="This service cannot renew automatically.",
+        )
+    renewals = SqlAutoRenewals(scope.session)
+    await renewals.set_enabled(
+        subscription.id,
+        telegram_id=user.telegram_id,
+        enabled=payload.enabled,
+        now=scope.container.clock.now(),
+    )
+    await uow.commit()
+    return _auto_renew_view(subscription, await renewals.get(subscription.id))
+
+
 class UsageDayView(ApiModel):
     day: str
     used_mib: int
@@ -758,12 +841,7 @@ async def usage_days(
     404 for a service that is not the caller's, the same as one that does not
     exist, so ids cannot be probed.
     """
-    # Ids are stored both ways: hex from provisioning, dashed from a claim.
-    subscription = await scope.subscriptions.get(subscription_id.hex) or await scope.subscriptions.get(
-        str(subscription_id)
-    )
-    if subscription is None or subscription.user_id != user.telegram_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+    subscription = await _own_subscription(scope, subscription_id, user.telegram_id)
     today = tehran_day(scope.container.clock.now())
     # One day earlier than shown: the first day's traffic is measured from it.
     since = today - timedelta(days=days)

@@ -43,6 +43,7 @@ from geekvpn.infrastructure.persistence.models.payments import (
     WalletEntryModel,
 )
 from geekvpn.infrastructure.persistence.models.provisioning import (
+    AutoRenewalModel,
     FreeTrialClaimModel,
     FunnelEventModel,
     NodeModel,
@@ -74,6 +75,7 @@ __all__ = [
     "AppLoginRequestModel",
     "AppPushTokenModel",
     "AuditLogModel",
+    "AutoRenewalModel",
     "BroadcastModel",
     "CampaignModel",
     "CardAccountModel",

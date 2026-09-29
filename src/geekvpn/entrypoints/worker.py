@@ -45,6 +45,7 @@ from sqlalchemy import select
 
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.domain.notifications.enums import JobKind
+from geekvpn.infrastructure.bot.auto_renew import run_auto_renewals
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.di.scope import build_scope
@@ -86,6 +87,9 @@ USAGE_SYNC_INTERVAL_SECONDS = 600
 #: nine, which is when the customer notices before we do.
 EXPIRY_SWEEP_INTERVAL_SECONDS = 300
 
+#: Auto-renew looks a day ahead, so a quarter-hour cadence is plenty.
+AUTO_RENEW_INTERVAL_SECONDS = 900
+
 #: Guards a tick across processes. Comfortably longer than a tick should take,
 #: short enough that a killed worker does not block the next one for long.
 LOCK_TTL_SECONDS = 300
@@ -109,11 +113,14 @@ class Worker:
         provisioning_due = 0.0
         usage_due = 0.0
         expiry_due = 0.0
+        # Not at once on start: usage should be read before "almost out" is judged.
+        auto_renew_due = float(USAGE_SYNC_INTERVAL_SECONDS)
         while not self._stopping.is_set():
             await self._guarded_tick(
                 run_provisioning=provisioning_due <= 0,
                 run_usage_sync=usage_due <= 0,
                 run_expiry_sweep=expiry_due <= 0,
+                run_auto_renew=auto_renew_due <= 0,
             )
             provisioning_due = (
                 PROVISIONING_INTERVAL_SECONDS
@@ -127,6 +134,9 @@ class Worker:
             # table.
             expiry_due = (
                 EXPIRY_SWEEP_INTERVAL_SECONDS if expiry_due <= 0 else expiry_due - TICK_SECONDS
+            )
+            auto_renew_due = (
+                AUTO_RENEW_INTERVAL_SECONDS if auto_renew_due <= 0 else auto_renew_due - TICK_SECONDS
             )
             self._beat()
             with contextlib.suppress(TimeoutError):
@@ -148,7 +158,12 @@ class Worker:
             HEARTBEAT_PATH.write_text(str(time.time()), encoding="utf-8")
 
     async def _guarded_tick(
-        self, *, run_provisioning: bool, run_usage_sync: bool, run_expiry_sweep: bool
+        self,
+        *,
+        run_provisioning: bool,
+        run_usage_sync: bool,
+        run_expiry_sweep: bool,
+        run_auto_renew: bool = False,
     ) -> None:
         """Take the cross-process lock, then tick. Skip quietly if held."""
         redis = self._container.redis
@@ -163,6 +178,8 @@ class Worker:
                 await self._sync_usage()
             if run_expiry_sweep:
                 await self._expire_lapsed()
+            if run_auto_renew:
+                await self._auto_renew()
             await self._run_scheduled_jobs()
         except Exception:
             # Never let one bad tick kill the process; the next one may succeed.
@@ -211,6 +228,12 @@ class Worker:
             nodes=len(report.nodes),
             failed_nodes=report.failed_nodes,
         )
+
+    async def _auto_renew(self) -> None:
+        """Renew from the wallet the services whose owners asked for it."""
+        report = await run_auto_renewals(self._container)
+        if report.results:
+            logger.info("worker.auto_renewed", **report.results)
 
     async def _expire_lapsed(self) -> None:
         """Move subscriptions past their date into EXPIRED.

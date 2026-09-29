@@ -365,3 +365,23 @@ class SubscriptionUsageDayModel(Base):
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     used_mib: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class AutoRenewalModel(Base):
+    """A customer's "renew from my wallet" switch for one service.
+
+    See ``application.provisioning.auto_renew``. The last attempt and its
+    result are kept so the worker does not retry every tick and the app can
+    say why a renewal did not happen.
+    """
+
+    __tablename__ = "auto_renewals"
+
+    subscription_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("subscriptions.id", ondelete="CASCADE"), primary_key=True
+    )
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_result: Mapped[str | None] = mapped_column(String(32))
