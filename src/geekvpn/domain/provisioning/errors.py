@@ -85,6 +85,13 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class RotationUnavailable(ConflictError):
+    """This service's panel cannot issue a new link, or it has no panel at all."""
+
+    code = "rotation_unavailable"
+    message = "A new link cannot be issued for this service."
+
+
 class FreeTrialAlreadyClaimed(ConflictError):
     """One free trial per customer, and this one has had it."""
 
@@ -114,6 +121,7 @@ __all__ = [
     "OrderValidationError",
     "ProvisioningError",
     "ProvisioningFailed",
+    "RotationUnavailable",
     "SubscriptionNotFound",
     "SubscriptionRevoked",
 ]

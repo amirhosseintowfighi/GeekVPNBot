@@ -17,6 +17,7 @@ established by the update itself rather than typed in by the person using it.
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 import uuid
 from typing import Any
@@ -40,6 +41,7 @@ from geekvpn.domain.notifications.message import RenderedMessage
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.payments.enums import PaymentState
 from geekvpn.domain.provisioning.enums import OrderState, SubscriptionState
+from geekvpn.infrastructure.backup.service import backup_settings, send_backup
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
@@ -160,6 +162,7 @@ def _menu() -> InlineKeyboardMarkup:
             [K.btn(A.BTN_APPLICATIONS, AdminCB(action="apps"), style=K.GO)],
             [K.btn(A.BTN_TOPUPS, AdminCB(action="topups"), style=K.YES)],
             [K.btn(A.BTN_ADMINS, AdminCB(action="admins"))],
+            [K.btn(A.BTN_BACKUP, AdminCB(action="backup"))],
         ]
     )
 
@@ -768,6 +771,36 @@ def _setup_link(scope: Any, approval: Any) -> str:
 
 
 # -- admins ----------------------------------------------------------------
+
+
+@router.callback_query(AdminCB.filter(F.action == "backup"))
+async def on_backup(
+    query: CallbackQuery, container: Container, scope: Any = None, user: Any = None
+) -> None:
+    """The whole database, now, to the backup channel - or to this chat.
+
+    Super admins only: the file holds every customer, every payment and the
+    encrypted panel credentials, which is more than any other role may see.
+    """
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    if admin.role is not AdminRole.SUPER_ADMIN:
+        await toast(query, A.BACKUP_SUPER_ONLY, alert=True)
+        return
+    await toast(query, A.BACKUP_WORKING)
+    settings = await asyncio.to_thread(backup_settings, container)
+    chat_id = settings.chat_id or query.from_user.id
+    try:
+        summary = await asyncio.to_thread(send_backup, container, chat_id)
+    except Exception:
+        logger.exception("admin.backup_failed")
+        await safe_edit(query, A.BACKUP_FAILED, markup=_back())
+        return
+    await safe_edit(
+        query, A.BACKUP_SENT.format(rows=fa_digits(summary.total_rows)), markup=_back()
+    )
 
 
 @router.callback_query(AdminCB.filter(F.action == "admins"))

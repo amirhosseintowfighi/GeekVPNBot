@@ -448,6 +448,13 @@ class Subscription(AggregateRoot[str]):
             )
         self.display_name = cleaned or None
 
+    def replace_access(self, *, subscription_url: str | None, remote_id: str | None) -> None:
+        """The panel issued new credentials; the old link no longer works."""
+        self._guard_changeable()
+        self.subscription_url = subscription_url
+        if remote_id:
+            self.remote_id = remote_id
+
     def transfer_to(self, user_id: int) -> None:
         """Hand the service to another customer.
 

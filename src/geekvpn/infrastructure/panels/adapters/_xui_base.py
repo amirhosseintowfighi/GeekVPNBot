@@ -56,6 +56,7 @@ class XuiFamilyAdapter(HttpPanelAdapter):
     capabilities: ClassVar[frozenset[Capability]] = frozenset(
         {
             Capability.RESET_TRAFFIC,
+            Capability.REVOKE_ACCESS,
             Capability.NATIVE_EXPIRY_EXTEND,
             Capability.NATIVE_QUOTA_EXTEND,
             Capability.DEVICE_LIMIT,
@@ -271,6 +272,37 @@ class XuiFamilyAdapter(HttpPanelAdapter):
         await self._http.request(
             "POST",
             self._url(f"/updateClient/{updated['id']}"),
+            json={
+                "id": self._config.inbound_id,
+                "settings": json.dumps({"clients": [updated]}),
+            },
+            expected=(200,),
+        )
+        return self._to_account(updated, await self._traffic(ref.username))
+
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
+        """A new client uuid (or trojan password) and a new `subId`.
+
+        Everything else on the client - traffic, expiry, limits - is resent as
+        it is. The update is addressed by the *old* key, which is how the panel
+        finds the client it is replacing.
+        """
+        self.require(Capability.REVOKE_ACCESS)
+        inbound = await self._inbound()
+        client = self._find_client(inbound, ref.username)
+        if client is None:
+            raise AccountNotFound(panel=self.kind.value, username=ref.username)
+        old_key = str(client.get("id") or client.get("password") or client.get("email"))
+        updated = dict(client)
+        if "id" in client:
+            updated["id"] = str(uuid_module.uuid4())
+        if "password" in client:
+            updated["password"] = uuid_module.uuid4().hex
+        updated["subId"] = uuid_module.uuid4().hex[:16]
+        await self._auth_headers()
+        await self._http.request(
+            "POST",
+            self._url(f"/updateClient/{old_key}"),
             json={
                 "id": self._config.inbound_id,
                 "settings": json.dumps({"clients": [updated]}),

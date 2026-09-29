@@ -17,10 +17,12 @@ which is the failure nobody notices until the customer stops paying.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.ports.panel import PanelAdapter
+from geekvpn.application.provisioning.links import link_host, public_link
 from geekvpn.application.provisioning.ports import (
     NodeRepository,
     PanelProvider,
@@ -28,7 +30,8 @@ from geekvpn.application.provisioning.ports import (
 )
 from geekvpn.application.provisioning.provisioning_service import _quota_for
 from geekvpn.application.provisioning.usage_sync import _ref_for
-from geekvpn.domain.provisioning.errors import SubscriptionNotFound
+from geekvpn.domain.panels.enums import Capability
+from geekvpn.domain.provisioning.errors import RotationUnavailable, SubscriptionNotFound
 from geekvpn.domain.provisioning.subscription import Subscription
 
 #: MiB per GiB. Operators think in GiB; the aggregate stores MiB.
@@ -43,7 +46,11 @@ class SubscriptionAdminService:
         nodes: NodeRepository,
         panels: PanelProvider,
         clock: Clock,
+        shop_hosts: Mapping[str, str] | None = None,
     ) -> None:
+        #: The shop's own link domains, as in `ProvisioningService`: a new link
+        #: must be served from the same host the old one was.
+        self._shop_hosts = shop_hosts
         self._subscriptions = subscriptions
         self._nodes = nodes
         self._panels = panels
@@ -81,6 +88,38 @@ class SubscriptionAdminService:
                 _ref_for(subscription), idempotency_key=f"{subscription.id}:del"
             )
         subscription.revoke(reason_fa=reason_fa, at=self._clock.now())
+        return await self._save(subscription)
+
+    async def rotate_access(self, subscription_id: str) -> Subscription:
+        """Issue a new link and new credentials; the old link stops working.
+
+        For the customer whose link leaked, or who shared it and regrets it.
+        Traffic and expiry are untouched. The panel changes first, as with
+        everything here: a link we stored but the panel never issued would be
+        a link that does not work.
+        """
+        subscription = await self._load(subscription_id)
+        if not subscription.node_id or not subscription.remote_username:
+            raise RotationUnavailable(subscription_id=subscription_id)
+        node = await self._nodes.get(subscription.node_id)
+        if node is None:
+            raise RotationUnavailable(subscription_id=subscription_id)
+        adapter = await self._panels.for_node(node)
+        if Capability.REVOKE_ACCESS not in adapter.capabilities:
+            raise RotationUnavailable(subscription_id=subscription_id)
+        account = await adapter.revoke_access(
+            _ref_for(subscription),
+            # The current link in the key: rotating twice is two rotations, and
+            # a retry of the same one is not a third.
+            idempotency_key=f"{subscription.id}:rotate:{subscription.subscription_url}",
+        )
+        subscription.replace_access(
+            subscription_url=public_link(
+                account.subscription_url,
+                link_host(node.id, node.subscription_base_url, self._shop_hosts),
+            ),
+            remote_id=account.ref.external_id,
+        )
         return await self._save(subscription)
 
     # -- what was sold -----------------------------------------------------

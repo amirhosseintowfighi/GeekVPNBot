@@ -1042,3 +1042,4 @@ TRANSFER_CONFIRM: Final = (
 BTN_TRANSFER_CONFIRM: Final = "✅ بله، منتقل کن"
 TRANSFER_DONE: Final = "✅ سرویس منتقل شد."
 FEATURE_OFF: Final = "این قابلیت الان غیرفعاله."
+ROTATE_UNAVAILABLE: Final = "برای این سرویس نمی‌شه از داخل ربات لینک جدید گرفت. به پشتیبانی پیام بده تا برات عوضش کنن."

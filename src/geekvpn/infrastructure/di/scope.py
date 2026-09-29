@@ -693,6 +693,7 @@ class RequestScope:
             nodes=self.nodes,
             panels=self.panel_provider,
             clock=self.container.clock,
+            shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
         )
 
     async def grant_signup_bonus(self, telegram_id: int) -> int:

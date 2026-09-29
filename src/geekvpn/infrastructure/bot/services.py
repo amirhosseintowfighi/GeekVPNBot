@@ -64,6 +64,8 @@ def build_bot_services(
             orders=scope.orders,
             plans=scope.catalog_plans,
             products=scope.catalog_products,
+            rotate=scope.subscription_admin.rotate_access,
+            commit=scope.session.commit,
         ),
         wallet=SyncWalletCardReader(bridge),
         referrals=SqlReferralSummaryReader(session=scope.session, users=scope.users),

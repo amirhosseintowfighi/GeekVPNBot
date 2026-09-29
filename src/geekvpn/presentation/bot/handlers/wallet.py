@@ -25,6 +25,8 @@ from geekvpn.application.bot.read_models import (
     WalletSnapshot,
 )
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.platform.settings_service import TOPUP_MAX_TOMAN, TOPUP_MIN_TOMAN
+from geekvpn.domain.payments.wallet import MAX_TOPUP, MIN_TOPUP
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -52,8 +54,6 @@ logger = get_logger("bot.wallet")
 
 router = Router(name="wallet")
 
-MIN_TOPUP = 50_000
-MAX_TOPUP = 50_000_000
 PRESETS = (200_000, 500_000, 1_000_000, 2_000_000)
 PAGE_SIZE = 8
 
@@ -68,7 +68,7 @@ def _wallet_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _preset_keyboard() -> InlineKeyboardMarkup:
+def _preset_keyboard(low: int = MIN_TOPUP, high: int = MAX_TOPUP) -> InlineKeyboardMarkup:
     """Two per row, and none of them coloured.
 
     They were a single column of four, each one green. Both were wrong for the
@@ -80,6 +80,8 @@ def _preset_keyboard() -> InlineKeyboardMarkup:
     presets = [
         K.btn(toman(amount), WalletCB(action="amount", ref=str(amount)))
         for amount in PRESETS
+        # A preset outside the shop's range would only be refused a tap later.
+        if low <= amount <= high
     ]
     builder = K.grid(presets, width=2)
     builder.inline_keyboard.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
@@ -95,8 +97,7 @@ def _method_keyboard(methods: list[tuple[str, str]]) -> InlineKeyboardMarkup:
     crypto to shops that had no address registered, which ended in an apology.
     """
     rows: list[list[Any]] = [
-        [K.btn(label, WalletCB(action="method", ref=key), style=K.GO)]
-        for key, label in methods
+        [K.btn(label, WalletCB(action="method", ref=key), style=K.GO)] for key, label in methods
     ]
     rows.append([K.btn(T.BTN_CANCEL, NavCB(to="wallet"), style=K.NO)])
     return K.stack(rows)
@@ -141,12 +142,25 @@ async def on_wallet(
     await safe_edit(query, await _render_wallet(services, user), markup=_wallet_keyboard())
 
 
+async def topup_limits(scope: Any) -> tuple[int, int]:
+    """The shop's top-up range; the wallet's own bounds when it cannot be read."""
+    service = getattr(scope, "settings_service", None)
+    if service is None:
+        return MIN_TOPUP, MAX_TOPUP
+    try:
+        return await service.get(TOPUP_MIN_TOMAN), await service.get(TOPUP_MAX_TOMAN)
+    except Exception:
+        logger.warning("wallet.topup_limits_unreadable", exc_info=True)
+        return MIN_TOPUP, MAX_TOPUP
+
+
 @router.callback_query(WalletCB.filter(F.action == "topup"))
-async def on_topup(query: CallbackQuery, state: FSMContext) -> None:
+async def on_topup(query: CallbackQuery, state: FSMContext, scope: Any = None) -> None:
     await toast(query)
     await state.set_state(Wallet.entering_amount)
-    body = T.WALLET_ASK_AMOUNT.format(min_amount=toman(MIN_TOPUP), max_amount=toman(MAX_TOPUP))
-    await safe_edit(query, body, markup=_preset_keyboard())
+    low, high = await topup_limits(scope)
+    body = T.WALLET_ASK_AMOUNT.format(min_amount=toman(low), max_amount=toman(high))
+    await safe_edit(query, body, markup=_preset_keyboard(low, high))
 
 
 @router.callback_query(WalletCB.filter(F.action == "amount"))
@@ -166,7 +180,7 @@ async def on_preset(
 
 @router.message(Wallet.entering_amount, F.text)
 async def on_amount_text(
-    message: Message, state: FSMContext, services: BotServices
+    message: Message, state: FSMContext, services: BotServices, scope: Any = None
 ) -> None:
     """Parse a typed amount.
 
@@ -182,11 +196,12 @@ async def on_amount_text(
         return
 
     amount = int(raw)
-    if amount < MIN_TOPUP:
-        await answer(message, T.WALLET_AMOUNT_TOO_LOW.format(min_amount=toman(MIN_TOPUP)))
+    low, high = await topup_limits(scope)
+    if amount < low:
+        await answer(message, T.WALLET_AMOUNT_TOO_LOW.format(min_amount=toman(low)))
         return
-    if amount > MAX_TOPUP:
-        await answer(message, T.WALLET_AMOUNT_TOO_HIGH.format(max_amount=toman(MAX_TOPUP)))
+    if amount > high:
+        await answer(message, T.WALLET_AMOUNT_TOO_HIGH.format(max_amount=toman(high)))
         return
 
     await state.update_data(amount=amount)

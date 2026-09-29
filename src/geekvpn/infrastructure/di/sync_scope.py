@@ -68,6 +68,10 @@ from geekvpn.application.platform.settings_service import (
     ALERTS_TICKETS_CHAT,
     CARD_LABEL_FA,
     CRYPTO_LABEL_FA,
+    REMINDER_EXPIRY_DAYS,
+    REMINDER_TRAFFIC_PERCENTS,
+    TOPUP_MAX_TOMAN,
+    TOPUP_MIN_TOMAN,
     SettingDefinition,
 )
 from geekvpn.application.ports.clock import Clock
@@ -81,6 +85,7 @@ from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
+from geekvpn.domain.notifications.schedule import ReminderThresholds, parse_thresholds
 from geekvpn.domain.payments.events import (
     PaymentApproved,
     PaymentExpiredEvent,
@@ -954,7 +959,26 @@ class SyncScope:
             subscriptions=self.subscription_reader,
             clock=self.container.clock,
             events=self.events,
+            thresholds=self._reminder_thresholds,
         )
+
+    def _reminder_thresholds(self) -> ReminderThresholds:
+        settings = SyncSettings(self.session)
+        defaults = ReminderThresholds()
+        # A value that no longer parses (written before validation existed, or
+        # by hand) falls back to the defaults rather than silencing reminders.
+        return ReminderThresholds(
+            expiry_days=parse_thresholds(settings.get(REMINDER_EXPIRY_DAYS), low=1, high=60)
+            or defaults.expiry_days,
+            traffic_percents=parse_thresholds(
+                settings.get(REMINDER_TRAFFIC_PERCENTS), low=1, high=99
+            )
+            or defaults.traffic_percents,
+        )
+
+    def _topup_limits(self) -> tuple[int, int]:
+        settings = SyncSettings(self.session)
+        return settings.get(TOPUP_MIN_TOMAN), settings.get(TOPUP_MAX_TOMAN)
 
     @cached_property
     def inbox(self) -> InboxService:
@@ -995,6 +1019,7 @@ class SyncScope:
             # Where a gateway sends the customer back. The API's own base URL:
             # the callback is served by this application, not the panel.
             callback_base=self.container.settings.app.base_url,
+            topup_limits=self._topup_limits,
         )
 
     @cached_property

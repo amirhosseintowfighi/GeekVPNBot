@@ -35,6 +35,7 @@ from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
+from geekvpn.domain.provisioning.errors import RotationUnavailable
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
 from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
@@ -707,22 +708,18 @@ async def rotate_link(
     services: ServicesDep,
     uow: UnitOfWorkDep,
 ) -> Any:
-    """Still unimplemented, and the reason is a missing panel capability.
+    """New credentials and link from the panel; the old link stops working.
 
-    Rotating a link means asking the panel to reissue the subscription token.
-    No adapter exposes that - `PanelAdapter` can read a subscription but not
-    regenerate one - so honouring this would mean adding a capability across
-    six panel implementations, each with a different API, none of which can be
-    verified without the panels themselves.
-
-    Answering 501 rather than returning the existing card is the whole point:
-    telling a customer their leaked link was replaced while it still works is
-    worse than telling them the button does not work yet.
+    409 when this service's panel cannot do it, rather than returning the
+    existing card: telling a customer their leaked link was replaced while it
+    still works is worse than telling them it cannot be done here.
     """
     try:
         card = await services.subscriptions.rotate_link(user.id, subscription_id)
-    except NotImplementedError as exc:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.") from exc
+    except RotationUnavailable as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=exc.message) from exc
     await uow.commit()
     return card
 

@@ -39,6 +39,7 @@ import signal
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
 from types import FrameType
 
@@ -46,6 +47,8 @@ from sqlalchemy import select
 
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.domain.notifications.enums import JobKind
+from geekvpn.infrastructure.backup.service import LAST_RUN_KEY as LAST_BACKUP_KEY
+from geekvpn.infrastructure.backup.service import backup_settings, is_due, send_backup
 from geekvpn.infrastructure.bot.auto_renew import build_auto_renewal
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
@@ -97,6 +100,10 @@ LOCK_KEY = "worker:tick"
 #: attempt log keeps a slow tick from charging anybody twice.
 AUTO_RENEW_INTERVAL_SECONDS = 900
 
+#: How often the worker asks whether a backup is due. The operator's interval
+#: is in hours; this only decides how late within the hour it can be.
+BACKUP_CHECK_INTERVAL_SECONDS = 600
+
 
 class Worker:
     """Runs scheduled jobs until told to stop."""
@@ -109,6 +116,7 @@ class Worker:
         #: once read every tick and never written.
         self._periodic: list[tuple[str, float, Callable[[], Awaitable[None]]]] = [
             ("auto_renew", AUTO_RENEW_INTERVAL_SECONDS, self._auto_renew),
+            ("backup", BACKUP_CHECK_INTERVAL_SECONDS, self._backup),
         ]
         self._next_run: dict[str, float] = {}
 
@@ -272,6 +280,27 @@ class Worker:
                 short=report.short,
                 failed=report.failed,
             )
+
+    async def _backup(self) -> None:
+        """Send the database to the backup channel when the interval has passed.
+
+        The last run is kept in the shared cache rather than in memory, so a
+        worker restarted every few hours still backs up once a day and not on
+        every start.
+        """
+        settings = await asyncio.to_thread(backup_settings, self._container)
+        if not settings.chat_id:
+            return
+        cache = self._container.cache
+        stamp = await cache.get(LAST_BACKUP_KEY)
+        now = self._container.clock.now()
+        last = datetime.fromisoformat(stamp) if stamp else None
+        if not is_due(last, now=now, interval_hours=settings.interval_hours):
+            return
+        # Stamped before sending: a backup that fails is retried next
+        # interval, not every ten minutes against a channel that refuses it.
+        await cache.set(LAST_BACKUP_KEY, now.isoformat())
+        await asyncio.to_thread(send_backup, self._container, settings.chat_id)
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.

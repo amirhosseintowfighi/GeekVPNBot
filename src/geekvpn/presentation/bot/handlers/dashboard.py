@@ -20,6 +20,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from geekvpn.application.bot.read_models import OwnerOptions
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.provisioning.claim_service import ClaimOutcome
+from geekvpn.domain.provisioning.errors import RotationUnavailable
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -32,6 +34,8 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, SubCB
+
+logger = get_logger("bot.dashboard")
 
 router = Router(name="dashboard")
 
@@ -269,10 +273,16 @@ async def on_rotate(
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
     try:
-        link = await services.subscriptions.rotate_link(user.id, card.subscription_id)
+        rotated = await services.subscriptions.rotate_link(user.id, card.subscription_id)
+    except RotationUnavailable:
+        await safe_edit(query, T.ROTATE_UNAVAILABLE, markup=K.single(K.home_button()))
+        return
     except Exception:
+        logger.exception("dashboard.rotate_failed")
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return
+    # The port hands back the whole card; the link is one field of it.
+    link = rotated.subscription_url
     if not link:
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return

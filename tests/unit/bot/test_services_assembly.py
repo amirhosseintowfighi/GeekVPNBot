@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import fields
+from types import SimpleNamespace
 
 from geekvpn.application.bot import ports
 from geekvpn.application.bot.services import BotServices
@@ -48,7 +49,7 @@ class FakeScope:
     """Only the attributes the assembly reads; none of them are called here."""
 
     container = FakeContainer()
-    session = object()
+    session = SimpleNamespace(commit=None)
     # `None` is the platform's own bot, which is what this assembly is for.
     # The attribute has to exist: the bundle reads it to decide which shop's
     # card the synchronous half will offer.
@@ -64,6 +65,7 @@ class FakeScope:
     catalog_coupons = object()
     provisioning = object()
     free_trial = object()
+    subscription_admin = SimpleNamespace(rotate_access=None)
     settings_service = object()
 
 

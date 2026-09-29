@@ -9,7 +9,7 @@ key/value grid.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -19,6 +19,8 @@ from geekvpn.domain.audit.entry import AuditAction
 from geekvpn.domain.base.errors import NotFoundError, ValidationError
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.permissions import Permission
+from geekvpn.domain.notifications.schedule import parse_thresholds
+from geekvpn.domain.payments.wallet import MAX_TOPUP, MIN_TOPUP
 
 T = TypeVar("T", bound=bool | int | float | str | list[Any] | dict[str, Any])
 
@@ -40,6 +42,11 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
     #: Lowest accepted number. A negative trial size or a zero-day warning is
     #: not a preference, it is a typo that would surface at the customer.
     minimum: int | None = None
+    #: Highest accepted number.
+    maximum: int | None = None
+    #: Extra check for a text setting with a shape, e.g. "7,3,1". Returns an
+    #: English reason when the value is wrong, None when it is fine.
+    validator: Callable[[Any], str | None] | None = None
 
     @property
     def kind(self) -> str:
@@ -85,6 +92,16 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
                 key=self.key,
                 minimum=self.minimum,
             )
+        if self.maximum is not None and isinstance(raw, int | float) and raw > self.maximum:
+            raise ValidationError(
+                f"{self.key} must be at most {self.maximum}.",
+                key=self.key,
+                maximum=self.maximum,
+            )
+        if self.validator is not None:
+            problem = self.validator(raw)
+            if problem:
+                raise ValidationError(f"{self.key}: {problem}", key=self.key)
         return raw  # type: ignore[return-value]
 
 
@@ -278,6 +295,72 @@ TRANSFER_ENABLED = SettingDefinition[bool](
     description="Let customers hand a service to another customer of this shop.",
 )
 
+BACKUP_CHAT = SettingDefinition[int](
+    key="backup.chat_id",
+    label_fa="کانال بکاپ دیتابیس (آیدی عددی)",
+    default=0,
+    type_=int,
+    description=(
+        "Chat the database backup is sent to, as a zip. 0 turns automatic backups off."
+        " The bot must be an admin of the channel."
+    ),
+)
+BACKUP_INTERVAL_HOURS = SettingDefinition[int](
+    key="backup.interval_hours",
+    label_fa="فاصلهٔ بکاپ خودکار (ساعت)",
+    default=24,
+    type_=int,
+    minimum=1,
+    description="How often the automatic backup runs, in hours.",
+)
+
+#: Top-up limits, inside the hard bounds the wallet itself enforces. The
+#: defaults are those bounds, so a shop that never touches them sees no change.
+TOPUP_MIN_TOMAN = SettingDefinition[int](
+    key="wallet.topup_min_toman",
+    label_fa="حداقل مبلغ شارژ کیف پول (تومان)",
+    default=MIN_TOPUP,
+    type_=int,
+    minimum=MIN_TOPUP,
+    maximum=MAX_TOPUP,
+    description="Smallest wallet top-up a customer may start, in Toman.",
+)
+TOPUP_MAX_TOMAN = SettingDefinition[int](
+    key="wallet.topup_max_toman",
+    label_fa="سقف مبلغ شارژ کیف پول (تومان)",
+    default=MAX_TOPUP,
+    type_=int,
+    minimum=MIN_TOPUP,
+    maximum=MAX_TOPUP,
+    description="Largest wallet top-up a customer may start, in Toman.",
+)
+
+
+def _days_list(raw: Any) -> str | None:
+    return None if parse_thresholds(raw, low=1, high=60) else "use days like 7,3,1"
+
+
+def _percent_list(raw: Any) -> str | None:
+    return None if parse_thresholds(raw, low=1, high=99) else "use percents like 80,95"
+
+
+REMINDER_EXPIRY_DAYS = SettingDefinition[str](
+    key="reminders.expiry_days",
+    label_fa="اخطار انقضا چند روز قبل (مثلاً ۷,۳,۱)",
+    default="7,3,1",
+    type_=str,
+    validator=_days_list,
+    description="Days before expiry at which the customer is warned, comma separated.",
+)
+REMINDER_TRAFFIC_PERCENTS = SettingDefinition[str](
+    key="reminders.traffic_percents",
+    label_fa="اخطار حجم در چند درصد مصرف (مثلاً ۸۰,۹۵)",
+    default="80,95",
+    type_=str,
+    validator=_percent_list,
+    description="Percent of traffic used at which the customer is warned, comma separated.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -303,6 +386,12 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         ALERTS_REPORTS_CHAT,
         RENAME_ENABLED,
         TRANSFER_ENABLED,
+        BACKUP_CHAT,
+        BACKUP_INTERVAL_HOURS,
+        TOPUP_MIN_TOMAN,
+        TOPUP_MAX_TOMAN,
+        REMINDER_EXPIRY_DAYS,
+        REMINDER_TRAFFIC_PERCENTS,
     )
 }
 

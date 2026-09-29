@@ -271,3 +271,9 @@ APPLICATION_APPROVED: Final = (
 )
 APPLICATION_REJECTED: Final = "درخواست رد شد."
 APPLICATION_GONE: Final = "\u0627\u06cc\u0646 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u062f\u06cc\u06af\u0647 \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0646\u06cc\u0633\u062a."
+
+BTN_BACKUP: Final = "🗄 بکاپ دیتابیس الان"
+BACKUP_WORKING: Final = "⏳ دارم بکاپ می‌گیرم…"
+BACKUP_SENT: Final = "✅ بکاپ ({rows} رکورد) فرستاده شد."
+BACKUP_FAILED: Final = "❌ بکاپ گرفته نشد. لاگ سرور رو ببین."
+BACKUP_SUPER_ONLY: Final = "بکاپ کل دیتابیس فقط دست مدیر ارشده."
