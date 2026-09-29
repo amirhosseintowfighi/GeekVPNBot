@@ -40,6 +40,7 @@ from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.push.tokens import MAX_TOKEN_LENGTH, forget_token, register_token
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
@@ -260,6 +261,12 @@ class TicketReplyRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1, max_length=4000)
+
+
+class PushTokenRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=MAX_TOKEN_LENGTH)
 
 
 class ProfileRequest(ApiModel):
@@ -903,6 +910,43 @@ async def reply_to_ticket(
         )
 
     return await mutate_scope(container, work)
+
+
+@router.post(
+    "/push-token",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Register this install for push (Android app)",
+)
+async def register_push_token(
+    payload: PushTokenRequest, user: CurrentMiniAppUser, container: ContainerDep
+) -> None:
+    """The app's FCM token, so a support reply reaches the phone as well as Telegram."""
+    telegram_id = user.telegram_id
+    token = payload.token
+
+    def work(scope: SyncScope) -> None:
+        register_token(
+            scope.session, token=token, telegram_id=telegram_id, now=scope.container.clock.now()
+        )
+
+    await mutate_scope(container, work)
+
+
+@router.post(
+    "/push-token/forget",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Stop push to this install (logout)",
+)
+async def forget_push_token(
+    payload: PushTokenRequest, user: CurrentMiniAppUser, container: ContainerDep
+) -> None:
+    telegram_id = user.telegram_id
+    token = payload.token
+
+    def work(scope: SyncScope) -> None:
+        forget_token(scope.session, token=token, telegram_id=telegram_id)
+
+    await mutate_scope(container, work)
 
 
 @router.get("/profile", summary="Profile summary")

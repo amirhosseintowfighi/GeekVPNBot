@@ -41,6 +41,7 @@ from geekvpn.infrastructure.persistence.engine import (
 )
 from geekvpn.infrastructure.persistence.types import install_keyring
 from geekvpn.infrastructure.persistence.unit_of_work import SqlAlchemyUnitOfWork
+from geekvpn.infrastructure.push.fcm import FcmClient, ServiceAccount
 from geekvpn.infrastructure.security.captcha_store import RedisCaptchaStore
 from geekvpn.infrastructure.security.crypto import KeyRing
 from geekvpn.infrastructure.security.jwt import JwtAccessTokenService
@@ -100,6 +101,8 @@ class Container:
     revocations: RedisRevocationList
     user_session_policy: SessionPolicy
     admin_session_policy: SessionPolicy
+    #: Firebase Cloud Messaging for the Android app; None when not configured.
+    fcm: FcmClient | None = None
 
     def unit_of_work(self) -> SqlAlchemyUnitOfWork:
         """Factory for a request-scoped transaction."""
@@ -132,6 +135,12 @@ def build_container(settings: Settings) -> Container:
         # Local development without a token is allowed; the production
         # guardrail in Settings makes this impossible in a deployed env.
         logger.warning("telegram.auth_disabled", reason="TELEGRAM__BOT_TOKEN is empty")
+
+    fcm_account = ServiceAccount.parse(settings.push.fcm_service_account.get_secret_value())
+    if settings.push.fcm_service_account.get_secret_value() and fcm_account is None:
+        logger.warning(
+            "push.fcm_disabled", reason="PUSH__FCM_SERVICE_ACCOUNT is not a service-account key"
+        )
 
     container = Container(
         settings=settings,
@@ -173,6 +182,7 @@ def build_container(settings: Settings) -> Container:
             refresh_ttl=settings.auth.admin_refresh_ttl,
             absolute_ttl=settings.auth.admin_absolute_ttl,
         ),
+        fcm=FcmClient(fcm_account) if fcm_account is not None else None,
     )
     # Encrypted columns resolve their keyring through this hook. It was never
     # called, which meant the very first read of an encrypted column would raise
@@ -187,6 +197,7 @@ def build_container(settings: Settings) -> Container:
         database=settings.postgres.safe_dsn,
         redis_host=settings.redis.host,
         telegram_auth=telegram_auth is not None,
+        app_push=fcm_account is not None,
         encryption_keys=len(container.keyring.key_ids),
         active_key_id=container.keyring.active_key_id,
     )

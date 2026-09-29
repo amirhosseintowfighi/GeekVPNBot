@@ -373,3 +373,18 @@ class AppCredentialModel(Base):
             password_hash=self.password_hash,
             updated_at=self.updated_at,
         )
+
+
+class AppPushTokenModel(Base):
+    """A Firebase Cloud Messaging token of one installed Android app.
+
+    Keyed by the token: the same phone re-registers the same token, and a
+    token that moves to another account (sign out, sign in as someone else)
+    simply changes owner. Owners are Telegram ids, like tickets and orders.
+    """
+
+    __tablename__ = "app_push_tokens"
+
+    token: Mapped[str] = mapped_column(String(512), primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

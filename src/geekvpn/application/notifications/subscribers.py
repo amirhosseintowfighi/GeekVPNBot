@@ -15,9 +15,11 @@ not urgent news.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from geekvpn.application.notifications.engine import DispatchResult, NotificationEngine
+from geekvpn.application.notifications.ports import AppPush
 from geekvpn.domain.notifications.enums import NotificationChannel
 from geekvpn.domain.payments.events import (
     PaymentApproved,
@@ -30,6 +32,17 @@ from geekvpn.domain.payments.events import (
 # Wallet movements caused by a purchase are already covered by the purchase
 # message. Announcing both would tell the customer twice that they just paid.
 _SILENT_DEBIT_KINDS = frozenset({"purchase"})
+
+#: FCM caps a message at 4 KB; a notification shows two lines anyway.
+_PUSH_BODY_LIMIT = 400
+
+
+def _dashed(ticket_id: str) -> str:
+    """Stored ids are hex without dashes; the app's ticket list holds the parsed form."""
+    try:
+        return str(uuid.UUID(ticket_id))
+    except ValueError:
+        return ticket_id
 
 
 class WalletNotifications:
@@ -155,9 +168,11 @@ class EngineSupportNotifier:
         *,
         engine: NotificationEngine,
         agent_chat_ids: tuple[int, ...] = (),
+        app_push: AppPush | None = None,
     ) -> None:
         self._engine = engine
         self._agent_chat_ids = agent_chat_ids
+        self._app_push = app_push
 
     def notify_customer_reply(self, ticket: Any, message_body_fa: str) -> None:
         """Send the answer, not a notice that one exists.
@@ -173,6 +188,18 @@ class EngineSupportNotifier:
             fields={"reference": ticket.reference, "body": message_body_fa},
             source="support.reply",
         )
+        if self._app_push is not None:
+            # The app opens this ticket's thread from the notification, so it
+            # needs the id in the form its ticket list uses (a dashed UUID).
+            self._app_push.notify(
+                ticket.user_id,
+                {
+                    "type": "ticket",
+                    "ticket_id": _dashed(str(ticket.id)),
+                    "reference": str(ticket.reference),
+                    "body": message_body_fa[:_PUSH_BODY_LIMIT],
+                },
+            )
 
     def notify_customer_closed(self, ticket: Any) -> None:
         self._engine.notify(
