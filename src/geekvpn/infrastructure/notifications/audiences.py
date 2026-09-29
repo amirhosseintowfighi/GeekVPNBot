@@ -49,6 +49,9 @@ MAX_AUDIENCE = 50_000
 #: the two never disagree about who is about to lapse.
 EXPIRING_WITHIN_DAYS = 7
 
+#: "Has not bought lately", unless the operator names another number of days.
+LAPSED_AFTER_DAYS = 30
+
 #: Order states that represent money actually taken.
 PAID_ORDER_STATES = ("paid", "provisioning", "active")
 
@@ -100,6 +103,38 @@ class SqlAudienceResolver:
             statement = statement.where(UserModel.telegram_id.not_in(self._with_paid_order()))
         elif audience is AudienceKind.TIER:
             statement = statement.where(UserModel.telegram_id.in_(self._in_tier(reference)))
+        elif audience is AudienceKind.NO_SERVICE:
+            statement = statement.where(
+                UserModel.telegram_id.not_in(self._with_live_subscription(now))
+            )
+        elif audience is AudienceKind.LAPSED_BUYERS:
+            days = _days_from(reference, default=LAPSED_AFTER_DAYS)
+            statement = statement.where(
+                UserModel.telegram_id.in_(self._with_paid_order()),
+                UserModel.telegram_id.not_in(
+                    self._with_paid_order().where(
+                        OrderModel.created_at >= now - timedelta(days=days)
+                    )
+                ),
+            )
+        elif audience is AudienceKind.ON_SERVER:
+            if not reference:
+                raise UnknownAudience("A server audience needs a server.", audience=str(audience))
+            statement = statement.where(
+                UserModel.telegram_id.in_(
+                    self._with_live_subscription(now).where(
+                        SubscriptionModel.node_id == reference
+                    )
+                )
+            )
+        elif audience is AudienceKind.SUSPENDED_SERVICE:
+            statement = statement.where(
+                UserModel.telegram_id.in_(
+                    select(SubscriptionModel.user_id).where(
+                        SubscriptionModel.state == "suspended"
+                    )
+                )
+            )
         else:  # pragma: no cover - the enum is exhaustive above
             raise UnknownAudience(f"No rule for audience {audience}.", audience=str(audience))
 
@@ -193,6 +228,14 @@ class SqlAudienceResolver:
             return []
         statement = self._reachable().where(UserModel.telegram_id.in_(wanted))
         return list(self._session.execute(statement.limit(self._limit)).scalars().all())
+
+
+def _days_from(reference: str | None, *, default: int) -> int:
+    try:
+        days = int(str(reference))
+    except ValueError:
+        return default
+    return days if days > 0 else default
 
 
 def _tier_from(reference: str | None) -> LoyaltyTier:

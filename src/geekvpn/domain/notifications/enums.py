@@ -179,6 +179,14 @@ class AudienceKind(enum.StrEnum):
     NEVER_PURCHASED = "never_purchased"
     TIER = "tier"
     EXPLICIT = "explicit"
+    #: Nobody with a working service right now, whether or not they ever bought.
+    NO_SERVICE = "no_service"
+    #: Bought before, and nothing in the last N days (`reference`, default 30).
+    LAPSED_BUYERS = "lapsed_buyers"
+    #: A working service on one server (`reference` is the node id).
+    ON_SERVER = "on_server"
+    #: A service an operator or the arrears rule has switched off.
+    SUSPENDED_SERVICE = "suspended_service"
 
     def label_fa(self) -> str:
         return {
@@ -189,6 +197,10 @@ class AudienceKind(enum.StrEnum):
             AudienceKind.NEVER_PURCHASED: "\u0628\u062f\u0648\u0646 \u062e\u0631\u06cc\u062f",
             AudienceKind.TIER: "\u0633\u0637\u062d \u0648\u0641\u0627\u062f\u0627\u0631\u06cc",
             AudienceKind.EXPLICIT: "\u0641\u0647\u0631\u0633\u062a \u062f\u0633\u062a\u06cc",
+            AudienceKind.NO_SERVICE: "بدون سرویس فعال",
+            AudienceKind.LAPSED_BUYERS: "بدون خرید در روزهای اخیر",
+            AudienceKind.ON_SERVER: "کاربران یک سرور",
+            AudienceKind.SUSPENDED_SERVICE: "دارای سرویس غیرفعال",
         }[self]
 
 

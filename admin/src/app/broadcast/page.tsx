@@ -7,7 +7,7 @@ import { Send, Users } from 'lucide-react'
 import { api, ApiError } from '@/lib/api'
 import { faDateTime, faNumber } from '@/lib/fa'
 import { BROADCAST_STATE } from '@/lib/labels'
-import type { BroadcastAudience, BroadcastRow } from '@/lib/types'
+import type { BroadcastAudience, BroadcastRow, PanelRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -39,6 +39,10 @@ const SEGMENTS: Array<{ value: BroadcastAudience['segment']; labelFa: string }> 
   { value: 'expiring_soon', labelFa: '\u0631\u0648 \u0628\u0647 \u0627\u062a\u0645\u0627\u0645' },
   { value: 'expired', labelFa: '\u0645\u0646\u0642\u0636\u06cc\u200c\u0634\u062f\u0647' },
   { value: 'never_purchased', labelFa: '\u0628\u062f\u0648\u0646 \u062e\u0631\u06cc\u062f' },
+  { value: 'no_service', labelFa: 'بدون سرویس فعال' },
+  { value: 'lapsed_buyers', labelFa: 'خریدار قبلی، بدون خرید اخیر' },
+  { value: 'on_server', labelFa: 'کاربران یک سرور' },
+  { value: 'suspended_service', labelFa: 'دارای سرویس غیرفعال' },
 ]
 
 /**
@@ -193,6 +197,14 @@ function ComposeDialog({
   onSent: () => void
 }) {
   const [segment, setSegment] = React.useState<BroadcastAudience['segment']>('active_subscribers')
+  // The server for `on_server`, the number of days for `lapsed_buyers`.
+  const [server, setServer] = React.useState('')
+  const [days, setDays] = React.useState('30')
+  const reference =
+    segment === 'on_server' ? server || null : segment === 'lapsed_buyers' ? days : null
+  const servers = useSWR<PanelRow[]>(open && segment === 'on_server' ? 'panels' : null, () =>
+    api.panels(),
+  )
   const [title, setTitle] = React.useState('')
   const [body, setBody] = React.useState('')
   const [category, setCategory] = React.useState<'promos' | 'news' | 'critical'>('news')
@@ -201,8 +213,9 @@ function ComposeDialog({
   const [failure, setFailure] = React.useState<string | null>(null)
 
   const estimate = useSWR<{ count: number }>(
-    open ? ['audience', segment] : null,
-    () => api.estimateAudience({ segment }),
+    // A server audience with no server chosen is not an audience yet.
+    open && !(segment === 'on_server' && !server) ? ['audience', segment, reference] : null,
+    () => api.estimateAudience({ segment, reference }),
   )
 
   // Mirrors MIN_TITLE and MIN_BODY in domain/notifications/broadcast.py.
@@ -221,6 +234,7 @@ function ComposeDialog({
       // would have been a setting the backend has no field for.
       await api.sendBroadcast({
         segment,
+        reference,
         titleFa: title.trim(),
         bodyFa: body.trim(),
         category,
@@ -270,6 +284,33 @@ function ComposeDialog({
               </SelectContent>
             </Select>
           </Field>
+
+          {segment === 'on_server' ? (
+            <Field label={'سرور'}>
+              <Select value={server} onValueChange={setServer}>
+                <SelectTrigger>
+                  <SelectValue placeholder={'یک سرور انتخاب کن'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(servers.data ?? []).map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.nameFa}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
+
+          {segment === 'lapsed_buyers' ? (
+            <Field label={'بدون خرید در چند روز اخیر'}>
+              <Input
+                inputMode="numeric"
+                value={days}
+                onChange={(event) => setDays(event.target.value.replace(/[^0-9۰-۹]/g, ''))}
+              />
+            </Field>
+          ) : null}
 
           <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-2xs">
             <Users className="size-3.5 text-muted-foreground" aria-hidden />

@@ -590,7 +590,12 @@ export interface BroadcastAudience {
     | 'never_purchased'
     | 'tier'
     | 'explicit'
-  /** Only read for `tier` (a loyalty tier) and `explicit` (ids, comma-separated). */
+    | 'no_service'
+    | 'lapsed_buyers'
+    | 'on_server'
+    | 'suspended_service'
+  /** Read for `tier` (a loyalty tier), `explicit` (ids, comma-separated),
+   *  `lapsed_buyers` (days, default 30) and `on_server` (a node id). */
   reference?: string | null
 }
 
