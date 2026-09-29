@@ -16,6 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import uuid
+from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -31,6 +32,7 @@ from geekvpn.application.payments.receipt_intent import (
     RECEIPT_REQUESTED_TEMPLATE,
     receipt_intent_key,
 )
+from geekvpn.application.provisioning.usage_history import daily_usage, tehran_day
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
@@ -40,6 +42,7 @@ from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.persistence.repositories.usage_history import SqlUsageHistory
 from geekvpn.infrastructure.push.tokens import MAX_TOKEN_LENGTH, forget_token, register_token
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
@@ -732,6 +735,43 @@ async def rotate_link(
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
     await uow.commit()
     return card
+
+
+class UsageDayView(ApiModel):
+    day: str
+    used_mib: int
+
+
+@router.get(
+    "/subscriptions/{subscription_id}/usage-days",
+    response_model=list[UsageDayView],
+    summary="Traffic per day for one service",
+)
+async def usage_days(
+    subscription_id: uuid.UUID,
+    user: CurrentMiniAppUser,
+    scope: ScopeDep,
+    days: Annotated[int, Query(ge=1, le=60)] = 30,
+) -> list[UsageDayView]:
+    """All devices on the service together, from the panel readings.
+
+    404 for a service that is not the caller's, the same as one that does not
+    exist, so ids cannot be probed.
+    """
+    # Ids are stored both ways: hex from provisioning, dashed from a claim.
+    subscription = await scope.subscriptions.get(subscription_id.hex) or await scope.subscriptions.get(
+        str(subscription_id)
+    )
+    if subscription is None or subscription.user_id != user.telegram_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+    today = tehran_day(scope.container.clock.now())
+    # One day earlier than shown: the first day's traffic is measured from it.
+    since = today - timedelta(days=days)
+    readings = await SqlUsageHistory(scope.session).readings(subscription.id, since)
+    return [
+        UsageDayView(day=entry.day.isoformat(), used_mib=entry.used_mib)
+        for entry in daily_usage(readings, today=today, days=days)
+    ]
 
 
 # -- free trial ------------------------------------------------------------

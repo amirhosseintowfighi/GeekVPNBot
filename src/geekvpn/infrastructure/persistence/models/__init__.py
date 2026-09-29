@@ -49,6 +49,7 @@ from geekvpn.infrastructure.persistence.models.provisioning import (
     OrderModel,
     ReferralModel,
     SubscriptionModel,
+    SubscriptionUsageDayModel,
 )
 from geekvpn.infrastructure.persistence.models.resellers import (
     RequiredChannelModel,
@@ -108,6 +109,7 @@ __all__ = [
     "SessionModel",
     "SettingModel",
     "SubscriptionModel",
+    "SubscriptionUsageDayModel",
     "TicketMessageModel",
     "TicketModel",
     "UserModel",

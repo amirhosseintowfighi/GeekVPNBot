@@ -116,6 +116,7 @@ from geekvpn.infrastructure.persistence.repositories.session import (
     SqlAlchemySessionRepository,
 )
 from geekvpn.infrastructure.persistence.repositories.settings import DbSettingsStore
+from geekvpn.infrastructure.persistence.repositories.usage_history import SqlUsageHistory
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
 from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
@@ -747,6 +748,7 @@ class RequestScope:
             nodes=self.nodes,
             panels=self.panel_provider,
             clock=self.container.clock,
+            history=SqlUsageHistory(self.session),
         )
 
     # -- helpers -----------------------------------------------------------
