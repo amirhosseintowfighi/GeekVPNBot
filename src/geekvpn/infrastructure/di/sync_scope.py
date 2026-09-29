@@ -922,7 +922,7 @@ class SyncScope:
 
     @cached_property
     def audiences(self) -> SqlAudienceResolver:
-        return SqlAudienceResolver(self.session)
+        return SqlAudienceResolver(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def broadcast_service(self) -> BroadcastService:

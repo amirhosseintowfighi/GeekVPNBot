@@ -10,6 +10,8 @@ Three things this does deliberately:
 * **Suspended and banned customers are never in an audience.** A promotional
   message to somebody whose account you have just closed is the single most
   reliable way to turn a quiet suspension into a support thread.
+* **An audience is one shop's customers.** A reseller's announcement used to
+  resolve over the whole platform and go out through the reseller's bot.
 * **Every query is capped.** ``MAX_AUDIENCE`` is not a page size - a broadcast
   is sent in one pass - it is a guard against an operator selecting "everyone"
   on a database that has grown past what Telegram will accept in a sitting.
@@ -23,6 +25,7 @@ and notifications - see the two-scope note in CLAUDE.md.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -53,9 +56,19 @@ PAID_ORDER_STATES = ("paid", "provisioning", "active")
 class SqlAudienceResolver:
     """``AudienceResolver`` over the live schema."""
 
-    def __init__(self, session: Session, *, limit: int = MAX_AUDIENCE) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        limit: int = MAX_AUDIENCE,
+        reseller_id: uuid.UUID | None = None,
+    ) -> None:
         self._session = session
         self._limit = limit
+        #: Whose customers. None is the platform's own, which is a real shop
+        #: and not "everybody": a reseller's customer started the reseller's
+        #: bot, and the platform's bot cannot even write to them.
+        self._reseller_id = reseller_id
 
     def resolve(self, audience: AudienceKind, *, reference: str | None = None) -> list[int]:
         now = datetime.now(UTC)
@@ -104,7 +117,15 @@ class SqlAudienceResolver:
         """
         return (
             select(UserModel.telegram_id)
-            .where(UserModel.status == UserStatus.ACTIVE.value)
+            .where(
+                UserModel.status == UserStatus.ACTIVE.value,
+                # The shop, here and only here, for the same reason as the
+                # status: no audience can then forget it. Every narrower rule
+                # below is a subquery on Telegram ids intersected with this.
+                UserModel.reseller_id.is_(None)
+                if self._reseller_id is None
+                else UserModel.reseller_id == self._reseller_id,
+            )
             .order_by(UserModel.telegram_id)
         )
 
