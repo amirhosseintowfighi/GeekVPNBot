@@ -7,11 +7,21 @@ to update, and nothing here is about the customer. See
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter
 
+from geekvpn.application.platform.settings_service import (
+    APP_PROMO_BODY_FA,
+    APP_PROMO_COUPON,
+    APP_PROMO_TITLE_FA,
+    APP_PROMO_UNTIL,
+)
+from geekvpn.application.provisioning.usage_history import tehran_day
 from geekvpn.infrastructure.app_release import AppRelease, GithubReleaseSource
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep
+from geekvpn.presentation.api.security import ScopeDep
 
 router = APIRouter(prefix="/api/app", tags=["app"])
 
@@ -71,4 +81,60 @@ async def version(container: ContainerDep) -> AppVersionResponse:
     )
     return AppVersionResponse(
         latest=_latest(await source.latest()), min_version=settings.min_version.strip()
+    )
+
+
+class AppPromo(ApiModel):
+    title_fa: str
+    body_fa: str
+    #: Filled in at checkout; the quote decides whether it applies.
+    coupon_code: str | None
+    #: Last day shown (Tehran), ISO; None = until the operator removes it.
+    until: str | None
+
+
+class AppPromoResponse(ApiModel):
+    #: None when there is no offer running.
+    promo: AppPromo | None
+
+
+def current_promo(
+    *, title: str, body: str, coupon: str, until: str, today: date
+) -> AppPromo | None:
+    """The banner the settings describe, if one is running today. Pure."""
+    if not title.strip():
+        return None
+    last_day: date | None = None
+    if until.strip():
+        try:
+            last_day = date.fromisoformat(until.strip())
+        except ValueError:
+            # A typo in the date must not show an offer forever.
+            return None
+        if today > last_day:
+            return None
+    return AppPromo(
+        title_fa=title.strip(),
+        body_fa=body.strip(),
+        coupon_code=coupon.strip() or None,
+        until=last_day.isoformat() if last_day else None,
+    )
+
+
+@router.get("/promo", response_model=AppPromoResponse, summary="The offer banner, if any")
+async def promo(scope: ScopeDep) -> AppPromoResponse:
+    """Public, like `/version`: a guest sees the offer too, and signs in to use it.
+
+    Set from the admin panel's settings (``app.promo_*``), so an offer starts
+    and ends without an app release.
+    """
+    settings = scope.settings_service
+    return AppPromoResponse(
+        promo=current_promo(
+            title=await settings.get(APP_PROMO_TITLE_FA),
+            body=await settings.get(APP_PROMO_BODY_FA),
+            coupon=await settings.get(APP_PROMO_COUPON),
+            until=await settings.get(APP_PROMO_UNTIL),
+            today=tehran_day(scope.container.clock.now()),
+        )
     )

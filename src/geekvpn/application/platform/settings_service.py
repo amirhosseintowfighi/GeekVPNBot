@@ -167,6 +167,38 @@ SIGNUP_BONUS_NOTE_FA = SettingDefinition[str](
     description="What the customer sees beside this credit in their wallet history.",
 )
 
+#: The Android app's offer banner (Home and the shop). Empty title = no banner.
+#: The coupon is an ordinary one from the coupon screen; the app only fills it
+#: in at checkout, and `quote` still decides whether it applies.
+APP_PROMO_TITLE_FA = SettingDefinition[str](
+    key="app.promo_title_fa",
+    label_fa="بنر اپ: عنوان (خالی = بدون بنر)",
+    default="",
+    type_=str,
+    description="Title of the offer banner in the Android app. Empty hides the banner.",
+)
+APP_PROMO_BODY_FA = SettingDefinition[str](
+    key="app.promo_body_fa",
+    label_fa="بنر اپ: متن",
+    default="",
+    type_=str,
+    description="One or two lines under the banner title.",
+)
+APP_PROMO_COUPON = SettingDefinition[str](
+    key="app.promo_coupon",
+    label_fa="بنر اپ: کد تخفیف",
+    default="",
+    type_=str,
+    description="Coupon code the banner offers; the app applies it in the shop. Optional.",
+)
+APP_PROMO_UNTIL = SettingDefinition[str](
+    key="app.promo_until",
+    label_fa="بنر اپ: تا تاریخ (میلادی، مثل 2026-10-15)",
+    default="",
+    type_=str,
+    description="Last day the banner shows (YYYY-MM-DD, Tehran). Empty = until removed.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -180,6 +212,10 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         SIGNUP_BONUS_NOTE_FA,
         CARD_LABEL_FA,
         CRYPTO_LABEL_FA,
+        APP_PROMO_TITLE_FA,
+        APP_PROMO_BODY_FA,
+        APP_PROMO_COUPON,
+        APP_PROMO_UNTIL,
     )
 }
 
