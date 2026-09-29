@@ -361,3 +361,12 @@ async def test_nobody_can_disconnect_someone_elses_device() -> None:
 
     session = await world.session_records.get(session_id)
     assert session is not None and not session.is_revoked
+
+
+async def test_a_blank_device_name_falls_back_to_its_platform() -> None:
+    world = World()
+    started = await world.login.start(
+        device_id="desk-2", device_name="", platform="macos", app_version="1.0.0", context=CONTEXT
+    )
+
+    assert world.requests.items[started.request_id].device_name == "macOS"
