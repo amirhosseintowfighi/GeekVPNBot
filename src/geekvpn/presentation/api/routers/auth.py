@@ -11,7 +11,10 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 
 from geekvpn.application.identity.dto import AuthenticationResult, TokenPair
+from geekvpn.domain.identity.errors import TokenReuseDetectedError
 from geekvpn.domain.identity.session import RevocationReason
+from geekvpn.infrastructure.di.scope import build_scope
+from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.schemas_auth import (
     MessageResponse,
     MiniAppLoginRequest,
@@ -60,13 +63,29 @@ async def login_widget(
     summary="Exchange a refresh token for a new token pair",
     responses={401: {"description": "Invalid, expired, or already-used refresh token"}},
 )
-async def refresh(payload: RefreshRequest, scope: ScopeDep, context: ContextDep) -> TokenResponse:
-    """Works for customers and admins alike - the token identifies the subject."""
-    outcome = await scope.sessions.rotate(
-        refresh_token=payload.refresh_token,
-        context=context,
-        role_resolver=scope.resolve_role,
-    )
+async def refresh(
+    payload: RefreshRequest, container: ContainerDep, context: ContextDep
+) -> TokenResponse:
+    """Works for customers and admins alike - the token identifies the subject.
+
+    Owns its transaction instead of sharing the request's. A reused refresh
+    token makes `rotate` revoke the whole session and then raise, and the
+    shared transaction rolls back on any exception - which quietly undid the
+    revocation, so the thief's rotated token kept working. The reuse path
+    therefore commits before the error goes out.
+    """
+    async with container.unit_of_work() as uow:
+        scope = build_scope(container, uow.session)
+        try:
+            outcome = await scope.sessions.rotate(
+                refresh_token=payload.refresh_token,
+                context=context,
+                role_resolver=scope.resolve_role,
+            )
+        except TokenReuseDetectedError:
+            await uow.commit()
+            raise
+        await uow.commit()
     return _tokens(outcome.tokens)
 
 

@@ -141,6 +141,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
             # bound to the presented cookie cannot be replayed against another.
             session_id=request.cookies.get(csrf.REFRESH_COOKIE_NAME, "")[:64],
             has_bearer_token=authorization.lower().startswith("bearer "),
+            has_session_cookie=bool(request.cookies.get(csrf.REFRESH_COOKIE_NAME)),
         )
         if verdict.ok:
             return await call_next(request)

@@ -142,9 +142,20 @@ def test_mini_app_login_rejects_a_bad_signature(auth_client):
     assert response.status_code == 401
 
 
-def test_refresh_without_a_csrf_token_is_refused_before_the_token_is_looked_up(auth_client):
-    response = auth_client.post("/api/v1/auth/refresh", json={"refresh_token": "nope"})
+def test_a_cookie_refresh_without_a_csrf_token_is_refused_before_the_lookup(auth_client):
+    auth_client.cookies.set(csrf.REFRESH_COOKIE_NAME, "c" * 40)
+    response = auth_client.post("/api/v1/auth/refresh", json={"refresh_token": "c" * 40})
     assert response.status_code == 403
+
+
+def test_the_apps_refresh_with_the_token_in_the_body(auth_client):
+    """No cookie, no Bearer: the Android and desktop apps' refresh.
+
+    Nothing a cross-site page could forge, so CSRF lets it through and the
+    handler answers - here 401, because the token is unknown - never 403.
+    """
+    response = auth_client.post("/api/v1/auth/refresh", json={"refresh_token": "u" * 40})
+    assert response.status_code == 401
 
 
 def test_refresh_rejects_an_unknown_token(auth_client, settings):
@@ -339,3 +350,48 @@ def test_signing_out_clears_both_session_cookies(auth_container, auth_client):
     assert any("geekvpn_admin_access=" in header for header in cleared)
     assert any("geekvpn_admin_refresh=" in header for header in cleared)
     assert all('Max-Age=0' in header or 'expires=' in header.lower() for header in cleared)
+
+
+def test_a_reused_refresh_token_commits_the_revocation_before_refusing(container, monkeypatch):
+    """`rotate` revokes the session and raises; the revocation must survive.
+
+    The route used to share the request's transaction, which rolls back on
+    any exception - so the revocation was undone and the thief's rotated
+    token went on refreshing. Checked against Postgres: the session row kept
+    `revoked_at` NULL after a detected reuse.
+    """
+    from geekvpn.presentation.api.app import create_app
+    from geekvpn.presentation.api.routers import auth as auth_router
+
+    commits: list[str] = []
+
+    class RecordingUow:
+        session = None
+
+        async def __aenter__(self) -> RecordingUow:
+            return self
+
+        async def __aexit__(self, *exc: object) -> bool:
+            return False
+
+        async def commit(self) -> None:
+            commits.append("commit")
+
+    class ReusedSessions:
+        async def rotate(self, **_kwargs: object) -> None:
+            # The very class the route catches (other tests reload modules).
+            raise auth_router.TokenReuseDetectedError()
+
+    class Scope:
+        sessions = ReusedSessions()
+        resolve_role = None
+
+    # Container is a frozen dataclass: patch the method on its class.
+    monkeypatch.setattr(type(container), "unit_of_work", lambda _self: RecordingUow())
+    monkeypatch.setattr(auth_router, "build_scope", lambda _container, _session: Scope())
+
+    with TestClient(create_app(container=container), raise_server_exceptions=False) as client:
+        response = client.post("/api/v1/auth/refresh", json={"refresh_token": "r" * 40})
+
+    assert response.status_code == 401
+    assert commits == ["commit"]

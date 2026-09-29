@@ -92,6 +92,7 @@ def check_request(
     header_token: str | None,
     session_id: str,
     has_bearer_token: bool = False,
+    has_session_cookie: bool = True,
 ) -> CsrfVerdict:
     """The full double-submit check.
 
@@ -105,6 +106,12 @@ def check_request(
         # A cross-site page cannot set an Authorization header, so this request
         # is not forgeable and demanding a token would break API clients.
         return CsrfVerdict(True, "bearer authenticated")
+    if not has_session_cookie:
+        # CSRF rides on a cookie the browser attaches by itself. With no
+        # refresh cookie the credential is in the body, which a cross-site
+        # page cannot know - that is how the Android and desktop apps refresh,
+        # and refusing them here logged every app out after 15 minutes.
+        return CsrfVerdict(True, "no cookie session")
     if not cookie_token or not header_token:
         return CsrfVerdict(False, "missing token")
     if not hmac.compare_digest(cookie_token, header_token):
