@@ -136,7 +136,9 @@ class Worker:
                 EXPIRY_SWEEP_INTERVAL_SECONDS if expiry_due <= 0 else expiry_due - TICK_SECONDS
             )
             auto_renew_due = (
-                AUTO_RENEW_INTERVAL_SECONDS if auto_renew_due <= 0 else auto_renew_due - TICK_SECONDS
+                AUTO_RENEW_INTERVAL_SECONDS
+                if auto_renew_due <= 0
+                else auto_renew_due - TICK_SECONDS
             )
             self._beat()
             with contextlib.suppress(TimeoutError):
