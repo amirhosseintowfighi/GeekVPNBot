@@ -1,4 +1,4 @@
-"""The bot's half of the Android app sign-in, the signed-in devices, and the
+"""The bot's half of the app sign-in (Android and desktop), the signed-in devices, and the
 app username and password.
 
 `/start applogin_<code>` arrives here from `start.py` (checked before the
@@ -79,11 +79,23 @@ async def handle_start(message: Message, *, scope: Any, user: Any, code: str) ->
         return
 
     body = T.APP_LOGIN_PROMPT.format(
+        icon=T.APP_LOGIN_ICON_PHONE if request.platform == "android" else T.APP_LOGIN_ICON_DESKTOP,
+        app=app_login_platform(request.platform),
         device=isolate(request.device_name),
         platform=isolate(request.platform),
         time=fa_datetime(_tehran(request.created_at)),
     )
     await answer(message, body, reply_markup=_decision_keyboard(request.id))
+
+
+def app_login_platform(platform: str) -> str:
+    """The platform's Persian name; anything else is the client's own word.
+
+    The client picks `platform` itself, so an unknown one is shown isolated,
+    like the device name beside it, rather than dropped: a request from a
+    platform the customer does not use is exactly what they should notice.
+    """
+    return T.APP_LOGIN_PLATFORMS.get(platform, isolate(platform))
 
 
 def _decision_keyboard(request_id: uuid.UUID) -> InlineKeyboardMarkup:

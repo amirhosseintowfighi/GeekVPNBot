@@ -66,7 +66,7 @@ START_LIMIT_PER_IP = 20
 START_LIMIT_PER_DEVICE = 5
 START_RATE_WINDOW_SECONDS = 600
 
-#: Sessions the Android app holds, however it signed in. The bot's device list
+#: Sessions the apps (Android and desktop) hold, however they signed in. The bot's device list
 #: shows these and only these.
 APP_AUTH_METHODS = frozenset({AuthMethod.TELEGRAM_APP_LINK, AuthMethod.APP_PASSWORD})
 
@@ -74,6 +74,15 @@ _MAX_DEVICE_ID = 64
 _MAX_DEVICE_NAME = 64
 _MAX_PLATFORM = 16
 _MAX_APP_VERSION = 32
+
+#: What an unnamed device is called in the approval prompt and the device list.
+#: The desktop app sends its hostname, but a blank one must not read "Android".
+_PLATFORM_DEVICE_NAMES = {
+    "android": "Android",
+    "windows": "Windows",
+    "macos": "macOS",
+    "linux": "Linux",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,13 +152,15 @@ class AppLinkLogin:
         code, code_hash = self._secrets.generate()
         poll_token, poll_token_hash = self._secrets.generate()
         now = self._clock.now()
+        platform = _clip(platform, _MAX_PLATFORM) or "android"
         request = AppLoginRequest(
             id=uuid.uuid4(),
             code_hash=code_hash,
             poll_token_hash=poll_token_hash,
             device_id=device_id,
-            device_name=_clip(device_name, _MAX_DEVICE_NAME) or "Android",
-            platform=_clip(platform, _MAX_PLATFORM) or "android",
+            device_name=_clip(device_name, _MAX_DEVICE_NAME)
+            or _PLATFORM_DEVICE_NAMES.get(platform, "Android"),
+            platform=platform,
             app_version=_clip(app_version, _MAX_APP_VERSION),
             ip=context.ip,
             status=AppLoginStatus.PENDING,

@@ -13,7 +13,7 @@ from geekvpn.presentation.bot.handlers import app_login
 from geekvpn.presentation.bot.handlers.start import on_start
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import AppLoginCB
-from tests.unit.identity.test_app_link_login import OWNER, STRANGER, World
+from tests.unit.identity.test_app_link_login import CONTEXT, OWNER, STRANGER, World
 
 pytestmark = pytest.mark.unit
 
@@ -135,3 +135,27 @@ async def test_approve_moves_the_request_on_and_a_stranger_cannot_press_it() -> 
         user=_user(OWNER),
     )
     assert world.requests.items[started.request_id].status is AppLoginStatus.APPROVED
+
+
+async def test_a_desktop_request_names_its_platform_not_android() -> None:
+    world = World()
+    started = await world.login.start(
+        device_id="desk-1",
+        device_name="DESKTOP-7Q2",
+        platform="windows",
+        app_version="1.0.0",
+        context=CONTEXT,
+    )
+    chat = _Chat()
+
+    await _start(chat, scope=_scope(world), user=_user(OWNER), payload=f"applogin_{started.code}")
+
+    [(text, _)] = chat.said
+    assert T.APP_LOGIN_PLATFORMS["windows"] in text
+    assert T.APP_LOGIN_PLATFORMS["android"] not in text
+    assert T.APP_LOGIN_ICON_DESKTOP in text
+
+
+def test_an_unknown_platform_is_shown_as_sent() -> None:
+    assert "freebsd" in app_login.app_login_platform("freebsd")
+    assert app_login.app_login_platform("macos") == T.APP_LOGIN_PLATFORMS["macos"]
