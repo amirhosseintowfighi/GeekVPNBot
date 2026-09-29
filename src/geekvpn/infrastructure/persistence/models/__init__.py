@@ -21,6 +21,7 @@ from geekvpn.infrastructure.persistence.models.identity import (
     AdminModel,
     AppCredentialModel,
     AppLoginRequestModel,
+    AppPushTokenModel,
     RefreshTokenModel,
     SessionModel,
     UserModel,
@@ -42,12 +43,14 @@ from geekvpn.infrastructure.persistence.models.payments import (
     WalletEntryModel,
 )
 from geekvpn.infrastructure.persistence.models.provisioning import (
+    AutoRenewalModel,
     FreeTrialClaimModel,
     FunnelEventModel,
     NodeModel,
     OrderModel,
     ReferralModel,
     SubscriptionModel,
+    SubscriptionUsageDayModel,
 )
 from geekvpn.infrastructure.persistence.models.resellers import (
     RequiredChannelModel,
@@ -70,7 +73,9 @@ __all__ = [
     "AdminModel",
     "AppCredentialModel",
     "AppLoginRequestModel",
+    "AppPushTokenModel",
     "AuditLogModel",
+    "AutoRenewalModel",
     "BroadcastModel",
     "CampaignModel",
     "CardAccountModel",
@@ -106,6 +111,7 @@ __all__ = [
     "SessionModel",
     "SettingModel",
     "SubscriptionModel",
+    "SubscriptionUsageDayModel",
     "TicketMessageModel",
     "TicketModel",
     "UserModel",

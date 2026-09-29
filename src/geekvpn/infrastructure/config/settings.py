@@ -324,6 +324,18 @@ class AppReleaseSettings(Section):
     cache_seconds: int = 600
 
 
+class PushSettings(Section):
+    """Firebase Cloud Messaging for the Android app (e.g. support replies).
+
+    The service account's JSON key from the Firebase console (Project
+    settings -> Service accounts -> Generate new private key), either as the
+    JSON itself or base64 of it. Empty switches app push off; Telegram
+    delivery is unaffected either way.
+    """
+
+    fcm_service_account: SecretStr = SecretStr("")
+
+
 class Settings(BaseSettings):
     """Root settings object. Inject it; never read ``os.environ`` elsewhere."""
 
@@ -343,6 +355,7 @@ class Settings(BaseSettings):
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     app_release: AppReleaseSettings = Field(default_factory=AppReleaseSettings)
+    push: PushSettings = Field(default_factory=PushSettings)
 
     @property
     def jwt_secret(self) -> str:
