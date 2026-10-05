@@ -473,6 +473,17 @@ REFERRAL_INVITEE_BONUS = SettingDefinition[int](
     description="Credit for the invited customer.",
 )
 
+CARD_FOR_NEW_CUSTOMERS = SettingDefinition[bool](
+    key="payments.card_for_new_customers",
+    label_fa="کارت‌به‌کارت برای کاربری که هنوز خرید نکرده",
+    default=True,
+    type_=bool,
+    description=(
+        "Offer card-to-card to customers with no completed purchase. Off keeps"
+        " first-time buyers on automatic methods, where fake receipts cannot land."
+    ),
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -513,6 +524,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         REFERRAL_RECURRING_BPS,
         REFERRAL_RECURRING_FIXED,
         REFERRAL_INVITEE_BONUS,
+        CARD_FOR_NEW_CUSTOMERS,
     )
 }
 

@@ -51,6 +51,7 @@ from geekvpn.application.provisioning.provisioning_service import ProvisioningSe
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.pricing import PriceQuote
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
+from geekvpn.domain.payments.errors import CardNotForNewCustomers
 from geekvpn.domain.payments.invoice import InvoiceLine
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.proof import PaymentProof
@@ -120,8 +121,12 @@ class BotCheckoutAdapter:
         #: The shop's cap on new services per customer per day; 0 is no cap.
         #: Read per checkout, so an operator's change applies to the next one.
         daily_limit: Callable[[], Awaitable[int]] | None = None,
+        #: Whether card-to-card is offered to somebody who has never bought.
+        #: Fake receipts come almost entirely from accounts with no history.
+        card_for_new_customers: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         self._daily_limit = daily_limit
+        self._card_for_new = card_for_new_customers
         self._bridge = bridge
         self._quoting = quoting
         self._orders = orders
@@ -184,12 +189,15 @@ class BotCheckoutAdapter:
 
         return to_card(subscription, order)
 
-    async def methods(self) -> list[tuple[str, str]]:
+    async def methods(self, user_id: uuid.UUID | None = None) -> list[tuple[str, str]]:
         """(key, label) for everything this shop can take money by.
 
         Read from the registry, which is built per shop - so a reseller sees
-        their own gateways and never one they have not configured.
+        their own gateways and never one they have not configured. With a
+        customer, card-to-card is left out when the shop keeps it from people
+        who have never bought.
         """
+        hide_card = user_id is not None and await self._card_closed_to(user_id)
 
         def work(scope: SyncScope) -> list[tuple[str, str]]:
             return [
@@ -199,10 +207,23 @@ class BotCheckoutAdapter:
                 # covers the price. Listing it here as well would show it twice
                 # to somebody who can afford it and once to somebody who
                 # cannot, which is the wrong way round.
-                if gateway.key != WALLET
+                if gateway.key != WALLET and not (hide_card and gateway.key == CARD)
             ]
 
         return await self._bridge.run(work)
+
+    async def _card_closed_to(self, user_id: uuid.UUID) -> bool:
+        if self._card_for_new is None or await self._card_for_new():
+            return False
+        telegram_id = await self._bridge.telegram_id(user_id)
+        if telegram_id is None:
+            return True
+        return not await self._order_repository.has_completed_order(telegram_id)
+
+    async def _refuse_card_to_newcomers(self, user_id: uuid.UUID, gateway_key: str) -> None:
+        """The same rule as `methods`, for a request that skipped the list."""
+        if gateway_key == CARD and await self._card_closed_to(user_id):
+            raise CardNotForNewCustomers()
 
     async def begin_gateway(
         self,
@@ -275,6 +296,7 @@ class BotCheckoutAdapter:
     ) -> CardPaymentDetails | CryptoPaymentDetails | GatewayScreen:
         """No order is placed: a top-up buys nothing, it moves money inward."""
         telegram_id = await self._require_telegram_id(user_id)
+        await self._refuse_card_to_newcomers(user_id, method)
         year = self._jalali_year
 
         def work(scope: SyncScope) -> CheckoutResult:
@@ -366,6 +388,7 @@ class BotCheckoutAdapter:
         renews: str | None = None,
     ) -> tuple[CheckoutResult, Order]:
         telegram_id = await self._require_telegram_id(user_id)
+        await self._refuse_card_to_newcomers(user_id, gateway_key)
         plan = await self._plans.get(plan_id)
         if plan is None:
             raise LookupError(f"No plan {plan_id}.")

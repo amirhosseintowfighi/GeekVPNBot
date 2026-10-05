@@ -464,7 +464,10 @@ async def payment_methods(user: CurrentMiniAppUser, services: ServicesDep) -> An
     through it, and a shop with no crypto address offered a button that ended
     in an apology.
     """
-    return [{"key": key, "label_fa": label} for key, label in await services.checkout.methods()]
+    return [
+        {"key": key, "label_fa": label}
+        for key, label in await services.checkout.methods(user.id)
+    ]
 
 
 @router.post("/checkout/gateway", summary="Start an online-gateway payment")

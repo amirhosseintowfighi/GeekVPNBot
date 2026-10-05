@@ -15,7 +15,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from geekvpn.application.bot.services import BotServices
-from geekvpn.application.platform.settings_service import DAILY_PURCHASE_LIMIT
+from geekvpn.application.platform.settings_service import (
+    CARD_FOR_NEW_CUSTOMERS,
+    DAILY_PURCHASE_LIMIT,
+)
 from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.infrastructure.bot.checkout import BotCheckoutAdapter
 from geekvpn.infrastructure.bot.ownership import BotServiceOwnership
@@ -88,6 +91,7 @@ def build_bot_services(
             jalali_year=jalali_year,
             fetch_receipt=fetch_receipt,
             daily_limit=lambda: scope.settings_service.get(DAILY_PURCHASE_LIMIT),
+            card_for_new_customers=lambda: scope.settings_service.get(CARD_FOR_NEW_CUSTOMERS),
         ),
         trial=BotTrialAdapter(
             trial=scope.free_trial,

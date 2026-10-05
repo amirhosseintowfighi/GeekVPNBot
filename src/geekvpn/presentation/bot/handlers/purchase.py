@@ -335,7 +335,7 @@ async def on_choose_method(
             shortfall=toman(max(0, total - snapshot.balance)),
         )
     await state.set_state(Purchase.choosing_payment)
-    methods = await services.checkout.methods()
+    methods = await services.checkout.methods(user.id)
     if not methods and not wallet_ok:
         # Nothing configured and no balance: say so rather than showing a
         # screen whose only button is "cancel".

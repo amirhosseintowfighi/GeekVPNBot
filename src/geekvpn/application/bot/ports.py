@@ -138,7 +138,7 @@ class CheckoutService(Protocol):
         renews_subscription_id: str | None = None,
     ) -> SubscriptionCard: ...
 
-    async def methods(self) -> list[tuple[str, str]]:
+    async def methods(self, user_id: uuid.UUID | None = None) -> list[tuple[str, str]]:
         """Which ways of paying this shop actually has, as (key, label).
 
         Asked rather than assumed: the bot used to offer card and crypto

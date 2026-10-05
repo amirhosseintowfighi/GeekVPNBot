@@ -165,13 +165,17 @@ async def on_topup(query: CallbackQuery, state: FSMContext, scope: Any = None) -
 
 @router.callback_query(WalletCB.filter(F.action == "amount"))
 async def on_preset(
-    query: CallbackQuery, callback_data: WalletCB, state: FSMContext, services: BotServices
+    query: CallbackQuery,
+    callback_data: WalletCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
 ) -> None:
     await toast(query)
     await state.update_data(amount=int(callback_data.ref))
     await state.set_state(Wallet.choosing_method)
     body = f"{T.PAY_CHOOSE}\n\n{T.LBL_TOTAL}: <b>{toman(int(callback_data.ref))}</b>"
-    methods = await services.checkout.methods()
+    methods = await services.checkout.methods(user.id if user is not None else None)
     if not methods:
         await safe_edit(query, T.PAY_NO_METHODS, markup=K.single(K.home_button()))
         return
@@ -180,7 +184,11 @@ async def on_preset(
 
 @router.message(Wallet.entering_amount, F.text)
 async def on_amount_text(
-    message: Message, state: FSMContext, services: BotServices, scope: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    scope: Any = None,
+    user: Any = None,
 ) -> None:
     """Parse a typed amount.
 
@@ -207,7 +215,7 @@ async def on_amount_text(
     await state.update_data(amount=amount)
     await state.set_state(Wallet.choosing_method)
     body = f"{T.PAY_CHOOSE}\n\n{T.LBL_TOTAL}: <b>{toman(amount)}</b>"
-    methods = await services.checkout.methods()
+    methods = await services.checkout.methods(user.id if user is not None else None)
     if not methods:
         await answer(message, T.PAY_NO_METHODS, reply_markup=K.main_menu())
         return
