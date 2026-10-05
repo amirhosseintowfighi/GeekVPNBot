@@ -1062,3 +1062,16 @@ REFUND_CONFIRM: Final = (
 )
 BTN_REFUND_CONFIRM: Final = "✅ بله، حذف و برگشت وجه"
 REFUND_DONE: Final = "✅ سرویس حذف شد و {amount} به کیف پولت برگشت."
+
+# -- connection tutorials ----------------------------------------------------
+
+DEVICE_LABELS: Final = {
+    "android": "🤖 اندروید",
+    "ios": "🍏 آیفون",
+    "windows": "🪟 ویندوز",
+    "mac": "💻 مک",
+    "linux": "🐧 لینوکس",
+}
+BTN_GUIDE: Final = "📚 آموزش اتصال"
+GUIDE_PICK: Final = "📚 <b>آموزش اتصال</b>\n\nدستگاهت رو انتخاب کن:"
+GUIDE_NONE: Final = "هنوز آموزشی اضافه نشده. اگه برای اتصال کمک لازم داری، به پشتیبانی پیام بده."

@@ -32,6 +32,7 @@ from geekvpn.presentation.bot.handlers import (
     support,
     system,
     trial,
+    tutorials,
     wallet,
 )
 
@@ -59,5 +60,6 @@ __all__ = [
     "support",
     "system",
     "trial",
+    "tutorials",
     "wallet",
 ]

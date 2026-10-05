@@ -332,3 +332,14 @@ TOP_LADDERS: Final = {
 }
 TOP_EMPTY: Final = "هنوز کسی در این فهرست نیست."
 TOP_ROW: Final = "{rank}. <code>{telegram_id}</code> {name} — {value}"
+
+BTN_TUTORIALS: Final = "📚 آموزش‌های اتصال"
+TUTORIALS_TITLE: Final = "📚 <b>آموزش‌های اتصال</b>\n\nبرای کدوم دستگاه؟ (✅ یعنی آموزش داره)"
+TUTORIAL_ASK: Final = (
+    "آموزش {device} رو بفرست: یه متن، یا یه عکس یا ویدیو با توضیح زیرش.\n"
+    "همون‌طوری که بفرستی به کاربر نشون داده می‌شه."
+)
+TUTORIAL_SAVED: Final = "✅ آموزش {device} ذخیره شد."
+TUTORIAL_REMOVED: Final = "🗑 آموزش {device} حذف شد."
+BTN_TUTORIAL_REMOVE: Final = "🗑 حذف این آموزش"
+TUTORIAL_UNSUPPORTED: Final = "فقط متن، عکس یا ویدیو قبول می‌شه."

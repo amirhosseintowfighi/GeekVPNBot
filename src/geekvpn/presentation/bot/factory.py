@@ -44,6 +44,7 @@ from geekvpn.presentation.bot.handlers import (
     support,
     system,
     trial,
+    tutorials,
     wallet,
 )
 from geekvpn.presentation.bot.handlers import (
@@ -86,6 +87,7 @@ ROUTERS = (
     trial,
     service_owner,
     rules,
+    tutorials,
     channel_leave,
     fallback,
 )

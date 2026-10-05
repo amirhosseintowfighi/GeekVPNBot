@@ -19,6 +19,7 @@ from geekvpn.application.platform.settings_service import (
     REFUND_WINDOW_HOURS,
     RENAME_ENABLED,
     TRANSFER_ENABLED,
+    TUTORIALS,
     SettingsService,
 )
 from geekvpn.application.provisioning.unused_refund import UnusedRefund
@@ -93,6 +94,7 @@ class BotServiceOwnership:
             rename=await self._settings.get(RENAME_ENABLED),
             transfer=await self._settings.get(TRANSFER_ENABLED),
             refund_window_hours=await self._settings.get(REFUND_WINDOW_HOURS),
+            has_tutorials=bool(await self._settings.get(TUTORIALS)),
         )
 
     async def set_auto_renew(

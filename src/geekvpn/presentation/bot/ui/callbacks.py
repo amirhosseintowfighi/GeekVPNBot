@@ -124,6 +124,12 @@ class AdminCB(CallbackData, prefix="adm"):
     ref: str = ""
 
 
+class GuideCB(CallbackData, prefix="gd"):
+    """One device's connection tutorial."""
+
+    device: str
+
+
 class TrialCB(CallbackData, prefix="trl"):
     """The free trial screen."""
 

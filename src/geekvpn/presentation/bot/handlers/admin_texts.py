@@ -23,6 +23,8 @@ from geekvpn.application.platform.settings_service import (
     HIDDEN_BUTTONS,
     RULES_ENABLED,
     TEXT_OVERRIDES,
+    TUTORIAL_DEVICES,
+    TUTORIALS,
     parse_hidden,
 )
 from geekvpn.domain.identity.permissions import Permission
@@ -32,6 +34,7 @@ from geekvpn.presentation.bot.handlers.menu import HIDEABLE
 from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import copy as C
 from geekvpn.presentation.bot.ui import keyboards as K
+from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import AdminCB
 
 router = Router(name="admin_texts")
@@ -39,6 +42,7 @@ router = Router(name="admin_texts")
 
 class TextFlow(StatesGroup):
     writing = State()
+    tutorial = State()
 
 
 async def _editor(scope: Any, user: Any) -> Any | None:
@@ -245,3 +249,116 @@ async def on_menu_button_toggle(
     await scope.session.commit()
     await toast(query)
     await safe_edit(query, A.MENU_BUTTONS_TITLE, markup=_buttons_markup(frozenset(hidden)))
+
+
+# -- connection tutorials ----------------------------------------------------------
+
+
+def _devices_markup(tutorials: dict[str, Any]) -> Any:
+    rows = [
+        [
+            K.btn(
+                f"{'✅' if device in tutorials else '➕'} {T.DEVICE_LABELS[device]}",
+                AdminCB(action="tutorial", ref=device),
+            )
+        ]
+        for device in TUTORIAL_DEVICES
+    ]
+    rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
+    return K.stack(rows)
+
+
+@router.callback_query(AdminCB.filter(F.action == "tutorials"))
+async def on_tutorials(
+    query: CallbackQuery, state: FSMContext, scope: Any = None, user: Any = None
+) -> None:
+    await state.clear()
+    if await _editor(scope, user) is None:
+        await toast(query, A.TEXTS_NOT_ALLOWED, alert=True)
+        return
+    await toast(query)
+    tutorials = dict(await scope.settings_service.get(TUTORIALS))
+    await safe_edit(query, A.TUTORIALS_TITLE, markup=_devices_markup(tutorials))
+
+
+@router.callback_query(AdminCB.filter(F.action == "tutorial"))
+async def on_tutorial(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    device = callback_data.ref
+    if await _editor(scope, user) is None or device not in TUTORIAL_DEVICES:
+        await toast(query, A.TEXTS_NOT_ALLOWED, alert=True)
+        return
+    await toast(query)
+    await state.set_state(TextFlow.tutorial)
+    await state.update_data(tutorial_device=device)
+    tutorials = dict(await scope.settings_service.get(TUTORIALS))
+    rows = []
+    if device in tutorials:
+        rows.append([K.btn(A.BTN_TUTORIAL_REMOVE, AdminCB(action="tutorial_rm", ref=device))])
+    rows.append([K.btn(A.BTN_BACK, AdminCB(action="tutorials"))])
+    await safe_edit(
+        query, A.TUTORIAL_ASK.format(device=T.DEVICE_LABELS[device]), markup=K.stack(rows)
+    )
+
+
+@router.message(TextFlow.tutorial)
+async def on_tutorial_sent(
+    message: Message, state: FSMContext, scope: Any = None, user: Any = None, **_: Any
+) -> None:
+    admin = await _editor(scope, user)
+    device = str((await state.get_data()).get("tutorial_device", ""))
+    if admin is None or device not in TUTORIAL_DEVICES:
+        await state.clear()
+        await answer(message, A.TEXTS_NOT_ALLOWED)
+        return
+    caption = getattr(message, "html_text", None) or message.caption or message.text or ""
+    if message.photo:
+        entry = {"kind": "photo", "file_id": message.photo[-1].file_id, "text": caption}
+    elif message.video:
+        entry = {"kind": "video", "file_id": message.video.file_id, "text": caption}
+    elif message.text:
+        entry = {"kind": "text", "file_id": "", "text": caption}
+    else:
+        # Stay in the state: the next message is the retry.
+        await answer(message, A.TUTORIAL_UNSUPPORTED)
+        return
+    tutorials = dict(await scope.settings_service.get(TUTORIALS))
+    tutorials[device] = entry
+    await scope.settings_service.set(
+        TUTORIALS.key, tutorials, actor_id=admin.id, actor_label=admin.username
+    )
+    await scope.session.commit()
+    await state.clear()
+    await answer(
+        message,
+        A.TUTORIAL_SAVED.format(device=T.DEVICE_LABELS[device]),
+        reply_markup=_devices_markup(tutorials),
+    )
+
+
+@router.callback_query(AdminCB.filter(F.action == "tutorial_rm"))
+async def on_tutorial_remove(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    admin = await _editor(scope, user)
+    if admin is None or callback_data.ref not in TUTORIAL_DEVICES:
+        await toast(query, A.TEXTS_NOT_ALLOWED, alert=True)
+        return
+    await state.clear()
+    tutorials = dict(await scope.settings_service.get(TUTORIALS))
+    tutorials.pop(callback_data.ref, None)
+    await scope.settings_service.set(
+        TUTORIALS.key, tutorials, actor_id=admin.id, actor_label=admin.username
+    )
+    await scope.session.commit()
+    await toast(query, A.TUTORIAL_REMOVED.format(device=T.DEVICE_LABELS[callback_data.ref]))
+    await safe_edit(query, A.TUTORIALS_TITLE, markup=_devices_markup(tutorials))

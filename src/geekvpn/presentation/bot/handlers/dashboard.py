@@ -72,6 +72,8 @@ def _detail_keyboard(card: Any, options: OwnerOptions | None = None) -> InlineKe
         rows.append([K.btn(T.BTN_RENEW, SubCB(action="renew", ref=ref), style=K.YES)])
     if card.subscription_url:
         rows.append([K.btn(T.BTN_ROTATE, SubCB(action="rotate", ref=ref))])
+    if options is not None and options.has_tutorials:
+        rows.append([K.btn(T.BTN_GUIDE, NavCB(to="guide"))])
     if options is not None:
         if options.auto_renew and card.is_renewable:
             label = T.BTN_AUTO_RENEW_ON if card.auto_renew else T.BTN_AUTO_RENEW_OFF

@@ -350,3 +350,5 @@ class OwnerOptions:
     transfer: bool = False
     #: Hours after purchase an unused service can be returned; 0 is off.
     refund_window_hours: int = 0
+    #: Whether any connection tutorial has been written.
+    has_tutorials: bool = False

@@ -541,6 +541,29 @@ CHANNEL_LEAVE_MESSAGE_FA = SettingDefinition[str](
     description="Sent to a customer who leaves a required channel. Empty sends nothing.",
 )
 
+#: Devices a connection tutorial can be written for, in the order they are
+#: offered. The bot shows only the ones the operator has filled in.
+TUTORIAL_DEVICES: tuple[str, ...] = ("android", "ios", "windows", "mac", "linux")
+
+
+def _tutorials(raw: Any) -> str | None:
+    for device, entry in raw.items():
+        if device not in TUTORIAL_DEVICES or not isinstance(entry, dict):
+            return f"unknown device {device!r}"
+        if entry.get("kind") not in {"text", "photo", "video"}:
+            return f"{device}: kind must be text, photo or video"
+    return None
+
+
+TUTORIALS = SettingDefinition[dict[str, Any]](
+    key="texts.tutorials",
+    label_fa="آموزش اتصال به تفکیک دستگاه",
+    default={},
+    type_=dict,
+    validator=_tutorials,
+    description="Per-device connection tutorials (text, photo or video). Edited from the bot.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -586,6 +609,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         REFUND_WINDOW_HOURS,
         KICK_ON_SUSPEND,
         CHANNEL_LEAVE_MESSAGE_FA,
+        TUTORIALS,
     )
 }
 
