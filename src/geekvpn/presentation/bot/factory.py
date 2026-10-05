@@ -21,6 +21,7 @@ from geekvpn.infrastructure.di.container import Container
 from geekvpn.presentation.bot.channel_gate import ChannelGateMiddleware
 from geekvpn.presentation.bot.handlers import (
     admin,
+    admin_export,
     admin_texts,
     app_login,
     dashboard,
@@ -63,6 +64,7 @@ ROUTERS = (
     system,
     admin,
     admin_texts,
+    admin_export,
     start,
     menu,
     shop,
