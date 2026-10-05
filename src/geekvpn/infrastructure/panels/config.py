@@ -87,12 +87,23 @@ class XuiFamilyConfig(PanelConnectionConfig):
     inbound_id: int = Field(description="Inbound that new clients are added to")
     #: 3x-ui installs behind a random base path, e.g. https://host:2053/AbCdEf
     web_base_path: str = ""
+    #: Where the panel's own subscription server answers, up to and including
+    #: its path: the panel's "subscription URI", e.g. https://sub.host:2096/sub.
+    #: The account's link is this plus its subId. Empty means the panel's
+    #: subscription server is off, and accounts are delivered without a link.
+    subscription_url: str = ""
 
     @field_validator("web_base_path")
     @classmethod
     def _normalise_path(cls, value: str) -> str:
         value = value.strip().strip("/")
         return f"/{value}" if value else ""
+
+
+    @field_validator("subscription_url")
+    @classmethod
+    def _normalise_subscription(cls, value: str) -> str:
+        return value.strip().rstrip("/")
 
 
 class SanaeiConfig(XuiFamilyConfig):

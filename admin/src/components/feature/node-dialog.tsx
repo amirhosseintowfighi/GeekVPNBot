@@ -78,10 +78,17 @@ export function NodeDialog({
   const [groups, setGroups] = React.useState<PanelGroupOption[]>([])
   const [chosenGroups, setChosenGroups] = React.useState<string[]>([])
   const [groupsNote, setGroupsNote] = React.useState<string | null>(null)
+  // The x-ui family nests every client in one inbound, so a server of that
+  // kind cannot be built without its id. The dialog never asked for it, so
+  // every Sanaei or Alireza server saved here failed on its first use.
+  const [inboundId, setInboundId] = React.useState('')
+  const [webBasePath, setWebBasePath] = React.useState('')
+  const [xuiSubUrl, setXuiSubUrl] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
   const editing = Boolean(node)
+  const isXui = panelKind === 'sanaei' || panelKind === 'alireza'
 
   // Load the node being edited, and clear the form when it changes. The
   // password is never sent back by the API - only `hasPassword` - so it starts
@@ -97,6 +104,9 @@ export function NodeDialog({
     setCountryCode(node?.countryCode ?? '')
     setCapacity(String(node?.capacity ?? ''))
     setVerifyTls(node?.verifyTls ?? true)
+    setInboundId(String(node?.config?.inboundId ?? node?.config?.inbound_id ?? ''))
+    setWebBasePath(String(node?.config?.webBasePath ?? node?.config?.web_base_path ?? ''))
+    setXuiSubUrl(String(node?.config?.subscriptionUrl ?? node?.config?.subscription_url ?? ''))
     setFailure(null)
     setGroups([])
     setGroupsNote(null)
@@ -136,9 +146,19 @@ export function NodeDialog({
   }, [node, open])
 
   const idValid = ID_PATTERN.test(id)
-  const complete = editing
-    ? nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== ''
-    : idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== ''
+  const inboundValid = !isXui || /^\d+$/.test(inboundId.trim())
+  const complete =
+    inboundValid &&
+    (editing
+      ? nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== ''
+      : idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== '')
+  const xuiConfig = isXui
+    ? {
+        inboundId: Number(inboundId.trim()),
+        webBasePath: webBasePath.trim(),
+        subscriptionUrl: xuiSubUrl.trim(),
+      }
+    : null
 
   const reset = () => {
     setId('')
@@ -184,6 +204,7 @@ export function NodeDialog({
           // cleared them: an empty list is a decision, and merging would give
           // no way to make it.
           ...(groups.length > 0 ? { config: { defaultGroups: chosenGroups } } : {}),
+          ...(xuiConfig ? { config: xuiConfig } : {}),
         })
       } else {
         const body: NodeCreateBody = {
@@ -191,6 +212,7 @@ export function NodeDialog({
           id: id.trim(),
           panelKind,
           password,
+          ...(xuiConfig ? { config: xuiConfig } : {}),
         }
         await api.savePanel(body)
       }
@@ -278,6 +300,41 @@ export function NodeDialog({
               placeholder="https://sub.example.com"
             />
           </Field>
+
+          {isXui ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={'شناسهٔ اینباند'} hint={'ID اینباندی که کاربرها داخلش ساخته می‌شن'}>
+                  <Input
+                    ltr
+                    inputMode="numeric"
+                    value={inboundId}
+                    onChange={(event) => setInboundId(event.target.value.replace(/\D/g, ''))}
+                    placeholder="1"
+                  />
+                </Field>
+                <Field label={'مسیر پنل'} hint={'اگه پنل پشت مسیر تصادفیه، مثل /AbCdEf'}>
+                  <Input
+                    ltr
+                    value={webBasePath}
+                    onChange={(event) => setWebBasePath(event.target.value)}
+                    placeholder="/AbCdEf"
+                  />
+                </Field>
+              </div>
+              <Field
+                label={'آدرس سرویس ساب پنل'}
+                hint={'همون «URI ساب» تنظیمات پنل، تا مسیرش. خالی یعنی کاربر لینک ساب نمی‌گیره.'}
+              >
+                <Input
+                  ltr
+                  value={xuiSubUrl}
+                  onChange={(event) => setXuiSubUrl(event.target.value)}
+                  placeholder="https://sub.example.com:2096/sub"
+                />
+              </Field>
+            </>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label={'نام کاربری پنل'}>

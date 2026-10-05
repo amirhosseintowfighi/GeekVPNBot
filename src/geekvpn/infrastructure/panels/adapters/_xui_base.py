@@ -396,7 +396,20 @@ class XuiFamilyAdapter(HttpPanelAdapter):
             state=state,
             usage=usage,
             expires_at=expires_at,
+            subscription_url=self._subscription_link(client),
         )
+
+    def _subscription_link(self, client: Mapping[str, Any]) -> str | None:
+        """The panel's own subscription link for this client, when it serves one.
+
+        Every account used to be delivered with no link at all: the adapter
+        set `subId` on create and never told anyone where it could be fetched.
+        """
+        sub_id = str(client.get("subId") or "")
+        base = self._config.subscription_url
+        if not sub_id or not base:
+            return None
+        return f"{base}/{sub_id}"
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         self.require(Capability.BULK_USAGE)
