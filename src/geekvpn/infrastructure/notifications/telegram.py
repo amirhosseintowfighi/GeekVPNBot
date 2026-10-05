@@ -253,6 +253,10 @@ class HttpOperatorSender:
             },
         )
 
+    def ban_chat_member(self, *, chat: str, user_id: int) -> None:
+        """Remove somebody from a channel or group and keep them out."""
+        self._post("banChatMember", {"chat_id": chat, "user_id": user_id})
+
     def send_document(self, *, chat_id: int, path: Path, caption: str) -> None:
         """Upload a file. Multipart, so it cannot share `_post`'s JSON body."""
         with path.open("rb") as handle:

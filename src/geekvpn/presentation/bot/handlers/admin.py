@@ -401,6 +401,8 @@ async def on_fake_confirmed(
             customer.suspend(reason=A.FAKE_REASON)
             await scope.users.update(customer)
         await scope.session.commit()
+        if customer is not None:
+            await scope.remove_from_channels(customer.telegram_id)
     except DomainError as failure:
         await toast(query, A.ACTION_FAILED.format(reason=str(failure)), alert=True)
         return
@@ -1312,6 +1314,8 @@ async def on_suspend_reason(
 
     customer.suspend(reason=normalize_input(message.text or ""))
     await scope.users.update(customer)
+    await scope.session.commit()
+    await scope.remove_from_channels(customer.telegram_id)
     await answer(message, A.SUSPENDED, reply_markup=K.main_menu())
 
 

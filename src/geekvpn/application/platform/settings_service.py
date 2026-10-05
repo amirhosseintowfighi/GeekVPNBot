@@ -523,6 +523,24 @@ REFUND_WINDOW_HOURS = SettingDefinition[int](
     ),
 )
 
+KICK_ON_SUSPEND = SettingDefinition[bool](
+    key="channels.kick_on_suspend",
+    label_fa="حذف کاربر مسدودشده از کانال‌های اجباری",
+    default=False,
+    type_=bool,
+    description=(
+        "When a customer is suspended, remove them from the shop's required channels"
+        " too. The bot must be an administrator there."
+    ),
+)
+CHANNEL_LEAVE_MESSAGE_FA = SettingDefinition[str](
+    key="channels.leave_message_fa",
+    label_fa="پیام به کاربری که از کانال اجباری خارج شد",
+    default="",
+    type_=str,
+    description="Sent to a customer who leaves a required channel. Empty sends nothing.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -566,6 +584,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         CARD_FOR_NEW_CUSTOMERS,
         HIDDEN_BUTTONS,
         REFUND_WINDOW_HOURS,
+        KICK_ON_SUSPEND,
+        CHANNEL_LEAVE_MESSAGE_FA,
     )
 }
 

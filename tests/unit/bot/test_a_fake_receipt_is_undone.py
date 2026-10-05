@@ -27,6 +27,7 @@ class Query:
 class Customer:
     def __init__(self) -> None:
         self.reason: str | None = None
+        self.telegram_id = CUSTOMER
 
     def suspend(self, *, reason: str) -> None:
         self.reason = reason
@@ -50,6 +51,9 @@ def scope(*, has_service: bool, customer: Customer) -> Any:
     async def commit() -> None:
         return None
 
+    async def remove_from_channels(telegram_id: int) -> int:
+        return 0
+
     return SimpleNamespace(
         revoked=revoked,
         reseller=None,
@@ -57,6 +61,7 @@ def scope(*, has_service: bool, customer: Customer) -> Any:
         subscription_admin=SimpleNamespace(revoke=revoke),
         users=SimpleNamespace(get_by_telegram_id=by_telegram, update=update),
         session=SimpleNamespace(commit=commit),
+        remove_from_channels=remove_from_channels,
     )
 
 

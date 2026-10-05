@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, partial
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -37,6 +37,7 @@ from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.platform.settings_service import (
+    KICK_ON_SUSPEND,
     REFUND_WINDOW_HOURS,
     SIGNUP_BONUS_NOTE_FA,
     SIGNUP_BONUS_TOMAN,
@@ -77,7 +78,12 @@ from geekvpn.infrastructure.di.sync_scope import (
     Uuid4IdGenerator,
     build_sync_scope,
 )
-from geekvpn.infrastructure.notifications.telegram import HttpTelegramFiles, HttpTelegramSender
+from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.notifications.telegram import (
+    HttpOperatorSender,
+    HttpTelegramFiles,
+    HttpTelegramSender,
+)
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
 from geekvpn.infrastructure.persistence.repositories.app_credentials import (
@@ -127,6 +133,8 @@ from geekvpn.infrastructure.persistence.repositories.settings import DbSettingsS
 from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserRepository
 from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
+
+logger = get_logger("scope")
 
 
 # Deliberately not `slots=True`: `cached_property` needs a real instance
@@ -255,9 +263,7 @@ class RequestScope:
             coupons=self.catalog_coupons,
             policies=self.pricing_policies,
             clock=self.container.clock,
-            default_retail=(
-                self.reseller.retail_overrides if self.reseller is not None else None
-            ),
+            default_retail=(self.reseller.retail_overrides if self.reseller is not None else None),
         )
 
     @cached_property
@@ -674,9 +680,7 @@ class RequestScope:
             shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
         )
 
-    async def _announce_delivery(
-        self, event: SubscriptionActivated, link: str | None
-    ) -> None:
+    async def _announce_delivery(self, event: SubscriptionActivated, link: str | None) -> None:
         def work(sync: SyncScope) -> None:
             sync.delivery_notifications.on_subscription_activated(event, link)
 
@@ -743,6 +747,34 @@ class RequestScope:
             clock=self.container.clock,
         )
 
+    async def remove_from_channels(self, telegram_id: int) -> int:
+        """Take a suspended customer out of this shop's required channels.
+
+        Only when the operator asked for it. Through the shop's own bot, which
+        is the one that is an administrator of its channels. A channel that
+        refuses - the bot is not an admin there - is logged and skipped:
+        suspending the account is what matters, and it has already happened.
+        """
+        if not await self.settings_service.get(KICK_ON_SUSPEND):
+            return 0
+        if self.reseller is not None:
+            token = await self.resellers.bot_token(self.reseller.id)
+        else:
+            token = self.container.settings.telegram.bot_token.get_secret_value()
+        if not token:
+            return 0
+        sender = HttpOperatorSender(token)
+        removed = 0
+        for channel in await self.required_channels.active():
+            try:
+                await run_in_threadpool(
+                    partial(sender.ban_chat_member, chat=channel.chat_ref, user_id=telegram_id)
+                )
+                removed += 1
+            except Exception:
+                logger.warning("channels.kick_failed", channel=channel.chat_ref, exc_info=True)
+        return removed
+
     async def grant_signup_bonus(self, telegram_id: int) -> int:
         """Credit a new customer's welcome bonus. Returns what was given.
 
@@ -761,9 +793,7 @@ class RequestScope:
         note = await self.settings_service.get(SIGNUP_BONUS_NOTE_FA)
 
         def work(sync: SyncScope) -> int:
-            entry = sync.signup_bonus.grant(
-                user_id=telegram_id, amount_toman=amount, note_fa=note
-            )
+            entry = sync.signup_bonus.grant(user_id=telegram_id, amount_toman=amount, note_fa=note)
             return amount if entry is not None else 0
 
         return await self.in_shop(work)

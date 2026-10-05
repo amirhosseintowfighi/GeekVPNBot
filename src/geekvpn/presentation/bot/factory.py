@@ -25,6 +25,7 @@ from geekvpn.presentation.bot.handlers import (
     admin_texts,
     admin_top,
     app_login,
+    channel_leave,
     dashboard,
     errors,
     fallback,
@@ -85,6 +86,7 @@ ROUTERS = (
     trial,
     service_owner,
     rules,
+    channel_leave,
     fallback,
 )
 
