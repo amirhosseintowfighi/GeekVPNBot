@@ -698,6 +698,7 @@ class RequestScope:
             # fetched, so a reseller's customer can never be handed a link
             # built from a different shop's settings.
             shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
+            products=self.catalog_products,
         )
 
     async def _announce_delivery(self, event: SubscriptionActivated, link: str | None) -> None:
