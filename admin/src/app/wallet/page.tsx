@@ -9,6 +9,7 @@ import { faDateTime, faNumber, normalizeInput, toman } from '@/lib/fa'
 import { TRANSACTION_KIND } from '@/lib/labels'
 import type { PagedWithCursor, TransactionKind, WalletTransactionRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
+import { BulkAdjustCard } from './bulk-adjust'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, ForbiddenState } from '@/components/shell/states'
 import { Badge } from '@/components/ui/badge'
@@ -181,6 +182,7 @@ export default function WalletPage() {
           </>
         )}
       </Card>
+      {can('wallet.adjust') ? <BulkAdjustCard /> : null}
     </>
   )
 }

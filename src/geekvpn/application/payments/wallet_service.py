@@ -39,6 +39,15 @@ Shared with the bot and the Mini App so the ladder is identical everywhere.
 """
 
 
+@dataclass(frozen=True, slots=True)
+class BulkAdjustment:
+    adjusted: int
+    #: Debits that took less than asked because the wallet held less.
+    partial: int
+    #: Debits skipped because the wallet was empty.
+    skipped: int
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Statement:
     """A page of history together with the balance it belongs to.
@@ -189,6 +198,36 @@ class WalletService:
                 reason_fa=entry.description_fa,
             )
         return entry
+
+    def adjust_many(
+        self, *, user_ids: Sequence[int], signed_amount: int, actor_id: int, reason_fa: str
+    ) -> BulkAdjustment:
+        """The same adjustment for many wallets: a gift to everyone, a correction.
+
+        Each wallet gets its own ledger entry with the reason and the operator,
+        exactly as a single adjustment would, so a customer's statement reads
+        the same whichever screen the money came from.
+
+        A debit takes no more than the wallet holds. Removing a gift from
+        somebody who already spent it must not push them into a debt they
+        never agreed to, so they lose what is left and are counted as partial.
+        """
+        adjusted = partial = skipped = 0
+        for user_id in user_ids:
+            amount = signed_amount
+            if amount < 0:
+                balance = self._wallets.get_or_create(user_id).balance.amount
+                if balance <= 0:
+                    skipped += 1
+                    continue
+                if -amount > balance:
+                    amount = -balance
+                    partial += 1
+            self.adjust(
+                user_id=user_id, signed_amount=amount, actor_id=actor_id, reason_fa=reason_fa
+            )
+            adjusted += 1
+        return BulkAdjustment(adjusted=adjusted, partial=partial, skipped=skipped)
 
     def credit_reward(
         self,

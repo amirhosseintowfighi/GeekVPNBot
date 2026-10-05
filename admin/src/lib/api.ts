@@ -802,6 +802,19 @@ export const api = {
       { signedAmount, reasonFa },
     ),
 
+  // Every wallet in a broadcast audience, credited or debited at once.
+  bulkAdjustWallets: (body: {
+    signedAmount: number
+    reasonFa: string
+    segment: BroadcastAudience['segment']
+    reference?: string | null
+  }) =>
+    mutate<{ audience: number; adjusted: number; partial: number; skipped: number }>(
+      'POST',
+      `${ROOT}/wallets/bulk-adjust`,
+      body,
+    ),
+
   // Direct message to one customer. Sends through the notification engine
   // rather than the bot API, so it is recorded and the customer's inbox
   // shows it alongside everything else they were sent.

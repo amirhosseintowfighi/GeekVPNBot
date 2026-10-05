@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import ConfigDict, Field
 
 from geekvpn.domain.identity.permissions import Permission
+from geekvpn.domain.notifications.enums import AudienceKind
 from geekvpn.domain.payments.enums import TransactionKind
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.presentation.api.admin_common import (
@@ -156,6 +157,56 @@ async def adjust_wallet(
         return {
             "entry": _entry_dict(entry),
             "balance": scope.wallet.balance(user_id).amount,
+        }
+
+    return await mutate_scope(container, work)
+
+
+class BulkAdjustBody(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    signedAmount: int = Field(
+        description="Positive credits every wallet, negative debits it. Zero is refused.",
+    )
+    reasonFa: str = Field(min_length=5, max_length=512)
+    #: The same audiences a broadcast offers, so "everyone with a live
+    #: service" or "one server's customers" mean the same thing on both screens.
+    segment: AudienceKind
+    reference: str | None = None
+
+
+@router.post(
+    "/bulk-adjust",
+    status_code=status.HTTP_201_CREATED,
+    summary="Credit or debit every wallet in an audience, with a reason on each",
+    dependencies=[Depends(requires(Permission.WALLET_ADJUST))],
+)
+async def bulk_adjust(
+    payload: BulkAdjustBody,
+    idempotency_key: IdempotencyKey,
+    container: ContainerDep,
+    actor: ActorId,
+) -> dict[str, Any]:
+    """A gift to everyone, or taking one back.
+
+    Idempotent like a single adjustment: a retried request that credited a
+    whole audience twice would be the most expensive double-click there is.
+    """
+    await claim_idempotency(container, idempotency_key, scope_label="wallet.bulk_adjust")
+
+    def work(scope: SyncScope) -> dict[str, Any]:
+        users = scope.audiences.resolve(payload.segment, reference=payload.reference)
+        result = scope.wallet.adjust_many(
+            user_ids=users,
+            signed_amount=payload.signedAmount,
+            actor_id=actor,
+            reason_fa=payload.reasonFa,
+        )
+        return {
+            "audience": len(users),
+            "adjusted": result.adjusted,
+            "partial": result.partial,
+            "skipped": result.skipped,
         }
 
     return await mutate_scope(container, work)
