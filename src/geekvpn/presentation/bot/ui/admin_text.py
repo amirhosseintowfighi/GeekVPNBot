@@ -321,3 +321,14 @@ FAKE_SERVICE_REMOVED: Final = "سرویس حذف شد"
 FAKE_TOPUP_REVERSED: Final = "شارژ کیف پول پس گرفته شد"
 FAKE_NOTHING_FOUND: Final = "چیزی برای حذف پیدا نشد"
 FAKE_REASON: Final = "فیش واریزی جعلی"
+
+BTN_TOP: Final = "🏆 برترین کاربران"
+TOP_TITLE: Final = "🏆 <b>برترین کاربران</b>\n\nکدوم فهرست رو می‌خوای؟"
+TOP_LADDERS: Final = {
+    "spent": "💰 بیشترین مبلغ خرید",
+    "services": "📦 بیشترین سرویس فعال",
+    "topped_up": "💳 بیشترین شارژ کیف پول",
+    "balance": "👛 بیشترین موجودی",
+}
+TOP_EMPTY: Final = "هنوز کسی در این فهرست نیست."
+TOP_ROW: Final = "{rank}. <code>{telegram_id}</code> {name} — {value}"

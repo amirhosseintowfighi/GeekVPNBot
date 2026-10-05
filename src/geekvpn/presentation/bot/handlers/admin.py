@@ -164,6 +164,7 @@ def _menu() -> InlineKeyboardMarkup:
             [K.btn(A.BTN_ADMINS, AdminCB(action="admins"))],
             [K.btn(A.BTN_TEXTS, AdminCB(action="texts"))],
             [K.btn(A.BTN_MENU_BUTTONS, AdminCB(action="menu_buttons"))],
+            [K.btn(A.BTN_TOP, AdminCB(action="top"))],
             [K.btn(A.BTN_EXPORT, AdminCB(action="export"))],
             [K.btn(A.BTN_BACKUP, AdminCB(action="backup"))],
         ]
