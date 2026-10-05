@@ -42,10 +42,14 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 from sqlalchemy import select
 
+from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
+from geekvpn.application.platform.settings_service import DELETE_EXPIRED_AFTER_HOURS
+from geekvpn.application.provisioning.expired_cleanup import ExpiredCleanup
 from geekvpn.domain.notifications.enums import JobKind
 from geekvpn.infrastructure.backup.service import LAST_RUN_KEY as LAST_BACKUP_KEY
 from geekvpn.infrastructure.backup.service import backup_settings, is_due, send_backup
@@ -64,6 +68,11 @@ from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 _BROADCAST_BATCH = 5
 
 logger = get_logger(__name__)
+
+#: To the operators' service channel, so a deleted account is not a surprise
+#: when its owner writes in a week later.
+EXPIRED_REPORT_FA = "⌛ <b>{count} سرویس منقضی شد</b>"
+CLEANUP_REPORT_FA = "🗑 <b>{count} سرویس منقضی حذف شد</b>\n\n<code>{names}</code>"
 
 #: How often the loop wakes. The scheduler decides what is actually due, so this
 #: is a resolution, not a job interval.
@@ -104,6 +113,9 @@ AUTO_RENEW_INTERVAL_SECONDS = 900
 #: is in hours; this only decides how late within the hour it can be.
 BACKUP_CHECK_INTERVAL_SECONDS = 600
 
+#: Deleting lapsed services is housekeeping; hourly is plenty.
+CLEANUP_INTERVAL_SECONDS = 3600
+
 
 class Worker:
     """Runs scheduled jobs until told to stop."""
@@ -117,6 +129,7 @@ class Worker:
         self._periodic: list[tuple[str, float, Callable[[], Awaitable[None]]]] = [
             ("auto_renew", AUTO_RENEW_INTERVAL_SECONDS, self._auto_renew),
             ("backup", BACKUP_CHECK_INTERVAL_SECONDS, self._backup),
+            ("cleanup", CLEANUP_INTERVAL_SECONDS, self._delete_lapsed),
         ]
         self._next_run: dict[str, float] = {}
 
@@ -253,6 +266,7 @@ class Worker:
                 await scope.aclose()
         if expired:
             logger.info("worker.subscriptions_expired", count=expired)
+            await self._report(AlertKind.SERVICE, EXPIRED_REPORT_FA.format(count=expired))
 
     async def _run_periodic(self) -> None:
         """Run each job in `_periodic` whose interval has passed.
@@ -301,6 +315,51 @@ class Worker:
         # interval, not every ten minutes against a channel that refuses it.
         await cache.set(LAST_BACKUP_KEY, now.isoformat())
         await asyncio.to_thread(send_backup, self._container, settings.chat_id)
+
+    async def _delete_lapsed(self) -> None:
+        """Delete panel accounts of services that ended past the grace period."""
+        async with self._container.session_factory() as session:
+            scope = build_scope(self._container, session)
+
+            async def revoke(subscription_id: str, reason_fa: str) -> object:
+                revoked = await scope.subscription_admin.revoke(
+                    subscription_id, reason_fa=reason_fa
+                )
+                # Each one committed as it goes: the panel account is already
+                # gone, and a later failure must not roll the record back to
+                # claim it still exists.
+                await session.commit()
+                return revoked
+
+            async def hours() -> int:
+                return await scope.settings_service.get(DELETE_EXPIRED_AFTER_HOURS)
+
+            try:
+                removed = await ExpiredCleanup(
+                    lapsed=scope.subscriptions,
+                    revoke=revoke,
+                    hours=hours,
+                    clock=self._container.clock,
+                ).run()
+            finally:
+                await scope.aclose()
+        if removed:
+            logger.info("worker.lapsed_deleted", count=len(removed))
+            await self._report_cleanup(removed)
+
+    async def _report_cleanup(self, removed: list[Any]) -> None:
+        names = ", ".join(sub.remote_username for sub in removed[:30])
+        more = f" (+{len(removed) - 30})" if len(removed) > 30 else ""
+        await self._report(
+            AlertKind.SERVICE, CLEANUP_REPORT_FA.format(count=len(removed), names=names + more)
+        )
+
+    async def _report(self, kind: AlertKind, text: str) -> None:
+        def work() -> None:
+            with self._container.sync_sessions() as session:
+                build_sync_scope(self._container, session).operator_reports.send(kind, text)
+
+        await asyncio.to_thread(work)
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.

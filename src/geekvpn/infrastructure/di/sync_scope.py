@@ -65,7 +65,9 @@ from geekvpn.application.platform.settings_service import (
     ALERTS_PAYMENTS_CHAT,
     ALERTS_RECEIPTS_CHAT,
     ALERTS_REPORTS_CHAT,
+    ALERTS_SERVICES_CHAT,
     ALERTS_TICKETS_CHAT,
+    ALERTS_TRIALS_CHAT,
     CARD_LABEL_FA,
     CRYPTO_LABEL_FA,
     REMINDER_EXPIRY_DAYS,
@@ -159,6 +161,8 @@ _ALERT_SETTING: dict[AlertKind, SettingDefinition[int]] = {
     AlertKind.PAYMENT: ALERTS_PAYMENTS_CHAT,
     AlertKind.TICKET: ALERTS_TICKETS_CHAT,
     AlertKind.REPORT: ALERTS_REPORTS_CHAT,
+    AlertKind.SERVICE: ALERTS_SERVICES_CHAT,
+    AlertKind.TRIAL: ALERTS_TRIALS_CHAT,
 }
 
 class Uuid4IdGenerator:
@@ -558,6 +562,9 @@ class SyncScope:
             # Unset falls back to the receipts group, not to private chats: an
             # operator who made one group expects every payment in it.
             return settings.get(ALERTS_PAYMENTS_CHAT) or settings.get(ALERTS_RECEIPTS_CHAT)
+        if kind in (AlertKind.SERVICE, AlertKind.TRIAL):
+            # Narrower streams of reports; unset, they are reports.
+            return settings.get(_ALERT_SETTING[kind]) or settings.get(ALERTS_REPORTS_CHAT)
         return settings.get(_ALERT_SETTING[kind])
 
     @cached_property

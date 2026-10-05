@@ -297,6 +297,21 @@ ALERTS_REPORTS_CHAT = SettingDefinition[int](
     ),
 )
 
+ALERTS_SERVICES_CHAT = SettingDefinition[int](
+    key="alerts.services_chat_id",
+    label_fa="کانال اعلان حذف و اتمام سرویس‌ها (آیدی عددی)",
+    default=0,
+    type_=int,
+    description="Chat told when services expire or are deleted. 0 uses the reports chat.",
+)
+ALERTS_TRIALS_CHAT = SettingDefinition[int](
+    key="alerts.trials_chat_id",
+    label_fa="کانال اکانت‌های تست (آیدی عددی)",
+    default=0,
+    type_=int,
+    description="Chat told about every free trial handed out. 0 uses the reports chat.",
+)
+
 RENAME_ENABLED = SettingDefinition[bool](
     key="services.rename_enabled",
     label_fa="تغییر نام سرویس توسط کاربر",
@@ -564,6 +579,18 @@ TUTORIALS = SettingDefinition[dict[str, Any]](
     description="Per-device connection tutorials (text, photo or video). Edited from the bot.",
 )
 
+DELETE_EXPIRED_AFTER_HOURS = SettingDefinition[int](
+    key="services.delete_expired_after_hours",
+    label_fa="حذف خودکار سرویس منقضی بعد از (ساعت)",
+    default=0,
+    type_=int,
+    minimum=0,
+    description=(
+        "Delete the panel account of a service this many hours after it expired or ran"
+        " out of traffic. 0 keeps them forever."
+    ),
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -587,6 +614,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         ALERTS_PAYMENTS_CHAT,
         ALERTS_TICKETS_CHAT,
         ALERTS_REPORTS_CHAT,
+        ALERTS_SERVICES_CHAT,
+        ALERTS_TRIALS_CHAT,
         RENAME_ENABLED,
         TRANSFER_ENABLED,
         BACKUP_CHAT,
@@ -610,6 +639,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         KICK_ON_SUSPEND,
         CHANNEL_LEAVE_MESSAGE_FA,
         TUTORIALS,
+        DELETE_EXPIRED_AFTER_HOURS,
     )
 }
 

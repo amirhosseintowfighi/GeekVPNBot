@@ -36,6 +36,7 @@ from geekvpn.application.identity.authenticate_telegram import AuthenticateTeleg
 from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
+from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.platform.settings_service import (
     KICK_ON_SUSPEND,
     REFUND_WINDOW_HOURS,
@@ -47,7 +48,7 @@ from geekvpn.application.platform.settings_service import (
     SettingsService,
 )
 from geekvpn.application.provisioning.claim_service import ClaimService
-from geekvpn.application.provisioning.free_trial import FreeTrial, TrialTerms
+from geekvpn.application.provisioning.free_trial import FreeTrial, TrialDelivery, TrialTerms
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.application.provisioning.subscription_admin import (
@@ -135,6 +136,15 @@ from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
 
 logger = get_logger("scope")
+
+#: For the operators' trial channel. Here, beside the one place trials are
+#: built, because infrastructure may not import the bot's text module.
+TRIAL_REPORT_FA = (
+    "🎁 <b>اکانت تست</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "سرویس‌ها: <code>{names}</code>\n"
+    "در صف ساخت: {pending}"
+)
 
 
 # Deliberately not `slots=True`: `cached_property` needs a real instance
@@ -543,7 +553,17 @@ class RequestScope:
             clock=self.container.clock,
             jalali_year=year,
             terms=self._trial_terms,
+            announce=self._announce_trial,
         )
+
+    async def _announce_trial(self, telegram_id: int, delivery: TrialDelivery) -> None:
+        names = ", ".join(sub.remote_username for sub in delivery.subscriptions) or "—"
+        text = TRIAL_REPORT_FA.format(user_id=telegram_id, names=names, pending=delivery.pending)
+
+        def work(sync: SyncScope) -> None:
+            sync.operator_reports.send(AlertKind.TRIAL, text)
+
+        await self.in_shop(work)
 
     async def _trial_terms(self) -> TrialTerms:
         settings = self.settings_service

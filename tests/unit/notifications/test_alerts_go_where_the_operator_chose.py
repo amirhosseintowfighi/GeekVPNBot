@@ -145,3 +145,13 @@ def test_a_broken_settings_read_still_delivers_the_alert() -> None:
     )
 
     assert [t["chat_id"] for t in sender.texts] == ADMINS
+
+
+def test_the_cleanup_job_is_on_the_workers_table() -> None:
+    from types import SimpleNamespace
+
+    from geekvpn.entrypoints.worker import Worker
+
+    worker = Worker(SimpleNamespace())  # type: ignore[arg-type]
+
+    assert "cleanup" in {name for name, _, _ in worker._periodic}

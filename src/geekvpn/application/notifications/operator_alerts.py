@@ -59,6 +59,10 @@ class AlertKind(enum.StrEnum):
     PAYMENT = "payment"
     TICKET = "ticket"
     REPORT = "report"
+    #: Services that ended or were deleted.
+    SERVICE = "service"
+    #: Free trials handed out.
+    TRIAL = "trial"
 
 
 class OperatorReports:

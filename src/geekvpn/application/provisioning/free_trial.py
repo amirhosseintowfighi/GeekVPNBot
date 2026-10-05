@@ -98,7 +98,11 @@ class FreeTrial:
         #: between one customer and the next, and terms captured when this
         #: service was built would hand out yesterday's trial.
         terms: Callable[[], Awaitable[TrialTerms]] = _default_terms,
+        #: Told who took a trial and what came up, for the operators' trial
+        #: channel. Never allowed to fail the delivery it reports on.
+        announce: Callable[[int, TrialDelivery], Awaitable[None]] | None = None,
     ) -> None:
+        self._announce = announce
         self._terms = terms
         self._claims = claims
         self._products = products
@@ -173,7 +177,13 @@ class FreeTrial:
             except ProvisioningError as error:
                 pending += 1
                 _log.warning("free_trial.delivery_pending order=%s reason=%s", order.id, error.code)
-        return TrialDelivery(subscriptions=tuple(delivered), pending=pending)
+        delivery = TrialDelivery(subscriptions=tuple(delivered), pending=pending)
+        if self._announce is not None and orders:
+            try:
+                await self._announce(orders[0].user_id, delivery)
+            except Exception:
+                _log.exception("free_trial.announce_failed")
+        return delivery
 
     async def _plans_by_tier(self) -> list[tuple[Product, Plan]]:
         """For each trial tier, the plan a trial order is filed under.

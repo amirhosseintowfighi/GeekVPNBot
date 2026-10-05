@@ -397,6 +397,26 @@ class SqlAlchemySubscriptionRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 
+    async def list_lapsed_before(self, *, cutoff: datetime, limit: int = 200) -> Sequence[Subscription]:
+        """Expired or used-up services whose date passed before `cutoff`.
+
+        For the clean-up job. Suspended services are left alone: suspension is
+        an operator's decision, and deleting the account would make it final.
+        """
+        stmt = (
+            select(SubscriptionModel)
+            .where(
+                SubscriptionModel.state.in_(
+                    (SubscriptionState.EXPIRED.value, SubscriptionState.EXHAUSTED.value)
+                ),
+                SubscriptionModel.expires_at <= cutoff,
+            )
+            .order_by(SubscriptionModel.expires_at)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows]
+
     async def list_auto_renew_due(
         self, *, before: datetime, limit: int = 200
     ) -> Sequence[Subscription]:

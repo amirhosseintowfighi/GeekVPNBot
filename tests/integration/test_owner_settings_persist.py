@@ -212,3 +212,25 @@ async def test_the_daily_cap_counts_only_new_services_that_went_ahead(
     )
 
     assert counted == 2
+
+
+async def test_the_cleanup_picks_only_long_dead_services(session: AsyncSession) -> None:
+    session.add_all(
+        [
+            subscription("old", auto_renew=False, expires_in=-timedelta(days=5), state="expired"),
+            subscription(
+                "fresh", auto_renew=False, expires_in=-timedelta(hours=1), state="expired"
+            ),
+            subscription("live", auto_renew=False, expires_in=timedelta(days=5)),
+            subscription(
+                "banned", auto_renew=False, expires_in=-timedelta(days=5), state="suspended"
+            ),
+        ]
+    )
+    await session.commit()
+
+    due = await SqlAlchemySubscriptionRepository(session).list_lapsed_before(
+        cutoff=NOW - timedelta(days=2)
+    )
+
+    assert [s.id for s in due] == ["old"]

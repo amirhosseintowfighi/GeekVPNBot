@@ -311,3 +311,18 @@ async def test_the_operator_decides_how_big_and_how_long_the_trial_is() -> None:
     assert (offer.traffic_mib, offer.duration_days) == (2048, 5)
     assert all(order.traffic_mib == 2048 and order.duration_days == 5 for order in placed)
     assert all(spec.expires_at == NOW + timedelta(days=5) for spec in panel.created)
+
+
+@pytest.mark.asyncio
+async def test_the_trial_channel_is_told_who_took_one() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, _ = build(catalogue)
+    told: list[tuple[int, int]] = []
+
+    async def announce(user_id: int, delivery: object) -> None:
+        told.append((user_id, len(delivery.subscriptions)))  # type: ignore[attr-defined]
+
+    trial._announce = announce
+    await trial.deliver(await trial.place(USER))
+
+    assert told == [(USER, 2)]
