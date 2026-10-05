@@ -19,10 +19,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from geekvpn.application.platform.settings_service import RULES_ENABLED, TEXT_OVERRIDES
+from geekvpn.application.platform.settings_service import (
+    HIDDEN_BUTTONS,
+    RULES_ENABLED,
+    TEXT_OVERRIDES,
+    parse_hidden,
+)
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.presentation.bot.handlers.admin import _guard
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
+from geekvpn.presentation.bot.handlers.menu import HIDEABLE
 from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import copy as C
 from geekvpn.presentation.bot.ui import keyboards as K
@@ -191,3 +197,51 @@ async def on_rules_toggle(query: CallbackQuery, scope: Any = None, user: Any = N
     await scope.session.commit()
     await toast(query)
     await safe_edit(query, A.TEXTS_TITLE, markup=_list_markup(turned_on))
+
+
+# -- home buttons ----------------------------------------------------------------
+
+
+def _buttons_markup(hidden: frozenset[str]) -> Any:
+    rows = [
+        [
+            K.btn(
+                f"{'🚫' if key in hidden else '✅'} {label}",
+                AdminCB(action="menu_btn", ref=key),
+            )
+        ]
+        for key, label in HIDEABLE.items()
+    ]
+    rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
+    return K.stack(rows)
+
+
+@router.callback_query(AdminCB.filter(F.action == "menu_buttons"))
+async def on_menu_buttons(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
+    if await _editor(scope, user) is None:
+        await toast(query, A.TEXTS_NOT_ALLOWED, alert=True)
+        return
+    await toast(query)
+    hidden = parse_hidden(await scope.settings_service.get(HIDDEN_BUTTONS))
+    await safe_edit(query, A.MENU_BUTTONS_TITLE, markup=_buttons_markup(hidden))
+
+
+@router.callback_query(AdminCB.filter(F.action == "menu_btn"))
+async def on_menu_button_toggle(
+    query: CallbackQuery, callback_data: AdminCB, scope: Any = None, user: Any = None
+) -> None:
+    admin = await _editor(scope, user)
+    if admin is None or callback_data.ref not in HIDEABLE:
+        await toast(query, A.TEXTS_NOT_ALLOWED, alert=True)
+        return
+    hidden = set(parse_hidden(await scope.settings_service.get(HIDDEN_BUTTONS)))
+    hidden ^= {callback_data.ref}
+    await scope.settings_service.set(
+        HIDDEN_BUTTONS.key,
+        ",".join(sorted(hidden)),
+        actor_id=admin.id,
+        actor_label=admin.username,
+    )
+    await scope.session.commit()
+    await toast(query)
+    await safe_edit(query, A.MENU_BUTTONS_TITLE, markup=_buttons_markup(frozenset(hidden)))

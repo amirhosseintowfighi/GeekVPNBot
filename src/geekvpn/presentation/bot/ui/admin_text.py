@@ -305,3 +305,6 @@ EXPORT_WORKING: Final = "⏳ دارم فایل اکسل رو می‌سازم…"
 EXPORT_CAPTION: Final = "📊 سفارش‌ها و کاربران تا {date}"
 EXPORT_FAILED: Final = "❌ ساخت فایل اکسل ممکن نشد. لاگ سرور رو ببین."
 EXPORT_NOT_ALLOWED: Final = "خروجی گرفتن دسترسی خروجی آمار می‌خواد."
+
+BTN_MENU_BUTTONS: Final = "🔘 دکمه‌های صفحهٔ اصلی"
+MENU_BUTTONS_TITLE: Final = "🔘 <b>دکمه‌های صفحهٔ اصلی</b>\n\nروی هر دکمه بزن تا روشن یا خاموش بشه."

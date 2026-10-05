@@ -484,6 +484,32 @@ CARD_FOR_NEW_CUSTOMERS = SettingDefinition[bool](
     ),
 )
 
+#: Matches `HIDEABLE` in the bot's menu module; the settings layer cannot import
+#: presentation, so the names are repeated and a test holds the two together.
+HIDEABLE_BUTTONS: frozenset[str] = frozenset(
+    {"wallet", "reseller", "status", "referral", "faq", "support", "trial"}
+)
+
+
+def _button_list(raw: Any) -> str | None:
+    names = {part.strip() for part in str(raw).split(",") if part.strip()}
+    unknown = names - HIDEABLE_BUTTONS
+    return f"unknown buttons: {', '.join(sorted(unknown))}" if unknown else None
+
+
+def parse_hidden(raw: str) -> frozenset[str]:
+    return frozenset(part.strip() for part in raw.split(",") if part.strip()) & HIDEABLE_BUTTONS
+
+
+HIDDEN_BUTTONS = SettingDefinition[str](
+    key="menu.hidden_buttons",
+    label_fa="دکمه‌های خاموش صفحهٔ اصلی",
+    default="",
+    type_=str,
+    validator=_button_list,
+    description="Home-screen buttons switched off, comma separated. Edited from the bot.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -525,6 +551,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         REFERRAL_RECURRING_FIXED,
         REFERRAL_INVITEE_BONUS,
         CARD_FOR_NEW_CUSTOMERS,
+        HIDDEN_BUTTONS,
     )
 }
 

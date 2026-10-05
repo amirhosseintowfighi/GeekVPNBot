@@ -39,8 +39,26 @@ router = Router(name="menu")
 _LIVE_STATES = (SubscriptionState.ACTIVE, SubscriptionState.EXPIRING)
 
 
+#: Home buttons an operator may switch off, and what to call each one. The shop
+#: and "my services" are not here: a bot without them sells nothing and
+#: strands everybody who already bought.
+HIDEABLE: dict[str, str] = {
+    "wallet": T.MENU_WALLET,
+    "reseller": T.MENU_RESELLER,
+    "status": T.MENU_STATUS,
+    "referral": T.MENU_REFERRAL,
+    "faq": T.MENU_FAQ,
+    "support": T.MENU_SUPPORT,
+    "trial": T.MENU_TRIAL,
+}
+
+
 def home_keyboard(
-    *, is_admin: bool = False, offer_trial: bool = False, rules: bool = False
+    *,
+    is_admin: bool = False,
+    offer_trial: bool = False,
+    rules: bool = False,
+    hidden: frozenset[str] = frozenset(),
 ) -> InlineKeyboardMarkup:
     """The home screen.
 
@@ -73,7 +91,17 @@ def home_keyboard(
             K.btn(f"{E.SUPPORT} {T.MENU_SUPPORT}", NavCB(to="support")),
         ],
     ]
-    if offer_trial:
+    # Only what may be hidden: a stored value naming the shop must not empty it.
+    hidden = hidden & HIDEABLE.keys()
+    if hidden:
+        # A row whose every button is hidden goes too, rather than leaving a
+        # gap in the middle of the screen.
+        rows = [
+            kept
+            for row in rows
+            if (kept := [button for button in row if _target(button) not in hidden])
+        ]
+    if offer_trial and "trial" not in hidden:
         # Under the shop, not above it: the trial is how somebody decides to
         # buy, and it disappears for good once it has been had.
         rows.insert(1, [K.btn(f"{E.TRIAL} {T.MENU_TRIAL}", TrialCB(action="view"), style=K.YES)])
@@ -82,6 +110,11 @@ def home_keyboard(
     if is_admin:
         rows.append([K.btn(A.MENU_BUTTON, AdminCB(action="menu"))])
     return K.stack(rows)
+
+
+def _target(button: Any) -> str:
+    data = str(getattr(button, "callback_data", "") or "")
+    return data.split(":", 1)[1] if data.startswith("nav:") else ""
 
 
 async def render_home(
@@ -136,6 +169,7 @@ async def render_home(
         is_admin=is_admin,
         offer_trial=offer_trial,
         rules=bool(getattr(scope, "rules_enabled", False)),
+        hidden=frozenset(getattr(scope, "hidden_buttons", None) or ()),
     )
 
 

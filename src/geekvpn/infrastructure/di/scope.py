@@ -148,6 +148,8 @@ class RequestScope:
     platform_texts: dict[str, str] | None = None
     #: Whether the rules screen is switched on.
     rules_enabled: bool = False
+    #: Home buttons the operator switched off.
+    hidden_buttons: frozenset[str] = frozenset()
 
     # -- repositories ------------------------------------------------------
 

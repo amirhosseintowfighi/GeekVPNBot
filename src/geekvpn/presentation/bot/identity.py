@@ -20,7 +20,12 @@ from aiogram.types import TelegramObject, Update
 from aiogram.types import User as TelegramUser
 
 from geekvpn.application.identity.dto import RequestContext
-from geekvpn.application.platform.settings_service import RULES_ENABLED, TEXT_OVERRIDES
+from geekvpn.application.platform.settings_service import (
+    HIDDEN_BUTTONS,
+    RULES_ENABLED,
+    TEXT_OVERRIDES,
+    parse_hidden,
+)
 from geekvpn.application.ports.telegram_auth import TelegramIdentity
 from geekvpn.domain.identity.enums import AuthMethod
 from geekvpn.domain.identity.errors import AccountSuspendedError
@@ -125,6 +130,7 @@ async def _load_platform_texts(scope: Any) -> None:
     try:
         scope.platform_texts = await scope.settings_service.get(TEXT_OVERRIDES)
         scope.rules_enabled = await scope.settings_service.get(RULES_ENABLED)
+        scope.hidden_buttons = parse_hidden(await scope.settings_service.get(HIDDEN_BUTTONS))
     except Exception:
         logger.warning("bot.platform_texts_unreadable", exc_info=True)
 
