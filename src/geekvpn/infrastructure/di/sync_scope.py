@@ -21,6 +21,7 @@ import secrets
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from functools import cached_property
 from typing import Any
 
@@ -55,6 +56,7 @@ from geekvpn.application.payments.adapters import (
     WalletGateway,
 )
 from geekvpn.application.payments.checkout_service import CheckoutService
+from geekvpn.application.payments.newcomer_gift import NewcomerGift
 from geekvpn.application.payments.referral_rewards import ReferralRewards
 from geekvpn.application.payments.refund_service import RefundService
 from geekvpn.application.payments.review_service import PaymentReviewService
@@ -70,6 +72,9 @@ from geekvpn.application.platform.settings_service import (
     ALERTS_TRIALS_CHAT,
     CARD_LABEL_FA,
     CRYPTO_LABEL_FA,
+    NEWCOMER_GIFT_AFTER_HOURS,
+    NEWCOMER_GIFT_MESSAGE_FA,
+    NEWCOMER_GIFT_TOMAN,
     REMINDER_EXPIRY_DAYS,
     REMINDER_TRAFFIC_PERCENTS,
     TOPUP_MAX_TOMAN,
@@ -87,6 +92,7 @@ from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
+from geekvpn.domain.notifications.message import render
 from geekvpn.domain.notifications.schedule import ReminderThresholds, parse_thresholds
 from geekvpn.domain.payments.events import (
     PaymentApproved,
@@ -126,6 +132,9 @@ from geekvpn.infrastructure.persistence.repositories.subscription_reader import 
 from geekvpn.infrastructure.persistence.repositories.sync_catalog import SyncCouponReleaser
 from geekvpn.infrastructure.persistence.repositories.sync_directory import (
     SyncUserDirectory,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_newcomers import (
+    newcomers_without_purchase,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_notifications import (
     SyncBroadcastRepository,
@@ -1089,6 +1098,31 @@ class SyncScope:
             wallets=self.wallet,
             ledger=self.wallets,
             reseller_id=self.reseller_id,
+        )
+
+    @cached_property
+    def newcomer_gift(self) -> NewcomerGift:
+        def candidates(after: datetime, before: datetime) -> list[int]:
+            return newcomers_without_purchase(self.session, after, before)
+
+        def notify(user_id: int, amount: int, message_fa: str) -> None:
+            self.engine.dispatch(
+                user_id=user_id,
+                message=render("wallet.newcomer_gift", message=message_fa, amount=amount),
+                source="gifts.newcomer",
+            )
+
+        return NewcomerGift(
+            wallets=self.wallet, candidates=candidates, notify=notify, clock=self.container.clock
+        )
+
+    def give_newcomer_gifts(self) -> list[int]:
+        """The worker's hourly run, with today's settings."""
+        settings = SyncSettings(self.session)
+        return self.newcomer_gift.run(
+            after_hours=settings.get(NEWCOMER_GIFT_AFTER_HOURS),
+            amount_toman=settings.get(NEWCOMER_GIFT_TOMAN),
+            message_fa=settings.get(NEWCOMER_GIFT_MESSAGE_FA),
         )
 
     # -- support -----------------------------------------------------------

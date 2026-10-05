@@ -403,6 +403,14 @@ CATALOG: dict[str, MessageTemplate] = {
             action="dashboard",
         ),
         MessageTemplate(
+            # The operator writes the words; the template only carries them.
+            key="wallet.newcomer_gift",
+            category=_C.PROMOS,
+            title_fa="🎁 یه هدیه برات داریم",
+            body_fa="{message}\n\nمبلغ هدیه: {amount} تومان",
+            action="shop",
+        ),
+        MessageTemplate(
             key="subscription.transferred_in",
             category=_C.CRITICAL,
             title_fa="یک سرویس بهت منتقل شد",

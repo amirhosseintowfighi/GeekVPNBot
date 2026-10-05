@@ -73,6 +73,7 @@ logger = get_logger(__name__)
 #: when its owner writes in a week later.
 EXPIRED_REPORT_FA = "⌛ <b>{count} سرویس منقضی شد</b>"
 CLEANUP_REPORT_FA = "🗑 <b>{count} سرویس منقضی حذف شد</b>\n\n<code>{names}</code>"
+NEWCOMER_GIFT_REPORT_FA = "🎁 <b>هدیهٔ عضو جدید به {count} نفر داده شد</b>"
 
 #: How often the loop wakes. The scheduler decides what is actually due, so this
 #: is a resolution, not a job interval.
@@ -115,6 +116,8 @@ BACKUP_CHECK_INTERVAL_SECONDS = 600
 
 #: Deleting lapsed services is housekeeping; hourly is plenty.
 CLEANUP_INTERVAL_SECONDS = 3600
+#: The newcomer gift's wait is set in hours, so an hourly look is on time.
+NEWCOMER_GIFT_INTERVAL_SECONDS = 3600
 
 
 class Worker:
@@ -130,6 +133,7 @@ class Worker:
             ("auto_renew", AUTO_RENEW_INTERVAL_SECONDS, self._auto_renew),
             ("backup", BACKUP_CHECK_INTERVAL_SECONDS, self._backup),
             ("cleanup", CLEANUP_INTERVAL_SECONDS, self._delete_lapsed),
+            ("newcomer_gift", NEWCOMER_GIFT_INTERVAL_SECONDS, self._newcomer_gifts),
         ]
         self._next_run: dict[str, float] = {}
 
@@ -346,6 +350,20 @@ class Worker:
         if removed:
             logger.info("worker.lapsed_deleted", count=len(removed))
             await self._report_cleanup(removed)
+
+    async def _newcomer_gifts(self) -> None:
+        def work() -> list[int]:
+            with self._container.sync_sessions() as session:
+                given = build_sync_scope(self._container, session).give_newcomer_gifts()
+                session.commit()
+                return given
+
+        given = await asyncio.to_thread(work)
+        if given:
+            logger.info("worker.newcomer_gifts", count=len(given))
+            await self._report(
+                AlertKind.REPORT, NEWCOMER_GIFT_REPORT_FA.format(count=len(given))
+            )
 
     async def _report_cleanup(self, removed: list[Any]) -> None:
         names = ", ".join(sub.remote_username for sub in removed[:30])

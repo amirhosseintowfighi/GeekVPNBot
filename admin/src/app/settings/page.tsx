@@ -38,6 +38,7 @@ const GROUP_TITLES: Record<string, string> = {
   reminders: 'یادآوری‌ها',
   backup: 'بکاپ',
   services: 'سرویس‌ها',
+  gifts: 'هدیه‌ها',
   alerts: 'اعلان‌های مدیریت',
   renewal: 'تمدید',
   trial: 'اکانت تست',

@@ -591,6 +591,35 @@ DELETE_EXPIRED_AFTER_HOURS = SettingDefinition[int](
     ),
 )
 
+NEWCOMER_GIFT_AFTER_HOURS = SettingDefinition[int](
+    key="gifts.newcomer_after_hours",
+    label_fa="هدیه به عضو جدیدی که خرید نکرده، بعد از (ساعت)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=24 * 30,
+    description=(
+        "Credit a customer who joined this many hours ago and has bought nothing yet."
+        " Once per customer, the platform's shop only. 0 switches it off."
+    ),
+)
+NEWCOMER_GIFT_TOMAN = SettingDefinition[int](
+    key="gifts.newcomer_amount_toman",
+    label_fa="مبلغ هدیهٔ عضو جدید (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=10_000_000,
+    description="How much that customer's wallet is credited, in Toman. 0 switches it off.",
+)
+NEWCOMER_GIFT_MESSAGE_FA = SettingDefinition[str](
+    key="gifts.newcomer_message_fa",
+    label_fa="پیام هدیهٔ عضو جدید",
+    default="هنوز سرویسی نگرفتی؟ یه هدیه به کیف پولت اضافه کردیم تا با تخفیف شروع کنی 🎁",
+    type_=str,
+    description="Sent with the gift. Empty sends only the wallet notice.",
+)
+
 SHOW_CAPACITY = SettingDefinition[bool](
     key="shop.show_capacity",
     label_fa="نمایش ظرفیت باقی‌ماندهٔ سرور هنگام خرید",
@@ -649,6 +678,9 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         TUTORIALS,
         DELETE_EXPIRED_AFTER_HOURS,
         SHOW_CAPACITY,
+        NEWCOMER_GIFT_AFTER_HOURS,
+        NEWCOMER_GIFT_TOMAN,
+        NEWCOMER_GIFT_MESSAGE_FA,
     )
 }
 
