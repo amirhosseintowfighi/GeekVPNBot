@@ -148,7 +148,7 @@ class ResellerSalesService:
         order = await self._orders.place(
             # Attributed to the reseller's own account, because their customer
             # is not a user of this platform.
-            user_id=_owner_id(reseller),
+            user_id=owner_id(reseller),
             jalali_year=self._jalali_year,
             plan_id=str(plan_id),
             plan_name_fa=plan.name_fa,
@@ -216,7 +216,7 @@ class ResellerSalesService:
         return rows
 
 
-def _owner_id(reseller: Reseller) -> int:
+def owner_id(reseller: Reseller) -> int:
     """A stable integer for orders sold by this reseller.
 
     Orders key on a Telegram id, and a reseller's customer has none that this
@@ -241,4 +241,4 @@ def _traffic_of(plan: Any) -> int | None:
     return None if gib is None else int(gib) * 1024
 
 
-__all__ = ["NodeNotAllowed", "ResellerSale", "ResellerSalesService"]
+__all__ = ["NodeNotAllowed", "ResellerSale", "ResellerSalesService", "owner_id"]

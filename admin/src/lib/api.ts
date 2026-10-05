@@ -499,6 +499,8 @@ export const api = {
       status: string
       discountPercent: number
       contactFa: string | null
+      configPrefix: string
+      configSuffix: string
     }>,
   ) => mutate<ResellerRow>('PATCH', `${ROOT}/resellers/${id}`, patch),
   setResellerPanels: (id: string, nodeIds: string[]) =>
@@ -617,6 +619,8 @@ export const api = {
     mutate<ResellerTopupRow[]>('POST', '/api/v1/reseller/topups', { amount, noteFa }),
   setMyBrand: (brandFa: string) =>
     mutate<ResellerSelf>('PUT', '/api/v1/reseller/brand', { brandFa }),
+  setMyConfigName: (configPrefix: string, configSuffix: string) =>
+    mutate<ResellerSelf>('PUT', '/api/v1/reseller/config-name', { configPrefix, configSuffix }),
   setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
 
   // The operator's view of one shop. The scoping was never about hiding a

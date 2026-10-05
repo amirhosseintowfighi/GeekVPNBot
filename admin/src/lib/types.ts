@@ -807,6 +807,9 @@ export interface ResellerRow {
   hasBot: boolean
   botUsername: string | null
   inArrears: boolean
+  /** Around the order number in their customers' config names. */
+  configPrefix: string | null
+  configSuffix: string | null
 }
 
 /** The one response that carries a password. It is never readable again. */
@@ -877,6 +880,8 @@ export interface ResellerSelf {
   inArrears: boolean
   botUsername: string | null
   hasBot: boolean
+  configPrefix: string | null
+  configSuffix: string | null
 }
 
 /** GET /api/v1/reseller/summary - four sums off their own ledger. */

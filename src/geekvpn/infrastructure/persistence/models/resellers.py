@@ -80,6 +80,10 @@ class ResellerModel(TimestampMixin, Base):
     brand_fa: Mapped[str | None] = mapped_column(String(64))
     contact_fa: Mapped[str | None] = mapped_column(String(256))
     note_fa: Mapped[str | None] = mapped_column(String(512))
+    #: Around the order number in their customers' panel usernames. NULL is
+    #: the platform's prefix and no suffix.
+    config_prefix: Mapped[str | None] = mapped_column(String(10))
+    config_suffix: Mapped[str | None] = mapped_column(String(10))
 
     #: Node id to the host this shop's subscription links are served on.
     #:

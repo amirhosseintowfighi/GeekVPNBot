@@ -59,7 +59,7 @@ from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.application.resellers.applications import ResellerApplications
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.password_setup import PasswordSetup
-from geekvpn.application.resellers.sales import ResellerSalesService
+from geekvpn.application.resellers.sales import ResellerSalesService, owner_id
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.application.resellers.topups import ResellerTopups
 from geekvpn.domain.analytics.calendar import to_jalali
@@ -67,7 +67,9 @@ from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
 from geekvpn.domain.payments.enums import TransactionKind
+from geekvpn.domain.provisioning.enums import OrderSource
 from geekvpn.domain.provisioning.events import SubscriptionActivated
+from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.domain.resellers.reseller import Reseller
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
@@ -699,7 +701,29 @@ class RequestScope:
             # built from a different shop's settings.
             shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
             products=self.catalog_products,
+            config_name=self._config_name,
         )
+
+    async def _config_name(self, order: Order) -> tuple[str | None, str | None]:
+        """The selling reseller's prefix and suffix, from the order itself.
+
+        A customer of a reseller's bot is found by the shop the order row was
+        placed in. A sale from the reseller's own portal is placed in no shop
+        and filed under the reseller's derived owner id instead - so that is
+        matched too, or the portal's sales would carry our name.
+        """
+        reseller: Reseller | None = None
+        shop = await self.orders.shop_of(order.id)
+        if shop is not None:
+            reseller = await self.resellers.get(shop)
+        elif order.source is OrderSource.RESELLER:
+            reseller = next(
+                (r for r in await self.resellers.list_all() if owner_id(r) == order.user_id),
+                None,
+            )
+        if reseller is None:
+            return None, None
+        return reseller.config_prefix, reseller.config_suffix
 
     async def _announce_delivery(self, event: SubscriptionActivated, link: str | None) -> None:
         def work(sync: SyncScope) -> None:

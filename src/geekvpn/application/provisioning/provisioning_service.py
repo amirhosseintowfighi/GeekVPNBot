@@ -65,15 +65,17 @@ BYTES_PER_MIB = 1024 * 1024
 USERNAME_PREFIX = "gv"
 
 
-def username_for(order: Order) -> str:
+def username_for(order: Order, *, prefix: str | None = None, suffix: str | None = None) -> str:
     """The panel username this order will always ask for.
 
     Derived from the order *number* rather than the id: it is short, it is what
     the customer quotes to support, and matching a complaint to a panel account
-    should not require a database lookup.
+    should not require a database lookup. ``prefix`` and ``suffix`` are the
+    selling reseller's choice, and must come from the order too - a retry
+    that asked for a different name would create a second account.
     """
     cleaned = "".join(ch for ch in order.number if ch.isalnum()).lower()
-    return f"{USERNAME_PREFIX}{cleaned}"
+    return f"{prefix or USERNAME_PREFIX}{cleaned}{suffix or ''}"
 
 
 class ProvisioningService:
@@ -81,6 +83,7 @@ class ProvisioningService:
 
     __slots__ = (
         "_clock",
+        "_config_name",
         "_events",
         "_ids",
         "_nodes",
@@ -122,7 +125,12 @@ class ProvisioningService:
         #: Where each product says its accounts belong. Without it every order
         #: may land on any server, which is only right for unbound products.
         products: ProductRepository | None = None,
+        #: The prefix and suffix the order's seller chose for config names.
+        #: Asked per order, not per scope: an operator retrying a reseller's
+        #: failed order from the platform's panel must ask for the same name.
+        config_name: Callable[[Order], Awaitable[tuple[str | None, str | None]]] | None = None,
     ) -> None:
+        self._config_name = config_name
         self._products = products
         self._orders = orders
         self._subscriptions = subscriptions
@@ -218,7 +226,8 @@ class ProvisioningService:
             await self._fail(order, reason="no_capacity_available")
             raise
 
-        username = username_for(order)
+        prefix, suffix = await self._config_name(order) if self._config_name else (None, None)
+        username = username_for(order, prefix=prefix, suffix=suffix)
         spec = AccountSpec(
             username=username,
             quota=_quota_for(order.traffic_mib),

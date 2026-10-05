@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -18,6 +19,13 @@ from geekvpn.domain.resellers.errors import (
 #: reseller nothing is a mistake somebody made in a form, and it would drain
 #: panel capacity for free until anyone noticed.
 MAX_DISCOUNT_PERCENT = 90
+#: Short, because the whole username must fit the tightest panel's limit
+#: (32) with the order number between the two.
+_CONFIG_PREFIX = re.compile(r"[a-z][a-z0-9_]{0,9}")
+_CONFIG_SUFFIX = re.compile(r"[a-z0-9_]{1,10}")
+#: The same rules for a form, before lower-casing, with empty meaning "clear".
+CONFIG_PREFIX_PATTERN = r"^(\s*|[A-Za-z][A-Za-z0-9_]{0,9})$"
+CONFIG_SUFFIX_PATTERN = r"^[A-Za-z0-9_]{0,10}$"
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +96,12 @@ class Reseller:
     #: to whatever the node declares, which is right until somebody decides
     #: otherwise. See `application.provisioning.links`.
     subscription_hosts: Mapping[str, str] = field(default_factory=dict)
+    #: What their customers' configs are named with, around the order number.
+    #: `None` is the platform's own prefix and no suffix. A customer reads the
+    #: config's name in their client app, and a stranger's brand there is the
+    #: shop announcing it is a resale.
+    config_prefix: str | None = None
+    config_suffix: str | None = None
 
     def __post_init__(self) -> None:
         self.set_discount(self.discount_percent)
@@ -97,6 +111,24 @@ class Reseller:
         if not 0 <= percent <= MAX_DISCOUNT_PERCENT:
             raise ValueError(f"discount must be between 0 and {MAX_DISCOUNT_PERCENT}")
         self.discount_percent = percent
+
+    def set_config_name(self, *, prefix: str | None, suffix: str | None) -> None:
+        """Checked here because a panel checks it far later, at the first sale.
+
+        Lower-case letters, digits and underscores is what every panel we
+        speak to accepts in a username; anything else would fail the
+        customer's purchase rather than this form. The prefix starts with a
+        letter so that it can never run into the order number and read as
+        part of it.
+        """
+        prefix = (prefix or "").strip().lower() or None
+        suffix = (suffix or "").strip().lower() or None
+        if prefix is not None and not _CONFIG_PREFIX.fullmatch(prefix):
+            raise ValueError("prefix must be a letter then letters, digits or _, at most 10")
+        if suffix is not None and not _CONFIG_SUFFIX.fullmatch(suffix):
+            raise ValueError("suffix must be letters, digits or _, at most 10")
+        self.config_prefix = prefix
+        self.config_suffix = suffix
 
     # -- pricing -----------------------------------------------------------
 

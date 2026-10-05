@@ -223,6 +223,18 @@ class SqlAlchemyOrderRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [order_to_domain(row) for row in rows]
 
+    async def shop_of(self, order_id: str) -> uuid.UUID | None:
+        """Which reseller's shop the order was placed in; ``None`` is ours.
+
+        Read straight from the row, unscoped: a platform operator retrying a
+        reseller's order still has to know whose it is.
+        """
+        return (
+            await self._session.execute(
+                select(OrderModel.reseller_id).where(OrderModel.id == order_id)
+            )
+        ).scalar_one_or_none()
+
     async def add(self, order: Order) -> None:
         row = order_to_row(order)
         # Stamped on insert. A row written without it belongs to the

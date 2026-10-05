@@ -27,6 +27,7 @@ from geekvpn.domain.resellers.errors import (
     ResellerNotFound,
     ResellerSuspended,
 )
+from geekvpn.domain.resellers.reseller import CONFIG_PREFIX_PATTERN, CONFIG_SUFFIX_PATTERN
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.routers.admin_channels import (
     ActiveRequest as ChannelActiveRequest,
@@ -55,6 +56,8 @@ class MeResponse(ApiModel):
     in_arrears: bool
     bot_username: str | None
     has_bot: bool
+    config_prefix: str | None = None
+    config_suffix: str | None = None
 
 
 class PriceRow(ApiModel):
@@ -255,6 +258,14 @@ class BrandRequest(ApiModel):
     brand_fa: str = Field(default="", max_length=64)
 
 
+class ConfigNameRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Empty clears, back to the platform's prefix and no suffix.
+    config_prefix: str = Field(default="", pattern=CONFIG_PREFIX_PATTERN)
+    config_suffix: str = Field(default="", pattern=CONFIG_SUFFIX_PATTERN)
+
+
 class BotRequest(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -304,6 +315,8 @@ async def me(scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
         in_arrears=reseller.in_arrears,
         bot_username=username,
         has_bot=bool(token),
+        config_prefix=reseller.config_prefix,
+        config_suffix=reseller.config_suffix,
     )
 
 
@@ -348,9 +361,7 @@ async def set_retail(
     response_model=MeResponse,
     dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
-async def set_brand(
-    payload: BrandRequest, scope: ScopeDep, admin: CurrentAdmin
-) -> MeResponse:
+async def set_brand(payload: BrandRequest, scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     """What their bot calls itself.
 
     Theirs to choose. Until they do it falls back to the name we file them
@@ -362,13 +373,31 @@ async def set_brand(
 
 
 @router.put(
+    "/config-name",
+    response_model=MeResponse,
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def set_config_name(
+    payload: ConfigNameRequest, scope: ScopeDep, admin: CurrentAdmin
+) -> MeResponse:
+    """What their customers' configs are named, around the order number.
+
+    Only new sales: a config already on a customer's phone keeps its name,
+    because renaming it on the panel would break the import they made.
+    """
+    reseller = await _me(scope, admin)
+    await scope.reseller_service.update(
+        reseller.id, config_prefix=payload.config_prefix, config_suffix=payload.config_suffix
+    )
+    return await me(scope, admin)
+
+
+@router.put(
     "/bot",
     response_model=MeResponse,
     dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
 )
-async def attach_bot(
-    payload: BotRequest, scope: ScopeDep, admin: CurrentAdmin
-) -> MeResponse:
+async def attach_bot(payload: BotRequest, scope: ScopeDep, admin: CurrentAdmin) -> MeResponse:
     """Point a reseller's own Telegram bot at this platform.
 
     Here rather than only in the operator's screen, because it is their bot and
@@ -718,9 +747,7 @@ async def customers(
     be pointed at another one because it never takes a shop id.
     """
     reseller = await _me(scope, admin)
-    rows, total = await scope.users.list_for_reseller(
-        reseller.id, limit=limit, offset=offset
-    )
+    rows, total = await scope.users.list_for_reseller(reseller.id, limit=limit, offset=offset)
     return CustomersResponse(
         total=total,
         items=[
@@ -767,9 +794,7 @@ async def ledger(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(requires(Permission.RESELLER_SELL))],
 )
-async def sell(
-    payload: SellRequest, scope: ScopeDep, admin: CurrentAdmin
-) -> SaleResponse:
+async def sell(payload: SellRequest, scope: ScopeDep, admin: CurrentAdmin) -> SaleResponse:
     """Create one service, paid for out of the reseller's credit."""
     reseller = await _me(scope, admin)
     try:

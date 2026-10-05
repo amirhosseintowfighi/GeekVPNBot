@@ -499,6 +499,10 @@ function LinkHostsTab({
   )
 }
 
+// The server's rules, so the button is off before the request would fail.
+const CONFIG_PREFIX = /^([A-Za-z][A-Za-z0-9_]{0,9})?$/
+const CONFIG_SUFFIX = /^[A-Za-z0-9_]{0,10}$/
+
 function SettingsTab({
   reseller,
   writable,
@@ -512,10 +516,17 @@ function SettingsTab({
   const [discount, setDiscount] = React.useState(String(reseller.discountPercent))
   const [contact, setContact] = React.useState(reseller.contactFa ?? '')
   const [status, setStatus] = React.useState(reseller.status)
+  const [prefix, setPrefix] = React.useState(reseller.configPrefix ?? '')
+  const [suffix, setSuffix] = React.useState(reseller.configSuffix ?? '')
 
   const percent = Number(discount)
   const valid =
-    nameFa.trim().length > 0 && Number.isInteger(percent) && percent >= 0 && percent <= 90
+    nameFa.trim().length > 0 &&
+    Number.isInteger(percent) &&
+    percent >= 0 &&
+    percent <= 90 &&
+    CONFIG_PREFIX.test(prefix.trim()) &&
+    CONFIG_SUFFIX.test(suffix.trim())
 
   return (
     <div className="space-y-4 pt-4">
@@ -543,6 +554,25 @@ function SettingsTab({
         />
       </Field>
       <Field
+        label="پیشوند و پسوند نام کانفیگ"
+        hint="فقط حروف انگلیسی، عدد و _ ، هرکدوم حداکثر ۱۰ حرف. روی فروش‌های بعدی اعمال می‌شه."
+      >
+        <div className="flex gap-2" dir="ltr">
+          <Input
+            placeholder="prefix"
+            value={prefix}
+            disabled={!writable}
+            onChange={(event) => setPrefix(event.target.value)}
+          />
+          <Input
+            placeholder="suffix"
+            value={suffix}
+            disabled={!writable}
+            onChange={(event) => setSuffix(event.target.value)}
+          />
+        </div>
+      </Field>
+      <Field
         label="تعلیق"
         hint="فروش جدید متوقف می‌شه. سرویس‌های فعلی مشتری‌هاش دست‌نخورده می‌مونن."
       >
@@ -560,6 +590,8 @@ function SettingsTab({
               nameFa: nameFa.trim(),
               discountPercent: percent,
               contactFa: contact.trim() || null,
+              configPrefix: prefix.trim(),
+              configSuffix: suffix.trim(),
               status,
             })
           }

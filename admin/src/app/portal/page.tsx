@@ -105,6 +105,7 @@ export default function PortalPage() {
       {summary ? <SummaryCards summary={summary} /> : null}
 
       <BrandCard me={me} onChanged={() => void reloadMe()} />
+      <ConfigNameCard me={me} onChanged={() => void reloadMe()} />
 
       <ShopPaymentMethodsCard />
 
@@ -430,6 +431,50 @@ function BrandCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void 
       <Field label="نام" hint="خالی بگذارید تا نام نمایندگی‌تان استفاده شود">
         <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
       </Field>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <Button disabled={busy} onClick={() => void save()}>
+        ذخیره
+      </Button>
+    </Card>
+  )
+}
+
+
+function ConfigNameCard({ me, onChanged }: { me: ResellerSelf; onChanged: () => void }) {
+  const [prefix, setPrefix] = React.useState(me.configPrefix ?? '')
+  const [suffix, setSuffix] = React.useState(me.configSuffix ?? '')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const save = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.setMyConfigName(prefix.trim(), suffix.trim())
+      onChanged()
+    } catch (thrown) {
+      setError(thrown instanceof ApiError ? thrown.messageFa : 'ذخیره نشد.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sample = `${prefix.trim().toLowerCase() || 'gv'}14050042${suffix.trim().toLowerCase()}`
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div className="text-sm font-medium">نام کانفیگ‌ها</div>
+      <p className="text-sm text-muted-foreground">
+        مشتری اسم کانفیگ رو تو برنامه‌اش می‌بینه. فقط حروف انگلیسی، عدد و _ ،
+        هرکدوم حداکثر ۱۰ حرف. روی فروش‌های بعدی اعمال می‌شه.
+      </p>
+      <div className="flex gap-2" dir="ltr">
+        <Input placeholder="prefix" value={prefix} onChange={(event) => setPrefix(event.target.value)} />
+        <Input placeholder="suffix" value={suffix} onChange={(event) => setSuffix(event.target.value)} />
+      </div>
+      <p className="text-xs text-muted-foreground" dir="ltr">
+        {sample}
+      </p>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button disabled={busy} onClick={() => void save()}>
         ذخیره
