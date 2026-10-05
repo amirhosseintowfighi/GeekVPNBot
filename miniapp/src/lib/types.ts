@@ -31,6 +31,8 @@ export type TransactionKind =
   | 'referral'
   | 'refund'
   | 'adjustment'
+  | 'transfer_in'
+  | 'transfer_out'
 
 // `gateway` is in the read model and no gateway is registered yet, so nothing
 // can send it today. Listed anyway: the union's job is to describe what the

@@ -118,6 +118,8 @@ BACKUP_CHECK_INTERVAL_SECONDS = 600
 CLEANUP_INTERVAL_SECONDS = 3600
 #: The newcomer gift's wait is set in hours, so an hourly look is on time.
 NEWCOMER_GIFT_INTERVAL_SECONDS = 3600
+#: Likewise for the follow-up after a free trial.
+TRIAL_FOLLOWUP_INTERVAL_SECONDS = 3600
 
 
 class Worker:
@@ -134,6 +136,7 @@ class Worker:
             ("backup", BACKUP_CHECK_INTERVAL_SECONDS, self._backup),
             ("cleanup", CLEANUP_INTERVAL_SECONDS, self._delete_lapsed),
             ("newcomer_gift", NEWCOMER_GIFT_INTERVAL_SECONDS, self._newcomer_gifts),
+            ("trial_followup", TRIAL_FOLLOWUP_INTERVAL_SECONDS, self._trial_followups),
         ]
         self._next_run: dict[str, float] = {}
 
@@ -364,6 +367,29 @@ class Worker:
             await self._report(
                 AlertKind.REPORT, NEWCOMER_GIFT_REPORT_FA.format(count=len(given))
             )
+
+    async def _trial_followups(self) -> None:
+        """Each shop's trial takers, through that shop's own bot."""
+
+        def work() -> int:
+            reached = 0
+            for reseller_id in self._shops():
+                with self._container.sync_sessions() as session:
+                    shop = build_sync_scope(self._container, session, reseller_id=reseller_id)
+                    try:
+                        reached += shop.send_trial_followups()
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        logger.exception(
+                            "worker.trial_followup_failed",
+                            reseller=str(reseller_id) if reseller_id else None,
+                        )
+            return reached
+
+        reached = await asyncio.to_thread(work)
+        if reached:
+            logger.info("worker.trial_followups", count=reached)
 
     async def _report_cleanup(self, removed: list[Any]) -> None:
         names = ", ".join(sub.remote_username for sub in removed[:30])

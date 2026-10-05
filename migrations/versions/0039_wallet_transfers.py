@@ -20,7 +20,6 @@ depends_on = None
 
 NAME = "ck_billing_wallet_entries_billing_wallet_kind"
 OLD_KINDS = "'topup', 'purchase', 'refund', 'cashback', 'referral_reward', 'adjustment', 'overpayment'"
-NEW_KINDS = OLD_KINDS + ", 'transfer_out', 'transfer_in'"
 
 DROP_KIND_CHECK = """
 DO $$
@@ -40,7 +39,10 @@ END $$;
 
 def upgrade() -> None:
     op.execute(DROP_KIND_CHECK)
-    op.create_check_constraint(op.f(NAME), "billing_wallet_entries", f"kind IN ({NEW_KINDS})")
+    # Spelled out rather than built from OLD_KINDS: the enum-constraint test
+    # reads the literal list a migration leaves behind.
+    op.create_check_constraint(op.f(NAME), "billing_wallet_entries",
+        "kind IN ('topup', 'purchase', 'refund', 'cashback', 'referral_reward', 'adjustment', 'overpayment', 'transfer_out', 'transfer_in')")  # noqa: E501
 
 
 def downgrade() -> None:

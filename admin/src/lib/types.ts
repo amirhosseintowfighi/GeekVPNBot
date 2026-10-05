@@ -56,6 +56,8 @@ export type TransactionKind =
   | 'referral'
   | 'refund'
   | 'adjustment'
+  | 'transfer_in'
+  | 'transfer_out'
 /** domain/provisioning/enums.py NodeState. A node's health *is* its state. */
 export type ServerHealth = 'online' | 'degraded' | 'offline' | 'maintenance' | 'retired'
 export type TicketState = 'open' | 'waiting_user' | 'answered' | 'closed'

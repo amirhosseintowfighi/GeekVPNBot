@@ -38,7 +38,8 @@ class TransactionKind(str, Enum):
     REFERRAL = "referral"
     REFUND = "refund"
     ADJUSTMENT = "adjustment"
-    TRANSFER = "transfer"
+    TRANSFER_IN = "transfer_in"
+    TRANSFER_OUT = "transfer_out"
 
 
 class PaymentMethod(str, Enum):
@@ -153,6 +154,7 @@ class WalletTransaction:
             TransactionKind.CASHBACK,
             TransactionKind.REFERRAL,
             TransactionKind.REFUND,
+            TransactionKind.TRANSFER_IN,
         )
 
 

@@ -404,6 +404,14 @@ CATALOG: dict[str, MessageTemplate] = {
         ),
         MessageTemplate(
             # The operator writes the words; the template only carries them.
+            key="trial.followup",
+            category=_C.PROMOS,
+            title_fa="🎁 تست رایگانت چطور بود؟",
+            body_fa="{message}",
+            action="shop",
+        ),
+        MessageTemplate(
+            # The operator writes the words; the template only carries them.
             key="wallet.newcomer_gift",
             category=_C.PROMOS,
             title_fa="🎁 یه هدیه برات داریم",

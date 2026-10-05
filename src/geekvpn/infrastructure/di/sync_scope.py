@@ -51,6 +51,8 @@ from geekvpn.application.notifications.subscribers import (
     WalletNotifications,
     register,
 )
+from geekvpn.application.notifications.trial_followup import DEDUPE_KEY as TRIAL_FOLLOWUP_KEY
+from geekvpn.application.notifications.trial_followup import TrialFollowUp
 from geekvpn.application.payments.adapters import (
     CardTransferGateway,
     CryptoTransferGateway,
@@ -83,6 +85,8 @@ from geekvpn.application.platform.settings_service import (
     TOPUP_MIN_TOMAN,
     TRANSFER_ENABLED_WALLET,
     TRANSFER_MIN_TOMAN,
+    TRIAL_FOLLOWUP_AFTER_HOURS,
+    TRIAL_FOLLOWUP_MESSAGE_FA,
     SettingDefinition,
 )
 from geekvpn.application.ports.clock import Clock
@@ -163,6 +167,9 @@ from geekvpn.infrastructure.persistence.repositories.sync_settings import SyncSe
 from geekvpn.infrastructure.persistence.repositories.sync_support import (
     SyncTemplateRepository,
     SyncTicketRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_trial_takers import (
+    trial_takers_without_purchase,
 )
 
 logger = get_logger(__name__)
@@ -1150,6 +1157,29 @@ class SyncScope:
             enabled=lambda: settings.get(TRANSFER_ENABLED_WALLET),
             minimum_toman=lambda: settings.get(TRANSFER_MIN_TOMAN),
             report=report,
+        )
+
+    def send_trial_followups(self) -> int:
+        """The worker's hourly run for this shop, with today's settings."""
+        settings = SyncSettings(self.session)
+
+        def candidates(after: datetime, before: datetime) -> list[int]:
+            return trial_takers_without_purchase(self.session, self.reseller_id, after, before)
+
+        def send(user_id: int, message_fa: str) -> bool:
+            result = self.engine.dispatch(
+                user_id=user_id,
+                message=render("trial.followup", message=message_fa),
+                dedupe_key=TRIAL_FOLLOWUP_KEY,
+                source="trial.followup",
+            )
+            return result.skipped is None
+
+        return TrialFollowUp(
+            candidates=candidates, send=send, clock=self.container.clock
+        ).run(
+            after_hours=settings.get(TRIAL_FOLLOWUP_AFTER_HOURS),
+            message_fa=settings.get(TRIAL_FOLLOWUP_MESSAGE_FA),
         )
 
     def give_newcomer_gifts(self) -> list[int]:

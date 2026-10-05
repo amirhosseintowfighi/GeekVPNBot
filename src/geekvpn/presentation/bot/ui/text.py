@@ -551,7 +551,8 @@ TXN_CASHBACK: Final = "\u0628\u0627\u0632\u06af\u0634\u062a \u0646\u0642\u062f\u
 TXN_REFERRAL: Final = "\u067e\u0627\u062f\u0627\u0634 \u062f\u0639\u0648\u062a"
 TXN_REFUND: Final = "\u0627\u0633\u062a\u0631\u062f\u0627\u062f \u0648\u062c\u0647"
 TXN_ADJUSTMENT: Final = "\u0627\u0635\u0644\u0627\u062d \u0645\u0648\u062c\u0648\u062f\u06cc"
-TXN_TRANSFER: Final = "انتقال موجودی"
+TXN_TRANSFER_IN: Final = "دریافت انتقال"
+TXN_TRANSFER_OUT: Final = "انتقال به دیگری"
 
 # -- Referral ----------------------------------------------------------------
 

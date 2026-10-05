@@ -39,6 +39,8 @@ const KIND_META: Record<
   referral: { labelFa: '\u067e\u0627\u062f\u0627\u0634 \u0645\u0639\u0631\u0641\u06cc', icon: Users },
   refund: { labelFa: '\u0639\u0648\u062f\u062a \u0648\u062c\u0647', icon: ArrowDownLeft },
   adjustment: { labelFa: '\u0627\u0635\u0644\u0627\u062d \u062f\u0633\u062a\u06cc', icon: ArrowUpRight },
+  transfer_in: { labelFa: 'دریافت انتقال', icon: ArrowDownLeft },
+  transfer_out: { labelFa: 'انتقال به دیگری', icon: ArrowUpRight },
 }
 
 /** Mirrors `WalletTransaction.is_credit`. */
@@ -47,7 +49,8 @@ function isCredit(kind: TransactionKind): boolean {
     kind === 'topup' ||
     kind === 'cashback' ||
     kind === 'referral' ||
-    kind === 'refund'
+    kind === 'refund' ||
+    kind === 'transfer_in'
   )
 }
 

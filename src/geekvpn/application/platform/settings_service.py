@@ -242,6 +242,25 @@ TRIAL_INTRO_FA = SettingDefinition[str](
     type_=str,
     description="Shown when the customer taps the trial button. Empty uses the built-in text.",
 )
+TRIAL_FOLLOWUP_AFTER_HOURS = SettingDefinition[int](
+    key="trial.followup_after_hours",
+    label_fa="پیام پیگیری بعد از تست، چند ساعت بعد",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=24 * 14,
+    description=(
+        "Hours after a customer took the free trial to send them the follow-up below,"
+        " if they have not bought since. 0 switches it off."
+    ),
+)
+TRIAL_FOLLOWUP_MESSAGE_FA = SettingDefinition[str](
+    key="trial.followup_message_fa",
+    label_fa="متن پیام پیگیری بعد از تست",
+    default="",
+    type_=str,
+    description="The follow-up itself. Empty sends nothing.",
+)
 TRIAL_AFTER_MESSAGE_FA = SettingDefinition[str](
     key="trial.after_message_fa",
     label_fa="پیام بعد از دریافت اکانت تست",
@@ -700,6 +719,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         NEWCOMER_GIFT_MESSAGE_FA,
         TRANSFER_ENABLED_WALLET,
         TRANSFER_MIN_TOMAN,
+        TRIAL_FOLLOWUP_AFTER_HOURS,
+        TRIAL_FOLLOWUP_MESSAGE_FA,
     )
 }
 
