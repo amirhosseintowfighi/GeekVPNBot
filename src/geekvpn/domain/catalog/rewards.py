@@ -136,6 +136,13 @@ class ReferralPolicy:
     """Share of every subsequent order. Zero by default - lifetime revenue
     sharing is an obligation that is very hard to withdraw once advertised."""
 
+    first_purchase_fixed: Money = field(default_factory=Money.zero)
+    """A fixed amount for the first order, on top of any percentage. Some
+    shops would rather advertise "50,000 Toman per friend" than a share."""
+
+    recurring_fixed: Money = field(default_factory=Money.zero)
+    """The same for every later order. Zero by default, like `recurring_bps`."""
+
     max_reward_per_order: Money | None = None
     invitee_bonus: Money = field(default_factory=Money.zero)
     """Credit for the new customer. Two-sided referrals convert far better,
@@ -162,9 +169,11 @@ class ReferralPolicy:
         if not self.enabled:
             return Money.zero()
         bps = self.first_purchase_bps if is_first_purchase else self.recurring_bps
-        if bps == 0:
+        fixed = self.first_purchase_fixed if is_first_purchase else self.recurring_fixed
+        if bps == 0 and fixed.is_zero:
             return Money.zero()
-        return self._cap(paid.percentage(bps))
+        share = paid.percentage(bps) if bps else Money.zero()
+        return self._cap(share + fixed)
 
 
 @dataclass(frozen=True, slots=True)

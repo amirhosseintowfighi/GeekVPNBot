@@ -13,6 +13,14 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from geekvpn.application.catalog.policy_provider import (
+    KEY_REFERRAL_ENABLED,
+    KEY_REFERRAL_FIRST_BPS,
+    KEY_REFERRAL_FIRST_FIXED,
+    KEY_REFERRAL_INVITEE_BONUS,
+    KEY_REFERRAL_RECURRING_BPS,
+    KEY_REFERRAL_RECURRING_FIXED,
+)
 from geekvpn.application.ports.audit import AuditRecorder
 from geekvpn.application.ports.settings_store import SettingRecord, SettingsStore
 from geekvpn.domain.audit.entry import AuditAction
@@ -47,6 +55,9 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
     #: Extra check for a text setting with a shape, e.g. "7,3,1". Returns an
     #: English reason when the value is wrong, None when it is fine.
     validator: Callable[[Any], str | None] | None = None
+    #: How the panel renders it when the key's spelling cannot say so: a
+    #: pricing key keeps the name the pricing engine already reads.
+    render_as: str | None = None
 
     @property
     def kind(self) -> str:
@@ -57,6 +68,8 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
         exactly that mismatch - a client guessing at `kind` - that turned every
         text setting into a numeric box that reduced it to zero on edit.
         """
+        if self.render_as is not None:
+            return self.render_as
         if self.type_ is bool:
             return "boolean"
         if self.type_ is dict:
@@ -402,6 +415,64 @@ DAILY_PURCHASE_LIMIT = SettingDefinition[int](
     ),
 )
 
+#: The referral programme. The pricing engine has always read these keys, and
+#: nothing declared them, so the admin panel could not show or change them:
+#: the 10% first-purchase share could only be edited in the database.
+REFERRAL_ENABLED = SettingDefinition[bool](
+    key=KEY_REFERRAL_ENABLED,
+    label_fa="برنامهٔ زیرمجموعه‌گیری",
+    default=True,
+    type_=bool,
+    description="Pay referrers when the people they invite buy.",
+)
+REFERRAL_FIRST_BPS = SettingDefinition[int](
+    key=KEY_REFERRAL_FIRST_BPS,
+    label_fa="سهم معرف از اولین خرید (درصد)",
+    default=1_000,
+    type_=int,
+    minimum=0,
+    maximum=10_000,
+    render_as="bps",
+    description="Share of the invitee's first order, in basis points.",
+)
+REFERRAL_FIRST_FIXED = SettingDefinition[int](
+    key=KEY_REFERRAL_FIRST_FIXED,
+    label_fa="پاداش ثابت معرف از اولین خرید (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    render_as="toman",
+    description="A fixed amount per invitee's first order, on top of the share.",
+)
+REFERRAL_RECURRING_BPS = SettingDefinition[int](
+    key=KEY_REFERRAL_RECURRING_BPS,
+    label_fa="سهم معرف از خریدهای بعدی (درصد)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=10_000,
+    render_as="bps",
+    description="Share of every later order, in basis points.",
+)
+REFERRAL_RECURRING_FIXED = SettingDefinition[int](
+    key=KEY_REFERRAL_RECURRING_FIXED,
+    label_fa="پاداش ثابت معرف از خریدهای بعدی (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    render_as="toman",
+    description="A fixed amount per later order.",
+)
+REFERRAL_INVITEE_BONUS = SettingDefinition[int](
+    key=KEY_REFERRAL_INVITEE_BONUS,
+    label_fa="هدیهٔ کاربری که با لینک دعوت آمده (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    render_as="toman",
+    description="Credit for the invited customer.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -436,6 +507,12 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         TEXT_OVERRIDES,
         RULES_ENABLED,
         DAILY_PURCHASE_LIMIT,
+        REFERRAL_ENABLED,
+        REFERRAL_FIRST_BPS,
+        REFERRAL_FIRST_FIXED,
+        REFERRAL_RECURRING_BPS,
+        REFERRAL_RECURRING_FIXED,
+        REFERRAL_INVITEE_BONUS,
     )
 }
 

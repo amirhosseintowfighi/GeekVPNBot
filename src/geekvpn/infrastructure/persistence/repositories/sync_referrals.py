@@ -22,9 +22,11 @@ from sqlalchemy.orm import Session
 from geekvpn.application.catalog.policy_provider import (
     KEY_REFERRAL_ENABLED,
     KEY_REFERRAL_FIRST_BPS,
+    KEY_REFERRAL_FIRST_FIXED,
     KEY_REFERRAL_INVITEE_BONUS,
     KEY_REFERRAL_MAX_PER_ORDER,
     KEY_REFERRAL_RECURRING_BPS,
+    KEY_REFERRAL_RECURRING_FIXED,
     KEY_REFERRAL_SIGNUP_BONUS,
     PRICING_SETTING_DEFAULTS,
 )
@@ -41,6 +43,8 @@ _KEYS = (
     KEY_REFERRAL_RECURRING_BPS,
     KEY_REFERRAL_INVITEE_BONUS,
     KEY_REFERRAL_MAX_PER_ORDER,
+    KEY_REFERRAL_FIRST_FIXED,
+    KEY_REFERRAL_RECURRING_FIXED,
 )
 
 
@@ -108,6 +112,8 @@ class SyncReferralLedger:
             recurring_bps=_int(read(KEY_REFERRAL_RECURRING_BPS)),
             invitee_bonus=_money(read(KEY_REFERRAL_INVITEE_BONUS)) or Money.zero(),
             max_reward_per_order=_money(read(KEY_REFERRAL_MAX_PER_ORDER)),
+            first_purchase_fixed=_money(read(KEY_REFERRAL_FIRST_FIXED)) or Money.zero(),
+            recurring_fixed=_money(read(KEY_REFERRAL_RECURRING_FIXED)) or Money.zero(),
         )
 
 

@@ -80,5 +80,5 @@ async def test_an_invalid_combination_falls_back_wholesale() -> None:
 async def test_every_default_key_is_documented() -> None:
     # The migration seeds exactly these keys. If someone adds a setting to the
     # provider without seeding it, this is the test that notices.
-    assert len(PRICING_SETTING_DEFAULTS) == 13
+    assert len(PRICING_SETTING_DEFAULTS) == 15
     assert all(key.startswith("pricing.") for key in PRICING_SETTING_DEFAULTS)
