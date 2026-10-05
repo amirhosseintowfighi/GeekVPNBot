@@ -230,6 +230,13 @@ class ResellerService:
         await self._resellers.save(reseller)
         return reseller
 
+    async def set_trial_limit(self, reseller_id: uuid.UUID, limit: int | None) -> Reseller:
+        """Its own method: ``None`` here means "no limit", not "unchanged"."""
+        reseller = await self.get(reseller_id)
+        reseller.set_trial_limit(limit)
+        await self._resellers.save(reseller)
+        return reseller
+
     async def set_subscription_hosts(
         self, reseller_id: uuid.UUID, hosts: Mapping[str, str]
     ) -> Reseller:

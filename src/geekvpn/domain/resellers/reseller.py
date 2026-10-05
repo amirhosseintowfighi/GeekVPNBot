@@ -102,6 +102,10 @@ class Reseller:
     #: shop announcing it is a resale.
     config_prefix: str | None = None
     config_suffix: str | None = None
+    #: How many test accounts this shop may hand out, counting their own and
+    #: their bot customers' free trials. `None` is no limit - what every
+    #: reseller had before there was a limit - and 0 is none at all.
+    trial_limit: int | None = None
 
     def __post_init__(self) -> None:
         self.set_discount(self.discount_percent)
@@ -111,6 +115,11 @@ class Reseller:
         if not 0 <= percent <= MAX_DISCOUNT_PERCENT:
             raise ValueError(f"discount must be between 0 and {MAX_DISCOUNT_PERCENT}")
         self.discount_percent = percent
+
+    def set_trial_limit(self, limit: int | None) -> None:
+        if limit is not None and limit < 0:
+            raise ValueError("trial limit cannot be negative")
+        self.trial_limit = limit
 
     def set_config_name(self, *, prefix: str | None, suffix: str | None) -> None:
         """Checked here because a panel checks it far later, at the first sale.

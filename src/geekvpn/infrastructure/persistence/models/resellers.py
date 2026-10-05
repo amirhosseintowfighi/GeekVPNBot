@@ -84,6 +84,8 @@ class ResellerModel(TimestampMixin, Base):
     #: the platform's prefix and no suffix.
     config_prefix: Mapped[str | None] = mapped_column(String(10))
     config_suffix: Mapped[str | None] = mapped_column(String(10))
+    #: Test accounts this shop may hand out. NULL is no limit.
+    trial_limit: Mapped[int | None] = mapped_column(Integer)
 
     #: Node id to the host this shop's subscription links are served on.
     #:

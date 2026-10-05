@@ -223,6 +223,26 @@ class SqlAlchemyOrderRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [order_to_domain(row) for row in rows]
 
+    async def count_trials_for_reseller(self, reseller_id: uuid.UUID, *, owner: int) -> int:
+        """Test accounts a reseller has handed out, from every door.
+
+        Their bot customers' free trials are filed in their shop; the ones
+        they made themselves from the console are filed under their derived
+        owner id, in whichever shop the console was opened. Both count. A
+        cancelled one never reached anybody and does not.
+        """
+        return (
+            await self._session.execute(
+                select(func.count())
+                .select_from(OrderModel)
+                .where(
+                    OrderModel.source == OrderSource.TRIAL.value,
+                    OrderModel.state != OrderState.CANCELLED.value,
+                    (OrderModel.reseller_id == reseller_id) | (OrderModel.user_id == owner),
+                )
+            )
+        ).scalar_one()
+
     async def shop_of(self, order_id: str) -> uuid.UUID | None:
         """Which reseller's shop the order was placed in; ``None`` is ours.
 

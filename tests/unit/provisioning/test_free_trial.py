@@ -103,8 +103,15 @@ def plan(owner: Product, *, days: int, price: int, published: bool = True) -> Pl
 
 
 def build(
-    catalogue: Catalogue, *, panel: FakePanel | None = None, terms: TrialTerms | None = None
+    catalogue: Catalogue,
+    *,
+    panel: FakePanel | None = None,
+    terms: TrialTerms | None = None,
+    room: bool = True,
 ) -> tuple[FreeTrial, InMemoryClaims, InMemoryOrders, FakePanel]:
+    async def has_room() -> bool:
+        return room
+
     async def current_terms() -> TrialTerms:
         return terms or TrialTerms()
 
@@ -137,6 +144,7 @@ def build(
         clock=clock,
         jalali_year=1405,
         terms=current_terms,
+        room=has_room,
     )
     return trial, claims, orders, panel
 
@@ -326,3 +334,22 @@ async def test_the_trial_channel_is_told_who_took_one() -> None:
     await trial.deliver(await trial.place(USER))
 
     assert told == [(USER, 2)]
+
+
+@pytest.mark.asyncio
+async def test_a_reseller_shop_out_of_trials_offers_none() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, _ = build(catalogue, room=False)
+
+    assert (await trial.offer(USER)).available is False
+
+
+@pytest.mark.asyncio
+async def test_a_reseller_shop_out_of_trials_records_no_claim() -> None:
+    catalogue, _, _ = shop()
+    trial, claims, orders, _ = build(catalogue, room=False)
+
+    with pytest.raises(FreeTrialUnavailable):
+        await trial.place(USER)
+    assert claims.rows == {}
+    assert orders.rows == {}

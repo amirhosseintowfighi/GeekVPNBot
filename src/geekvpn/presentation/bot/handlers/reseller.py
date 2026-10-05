@@ -24,7 +24,11 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from geekvpn.application.resellers.applications import AlreadyApplied
-from geekvpn.domain.resellers.errors import InsufficientCredit, ResellerSuspended
+from geekvpn.domain.resellers.errors import (
+    InsufficientCredit,
+    ResellerSuspended,
+    TrialLimitReached,
+)
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import answer, customer_message, safe_edit, toast
 from geekvpn.presentation.bot.ui import keyboards as K
@@ -93,6 +97,7 @@ def _console_keyboard() -> Any:
     return K.stack(
         [
             [K.btn(R.BTN_SELL, ResellerCB(action="plans"), style=K.YES)],
+            [K.btn(R.BTN_TRIAL, ResellerCB(action="trialplans"), style=K.GO)],
             [K.btn(R.BTN_PRICES, ResellerCB(action="prices"), style=K.GO)],
             [K.btn(R.BTN_LEDGER, ResellerCB(action="ledger"), style=K.GO)],
         ],
@@ -295,6 +300,72 @@ async def on_sell(
         query,
         R.sold(sale, plan_name=str(match["name"])),
         markup=K.back_only("reseller"),
+    )
+
+
+# -- test accounts ----------------------------------------------------------
+
+
+@router.callback_query(ResellerCB.filter(F.action == "trialplans"))
+async def on_trial_plans(
+    query: CallbackQuery, user: Any = None, scope: Any = None, **_: Any
+) -> None:
+    await toast(query)
+    if user is None or scope is None:
+        return
+    reseller = await _mine(scope, user)
+    if reseller is None:
+        await safe_edit(query, R.NOT_A_RESELLER, markup=K.single(K.home_button()))
+        return
+    plans = await scope.catalog_plans.list_all(published_only=True)
+    if not plans:
+        await safe_edit(query, R.NO_PLANS, markup=K.back_only("reseller"))
+        return
+    buttons = [
+        [K.btn(plan.name_fa, ResellerCB(action="trial", ref=str(plan.id)[:32]), style=K.GO)]
+        for plan in plans
+    ]
+    await safe_edit(query, R.CHOOSE_TRIAL_PLAN, markup=K.stack(buttons, back_to="reseller"))
+
+
+@router.callback_query(ResellerCB.filter(F.action == "trial"))
+async def on_trial(
+    query: CallbackQuery,
+    callback_data: ResellerCB,
+    user: Any = None,
+    scope: Any = None,
+    **_: Any,
+) -> None:
+    await toast(query)
+    if user is None or scope is None:
+        return
+    reseller = await _mine(scope, user)
+    if reseller is None:
+        await safe_edit(query, R.NOT_A_RESELLER, markup=K.single(K.home_button()))
+        return
+    plans = await scope.catalog_plans.list_all(published_only=True)
+    match = next((p for p in plans if str(p.id).startswith(callback_data.ref)), None)
+    if match is None:
+        await safe_edit(query, R.PLAN_GONE, markup=K.back_only("reseller"))
+        return
+    try:
+        sale = await scope.reseller_sales.give_trial(reseller_id=reseller.id, plan_id=match.id)
+    except TrialLimitReached as failure:
+        await safe_edit(
+            query,
+            R.TRIAL_LIMIT_REACHED.format(limit=fa_number(failure.limit)),
+            markup=K.back_only("reseller"),
+        )
+        return
+    except ResellerSuspended:
+        await safe_edit(query, R.SUSPENDED, markup=K.single(K.home_button()))
+        return
+    except Exception as failure:
+        logger.exception("bot.reseller_trial_failed", reseller=str(reseller.id))
+        await safe_edit(query, customer_message(failure), markup=K.back_only("reseller"))
+        return
+    await safe_edit(
+        query, R.trial_made(sale, plan_name=match.name_fa), markup=K.back_only("reseller")
     )
 
 

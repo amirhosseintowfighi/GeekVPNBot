@@ -101,7 +101,11 @@ class FreeTrial:
         #: Told who took a trial and what came up, for the operators' trial
         #: channel. Never allowed to fail the delivery it reports on.
         announce: Callable[[int, TrialDelivery], Awaitable[None]] | None = None,
+        #: Whether the shop may hand out one more. A reseller's shop is
+        #: limited by the operator; ``None`` is no limit.
+        room: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
+        self._room = room
         self._announce = announce
         self._terms = terms
         self._claims = claims
@@ -116,7 +120,11 @@ class FreeTrial:
     async def offer(self, user_id: int) -> TrialOffer:
         """Available only to someone who has not had it and while a plan exists."""
         terms = await self._terms()
-        if not terms.enabled or await self._claims.has_claimed(user_id):
+        if (
+            not terms.enabled
+            or await self._claims.has_claimed(user_id)
+            or not await self._has_room()
+        ):
             return TrialOffer(
                 available=False,
                 traffic_mib=terms.traffic_mib,
@@ -137,6 +145,8 @@ class FreeTrial:
         terms = await self._terms()
         if not terms.enabled:
             raise FreeTrialUnavailable("The free trial is switched off.")
+        if not await self._has_room():
+            raise FreeTrialUnavailable("This shop has handed out all its free trials.")
         chosen = await self._plans_by_tier()
         if not chosen:
             raise FreeTrialUnavailable("No plan is available for a free trial.")
@@ -184,6 +194,9 @@ class FreeTrial:
             except Exception:
                 _log.exception("free_trial.announce_failed")
         return delivery
+
+    async def _has_room(self) -> bool:
+        return True if self._room is None else await self._room()
 
     async def _plans_by_tier(self) -> list[tuple[Product, Plan]]:
         """For each trial tier, the plan a trial order is filed under.

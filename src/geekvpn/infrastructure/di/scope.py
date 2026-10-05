@@ -535,7 +535,24 @@ class RequestScope:
             orders=self.order_service,
             provisioning=self.provisioning,
             jalali_year=year,
+            order_repository=self.orders,
+            clock=self.container.clock,
+            trials_given=self._trials_given,
+            trial_terms=self._trial_terms,
         )
+
+    async def _trials_given(self, reseller: Reseller) -> int:
+        return await self.orders.count_trials_for_reseller(reseller.id, owner=owner_id(reseller))
+
+    async def _trial_room(self) -> bool:
+        """Whether this shop may hand out one more free trial.
+
+        The platform's own shop has no limit; a reseller's counts their bot
+        customers' trials and the test accounts they made themselves.
+        """
+        if self.reseller is None or self.reseller.trial_limit is None:
+            return True
+        return await self._trials_given(self.reseller) < self.reseller.trial_limit
 
     @cached_property
     def free_trials(self) -> SqlAlchemyFreeTrialRepository:
@@ -556,6 +573,7 @@ class RequestScope:
             jalali_year=year,
             terms=self._trial_terms,
             announce=self._announce_trial,
+            room=self._trial_room,
         )
 
     async def _announce_trial(self, telegram_id: int, delivery: TrialDelivery) -> None:

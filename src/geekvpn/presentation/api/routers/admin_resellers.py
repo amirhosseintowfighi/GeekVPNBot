@@ -67,12 +67,15 @@ class ResellerResponse(ApiModel):
     #: Around the order number in their customers' config names.
     config_prefix: str | None = None
     config_suffix: str | None = None
+    #: Test accounts this shop may hand out. Absent is no limit.
+    trial_limit: int | None = None
 
     @classmethod
     def of(cls, reseller: Reseller, *, bot_username: str | None = None) -> ResellerResponse:
         return cls(
             config_prefix=reseller.config_prefix,
             config_suffix=reseller.config_suffix,
+            trial_limit=reseller.trial_limit,
             bot_username=bot_username,
             has_bot=bool(bot_username),
             id=reseller.id,
@@ -199,6 +202,8 @@ class UpdateResellerRequest(ApiModel):
     #: Empty clears; absent leaves it alone.
     config_prefix: str | None = Field(default=None, pattern=CONFIG_PREFIX_PATTERN)
     config_suffix: str | None = Field(default=None, pattern=CONFIG_SUFFIX_PATTERN)
+    #: Sent as null to lift the limit; left out to leave it alone.
+    trial_limit: int | None = Field(default=None, ge=0, le=100_000)
 
 
 class PanelsRequest(ApiModel):
@@ -316,6 +321,10 @@ async def update_reseller(
             config_prefix=payload.config_prefix,
             config_suffix=payload.config_suffix,
         )
+        if "trial_limit" in payload.model_fields_set:
+            reseller = await scope.reseller_service.set_trial_limit(
+                reseller_id, payload.trial_limit
+            )
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)

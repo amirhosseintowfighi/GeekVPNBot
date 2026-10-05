@@ -810,6 +810,8 @@ export interface ResellerRow {
   /** Around the order number in their customers' config names. */
   configPrefix: string | null
   configSuffix: string | null
+  /** Test accounts this shop may hand out. null is no limit. */
+  trialLimit: number | null
 }
 
 /** The one response that carries a password. It is never readable again. */

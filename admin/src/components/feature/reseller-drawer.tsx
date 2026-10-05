@@ -518,6 +518,9 @@ function SettingsTab({
   const [status, setStatus] = React.useState(reseller.status)
   const [prefix, setPrefix] = React.useState(reseller.configPrefix ?? '')
   const [suffix, setSuffix] = React.useState(reseller.configSuffix ?? '')
+  const [trials, setTrials] = React.useState(
+    reseller.trialLimit === null ? '' : String(reseller.trialLimit),
+  )
 
   const percent = Number(discount)
   const valid =
@@ -526,7 +529,8 @@ function SettingsTab({
     percent >= 0 &&
     percent <= 90 &&
     CONFIG_PREFIX.test(prefix.trim()) &&
-    CONFIG_SUFFIX.test(suffix.trim())
+    CONFIG_SUFFIX.test(suffix.trim()) &&
+    /^\d*$/.test(trials.trim())
 
   return (
     <div className="space-y-4 pt-4">
@@ -573,6 +577,19 @@ function SettingsTab({
         </div>
       </Field>
       <Field
+        label="سقف اکانت تست"
+        hint="شامل تست‌هایی که خودش می‌سازه و تست رایگان مشتری‌های رباتش. خالی یعنی نامحدود، ۰ یعنی هیچ."
+      >
+        <Input
+          dir="ltr"
+          inputMode="numeric"
+          placeholder="∞"
+          disabled={!writable}
+          value={trials}
+          onChange={(event) => setTrials(event.target.value)}
+        />
+      </Field>
+      <Field
         label="تعلیق"
         hint="فروش جدید متوقف می‌شه. سرویس‌های فعلی مشتری‌هاش دست‌نخورده می‌مونن."
       >
@@ -592,6 +609,7 @@ function SettingsTab({
               contactFa: contact.trim() || null,
               configPrefix: prefix.trim(),
               configSuffix: suffix.trim(),
+              trialLimit: trials.trim() === '' ? null : Number(trials.trim()),
               status,
             })
           }

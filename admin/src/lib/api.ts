@@ -501,6 +501,7 @@ export const api = {
       contactFa: string | null
       configPrefix: string
       configSuffix: string
+      trialLimit: number | null
     }>,
   ) => mutate<ResellerRow>('PATCH', `${ROOT}/resellers/${id}`, patch),
   setResellerPanels: (id: string, nodeIds: string[]) =>
