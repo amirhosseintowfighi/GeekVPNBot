@@ -43,6 +43,7 @@ class _Resellers:
     def __init__(self, reseller: Reseller) -> None:
         self.reseller = reseller
         self.charged: list[Money] = []
+        self.refunded: list[Money] = []
 
     async def get(self, reseller_id: uuid.UUID) -> Reseller:
         return self.reseller
@@ -52,8 +53,8 @@ class _Resellers:
         self.reseller.balance_amount -= amount.amount
         return self.reseller
 
-    async def refund_sale(self, *_: Any, **__: Any) -> None:
-        raise AssertionError("nothing failed")
+    async def refund_sale(self, reseller_id: uuid.UUID, *, amount: Money, **_: Any) -> None:
+        self.refunded.append(amount)
 
 
 class _Plans:
@@ -78,6 +79,9 @@ class _Orders:
     async def update(self, order: Order) -> None:
         self.rows[order.id] = order
 
+    async def get(self, order_id: str) -> Order | None:
+        return self.rows.get(order_id)
+
 
 @dataclass
 class _Subscription:
@@ -98,13 +102,21 @@ class _Provisioning:
         return _Subscription("sub-1", "https://x/sub", "gv1", NOW)
 
 
+class _FailingProvisioning(_Provisioning):
+    async def provision(self, order_id: str, **_: Any) -> _Subscription:
+        order = self.orders.rows[order_id]
+        order.start_provisioning()
+        order.fail(reason="panel_unreachable")
+        raise RuntimeError("panel down")
+
+
 class _Clock:
     def now(self) -> datetime:
         return NOW
 
 
 def _build(
-    *, trial_limit: int | None = None, given: int = 0
+    *, trial_limit: int | None = None, given: int = 0, failing: bool = False
 ) -> tuple[ResellerSalesService, _Orders, _Resellers, _Plan]:
     reseller = Reseller(
         id=uuid.uuid4(),
@@ -128,7 +140,7 @@ def _build(
         plans=_Plans(plan),
         orders=orders,
         order_repository=orders,
-        provisioning=_Provisioning(orders),
+        provisioning=(_FailingProvisioning if failing else _Provisioning)(orders),
         clock=_Clock(),
         jalali_year=1405,
         trials_given=trials_given,
@@ -204,3 +216,17 @@ def test_a_negative_trial_limit_is_refused() -> None:
 
     with pytest.raises(ValueError):
         reseller.set_trial_limit(-1)
+
+
+@pytest.mark.asyncio
+async def test_a_refunded_sale_is_not_left_for_the_retry_queue_to_deliver() -> None:
+    """The bot commits after a failed sale: the refund, and the failed order.
+    Left FAILED, the worker would deliver it later - a free service."""
+    service, orders, resellers, plan = _build(failing=True)
+
+    with pytest.raises(RuntimeError):
+        await service.sell(reseller_id=uuid.uuid4(), plan_id=plan.id)
+
+    (order,) = orders.rows.values()
+    assert resellers.refunded == [Money(200_000)]
+    assert order.state is OrderState.CANCELLED

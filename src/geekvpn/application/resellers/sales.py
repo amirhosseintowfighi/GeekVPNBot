@@ -33,7 +33,7 @@ from geekvpn.application.provisioning.free_trial import TRIAL_DEVICE_LIMIT, Tria
 from geekvpn.application.provisioning.ports import OrderRepository
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.domain.catalog.money import Money
-from geekvpn.domain.provisioning.enums import OrderSource
+from geekvpn.domain.provisioning.enums import OrderSource, OrderState
 from geekvpn.domain.resellers.errors import NodeNotAllowed, ResellerSuspended, TrialLimitReached
 from geekvpn.domain.resellers.reseller import Reseller
 
@@ -196,6 +196,12 @@ class ResellerSalesService:
                 description_fa="بازگشت اعتبار — فروش ناموفق",
                 reference=order.id,
             )
+            # Refunded, so no longer owed: left failed, the retry queue would
+            # deliver it later and the reseller would have it for nothing.
+            current = await self._order_repository.get(order.id) or order
+            if current.can_transition_to(OrderState.CANCELLED):
+                current.cancel()
+                await self._order_repository.update(current)
             raise
 
         return ResellerSale(
