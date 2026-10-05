@@ -25,7 +25,13 @@ from geekvpn.application.bot.read_models import (
     WalletSnapshot,
 )
 from geekvpn.application.bot.services import BotServices
-from geekvpn.application.platform.settings_service import TOPUP_MAX_TOMAN, TOPUP_MIN_TOMAN
+from geekvpn.application.platform.settings_service import (
+    TOPUP_MAX_TOMAN,
+    TOPUP_MIN_TOMAN,
+    TRANSFER_ENABLED_WALLET,
+    TRANSFER_MIN_TOMAN,
+)
+from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.wallet import MAX_TOPUP, MIN_TOPUP
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
@@ -58,14 +64,26 @@ PRESETS = (200_000, 500_000, 1_000_000, 2_000_000)
 PAGE_SIZE = 8
 
 
-def _wallet_keyboard() -> InlineKeyboardMarkup:
-    return K.stack(
-        [
-            [K.btn(T.BTN_TOPUP, WalletCB(action="topup", ref="-"), style=K.YES)],
-            [K.btn(T.BTN_WALLET_HISTORY, WalletCB(action="history", ref="-"), style=K.GO)],
-            [K.home_button()],
-        ]
-    )
+def _wallet_keyboard(*, transfer: bool = False) -> InlineKeyboardMarkup:
+    rows = [
+        [K.btn(T.BTN_TOPUP, WalletCB(action="topup", ref="-"), style=K.YES)],
+        [K.btn(T.BTN_WALLET_HISTORY, WalletCB(action="history", ref="-"), style=K.GO)],
+    ]
+    if transfer:
+        rows.append([K.btn(T.BTN_WALLET_SEND, WalletCB(action="send", ref="-"), style=K.GO)])
+    rows.append([K.home_button()])
+    return K.stack(rows)
+
+
+async def _transfer_on(scope: Any) -> bool:
+    service = getattr(scope, "settings_service", None)
+    if service is None:
+        return False
+    try:
+        return bool(await service.get(TRANSFER_ENABLED_WALLET))
+    except Exception:
+        logger.warning("wallet.transfer_setting_unreadable", exc_info=True)
+        return False
 
 
 def _preset_keyboard(low: int = MIN_TOPUP, high: int = MAX_TOPUP) -> InlineKeyboardMarkup:
@@ -122,24 +140,149 @@ async def _render_wallet(services: BotServices, user: Any) -> str:
 
 @router.message(Command("wallet"))
 async def on_wallet_command(
-    message: Message, state: FSMContext, services: BotServices, user: Any = None
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.clear()
     if user is None:
         await answer(message, T.ERR_GENERIC)
         return
-    await answer(message, await _render_wallet(services, user), reply_markup=_wallet_keyboard())
+    await answer(
+        message,
+        await _render_wallet(services, user),
+        reply_markup=_wallet_keyboard(transfer=await _transfer_on(scope)),
+    )
 
 
 @router.callback_query(NavCB.filter(F.to == "wallet"))
 async def on_wallet(
-    query: CallbackQuery, state: FSMContext, services: BotServices, user: Any = None
+    query: CallbackQuery,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
 ) -> None:
     await state.set_state(Wallet.idle)
     await toast(query)
     if user is None:
         return
-    await safe_edit(query, await _render_wallet(services, user), markup=_wallet_keyboard())
+    await safe_edit(
+        query,
+        await _render_wallet(services, user),
+        markup=_wallet_keyboard(transfer=await _transfer_on(scope)),
+    )
+
+
+# -- sending balance to another customer -------------------------------------
+
+
+def _digits(text: str) -> str:
+    raw = normalize_input(text)
+    for junk in (",", "\u066c", " ", "\u200c", ".", "\u062a\u0648\u0645\u0627\u0646"):
+        raw = raw.replace(junk, "")
+    return raw
+
+
+async def _transfer_minimum(scope: Any) -> int:
+    try:
+        return int(await scope.settings_service.get(TRANSFER_MIN_TOMAN))
+    except Exception:
+        logger.warning("wallet.transfer_minimum_unreadable", exc_info=True)
+        return int(TRANSFER_MIN_TOMAN.default)
+
+
+@router.callback_query(WalletCB.filter(F.action == "send"))
+async def on_send(query: CallbackQuery, state: FSMContext, scope: Any = None) -> None:
+    if not await _transfer_on(scope):
+        await toast(query, T.WALLET_SEND_OFF, alert=True)
+        return
+    await toast(query)
+    await state.set_state(Wallet.transfer_recipient)
+    await safe_edit(
+        query, T.WALLET_SEND_ASK_RECIPIENT, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="wallet")))
+    )
+
+
+@router.message(Wallet.transfer_recipient, F.text)
+async def on_send_recipient(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    raw = _digits(message.text or "")
+    if not raw.isdigit() or user is None:
+        await answer(message, T.WALLET_SEND_BAD_ID)
+        return
+    await state.update_data(transfer_to=int(raw))
+    await state.set_state(Wallet.transfer_amount)
+    snapshot = await _snapshot(services, user)
+    await answer(
+        message,
+        T.WALLET_SEND_ASK_AMOUNT.format(
+            min_amount=toman(await _transfer_minimum(scope)), balance=toman(snapshot.balance)
+        ),
+        reply_markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="wallet"))),
+    )
+
+
+@router.message(Wallet.transfer_amount, F.text)
+async def on_send_amount(message: Message, state: FSMContext) -> None:
+    raw = _digits(message.text or "")
+    if not raw.isdigit() or int(raw) <= 0:
+        await answer(message, T.WALLET_AMOUNT_INVALID)
+        return
+    amount = int(raw)
+    data = await state.get_data()
+    await state.update_data(transfer_amount=amount)
+    await answer(
+        message,
+        T.WALLET_SEND_CONFIRM.format(amount=toman(amount), to_user=data.get("transfer_to")),
+        reply_markup=K.stack(
+            [
+                [K.btn(T.BTN_WALLET_SEND_GO, WalletCB(action="send_go", ref="-"), style=K.YES)],
+                [K.btn(T.BTN_CANCEL, NavCB(to="wallet"))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(WalletCB.filter(F.action == "send_go"))
+async def on_send_go(
+    query: CallbackQuery, state: FSMContext, scope: Any = None, user: Any = None
+) -> None:
+    data = await state.get_data()
+    await state.set_state(Wallet.idle)
+    to_user, amount = data.get("transfer_to"), data.get("transfer_amount")
+    if user is None or scope is None or not isinstance(to_user, int) or not isinstance(amount, int):
+        await toast(query, T.ERR_GENERIC, alert=True)
+        return
+    await toast(query)
+    sender = user.telegram_id
+
+    def work(sync: Any) -> None:
+        sync.wallet_transfers.transfer(from_user=sender, to_user=to_user, amount_toman=amount)
+
+    try:
+        await scope.in_shop(work)
+    except Exception as failure:
+        if not isinstance(failure, DomainError):
+            logger.exception("bot.wallet_transfer_failed", user_id=sender)
+        await safe_edit(
+            query,
+            customer_message(failure),
+            markup=K.single(K.btn(T.BTN_BACK, NavCB(to="wallet"))),
+        )
+        return
+    await safe_edit(
+        query,
+        T.WALLET_SENT.format(amount=toman(amount), to_user=to_user),
+        markup=K.single(K.btn(T.BTN_BACK, NavCB(to="wallet"))),
+    )
 
 
 async def topup_limits(scope: Any) -> tuple[int, int]:

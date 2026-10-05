@@ -204,3 +204,10 @@ __all__ = [
     "RefundNotAllowed",
     "VerificationFailed",
 ]
+
+
+class WalletTransferRefused(ConflictError):
+    """A wallet-to-wallet transfer the shop does not allow; the message says why."""
+
+    code = "wallet_transfer_refused"
+    message = "انتقال موجودی انجام نشد."

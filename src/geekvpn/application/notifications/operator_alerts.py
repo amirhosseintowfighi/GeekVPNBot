@@ -50,6 +50,19 @@ TICKET_OPENED_FA = (
 )
 TICKET_REPLIED_FA = "💬 <b>پاسخ کاربر به تیکت</b>\n\nکاربر: <code>{user_id}</code>\n\n{body}"
 TICKET_OPEN_LABEL_FA = "📂 باز کردن تیکت"
+TOPUP_REPORT_FA = (
+    "💳 <b>شارژ کیف پول</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "مبلغ: <b>{amount:,}</b> تومان\n"
+    "موجودی جدید: {balance:,} تومان\n"
+    "فاکتور: <code>{reference}</code>"
+)
+TRANSFER_REPORT_FA = (
+    "🔁 <b>انتقال موجودی</b>\n\n"
+    "از: <code>{from_user}</code>\n"
+    "به: <code>{to_user}</code>\n"
+    "مبلغ: <b>{amount:,}</b> تومان"
+)
 
 
 class AlertKind(enum.StrEnum):
@@ -116,6 +129,24 @@ class OperatorReports:
                 body=_escape(_clip(event.first_message_fa)),
             ),
             buttons=[(TICKET_OPEN_LABEL_FA, f"adm:ticket:{event.ticket_id}")],
+        )
+
+    def on_wallet_credited(self, event: Any) -> None:
+        """A settled top-up, whichever way it settled.
+
+        The receipt alert covers a card payment while it waits; a gateway
+        top-up never waits, so without this nobody heard of it at all.
+        """
+        if str(getattr(event, "kind", "")) != "topup":
+            return
+        self.send(
+            AlertKind.PAYMENT,
+            TOPUP_REPORT_FA.format(
+                user_id=event.user_id,
+                amount=event.amount,
+                balance=event.balance_after,
+                reference=event.reference or "—",
+            ),
         )
 
     def on_ticket_replied(self, event: Any) -> None:

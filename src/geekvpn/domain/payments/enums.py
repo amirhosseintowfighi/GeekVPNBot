@@ -159,6 +159,12 @@ class TransactionKind(enum.StrEnum):
     distinct from cashback because it is their own money, not a reward.
     """
 
+    TRANSFER_OUT = "transfer_out"
+    """Sent to another customer of the same shop, by the customer."""
+
+    TRANSFER_IN = "transfer_in"
+    """Received from another customer; the sender's entry has the same reference."""
+
     def is_credit(self) -> bool:
         """Whether this kind normally increases the balance.
 
@@ -172,6 +178,7 @@ class TransactionKind(enum.StrEnum):
             TransactionKind.CASHBACK,
             TransactionKind.REFERRAL_REWARD,
             TransactionKind.OVERPAYMENT,
+            TransactionKind.TRANSFER_IN,
         }
 
 

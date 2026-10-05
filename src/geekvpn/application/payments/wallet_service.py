@@ -265,6 +265,41 @@ class WalletService:
             )
         return entry
 
+    def transfer(
+        self, *, from_user: int, to_user: int, amount: Money, reference: str
+    ) -> LedgerEntry:
+        """Move balance from one customer's wallet to another's.
+
+        Both locked, lower id first, so two customers sending to each other in
+        the same second wait for one another instead of deadlocking. The debit
+        comes first and raises on a short balance before anything is written.
+        """
+        for user_id in sorted({from_user, to_user}):
+            self._wallets.lock(user_id)
+        sender = self._wallets.get_or_create(from_user)
+        recipient = self._wallets.get_or_create(to_user)
+        now = self._clock.now()
+        sent = sender.debit(
+            amount,
+            entry_id=self._ids.new_id(),
+            kind=TransactionKind.TRANSFER_OUT,
+            occurred_at=now,
+            description_fa=f"انتقال به {to_user}",
+            reference=reference,
+        )
+        recipient.credit(
+            amount,
+            entry_id=self._ids.new_id(),
+            kind=TransactionKind.TRANSFER_IN,
+            occurred_at=now,
+            description_fa=f"انتقال از {from_user}",
+            reference=reference,
+        )
+        self._wallets.save(sender)
+        self._wallets.save(recipient)
+        self._publish(sender, recipient)
+        return sent
+
     # -- internals ---------------------------------------------------------
 
     def _publish(self, *aggregates: object) -> None:

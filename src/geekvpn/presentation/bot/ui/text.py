@@ -510,6 +510,27 @@ BTN_TOPUP: Final = (
     "\u2795 \u0627\u0641\u0632\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f\u06cc"
 )
 BTN_WALLET_HISTORY: Final = "\U0001f4dc \u062a\u0627\u0631\u06cc\u062e\u0686\u0647\u0654 \u062a\u0631\u0627\u06a9\u0646\u0634\u200c\u0647\u0627"
+BTN_WALLET_SEND: Final = "🔁 انتقال موجودی"
+BTN_WALLET_SEND_GO: Final = "✅ انتقال بده"
+WALLET_SEND_OFF: Final = "انتقال موجودی در حال حاضر فعال نیست."
+WALLET_SEND_ASK_RECIPIENT: Final = (
+    "🔁 <b>انتقال موجودی</b>\n\n"
+    "آیدی عددی کسی که می‌خوای بهش موجودی بدی رو بفرست.\n"
+    "باید قبلاً یک بار همین ربات رو استارت کرده باشه."
+)
+WALLET_SEND_BAD_ID: Final = "آیدی عددی فقط از رقم تشکیل شده. دوباره بفرست."
+WALLET_SEND_ASK_AMOUNT: Final = (
+    "چند تومان منتقل بشه؟\n\n"
+    "حداقل: {min_amount}\n"
+    "موجودی تو: {balance}"
+)
+WALLET_SEND_CONFIRM: Final = (
+    "🔁 <b>تأیید انتقال</b>\n\n"
+    "مبلغ: <b>{amount}</b>\n"
+    "به: <code>{to_user}</code>\n\n"
+    "بعد از انتقال برگشت‌پذیر نیست."
+)
+WALLET_SENT: Final = "✅ {amount} به <code>{to_user}</code> منتقل شد."
 WALLET_ASK_AMOUNT: Final = (
 
     "\u0686\u0642\u062f\u0631 \u0645\u06cc\u200c\u062e\u0648\u0627\u06cc \u0634\u0627\u0631\u0698 \u06a9\u0646\u06cc\u061f\n"
@@ -530,6 +551,7 @@ TXN_CASHBACK: Final = "\u0628\u0627\u0632\u06af\u0634\u062a \u0646\u0642\u062f\u
 TXN_REFERRAL: Final = "\u067e\u0627\u062f\u0627\u0634 \u062f\u0639\u0648\u062a"
 TXN_REFUND: Final = "\u0627\u0633\u062a\u0631\u062f\u0627\u062f \u0648\u062c\u0647"
 TXN_ADJUSTMENT: Final = "\u0627\u0635\u0644\u0627\u062d \u0645\u0648\u062c\u0648\u062f\u06cc"
+TXN_TRANSFER: Final = "انتقال موجودی"
 
 # -- Referral ----------------------------------------------------------------
 

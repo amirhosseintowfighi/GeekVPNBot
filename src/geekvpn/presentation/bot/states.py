@@ -46,6 +46,8 @@ class Wallet(StatesGroup):
     choosing_method = State()
     awaiting_receipt = State()
     awaiting_crypto_txid = State()
+    transfer_recipient = State()
+    transfer_amount = State()
 
 
 class Support(StatesGroup):

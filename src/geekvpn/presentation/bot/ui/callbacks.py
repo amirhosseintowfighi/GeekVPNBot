@@ -55,7 +55,7 @@ class SubCB(CallbackData, prefix="sub"):
 
 
 class WalletCB(CallbackData, prefix="wlt"):
-    action: str  # topup | history | page | method
+    action: str  # topup | history | page | method | send | send_go
     ref: str = ""
 
 

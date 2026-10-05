@@ -37,6 +37,7 @@ from geekvpn.application.notifications.operator_alerts import (
     RECEIPT_ALERT_FA,
     RECEIPT_ALERT_NO_IMAGE_FA,
     REJECT_LABEL_FA,
+    TRANSFER_REPORT_FA,
     AlertKind,
     DeliveryNotifications,
     OperatorReports,
@@ -63,6 +64,7 @@ from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.signup_bonus import SignupBonusService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
+from geekvpn.application.payments.wallet_transfer import WalletTransfers
 from geekvpn.application.platform.settings_service import (
     ALERTS_PAYMENTS_CHAT,
     ALERTS_RECEIPTS_CHAT,
@@ -79,6 +81,8 @@ from geekvpn.application.platform.settings_service import (
     REMINDER_TRAFFIC_PERCENTS,
     TOPUP_MAX_TOMAN,
     TOPUP_MIN_TOMAN,
+    TRANSFER_ENABLED_WALLET,
+    TRANSFER_MIN_TOMAN,
     SettingDefinition,
 )
 from geekvpn.application.ports.clock import Clock
@@ -100,6 +104,7 @@ from geekvpn.domain.payments.events import (
     PaymentFailed,
     PaymentRejected,
     ProofSubmitted,
+    WalletCredited,
 )
 from geekvpn.domain.payments.gateway import GatewayRegistry
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
@@ -116,6 +121,7 @@ from geekvpn.infrastructure.notifications.telegram import (
 )
 from geekvpn.infrastructure.payments.iranian_gateways import build as build_online_gateway
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
+from geekvpn.infrastructure.persistence.models.identity import UserModel
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
@@ -486,6 +492,7 @@ class SyncScope:
         # And the tickets. Nothing told an operator a customer had written.
         publisher.subscribe(TicketOpened.name, self.operator_reports.on_ticket_opened)
         publisher.subscribe(TicketReplied.name, self.operator_reports.on_ticket_replied)
+        publisher.subscribe(WalletCredited.name, self.operator_reports.on_wallet_credited)
         for abandoned in (PaymentRejected, PaymentFailed, PaymentExpiredEvent):
             publisher.subscribe(abandoned.name, self.unpaid_orders.on_payment_abandoned)
         return publisher
@@ -1114,6 +1121,35 @@ class SyncScope:
 
         return NewcomerGift(
             wallets=self.wallet, candidates=candidates, notify=notify, clock=self.container.clock
+        )
+
+    @cached_property
+    def wallet_transfers(self) -> WalletTransfers:
+        settings = SyncSettings(self.session)
+
+        def is_customer(telegram_id: int) -> bool:
+            shop = (
+                UserModel.reseller_id.is_(None)
+                if self.reseller_id is None
+                else UserModel.reseller_id == self.reseller_id
+            )
+            found = self.session.execute(
+                select(UserModel.id).where(UserModel.telegram_id == telegram_id, shop).limit(1)
+            ).first()
+            return found is not None
+
+        def report(from_user: int, to_user: int, amount: int) -> None:
+            self.operator_reports.send(
+                AlertKind.PAYMENT,
+                TRANSFER_REPORT_FA.format(from_user=from_user, to_user=to_user, amount=amount),
+            )
+
+        return WalletTransfers(
+            wallets=self.wallet,
+            is_customer=is_customer,
+            enabled=lambda: settings.get(TRANSFER_ENABLED_WALLET),
+            minimum_toman=lambda: settings.get(TRANSFER_MIN_TOMAN),
+            report=report,
         )
 
     def give_newcomer_gifts(self) -> list[int]:

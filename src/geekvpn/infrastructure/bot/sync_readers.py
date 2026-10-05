@@ -66,6 +66,8 @@ _CARD_KIND: dict[TransactionKind, CardKind] = {
     TransactionKind.CASHBACK: CardKind.CASHBACK,
     TransactionKind.REFERRAL_REWARD: CardKind.REFERRAL,
     TransactionKind.ADJUSTMENT: CardKind.ADJUSTMENT,
+    TransactionKind.TRANSFER_IN: CardKind.TRANSFER,
+    TransactionKind.TRANSFER_OUT: CardKind.TRANSFER,
 }
 
 _CARD_TICKET_STATE: dict[TicketState, CardTicketState] = {

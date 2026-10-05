@@ -38,6 +38,7 @@ class TransactionKind(str, Enum):
     REFERRAL = "referral"
     REFUND = "refund"
     ADJUSTMENT = "adjustment"
+    TRANSFER = "transfer"
 
 
 class PaymentMethod(str, Enum):

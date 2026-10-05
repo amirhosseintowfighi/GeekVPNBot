@@ -591,6 +591,23 @@ DELETE_EXPIRED_AFTER_HOURS = SettingDefinition[int](
     ),
 )
 
+TRANSFER_ENABLED_WALLET = SettingDefinition[bool](
+    key="wallet.transfer_enabled",
+    label_fa="انتقال موجودی بین کاربران",
+    default=False,
+    type_=bool,
+    description="Let a customer send wallet balance to another customer of the same shop.",
+)
+TRANSFER_MIN_TOMAN = SettingDefinition[int](
+    key="wallet.transfer_min_toman",
+    label_fa="حداقل مبلغ انتقال موجودی (تومان)",
+    default=10_000,
+    type_=int,
+    minimum=1,
+    maximum=100_000_000,
+    description="The smallest wallet transfer a customer may make, in Toman.",
+)
+
 NEWCOMER_GIFT_AFTER_HOURS = SettingDefinition[int](
     key="gifts.newcomer_after_hours",
     label_fa="هدیه به عضو جدیدی که خرید نکرده، بعد از (ساعت)",
@@ -681,6 +698,8 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         NEWCOMER_GIFT_AFTER_HOURS,
         NEWCOMER_GIFT_TOMAN,
         NEWCOMER_GIFT_MESSAGE_FA,
+        TRANSFER_ENABLED_WALLET,
+        TRANSFER_MIN_TOMAN,
     )
 }
 

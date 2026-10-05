@@ -70,6 +70,7 @@ _TXN_LABEL = {
     TransactionKind.REFERRAL: T.TXN_REFERRAL,
     TransactionKind.REFUND: T.TXN_REFUND,
     TransactionKind.ADJUSTMENT: T.TXN_ADJUSTMENT,
+    TransactionKind.TRANSFER: T.TXN_TRANSFER,
 }
 
 _TICKET_LABEL = {
