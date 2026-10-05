@@ -16,11 +16,14 @@ from geekvpn.application.bot.read_models import OwnerOptions, SubscriptionCard
 from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.platform.settings_service import (
     AUTO_RENEW_ENABLED,
+    REFUND_WINDOW_HOURS,
     RENAME_ENABLED,
     TRANSFER_ENABLED,
     SettingsService,
 )
+from geekvpn.application.provisioning.unused_refund import UnusedRefund
 from geekvpn.domain.notifications.message import render
+from geekvpn.domain.provisioning.errors import RefundNotAllowed
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
@@ -41,6 +44,12 @@ TRANSFER_REPORT_FA = (
     "سرویس: <code>{username}</code>\n"
     "از: <code>{from_id}</code>\n"
     "به: <code>{to_id}</code>"
+)
+REFUND_REPORT_FA = (
+    "↩️ <b>برگشت وجه سرویس استفاده‌نشده</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "سرویس: <code>{username}</code>\n"
+    "مبلغ برگشتی به کیف پول: {amount:,} تومان"
 )
 RENAME_REPORT_FA = (
     "✏️ <b>تغییر نام سرویس</b>\n\n"
@@ -67,7 +76,9 @@ class BotServiceOwnership:
         settings: SettingsService,
         bridge: SyncBridge,
         reseller_id: uuid.UUID | None,
+        refunds: UnusedRefund | None = None,
     ) -> None:
+        self._refunds = refunds
         self._users = users
         self._subscriptions = subscriptions
         self._orders = orders
@@ -81,6 +92,7 @@ class BotServiceOwnership:
             auto_renew=await self._settings.get(AUTO_RENEW_ENABLED),
             rename=await self._settings.get(RENAME_ENABLED),
             transfer=await self._settings.get(TRANSFER_ENABLED),
+            refund_window_hours=await self._settings.get(REFUND_WINDOW_HOURS),
         )
 
     async def set_auto_renew(
@@ -146,6 +158,21 @@ class BotServiceOwnership:
                 username=subscription.remote_username, from_id=previous, to_id=to_telegram_id
             )
         )
+
+    async def refund_unused(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> int:
+        if self._refunds is None:
+            raise RefundNotAllowed()
+        subscription = await self._own(user_id, subscription_id)
+        amount = await self._refunds.refund(subscription.id, owner=subscription.user_id)
+        await self._session.commit()
+        await self._report(
+            REFUND_REPORT_FA.format(
+                user_id=subscription.user_id,
+                username=subscription.remote_username,
+                amount=amount.amount,
+            )
+        )
+        return amount.amount
 
     async def _own(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> Subscription:
         user = await self._users.get(user_id)

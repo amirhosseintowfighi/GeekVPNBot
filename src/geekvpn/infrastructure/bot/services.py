@@ -107,6 +107,7 @@ def build_bot_services(
             settings=scope.settings_service,
             bridge=bridge,
             reseller_id=scope.reseller.id if scope.reseller is not None else None,
+            refunds=scope.unused_refund,
         ),
     )
 

@@ -348,3 +348,5 @@ class OwnerOptions:
     auto_renew: bool = False
     rename: bool = False
     transfer: bool = False
+    #: Hours after purchase an unused service can be returned; 0 is off.
+    refund_window_hours: int = 0

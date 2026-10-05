@@ -85,6 +85,13 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class RefundNotAllowed(ConflictError):
+    """A refund for an unused service was refused; the message says why."""
+
+    code = "unused_refund_refused"
+    message = "برگشت وجه برای این سرویس ممکن نیست."
+
+
 class DailyPurchaseLimitReached(ConflictError):
     """This customer has bought as many services today as the shop allows."""
 
@@ -129,6 +136,7 @@ __all__ = [
     "OrderValidationError",
     "ProvisioningError",
     "ProvisioningFailed",
+    "RefundNotAllowed",
     "RotationUnavailable",
     "SubscriptionNotFound",
     "SubscriptionRevoked",

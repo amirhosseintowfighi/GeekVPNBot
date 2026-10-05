@@ -510,6 +510,19 @@ HIDDEN_BUTTONS = SettingDefinition[str](
     description="Home-screen buttons switched off, comma separated. Edited from the bot.",
 )
 
+REFUND_WINDOW_HOURS = SettingDefinition[int](
+    key="services.refund_window_hours",
+    label_fa="مهلت برگشت وجه سرویس استفاده‌نشده (ساعت)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=720,
+    description=(
+        "Hours after purchase a customer may return a service that has used no"
+        " traffic, for its price back into their wallet. 0 turns it off."
+    ),
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -552,6 +565,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         REFERRAL_INVITEE_BONUS,
         CARD_FOR_NEW_CUSTOMERS,
         HIDDEN_BUTTONS,
+        REFUND_WINDOW_HOURS,
     )
 }
 

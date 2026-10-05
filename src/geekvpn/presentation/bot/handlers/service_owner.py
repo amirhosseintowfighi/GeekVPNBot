@@ -26,7 +26,7 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, SubCB
-from geekvpn.presentation.bot.ui.fa import en_digits, normalize_input
+from geekvpn.presentation.bot.ui.fa import en_digits, normalize_input, toman
 
 router = Router(name="service_owner")
 
@@ -199,4 +199,60 @@ async def on_transfer_confirm(
         query,
         T.TRANSFER_DONE,
         markup=K.single(K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"))),
+    )
+
+
+# -- refund of an unused service -------------------------------------------------
+
+
+@router.callback_query(SubCB.filter(F.action == "refund"))
+async def on_refund_start(
+    query: CallbackQuery, callback_data: SubCB, services: BotServices, user: Any = None
+) -> None:
+    await toast(query)
+    if user is None:
+        return
+    card = await _card(services, user, callback_data.ref)
+    if card is None:
+        await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
+        return
+    await safe_edit(
+        query,
+        T.REFUND_CONFIRM.format(name=R.subscription_button_label(card)),
+        markup=K.stack(
+            [
+                [
+                    K.btn(
+                        T.BTN_REFUND_CONFIRM,
+                        SubCB(action="refund_ok", ref=callback_data.ref),
+                        style=K.NO,
+                    )
+                ],
+                [K.btn(T.BTN_CANCEL, SubCB(action="view", ref=callback_data.ref))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(SubCB.filter(F.action == "refund_ok"))
+async def on_refund_confirm(
+    query: CallbackQuery, callback_data: SubCB, services: BotServices, user: Any = None
+) -> None:
+    await toast(query)
+    if user is None or services.ownership is None:
+        return
+    card = await _card(services, user, callback_data.ref)
+    if card is None:
+        await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
+        return
+    try:
+        amount = await services.ownership.refund_unused(user.id, card.subscription_id)
+    except DomainError as refused:
+        # Every "no" carries its own reason: used, too late, never bought.
+        await safe_edit(query, refused.message, markup=_back(callback_data.ref))
+        return
+    await safe_edit(
+        query,
+        T.REFUND_DONE.format(amount=toman(amount)),
+        markup=K.single(K.btn(T.MENU_WALLET, NavCB(to="wallet"))),
     )

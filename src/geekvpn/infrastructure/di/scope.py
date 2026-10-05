@@ -37,6 +37,7 @@ from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
 from geekvpn.application.platform.settings_service import (
+    REFUND_WINDOW_HOURS,
     SIGNUP_BONUS_NOTE_FA,
     SIGNUP_BONUS_TOMAN,
     TRIAL_DURATION_DAYS,
@@ -51,6 +52,7 @@ from geekvpn.application.provisioning.provisioning_service import ProvisioningSe
 from geekvpn.application.provisioning.subscription_admin import (
     SubscriptionAdminService,
 )
+from geekvpn.application.provisioning.unused_refund import REFUND_REASON_FA, UnusedRefund
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.application.resellers.applications import ResellerApplications
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
@@ -59,9 +61,12 @@ from geekvpn.application.resellers.sales import ResellerSalesService
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.application.resellers.topups import ResellerTopups
 from geekvpn.domain.analytics.calendar import to_jalali
+from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
+from geekvpn.domain.payments.enums import TransactionKind
 from geekvpn.domain.provisioning.events import SubscriptionActivated
+from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.domain.resellers.reseller import Reseller
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
 from geekvpn.infrastructure.bot.token_check import HttpTokenChecker
@@ -701,6 +706,41 @@ class RequestScope:
             panels=self.panel_provider,
             clock=self.container.clock,
             shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
+        )
+
+    @cached_property
+    def unused_refund(self) -> UnusedRefund:
+        """Returning a service that carried no traffic, for its price back."""
+
+        async def revoke(subscription_id: str, reason_fa: str) -> Subscription:
+            return await self.subscription_admin.revoke(subscription_id, reason_fa=reason_fa)
+
+        async def credit(user_id: int, amount: Money, order_number: str) -> None:
+            # Committed on its own connection before the order is marked: the
+            # wallet is on the synchronous side, and `in_shop` keeps it in the
+            # shop the customer bought from.
+            def work(sync: SyncScope) -> None:
+                sync.wallet.credit_reward(
+                    user_id=user_id,
+                    amount=amount,
+                    kind=TransactionKind.REFUND,
+                    description_fa=f"{REFUND_REASON_FA} ({order_number})",
+                    reference=order_number,
+                )
+
+            await self.in_shop(work)
+
+        async def window() -> int:
+            return await self.settings_service.get(REFUND_WINDOW_HOURS)
+
+        return UnusedRefund(
+            subscriptions=self.subscriptions,
+            orders=self.orders,
+            refresh_usage=self.usage_sync.sync_subscription,
+            revoke=revoke,
+            credit=credit,
+            window=window,
+            clock=self.container.clock,
         )
 
     async def grant_signup_bonus(self, telegram_id: int) -> int:

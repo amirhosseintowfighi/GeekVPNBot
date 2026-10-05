@@ -50,7 +50,7 @@ class SubCB(CallbackData, prefix="sub"):
     """An owned subscription."""
 
     action: str  # view | config | qr | renew | traffic | rotate
-    #              | auto | rename | transfer | xfer_ok
+    #              | auto | rename | transfer | xfer_ok | refund | refund_ok
     ref: str = ""
 
 

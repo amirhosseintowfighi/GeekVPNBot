@@ -65,6 +65,7 @@ class FakeScope:
     catalog_coupons = object()
     provisioning = object()
     free_trial = object()
+    unused_refund = object()
     subscription_admin = SimpleNamespace(rotate_access=None)
     settings_service = object()
 

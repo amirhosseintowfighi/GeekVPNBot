@@ -8,7 +8,7 @@ real source of support tickets.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from aiogram import F, Router
@@ -17,7 +17,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
-from geekvpn.application.bot.read_models import OwnerOptions
+from geekvpn.application.bot.read_models import OwnerOptions, SubscriptionState
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.provisioning.claim_service import ClaimOutcome
 from geekvpn.domain.provisioning.errors import RotationUnavailable
@@ -83,8 +83,19 @@ def _detail_keyboard(card: Any, options: OwnerOptions | None = None) -> InlineKe
             owner_row.append(K.btn(T.BTN_RENAME, SubCB(action="rename", ref=ref)))
         if owner_row:
             rows.append(owner_row)
+        if _refundable(card, options.refund_window_hours):
+            rows.append([K.btn(T.BTN_REFUND, SubCB(action="refund", ref=ref), style=K.NO)])
     rows.append([K.btn(T.BTN_BACK, NavCB(to="dashboard")), K.home_button()])
     return K.stack(rows)
+
+
+def _refundable(card: Any, window_hours: int) -> bool:
+    """Whether to offer the refund. The adapter decides for real, with fresh usage."""
+    if window_hours <= 0 or card.used_gib > 0 or card.created_at is None:
+        return False
+    if card.state is not SubscriptionState.ACTIVE:
+        return False
+    return bool(datetime.now(UTC) - card.created_at <= timedelta(hours=window_hours))
 
 
 async def owner_options(services: BotServices) -> OwnerOptions | None:

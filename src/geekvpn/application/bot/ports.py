@@ -243,3 +243,10 @@ class ServiceOwnership(Protocol):
     ) -> None:
         """:raises LookupError: no such recipient in this shop."""
         ...
+
+    async def refund_unused(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> int:
+        """Return a service that carried no traffic. Returns the Toman credited.
+
+        :raises RefundNotAllowed: with the reason, in Persian.
+        """
+        ...
