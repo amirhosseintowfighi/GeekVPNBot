@@ -85,6 +85,13 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class DailyPurchaseLimitReached(ConflictError):
+    """This customer has bought as many services today as the shop allows."""
+
+    code = "daily_purchase_limit"
+    message = "سقف خرید امروزت پر شده. فردا دوباره می‌تونی خرید کنی."
+
+
 class RotationUnavailable(ConflictError):
     """This service's panel cannot issue a new link, or it has no panel at all."""
 
@@ -111,6 +118,7 @@ class FreeTrialUnavailable(ConflictError):
 
 
 __all__ = [
+    "DailyPurchaseLimitReached",
     "FreeTrialAlreadyClaimed",
     "FreeTrialUnavailable",
     "IllegalOrderTransition",

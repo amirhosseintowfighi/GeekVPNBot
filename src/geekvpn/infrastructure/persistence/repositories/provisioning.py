@@ -160,6 +160,28 @@ class SqlAlchemyOrderRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [order_to_domain(row) for row in rows], total
 
+    async def count_new_purchases_since(self, user_id: int, since: datetime) -> int:
+        """New services this customer ordered since a moment, for the daily cap.
+
+        Renewals, trials and orders that came to nothing are left out: the cap
+        is on accounts being created, and a rejected receipt is not a purchase.
+        """
+        stmt = (
+            select(func.count())
+            .select_from(OrderModel)
+            .where(
+                OrderModel.user_id == user_id,
+                self._shop(OrderModel.reseller_id),
+                OrderModel.placed_at >= since,
+                OrderModel.is_renewal.is_(False),
+                OrderModel.source != OrderSource.TRIAL.value,
+                OrderModel.state.not_in(
+                    (OrderState.CANCELLED.value, OrderState.FAILED.value)
+                ),
+            )
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
     async def has_completed_order(self, user_id: int) -> bool:
         """Used for first-purchase pricing and referral conversion.
 

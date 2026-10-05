@@ -390,6 +390,18 @@ RULES_ENABLED = SettingDefinition[bool](
     description="Show a rules button on the home screen and answer /rules.",
 )
 
+DAILY_PURCHASE_LIMIT = SettingDefinition[int](
+    key="purchase.daily_limit",
+    label_fa="سقف تعداد خرید روزانهٔ هر کاربر",
+    default=0,
+    type_=int,
+    minimum=0,
+    description=(
+        "New services one customer may buy per Tehran day. Renewals do not count."
+        " 0 means no limit."
+    ),
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -423,6 +435,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         REMINDER_TRAFFIC_PERCENTS,
         TEXT_OVERRIDES,
         RULES_ENABLED,
+        DAILY_PURCHASE_LIMIT,
     )
 }
 

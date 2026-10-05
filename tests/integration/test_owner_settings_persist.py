@@ -161,3 +161,54 @@ def test_releasing_a_coupon_deletes_the_orders_use_and_counts_it_back(schema: No
         assert db.execute(select(CouponRedemptionModel)).first() is None
         assert db.get(CouponModel, coupon.id).redemption_count == 0  # type: ignore[union-attr]
     engine.dispose()
+
+
+async def test_the_daily_cap_counts_only_new_services_that_went_ahead(
+    session: AsyncSession,
+) -> None:
+    from geekvpn.infrastructure.persistence.models.provisioning import OrderModel
+    from geekvpn.infrastructure.persistence.repositories.provisioning import (
+        SqlAlchemyOrderRepository,
+    )
+
+    def order(
+        number: str,
+        *,
+        state: str = "paid",
+        renewal: bool = False,
+        source: str = "bot",
+        hours_ago: int = 1,
+    ) -> OrderModel:
+        return OrderModel(
+            id=uuid.uuid4().hex,
+            number=number,
+            user_id=1001,
+            state=state,
+            plan_id=uuid.uuid4(),
+            product_id=uuid.uuid4(),
+            plan_name_fa="ماهانه",
+            duration_days=30,
+            list_price=100_000,
+            total=100_000,
+            is_renewal=renewal,
+            source=source,
+            placed_at=NOW - timedelta(hours=hours_ago),
+        )
+
+    session.add_all(
+        [
+            order("A-1"),
+            order("A-2", state="pending"),
+            order("A-3", renewal=True),
+            order("A-4", state="cancelled"),
+            order("A-5", source="trial"),
+            order("A-6", hours_ago=30),
+        ]
+    )
+    await session.commit()
+
+    counted = await SqlAlchemyOrderRepository(session).count_new_purchases_since(
+        1001, NOW - timedelta(hours=12)
+    )
+
+    assert counted == 2

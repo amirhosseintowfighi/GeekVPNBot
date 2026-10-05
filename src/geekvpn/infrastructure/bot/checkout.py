@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,7 +54,7 @@ from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.invoice import InvoiceLine
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.payments.proof import PaymentProof
-from geekvpn.domain.provisioning.errors import DeliveryPending
+from geekvpn.domain.provisioning.errors import DailyPurchaseLimitReached, DeliveryPending
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
@@ -116,7 +117,11 @@ class BotCheckoutAdapter:
         #: only so the adapter stays constructible in tests; `attach_receipt`
         #: refuses rather than falling back to hashing the file id.
         fetch_receipt: Callable[[str], Awaitable[bytes]] | None = None,
+        #: The shop's cap on new services per customer per day; 0 is no cap.
+        #: Read per checkout, so an operator's change applies to the next one.
+        daily_limit: Callable[[], Awaitable[int]] | None = None,
     ) -> None:
+        self._daily_limit = daily_limit
         self._bridge = bridge
         self._quoting = quoting
         self._orders = orders
@@ -371,6 +376,8 @@ class BotCheckoutAdapter:
             target = await self._subscriptions.get(renews)
             if target is None or target.user_id != telegram_id:
                 raise LookupError(f"No subscription {renews} for this customer.")
+        if renews is None:
+            await self._check_daily_limit(telegram_id)
         # Read from order history rather than defaulted. Left False, a
         # first-purchase-only coupon is redeemable forever and every
         # returning customer is priced as a new one.
@@ -515,12 +522,33 @@ class BotCheckoutAdapter:
             redeemed_at=self._clock.now(),
         )
 
+    async def _check_daily_limit(self, telegram_id: int) -> None:
+        """Refuse a new service past the shop's daily cap. Renewals are exempt.
+
+        The day is Tehran's, because that is the day the customer and the
+        operator both mean; a UTC day would reset at half past three.
+        """
+        if self._daily_limit is None:
+            return
+        limit = await self._daily_limit()
+        if limit <= 0:
+            return
+        local = self._clock.now().astimezone(TEHRAN)
+        midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        bought = await self._order_repository.count_new_purchases_since(telegram_id, midnight)
+        if bought >= limit:
+            raise DailyPurchaseLimitReached(limit=limit)
+
     async def _require_telegram_id(self, user_id: uuid.UUID) -> int:
         telegram_id = await self._bridge.telegram_id(user_id)
         if telegram_id is None:
             raise LookupError(f"No user {user_id}.")
         return telegram_id
 
+
+#: Iran has kept standard time all year since 2022, so a fixed offset is
+#: exact and does not depend on the image shipping a timezone database.
+TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
 #: Shown next to every manual payment so the customer knows what "in review"
 #: costs them in waiting.
