@@ -32,10 +32,14 @@ from geekvpn.presentation.bot.ui import text as T
 TELEGRAM_MAX = 4096
 
 
-def clamp(body: str) -> str:
-    if len(body) <= TELEGRAM_MAX:
+#: Telegram's ceiling on a photo or document caption.
+CAPTION_LIMIT = 1024
+
+
+def clamp(body: str, limit: int = TELEGRAM_MAX) -> str:
+    if len(body) <= limit:
         return body
-    return body[: TELEGRAM_MAX - 1] + "\u2026"
+    return body[: limit - 1] + "\u2026"
 
 
 async def safe_edit(
@@ -52,7 +56,13 @@ async def safe_edit(
         # should have already answered the query.
         return
     try:
-        await message.edit_text(clamp(body), reply_markup=markup)
+        if message.text is None and (message.photo or message.document):
+            # A receipt alert is a photo, and Telegram refuses `edit_text` on a
+            # message with no text: approving from the alert approved the
+            # payment and then showed the operator an error.
+            await message.edit_caption(caption=clamp(body, CAPTION_LIMIT), reply_markup=markup)
+        else:
+            await message.edit_text(clamp(body), reply_markup=markup)
     except TelegramBadRequest as exc:
         if "message is not modified" in str(exc).lower():
             return

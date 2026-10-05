@@ -308,3 +308,16 @@ EXPORT_NOT_ALLOWED: Final = "خروجی گرفتن دسترسی خروجی آم�
 
 BTN_MENU_BUTTONS: Final = "🔘 دکمه‌های صفحهٔ اصلی"
 MENU_BUTTONS_TITLE: Final = "🔘 <b>دکمه‌های صفحهٔ اصلی</b>\n\nروی هر دکمه بزن تا روشن یا خاموش بشه."
+
+BTN_FAKE_RECEIPT: Final = "🚫 فیش جعلی بود"
+FAKE_CONFIRM: Final = (
+    "⚠️ مطمئنی این فیش جعلی بوده؟\n\n"
+    "سرویسی که با این پرداخت ساخته شده حذف می‌شه (یا شارژ کیف پول پس گرفته می‌شه) "
+    "و کاربر مسدود می‌شه."
+)
+BTN_FAKE_CONFIRM: Final = "✅ بله، حذف و مسدود کن"
+FAKE_DONE: Final = "🚫 انجام شد: {what} و کاربر <code>{user_id}</code> مسدود شد."
+FAKE_SERVICE_REMOVED: Final = "سرویس حذف شد"
+FAKE_TOPUP_REVERSED: Final = "شارژ کیف پول پس گرفته شد"
+FAKE_NOTHING_FOUND: Final = "چیزی برای حذف پیدا نشد"
+FAKE_REASON: Final = "فیش واریزی جعلی"
