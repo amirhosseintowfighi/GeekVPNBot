@@ -10,6 +10,7 @@ siblings to hand reply-keyboard taps over to the inline flows.
 
 from geekvpn.presentation.bot.handlers import (
     admin_export,
+    admin_pin,
     admin_texts,
     admin_top,
     app_login,
@@ -38,6 +39,7 @@ from geekvpn.presentation.bot.handlers import (
 
 __all__ = [
     "admin_export",
+    "admin_pin",
     "admin_texts",
     "admin_top",
     "app_login",

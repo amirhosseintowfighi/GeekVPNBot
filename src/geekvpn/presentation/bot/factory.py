@@ -22,6 +22,7 @@ from geekvpn.presentation.bot.channel_gate import ChannelGateMiddleware
 from geekvpn.presentation.bot.handlers import (
     admin,
     admin_export,
+    admin_pin,
     admin_texts,
     admin_top,
     app_login,
@@ -69,6 +70,7 @@ ROUTERS = (
     admin_texts,
     admin_export,
     admin_top,
+    admin_pin,
     start,
     menu,
     shop,
