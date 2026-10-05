@@ -1075,3 +1075,6 @@ DEVICE_LABELS: Final = {
 BTN_GUIDE: Final = "📚 آموزش اتصال"
 GUIDE_PICK: Final = "📚 <b>آموزش اتصال</b>\n\nدستگاهت رو انتخاب کن:"
 GUIDE_NONE: Final = "هنوز آموزشی اضافه نشده. اگه برای اتصال کمک لازم داری، به پشتیبانی پیام بده."
+CAPACITY_LEFT: Final = "🟢 ظرفیت باقی‌مانده: {count} نفر"
+CAPACITY_LOW: Final = "🟡 فقط {count} جای خالی مونده"
+CAPACITY_FULL: Final = "🔴 ظرفیت این سرور فعلاً تکمیله"

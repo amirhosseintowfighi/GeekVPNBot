@@ -591,6 +591,14 @@ DELETE_EXPIRED_AFTER_HOURS = SettingDefinition[int](
     ),
 )
 
+SHOW_CAPACITY = SettingDefinition[bool](
+    key="shop.show_capacity",
+    label_fa="نمایش ظرفیت باقی‌ماندهٔ سرور هنگام خرید",
+    default=False,
+    type_=bool,
+    description="Show how many accounts a product's server still has room for.",
+)
+
 SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
     definition.key: definition
     for definition in (
@@ -640,6 +648,7 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         CHANNEL_LEAVE_MESSAGE_FA,
         TUTORIALS,
         DELETE_EXPIRED_AFTER_HOURS,
+        SHOW_CAPACITY,
     )
 }
 
