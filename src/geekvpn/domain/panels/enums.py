@@ -22,6 +22,8 @@ class PanelKind(StrEnum):
     MARZNESHIN = "marzneshin"
     SANAEI = "sanaei"
     ALIREZA = "alireza"
+    REBECCA = "rebecca"
+    WGDASHBOARD = "wgdashboard"
 
 
 @unique

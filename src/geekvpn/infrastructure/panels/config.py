@@ -71,6 +71,25 @@ class MarzbanConfig(PanelConnectionConfig):
     default_inbounds: dict[str, tuple[str, ...]] = {}
 
 
+class RebeccaConfig(MarzbanConfig):
+    """Rebecca, a Marzban fork: the same connection and the same inbounds."""
+
+
+class WgDashboardConfig(PanelConnectionConfig):
+    """WGDashboard. Authenticated by an API key rather than a login.
+
+    The key is normally entered as the node's *password*: that column is
+    encrypted, and the node's free-form config is not. `api_key` is honoured
+    when set, for a record written some other way. `username` is unused.
+    """
+
+    api_key: SecretStr = SecretStr("")
+    #: The WireGuard configuration new peers are added to, e.g. "wg0".
+    configuration: str = Field(min_length=1, max_length=64)
+    #: DNS written into each peer's config. Empty keeps the dashboard's default.
+    dns: str = ""
+
+
 class MarzneshinConfig(PanelConnectionConfig):
     """Marzneshin. Access is granted through *services*, not inbounds."""
 

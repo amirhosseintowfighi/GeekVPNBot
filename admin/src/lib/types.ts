@@ -74,6 +74,8 @@ export type PanelKind =
   | 'marzneshin'
   | 'sanaei'
   | 'alireza'
+  | 'rebecca'
+  | 'wgdashboard'
 export type UserState = 'active' | 'suspended' | 'banned'
 /** domain/provisioning/enums.py OrderState. */
 export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'

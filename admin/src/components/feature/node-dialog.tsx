@@ -45,6 +45,8 @@ const PANEL_KINDS = [
   { value: 'marzneshin', label: 'Marzneshin' },
   { value: 'sanaei', label: '3x-ui (Sanaei)' },
   { value: 'alireza', label: 'x-ui (Alireza)' },
+  { value: 'rebecca', label: 'Rebecca' },
+  { value: 'wgdashboard', label: 'WGDashboard (WireGuard)' },
 ] as const
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
@@ -84,11 +86,15 @@ export function NodeDialog({
   const [inboundId, setInboundId] = React.useState('')
   const [webBasePath, setWebBasePath] = React.useState('')
   const [xuiSubUrl, setXuiSubUrl] = React.useState('')
+  // WGDashboard adds peers to one WireGuard configuration, named here; its
+  // API key goes in the password field, which is the encrypted one.
+  const [wgConfiguration, setWgConfiguration] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [failure, setFailure] = React.useState<string | null>(null)
 
   const editing = Boolean(node)
   const isXui = panelKind === 'sanaei' || panelKind === 'alireza'
+  const isWg = panelKind === 'wgdashboard'
 
   // Load the node being edited, and clear the form when it changes. The
   // password is never sent back by the API - only `hasPassword` - so it starts
@@ -107,6 +113,7 @@ export function NodeDialog({
     setInboundId(String(node?.config?.inboundId ?? node?.config?.inbound_id ?? ''))
     setWebBasePath(String(node?.config?.webBasePath ?? node?.config?.web_base_path ?? ''))
     setXuiSubUrl(String(node?.config?.subscriptionUrl ?? node?.config?.subscription_url ?? ''))
+    setWgConfiguration(String(node?.config?.configuration ?? ''))
     setFailure(null)
     setGroups([])
     setGroupsNote(null)
@@ -147,18 +154,24 @@ export function NodeDialog({
 
   const idValid = ID_PATTERN.test(id)
   const inboundValid = !isXui || /^\d+$/.test(inboundId.trim())
+  const wgValid = !isWg || wgConfiguration.trim() !== ''
+  // WGDashboard has no login, so no username to require.
+  const userOk = isWg || username !== ''
   const complete =
     inboundValid &&
+    wgValid &&
     (editing
-      ? nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== ''
-      : idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && username !== '' && password !== '')
+      ? nameFa.trim() !== '' && baseUrl.trim() !== '' && userOk
+      : idValid && nameFa.trim() !== '' && baseUrl.trim() !== '' && userOk && password !== '')
   const xuiConfig = isXui
     ? {
         inboundId: Number(inboundId.trim()),
         webBasePath: webBasePath.trim(),
         subscriptionUrl: xuiSubUrl.trim(),
       }
-    : null
+    : isWg
+      ? { configuration: wgConfiguration.trim() }
+      : null
 
   const reset = () => {
     setId('')
@@ -183,7 +196,8 @@ export function NodeDialog({
         // Sent even when empty: '' is how the field is cleared, and the API
         // treats null as "leave alone".
         subscriptionBaseUrl: subBaseUrl.trim(),
-        username: username.trim(),
+        // WGDashboard has no login; the API still wants a name on the row.
+        username: username.trim() || (isWg ? 'wgdashboard' : ''),
         // Two characters or nothing: the API rejects a one-letter code, and an
         // empty string is not the same as "not set".
         countryCode: countryCode.trim().length === 2 ? countryCode.trim().toUpperCase() : null,
@@ -336,18 +350,34 @@ export function NodeDialog({
             </>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={'نام کاربری پنل'}>
+          {isWg ? (
+            <Field
+              label={'نام کانفیگ وایرگارد'}
+              hint={'همون کانفیگی که پیرها داخلش ساخته می‌شن، مثل wg0'}
+            >
               <Input
                 ltr
-                autoComplete="off"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                value={wgConfiguration}
+                onChange={(event) => setWgConfiguration(event.target.value)}
+                placeholder="wg0"
               />
             </Field>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            {isWg ? null : (
+              <Field label={'نام کاربری پنل'}>
+                <Input
+                  ltr
+                  autoComplete="off"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              </Field>
+            )}
 
             <Field
-              label={'گذرواژه پنل'}
+              label={isWg ? 'کلید API داشبورد' : 'گذرواژه پنل'}
               hint={editing ? 'خالی بگذارید تا تغییر نکند' : undefined}
             >
               <Input
