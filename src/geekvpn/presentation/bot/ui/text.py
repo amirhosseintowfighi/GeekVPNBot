@@ -930,10 +930,10 @@ TOAST_NOTHING_CHANGED: Final = (
 )
 
 
-# -- Android app sign-in (handlers/app_login.py) --------------------------------
+# -- app sign-in (handlers/app_login.py) ----------------------------------------
 
 APP_LOGIN_PROMPT: Final = (
-    "\U0001f4f1 \u06cc\u06a9 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u0627\u062a\u0635\u0627\u0644 \u0627\u0632 \u0627\u067e\u0644\u06cc\u06a9\u06cc\u0634\u0646 \u0627\u0646\u062f\u0631\u0648\u06cc\u062f GeekVPN \u062f\u0631\u06cc\u0627\u0641\u062a \u0634\u062f.\n"
+    "{icon} \u06cc\u06a9 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u0627\u062a\u0635\u0627\u0644 \u0627\u0632 \u0627\u067e\u0644\u06cc\u06a9\u06cc\u0634\u0646 {app} GeekVPN \u062f\u0631\u06cc\u0627\u0641\u062a \u0634\u062f.\n"
     "\n"
     "\u062f\u0633\u062a\u06af\u0627\u0647: {device}\n"
     "\u067e\u0644\u062a\u0641\u0631\u0645: {platform}\n"
@@ -941,6 +941,17 @@ APP_LOGIN_PROMPT: Final = (
     "\n"
     "\u0627\u06af\u0631 \u0627\u06cc\u0646 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u0631\u0627 \u062e\u0648\u062f\u062a \u0646\u062f\u0627\u062f\u0647\u200c\u0627\u06cc\u060c \u00ab\u0644\u063a\u0648\u00bb \u0631\u0627 \u0628\u0632\u0646."
 )
+#: The app's platform as the customer calls it, for the approval prompt. Says
+#: which of their devices is asking, so a request from a platform they do not
+#: use stands out. An unknown value is shown as sent (see `app_login_platform`).
+APP_LOGIN_PLATFORMS: Final[dict[str, str]] = {
+    "android": "\u0627\u0646\u062f\u0631\u0648\u06cc\u062f",
+    "windows": "\u0648\u06cc\u0646\u062f\u0648\u0632",
+    "macos": "\u0645\u06a9",
+    "linux": "\u0644\u06cc\u0646\u0648\u06a9\u0633",
+}
+APP_LOGIN_ICON_PHONE: Final = "\U0001f4f1"
+APP_LOGIN_ICON_DESKTOP: Final = "\U0001f4bb"
 BTN_APP_LOGIN_APPROVE: Final = (
     "\u2705 \u062a\u0627\u06cc\u06cc\u062f \u0648 \u0627\u062a\u0635\u0627\u0644"
 )

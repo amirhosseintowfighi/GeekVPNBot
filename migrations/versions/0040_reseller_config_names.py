@@ -1,7 +1,7 @@
 """A reseller's prefix and suffix for their customers' config names.
 
-Revision ID: 0037_reseller_config_names
-Revises: 0036_broadcast_audiences
+Revision ID: 0040_reseller_config_names
+Revises: 0039_broadcast_audiences
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0037_reseller_config_names"
-down_revision = "0036_broadcast_audiences"
+revision = "0040_reseller_config_names"
+down_revision = "0039_broadcast_audiences"
 branch_labels = None
 depends_on = None
 

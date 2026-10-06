@@ -5,16 +5,16 @@ this every transfer fails on insert. 0003's constraint name went through the
 naming convention twice and was truncated to a hash, so it is found by what it
 checks rather than by name.
 
-Revision ID: 0039_wallet_transfers
-Revises: 0038_reseller_trial_limit
+Revision ID: 0042_wallet_transfers
+Revises: 0041_reseller_trial_limit
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision = "0039_wallet_transfers"
-down_revision = "0038_reseller_trial_limit"
+revision = "0042_wallet_transfers"
+down_revision = "0041_reseller_trial_limit"
 branch_labels = None
 depends_on = None
 

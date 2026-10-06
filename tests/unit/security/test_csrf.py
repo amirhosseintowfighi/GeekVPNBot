@@ -143,6 +143,25 @@ class TestRequestChecking:
         assert verdict.ok
         assert verdict.reason == "bearer authenticated"
 
+    def test_a_request_with_no_cookie_session_is_exempt(self):
+        """The apps put the refresh token in the body; nothing rides on a cookie."""
+        verdict = check_request(
+            SECRET,
+            method="POST",
+            cookie_token=None,
+            header_token=None,
+            session_id="",
+            has_session_cookie=False,
+        )
+        assert verdict.ok
+        assert verdict.reason == "no cookie session"
+
+    def test_a_cookie_session_still_needs_the_double_submit_token(self):
+        verdict = check_request(
+            SECRET, method="POST", cookie_token=None, header_token=None, session_id=SESSION
+        )
+        assert not verdict.ok
+
     def test_the_method_check_is_case_insensitive(self):
         assert check_request(
             SECRET, method="get", cookie_token=None, header_token=None, session_id=SESSION

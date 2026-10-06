@@ -3,16 +3,16 @@
 The third list a provider lives in (see 0030): without this, saving one of
 them raises an IntegrityError and the operator sees a generic failure.
 
-Revision ID: 0040_crypto_and_stars_providers
-Revises: 0039_wallet_transfers
+Revision ID: 0043_crypto_and_stars_providers
+Revises: 0042_wallet_transfers
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision = "0040_crypto_and_stars_providers"
-down_revision = "0039_wallet_transfers"
+revision = "0043_crypto_and_stars_providers"
+down_revision = "0042_wallet_transfers"
 branch_labels = None
 depends_on = None
 

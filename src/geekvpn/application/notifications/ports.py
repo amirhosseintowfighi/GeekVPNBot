@@ -142,6 +142,17 @@ class NotificationRepository(Protocol):
 
 
 @runtime_checkable
+class AppPush(Protocol):
+    """Push to a customer's installed Android apps (Firebase Cloud Messaging).
+
+    Best effort by contract: it never raises, because it rides along with a
+    Telegram message that has already been sent and must not be undone.
+    """
+
+    def notify(self, telegram_id: int, data: dict[str, str]) -> None: ...
+
+
+@runtime_checkable
 class BroadcastRepository(Protocol):
     def get(self, broadcast_id: str) -> Broadcast: ...
 
@@ -284,6 +295,7 @@ class NotificationServices:
 
 
 __all__ = [
+    "AppPush",
     "AudienceResolver",
     "BroadcastRepository",
     "CampaignReader",

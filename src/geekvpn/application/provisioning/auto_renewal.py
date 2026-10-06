@@ -20,6 +20,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from geekvpn.application.ports.clock import Clock
+from geekvpn.application.provisioning.auto_renew import EXPIRY_WINDOW, needs_renewal
 from geekvpn.domain.notifications.message import RenderedMessage, fa_digits, fa_toman, render
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -27,7 +28,8 @@ _log = logging.getLogger(__name__)
 
 #: How long before the end a renewal is attempted. A day, so a wallet that
 #: is short still leaves the customer time to top up before they are cut off.
-AUTO_RENEW_WINDOW = timedelta(hours=24)
+#: A service nearly out of traffic is renewed too, whatever its date.
+AUTO_RENEW_WINDOW = EXPIRY_WINDOW
 
 
 class RenewalOutcome(StrEnum):
@@ -50,7 +52,8 @@ class AutoRenewCandidates(Protocol):
     async def list_auto_renew_due(
         self, *, before: datetime, limit: int = 200
     ) -> Sequence[Subscription]:
-        """Usable subscriptions with auto-renew on that end before ``before``."""
+        """Usable subscriptions with auto-renew on that end before ``before``,
+        or are nearly out of traffic."""
         ...
 
 
@@ -97,6 +100,14 @@ class AutoRenewal:
         now = self._clock.now()
         examined = renewed = short = failed = 0
         for subscription in await self._candidates.list_auto_renew_due(before=now + self._window):
+            if not needs_renewal(
+                expires_at=subscription.expires_at,
+                traffic_limit_mib=subscription.traffic_limit_mib,
+                traffic_used_mib=subscription.traffic_used_mib,
+                now=now,
+                window=self._window,
+            ):
+                continue
             examined += 1
             key = attempt_key(subscription)
             if await self._attempts.seen(key):
@@ -134,6 +145,9 @@ class AutoRenewal:
 
 
 def attempt_key(subscription: Subscription) -> str:
+    """One attempt per expiry date: a renewal moves the date, which makes the
+    service eligible again for its next run-out, and a failed one waits for
+    the customer or an operator rather than a loop that might charge twice."""
     return f"{subscription.id}:{subscription.expires_at.isoformat()}"
 
 

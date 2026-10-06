@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta
 
 from geekvpn.application.platform.settings_service import AUTO_RENEW_ENABLED
+from geekvpn.application.provisioning.auto_renew import AutoRenewResult
 from geekvpn.application.provisioning.auto_renewal import (
     AutoRenewal,
     ChargeResult,
@@ -31,6 +32,7 @@ from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.persistence.repositories.auto_renew import SqlAutoRenewals
 
 logger = get_logger("worker.auto_renew")
 
@@ -128,7 +130,9 @@ class _Candidates:
 
 def build_auto_renewal(container: Container) -> AutoRenewal:
     async def charge(subscription: Subscription) -> ChargeResult:
-        return await charge_from_wallet(container, subscription)
+        result = await charge_from_wallet(container, subscription)
+        await _record(container, subscription, result)
+        return result
 
     async def notify(subscription: Subscription, message: RenderedMessage) -> None:
         # Through the shop that sold it, so a reseller's customer hears from
@@ -164,6 +168,30 @@ def build_auto_renewal(container: Container) -> AutoRenewal:
         enabled=enabled,
         clock=container.clock,
     )
+
+
+#: The bot's outcomes in the words the app shows.
+_APP_RESULT = {
+    RenewalOutcome.RENEWED: AutoRenewResult.RENEWED,
+    RenewalOutcome.SHORT: AutoRenewResult.INSUFFICIENT_FUNDS,
+    RenewalOutcome.NOT_RENEWABLE: AutoRenewResult.UNAVAILABLE,
+    RenewalOutcome.FAILED: AutoRenewResult.UNAVAILABLE,
+}
+
+
+async def _record(container: Container, subscription: Subscription, result: ChargeResult) -> None:
+    """Keep the outcome for the app's switch. Never fails the renewal."""
+    try:
+        async with container.session_factory() as session:
+            await SqlAutoRenewals(session).record(
+                subscription.id,
+                telegram_id=subscription.user_id,
+                result=_APP_RESULT[result.outcome],
+                at=container.clock.now(),
+            )
+            await session.commit()
+    except Exception:
+        logger.warning("auto_renew.record_failed", subscription=subscription.id, exc_info=True)
 
 
 def _reseller(subscription: Subscription) -> uuid.UUID | None:

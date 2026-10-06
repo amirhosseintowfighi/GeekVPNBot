@@ -28,6 +28,7 @@ from geekvpn.application.provisioning.ports import (
     PanelProvider,
     SubscriptionRepository,
 )
+from geekvpn.application.provisioning.usage_history import UsageHistory, tehran_day
 from geekvpn.domain.panels.values import PanelAccountRef
 from geekvpn.domain.provisioning.subscription import Subscription
 
@@ -66,11 +67,13 @@ class UsageSyncService:
         nodes: NodeRepository,
         panels: PanelProvider,
         clock: Clock,
+        history: UsageHistory | None = None,
     ) -> None:
         self._subscriptions = subscriptions
         self._nodes = nodes
         self._panels = panels
         self._clock = clock
+        self._history = history
 
     async def sync_subscription(self, subscription_id: str) -> Subscription | None:
         """Refresh one account. Returns ``None`` when there is nothing to ask.
@@ -107,6 +110,7 @@ class UsageSyncService:
             online_at=usage.online_at,
         )
         await self._subscriptions.update(subscription)
+        await self._remember(subscription)
         return subscription
 
     async def sync_all(self, *, batch_size: int = 500) -> SyncReport:
@@ -165,9 +169,20 @@ class UsageSyncService:
                 online_at=usage.online_at,
             )
             await self._subscriptions.update(subscription)
+            await self._remember(subscription)
             updated += 1
 
         return NodeSyncReport(node_id=node_id, updated=updated, skipped=len(syncable) - updated)
+
+    async def _remember(self, subscription: Subscription) -> None:
+        """Today's reading for the app's daily chart (see ``usage_history``)."""
+        if self._history is None:
+            return
+        await self._history.record(
+            subscription.id,
+            tehran_day(self._clock.now()),
+            subscription.traffic_used_mib,
+        )
 
 
 def _ref_for(subscription: Subscription) -> PanelAccountRef:

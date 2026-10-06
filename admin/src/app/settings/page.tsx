@@ -42,6 +42,7 @@ const GROUP_TITLES: Record<string, string> = {
   alerts: 'اعلان‌های مدیریت',
   renewal: 'تمدید',
   trial: 'اکانت تست',
+  app: 'اپ اندروید',
   wallet: 'کیف پول',
   pricing: 'قیمت‌گذاری',
   payments: 'پرداخت',

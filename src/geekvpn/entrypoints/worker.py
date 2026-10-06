@@ -101,6 +101,9 @@ USAGE_SYNC_INTERVAL_SECONDS = 600
 #: nine, which is when the customer notices before we do.
 EXPIRY_SWEEP_INTERVAL_SECONDS = 300
 
+#: Auto-renew looks a day ahead, so a quarter-hour cadence is plenty.
+AUTO_RENEW_INTERVAL_SECONDS = 900
+
 #: Guards a tick across processes. Comfortably longer than a tick should take,
 #: short enough that a killed worker does not block the next one for long.
 LOCK_TTL_SECONDS = 300
@@ -138,7 +141,11 @@ class Worker:
             ("newcomer_gift", NEWCOMER_GIFT_INTERVAL_SECONDS, self._newcomer_gifts),
             ("trial_followup", TRIAL_FOLLOWUP_INTERVAL_SECONDS, self._trial_followups),
         ]
-        self._next_run: dict[str, float] = {}
+        self._next_run: dict[str, float] = {
+            # Not at once on start: usage should be read before "almost out
+            # of traffic" is judged, or a stale counter renews nobody.
+            "auto_renew": time.monotonic() + USAGE_SYNC_INTERVAL_SECONDS,
+        }
 
     def request_stop(self) -> None:
         """Finish the current tick, then exit. Wired to SIGTERM and SIGINT."""
@@ -189,7 +196,11 @@ class Worker:
             HEARTBEAT_PATH.write_text(str(time.time()), encoding="utf-8")
 
     async def _guarded_tick(
-        self, *, run_provisioning: bool, run_usage_sync: bool, run_expiry_sweep: bool
+        self,
+        *,
+        run_provisioning: bool,
+        run_usage_sync: bool,
+        run_expiry_sweep: bool,
     ) -> None:
         """Take the cross-process lock, then tick. Skip quietly if held."""
         redis = self._container.redis

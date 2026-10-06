@@ -106,6 +106,27 @@ async def test_the_sweep_picks_only_opted_in_active_services_ending_soon(
     assert [s.id for s in due] == ["due"]
 
 
+async def test_the_sweep_also_picks_a_service_nearly_out_of_traffic(
+    session: AsyncSession,
+) -> None:
+    """The app's rule, kept in the merge: within 3% or 100 MiB of the cap."""
+
+    def capped(sub_id: str, *, used: int) -> SubscriptionModel:
+        row = subscription(sub_id, auto_renew=True, expires_in=timedelta(days=20))
+        row.traffic_limit_mib = 50 * 1024
+        row.traffic_used_mib = used
+        return row
+
+    session.add_all([capped("nearly_out", used=50 * 1024 - 90), capped("plenty", used=1024)])
+    await session.commit()
+
+    due = await SqlAlchemySubscriptionRepository(session).list_auto_renew_due(
+        before=NOW + timedelta(hours=24)
+    )
+
+    assert [s.id for s in due] == ["nearly_out"]
+
+
 async def test_a_transfer_writes_the_new_owner(session: AsyncSession) -> None:
     session.add(subscription("gift", auto_renew=True, expires_in=timedelta(days=10)))
     await session.commit()

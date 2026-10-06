@@ -1,7 +1,7 @@
 """How many test accounts a reseller may hand out.
 
-Revision ID: 0038_reseller_trial_limit
-Revises: 0037_reseller_config_names
+Revision ID: 0041_reseller_trial_limit
+Revises: 0040_reseller_config_names
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0038_reseller_trial_limit"
-down_revision = "0037_reseller_config_names"
+revision = "0041_reseller_trial_limit"
+down_revision = "0040_reseller_config_names"
 branch_labels = None
 depends_on = None
 

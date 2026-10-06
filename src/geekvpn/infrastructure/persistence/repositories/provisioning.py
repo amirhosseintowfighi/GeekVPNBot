@@ -18,10 +18,11 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from geekvpn.application.provisioning.auto_renew import TRAFFIC_FLOOR_FRACTION, TRAFFIC_FLOOR_MIB
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.provisioning.enums import OrderSource, OrderState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
@@ -452,13 +453,27 @@ class SqlAlchemySubscriptionRepository:
     async def list_auto_renew_due(
         self, *, before: datetime, limit: int = 200
     ) -> Sequence[Subscription]:
-        """Active services whose owner asked for auto-renewal, ending soon."""
+        """Active services whose owner asked for auto-renewal, ending soon or
+        nearly out of traffic."""
         stmt = (
             select(SubscriptionModel)
             .where(
                 SubscriptionModel.state == SubscriptionState.ACTIVE.value,
                 SubscriptionModel.auto_renew.is_(True),
-                SubscriptionModel.expires_at <= before,
+                or_(
+                    SubscriptionModel.expires_at <= before,
+                    # Nearly out of traffic: the same floor `needs_renewal`
+                    # applies, so the limit below is not spent on services
+                    # with plenty left.
+                    and_(
+                        SubscriptionModel.traffic_limit_mib > 0,
+                        SubscriptionModel.traffic_limit_mib - SubscriptionModel.traffic_used_mib
+                        <= func.greatest(
+                            SubscriptionModel.traffic_limit_mib * TRAFFIC_FLOOR_FRACTION,
+                            TRAFFIC_FLOOR_MIB,
+                        ),
+                    ),
+                ),
             )
             .order_by(SubscriptionModel.expires_at)
             .limit(limit)

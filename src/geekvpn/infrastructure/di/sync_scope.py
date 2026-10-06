@@ -176,6 +176,7 @@ from geekvpn.infrastructure.persistence.repositories.sync_support import (
 from geekvpn.infrastructure.persistence.repositories.sync_trial_takers import (
     trial_takers_without_purchase,
 )
+from geekvpn.infrastructure.push.tokens import SqlAppPush
 
 logger = get_logger(__name__)
 
@@ -1222,7 +1223,11 @@ class SyncScope:
 
     @cached_property
     def support_notifier(self) -> EngineSupportNotifier:
-        return EngineSupportNotifier(engine=self.engine)
+        fcm = self.container.fcm
+        return EngineSupportNotifier(
+            engine=self.engine,
+            app_push=SqlAppPush(session=self.session, fcm=fcm) if fcm is not None else None,
+        )
 
     @cached_property
     def support(self) -> TicketService:

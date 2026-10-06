@@ -38,6 +38,7 @@ from geekvpn.presentation.api.routers import (
     admin_users,
     admin_wallet,
     app_auth,
+    app_release,
     auth,
     catalog,
     gateway_callback,
@@ -235,5 +236,8 @@ def create_app(
     # /api/app/auth/*, and after it the app is an ordinary Bearer client of
     # /api/v1/auth/* and /api/miniapp/*.
     app.include_router(app_auth.router)
+    # Public and unversioned too: a signed-out app still has to learn that a
+    # newer version exists, and the path ships inside every installed app.
+    app.include_router(app_release.router)
 
     return app

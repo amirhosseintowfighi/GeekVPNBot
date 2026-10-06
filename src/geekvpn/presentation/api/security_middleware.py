@@ -141,6 +141,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
             # bound to the presented cookie cannot be replayed against another.
             session_id=request.cookies.get(csrf.REFRESH_COOKIE_NAME, "")[:64],
             has_bearer_token=authorization.lower().startswith("bearer "),
+            has_session_cookie=bool(request.cookies.get(csrf.REFRESH_COOKIE_NAME)),
         )
         if verdict.ok:
             return await call_next(request)
@@ -326,6 +327,8 @@ DEFAULT_ROUTE_POLICIES: Final[tuple[tuple[str, str], ...]] = (
     ("/api/app/auth/link/start", "auth.app_link"),
     ("/api/app/auth/link/poll", "auth.app_poll"),
     ("/api/app/auth/password", "auth.app_password"),
+    ("/api/app/version", "app.version"),
+    ("/api/app/promo", "app.version"),
     ("/api/v1/admin/analytics/export", "analytics.export"),
     ("/api/v1/admin/analytics", "analytics.dashboard"),
     # Broadcasts are limited like every other admin mutation. They used to have

@@ -5,16 +5,16 @@ customers of one server, and customers with a suspended service. The column
 is guarded by a check constraint listing every audience, so a new member of
 `AudienceKind` needs this or every broadcast using it fails on insert.
 
-Revision ID: 0036_broadcast_audiences
-Revises: 0035_subscription_owner_settings
+Revision ID: 0039_broadcast_audiences
+Revises: 0038_subscription_owner_settings
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision = "0036_broadcast_audiences"
-down_revision = "0035_subscription_owner_settings"
+revision = "0039_broadcast_audiences"
+down_revision = "0038_subscription_owner_settings"
 branch_labels = None
 depends_on = None
 
