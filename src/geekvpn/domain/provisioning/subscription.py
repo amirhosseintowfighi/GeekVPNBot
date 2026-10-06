@@ -29,9 +29,15 @@ from geekvpn.domain.provisioning.events import (
     SubscriptionRenewed,
     SubscriptionRevokedEvent,
     SubscriptionSuspended,
+    SubscriptionTransferred,
 )
 
 MIB_PER_GIB = 1024
+
+#: A name the customer gives their own service. Short enough to fit on a
+#: button beside the status dot, and never sent to the panel: the panel's
+#: username is what support and the panel operator search by.
+DISPLAY_NAME_MAX = 32
 
 #: Reminder ladders. Kept here rather than in the job so that "have we already
 #: told them?" is answered by the aggregate that knows.
@@ -46,7 +52,9 @@ class Subscription(AggregateRoot[str]):
         "_notified_expiry_days",
         "_notified_traffic_percents",
         "_state",
+        "auto_renew",
         "device_limit",
+        "display_name",
         "expires_at",
         "last_connected_at",
         "last_synced_at",
@@ -96,6 +104,8 @@ class Subscription(AggregateRoot[str]):
         revoked_at: datetime | None = None,
         revoke_reason_fa: str | None = None,
         suspend_reason_fa: str | None = None,
+        auto_renew: bool = False,
+        display_name: str | None = None,
     ) -> None:
         super().__init__(subscription_id)
         if expires_at <= started_at:
@@ -141,6 +151,11 @@ class Subscription(AggregateRoot[str]):
         self._notified_traffic_percents = set(notified_traffic_percents)
         self.revoked_at = revoked_at
         self.revoke_reason_fa = revoke_reason_fa
+        #: The customer asked for this to be renewed from their wallet before
+        #: it runs out. Off unless they turned it on: money leaves a wallet
+        #: only on the customer's say-so.
+        self.auto_renew = auto_renew
+        self.display_name = display_name
 
     # ---- Construction ---------------------------------------------------
 
@@ -414,6 +429,50 @@ class Subscription(AggregateRoot[str]):
         self.record(
             SubscriptionRevokedEvent(
                 subscription_id=self.id, user_id=self.user_id, reason_fa=reason_fa
+            )
+        )
+
+    # ---- Customer's own settings ------------------------------------------
+
+    def set_auto_renew(self, enabled: bool) -> None:
+        self._guard_changeable()
+        self.auto_renew = enabled
+
+    def rename(self, name: str | None) -> None:
+        """Give the service a name of the customer's choosing, or clear it."""
+        self._guard_changeable()
+        cleaned = " ".join((name or "").split())
+        if len(cleaned) > DISPLAY_NAME_MAX:
+            raise OrderValidationError(
+                "A service name is at most 32 characters.", length=len(cleaned)
+            )
+        self.display_name = cleaned or None
+
+    def replace_access(self, *, subscription_url: str | None, remote_id: str | None) -> None:
+        """The panel issued new credentials; the old link no longer works."""
+        self._guard_changeable()
+        self.subscription_url = subscription_url
+        if remote_id:
+            self.remote_id = remote_id
+
+    def transfer_to(self, user_id: int) -> None:
+        """Hand the service to another customer.
+
+        The panel account stays exactly as it is - same link, same traffic,
+        same date - so whoever the owner already shared it with keeps working.
+        What moves is who sees it in the bot, who is reminded about it and who
+        may renew it. Auto-renewal is switched off: it was the old owner's
+        wallet that agreed to pay.
+        """
+        self._guard_changeable()
+        if user_id == self.user_id:
+            raise OrderValidationError("The service already belongs to this customer.")
+        previous = self.user_id
+        self.user_id = user_id
+        self.auto_renew = False
+        self.record(
+            SubscriptionTransferred(
+                subscription_id=self.id, from_user_id=previous, to_user_id=user_id
             )
         )
 

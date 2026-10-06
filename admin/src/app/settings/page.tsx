@@ -30,6 +30,18 @@ import { Switch } from '@/components/ui/switch'
  * setting appears the moment the backend declares it.
  */
 const GROUP_TITLES: Record<string, string> = {
+  shop: 'فروشگاه',
+  channels: 'کانال‌های اجباری',
+  menu: 'منوی ربات',
+  purchase: 'خرید',
+  texts: 'متن‌ها',
+  reminders: 'یادآوری‌ها',
+  backup: 'بکاپ',
+  services: 'سرویس‌ها',
+  gifts: 'هدیه‌ها',
+  alerts: 'اعلان‌های مدیریت',
+  renewal: 'تمدید',
+  trial: 'اکانت تست',
   app: 'اپ اندروید',
   wallet: 'کیف پول',
   pricing: 'قیمت‌گذاری',
@@ -225,6 +237,12 @@ export default function SettingsPage() {
                             disabled={!editable}
                             onCheckedChange={(checked) => stage(setting.key, checked)}
                           />
+                        ) : setting.kind === 'map' ? (
+                          // Screen texts, edited one at a time from the bot's
+                          // admin menu where the operator sees the result.
+                          <span className="text-2xs text-muted-foreground">
+                            {'از منوی مدیریت داخل ربات ویرایش می‌شود'}
+                          </span>
                         ) : setting.kind === 'text' ? (
                           // Text, not digits. Every non-boolean used to go
                           // through a numeric filter, so typing in a message

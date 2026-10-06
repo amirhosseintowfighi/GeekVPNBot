@@ -126,6 +126,13 @@ class PanelAdapter(Protocol):
         """Requires `Capability.RESET_TRAFFIC`."""
         ...
 
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
+        """New credentials and subscription token; the old link stops working.
+
+        Requires `Capability.REVOKE_ACCESS`. Traffic, expiry and state are kept.
+        """
+        ...
+
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         """Requires `Capability.BULK_USAGE`. Keyed by username."""
         ...

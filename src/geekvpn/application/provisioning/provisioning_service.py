@@ -29,6 +29,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from geekvpn.application.ports.catalog import ProductRepository
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.links import link_host, public_link
 from geekvpn.application.provisioning.node_selector import select_node
@@ -64,15 +65,17 @@ BYTES_PER_MIB = 1024 * 1024
 USERNAME_PREFIX = "gv"
 
 
-def username_for(order: Order) -> str:
+def username_for(order: Order, *, prefix: str | None = None, suffix: str | None = None) -> str:
     """The panel username this order will always ask for.
 
     Derived from the order *number* rather than the id: it is short, it is what
     the customer quotes to support, and matching a complaint to a panel account
-    should not require a database lookup.
+    should not require a database lookup. ``prefix`` and ``suffix`` are the
+    selling reseller's choice, and must come from the order too - a retry
+    that asked for a different name would create a second account.
     """
     cleaned = "".join(ch for ch in order.number if ch.isalnum()).lower()
-    return f"{USERNAME_PREFIX}{cleaned}"
+    return f"{prefix or USERNAME_PREFIX}{cleaned}{suffix or ''}"
 
 
 class ProvisioningService:
@@ -80,12 +83,14 @@ class ProvisioningService:
 
     __slots__ = (
         "_clock",
+        "_config_name",
         "_events",
         "_ids",
         "_nodes",
         "_on_activated",
         "_orders",
         "_panels",
+        "_products",
         "_shop_hosts",
         "_subscriptions",
     )
@@ -117,7 +122,16 @@ class ProvisioningService:
         #: belongs to, and a service that fetched it again could fetch a
         #: different one.
         shop_hosts: Mapping[str, str] | None = None,
+        #: Where each product says its accounts belong. Without it every order
+        #: may land on any server, which is only right for unbound products.
+        products: ProductRepository | None = None,
+        #: The prefix and suffix the order's seller chose for config names.
+        #: Asked per order, not per scope: an operator retrying a reseller's
+        #: failed order from the platform's panel must ask for the same name.
+        config_name: Callable[[Order], Awaitable[tuple[str | None, str | None]]] | None = None,
     ) -> None:
+        self._config_name = config_name
+        self._products = products
         self._orders = orders
         self._subscriptions = subscriptions
         self._nodes = nodes
@@ -127,6 +141,14 @@ class ProvisioningService:
         self._events = events
         self._on_activated = on_activated
         self._shop_hosts = shop_hosts
+
+    async def _bound_panel(self, order: Order) -> UUID | None:
+        """The panel the order's product is bound to, if it is bound to one."""
+        product_id = _product_uuid(order.product_id)
+        if self._products is None or product_id is None:
+            return None
+        product = await self._products.get(product_id)
+        return getattr(product, "panel_id", None) if product is not None else None
 
     # -- the main path -----------------------------------------------------
 
@@ -191,6 +213,12 @@ class ProvisioningService:
             sellable = await self._nodes.list_sellable()
             if allowed_node_ids:
                 sellable = [node for node in sellable if node.id in allowed_node_ids]
+            bound = await self._bound_panel(order)
+            if bound is not None:
+                # The server the product was sold as. A full one is "no
+                # capacity", never a quiet swap: a customer who bought the
+                # German product and got a Dutch account got the wrong thing.
+                sellable = [node for node in sellable if panel_id_for(node.id) == bound]
             node = select_node(sellable, country_code=country_code)
         except NoCapacityAvailable:
             # Not a panel failure, and worth a distinct reason on the order so
@@ -198,7 +226,8 @@ class ProvisioningService:
             await self._fail(order, reason="no_capacity_available")
             raise
 
-        username = username_for(order)
+        prefix, suffix = await self._config_name(order) if self._config_name else (None, None)
+        username = username_for(order, prefix=prefix, suffix=suffix)
         spec = AccountSpec(
             username=username,
             quota=_quota_for(order.traffic_mib),
@@ -424,6 +453,13 @@ def _quota_for(traffic_mib: int | None) -> TrafficQuota:
     if traffic_mib is None:
         return TrafficQuota(None)
     return TrafficQuota(traffic_mib * BYTES_PER_MIB)
+
+
+def _product_uuid(value: str | None) -> UUID | None:
+    try:
+        return UUID(value) if value else None
+    except ValueError:
+        return None
 
 
 def panel_id_for(node_id: str) -> UUID:

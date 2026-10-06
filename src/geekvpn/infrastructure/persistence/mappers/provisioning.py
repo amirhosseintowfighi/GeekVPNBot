@@ -138,6 +138,8 @@ def subscription_to_domain(model: SubscriptionModel) -> Subscription:
         revoked_at=model.revoked_at,
         revoke_reason_fa=model.revoke_reason_fa,
         suspend_reason_fa=model.suspend_reason_fa,
+        auto_renew=model.auto_renew,
+        display_name=model.display_name,
     )
 
 
@@ -164,6 +166,11 @@ def subscription_apply(model: SubscriptionModel, subscription: Subscription) -> 
     model.revoked_at = subscription.revoked_at
     model.revoke_reason_fa = subscription.revoke_reason_fa
     model.suspend_reason_fa = subscription.suspend_reason_fa
+    model.auto_renew = subscription.auto_renew
+    model.display_name = subscription.display_name
+    # Written back because a transfer changes it; it was never meant to be
+    # immutable, only never changed until now.
+    model.user_id = subscription.user_id
     return model
 
 

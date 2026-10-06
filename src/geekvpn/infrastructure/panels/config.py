@@ -71,6 +71,25 @@ class MarzbanConfig(PanelConnectionConfig):
     default_inbounds: dict[str, tuple[str, ...]] = {}
 
 
+class RebeccaConfig(MarzbanConfig):
+    """Rebecca, a Marzban fork: the same connection and the same inbounds."""
+
+
+class WgDashboardConfig(PanelConnectionConfig):
+    """WGDashboard. Authenticated by an API key rather than a login.
+
+    The key is normally entered as the node's *password*: that column is
+    encrypted, and the node's free-form config is not. `api_key` is honoured
+    when set, for a record written some other way. `username` is unused.
+    """
+
+    api_key: SecretStr = SecretStr("")
+    #: The WireGuard configuration new peers are added to, e.g. "wg0".
+    configuration: str = Field(min_length=1, max_length=64)
+    #: DNS written into each peer's config. Empty keeps the dashboard's default.
+    dns: str = ""
+
+
 class MarzneshinConfig(PanelConnectionConfig):
     """Marzneshin. Access is granted through *services*, not inbounds."""
 
@@ -87,12 +106,23 @@ class XuiFamilyConfig(PanelConnectionConfig):
     inbound_id: int = Field(description="Inbound that new clients are added to")
     #: 3x-ui installs behind a random base path, e.g. https://host:2053/AbCdEf
     web_base_path: str = ""
+    #: Where the panel's own subscription server answers, up to and including
+    #: its path: the panel's "subscription URI", e.g. https://sub.host:2096/sub.
+    #: The account's link is this plus its subId. Empty means the panel's
+    #: subscription server is off, and accounts are delivered without a link.
+    subscription_url: str = ""
 
     @field_validator("web_base_path")
     @classmethod
     def _normalise_path(cls, value: str) -> str:
         value = value.strip().strip("/")
         return f"/{value}" if value else ""
+
+
+    @field_validator("subscription_url")
+    @classmethod
+    def _normalise_subscription(cls, value: str) -> str:
+        return value.strip().rstrip("/")
 
 
 class SanaeiConfig(XuiFamilyConfig):

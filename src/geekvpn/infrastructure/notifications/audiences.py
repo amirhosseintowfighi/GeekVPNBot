@@ -10,6 +10,8 @@ Three things this does deliberately:
 * **Suspended and banned customers are never in an audience.** A promotional
   message to somebody whose account you have just closed is the single most
   reliable way to turn a quiet suspension into a support thread.
+* **An audience is one shop's customers.** A reseller's announcement used to
+  resolve over the whole platform and go out through the reseller's bot.
 * **Every query is capped.** ``MAX_AUDIENCE`` is not a page size - a broadcast
   is sent in one pass - it is a guard against an operator selecting "everyone"
   on a database that has grown past what Telegram will accept in a sitting.
@@ -23,6 +25,7 @@ and notifications - see the two-scope note in CLAUDE.md.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -46,6 +49,9 @@ MAX_AUDIENCE = 50_000
 #: the two never disagree about who is about to lapse.
 EXPIRING_WITHIN_DAYS = 7
 
+#: "Has not bought lately", unless the operator names another number of days.
+LAPSED_AFTER_DAYS = 30
+
 #: Order states that represent money actually taken.
 PAID_ORDER_STATES = ("paid", "provisioning", "active")
 
@@ -53,9 +59,19 @@ PAID_ORDER_STATES = ("paid", "provisioning", "active")
 class SqlAudienceResolver:
     """``AudienceResolver`` over the live schema."""
 
-    def __init__(self, session: Session, *, limit: int = MAX_AUDIENCE) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        limit: int = MAX_AUDIENCE,
+        reseller_id: uuid.UUID | None = None,
+    ) -> None:
         self._session = session
         self._limit = limit
+        #: Whose customers. None is the platform's own, which is a real shop
+        #: and not "everybody": a reseller's customer started the reseller's
+        #: bot, and the platform's bot cannot even write to them.
+        self._reseller_id = reseller_id
 
     def resolve(self, audience: AudienceKind, *, reference: str | None = None) -> list[int]:
         now = datetime.now(UTC)
@@ -87,6 +103,38 @@ class SqlAudienceResolver:
             statement = statement.where(UserModel.telegram_id.not_in(self._with_paid_order()))
         elif audience is AudienceKind.TIER:
             statement = statement.where(UserModel.telegram_id.in_(self._in_tier(reference)))
+        elif audience is AudienceKind.NO_SERVICE:
+            statement = statement.where(
+                UserModel.telegram_id.not_in(self._with_live_subscription(now))
+            )
+        elif audience is AudienceKind.LAPSED_BUYERS:
+            days = _days_from(reference, default=LAPSED_AFTER_DAYS)
+            statement = statement.where(
+                UserModel.telegram_id.in_(self._with_paid_order()),
+                UserModel.telegram_id.not_in(
+                    self._with_paid_order().where(
+                        OrderModel.created_at >= now - timedelta(days=days)
+                    )
+                ),
+            )
+        elif audience is AudienceKind.ON_SERVER:
+            if not reference:
+                raise UnknownAudience("A server audience needs a server.", audience=str(audience))
+            statement = statement.where(
+                UserModel.telegram_id.in_(
+                    self._with_live_subscription(now).where(
+                        SubscriptionModel.node_id == reference
+                    )
+                )
+            )
+        elif audience is AudienceKind.SUSPENDED_SERVICE:
+            statement = statement.where(
+                UserModel.telegram_id.in_(
+                    select(SubscriptionModel.user_id).where(
+                        SubscriptionModel.state == "suspended"
+                    )
+                )
+            )
         else:  # pragma: no cover - the enum is exhaustive above
             raise UnknownAudience(f"No rule for audience {audience}.", audience=str(audience))
 
@@ -104,7 +152,15 @@ class SqlAudienceResolver:
         """
         return (
             select(UserModel.telegram_id)
-            .where(UserModel.status == UserStatus.ACTIVE.value)
+            .where(
+                UserModel.status == UserStatus.ACTIVE.value,
+                # The shop, here and only here, for the same reason as the
+                # status: no audience can then forget it. Every narrower rule
+                # below is a subquery on Telegram ids intersected with this.
+                UserModel.reseller_id.is_(None)
+                if self._reseller_id is None
+                else UserModel.reseller_id == self._reseller_id,
+            )
             .order_by(UserModel.telegram_id)
         )
 
@@ -172,6 +228,14 @@ class SqlAudienceResolver:
             return []
         statement = self._reachable().where(UserModel.telegram_id.in_(wanted))
         return list(self._session.execute(statement.limit(self._limit)).scalars().all())
+
+
+def _days_from(reference: str | None, *, default: int) -> int:
+    try:
+        days = int(str(reference))
+    except ValueError:
+        return default
+    return days if days > 0 else default
 
 
 def _tier_from(reference: str | None) -> LoyaltyTier:

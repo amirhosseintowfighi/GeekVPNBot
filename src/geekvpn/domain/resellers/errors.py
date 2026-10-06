@@ -47,3 +47,11 @@ __all__ = [
     "ResellerNotFound",
     "ResellerSuspended",
 ]
+
+
+class TrialLimitReached(ResellerError):
+    """The reseller has handed out every test account the operator allowed."""
+
+    def __init__(self, *, limit: int) -> None:
+        super().__init__("This reseller has used all their test accounts.")
+        self.limit = limit

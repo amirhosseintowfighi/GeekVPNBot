@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, partial
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -36,29 +36,41 @@ from geekvpn.application.identity.authenticate_telegram import AuthenticateTeleg
 from geekvpn.application.identity.authorization import AuthorizationService
 from geekvpn.application.identity.manage_admins import ManageAdmins
 from geekvpn.application.identity.session_service import SessionService
+from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.platform.settings_service import (
+    KICK_ON_SUSPEND,
+    REFUND_WINDOW_HOURS,
     SIGNUP_BONUS_NOTE_FA,
     SIGNUP_BONUS_TOMAN,
+    TRIAL_DURATION_DAYS,
+    TRIAL_ENABLED,
+    TRIAL_TRAFFIC_MIB,
     SettingsService,
 )
 from geekvpn.application.provisioning.claim_service import ClaimService
-from geekvpn.application.provisioning.free_trial import FreeTrial
+from geekvpn.application.provisioning.free_trial import FreeTrial, TrialDelivery, TrialTerms
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
 from geekvpn.application.provisioning.subscription_admin import (
     SubscriptionAdminService,
 )
+from geekvpn.application.provisioning.unused_refund import REFUND_REASON_FA, UnusedRefund
 from geekvpn.application.provisioning.usage_sync import UsageSyncService
 from geekvpn.application.resellers.applications import ResellerApplications
 from geekvpn.application.resellers.arrears import ArrearsEnforcer
 from geekvpn.application.resellers.password_setup import PasswordSetup
-from geekvpn.application.resellers.sales import ResellerSalesService
+from geekvpn.application.resellers.sales import ResellerSalesService, owner_id
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.application.resellers.topups import ResellerTopups
 from geekvpn.domain.analytics.calendar import to_jalali
+from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.identity.enums import SubjectType
 from geekvpn.domain.identity.errors import AccountSuspendedError
+from geekvpn.domain.payments.enums import TransactionKind
+from geekvpn.domain.provisioning.enums import OrderSource
 from geekvpn.domain.provisioning.events import SubscriptionActivated
+from geekvpn.domain.provisioning.order import Order
+from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.domain.resellers.reseller import Reseller
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
 from geekvpn.infrastructure.bot.token_check import HttpTokenChecker
@@ -69,7 +81,12 @@ from geekvpn.infrastructure.di.sync_scope import (
     Uuid4IdGenerator,
     build_sync_scope,
 )
-from geekvpn.infrastructure.notifications.telegram import HttpTelegramFiles, HttpTelegramSender
+from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.notifications.telegram import (
+    HttpOperatorSender,
+    HttpTelegramFiles,
+    HttpTelegramSender,
+)
 from geekvpn.infrastructure.panels.provider import DatabasePanelProvider
 from geekvpn.infrastructure.persistence.repositories.admin import SqlAlchemyAdminRepository
 from geekvpn.infrastructure.persistence.repositories.app_credentials import (
@@ -121,6 +138,17 @@ from geekvpn.infrastructure.persistence.repositories.user import SqlAlchemyUserR
 from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.recovery_adapter import ScryptRecoveryCodes
 
+logger = get_logger("scope")
+
+#: For the operators' trial channel. Here, beside the one place trials are
+#: built, because infrastructure may not import the bot's text module.
+TRIAL_REPORT_FA = (
+    "🎁 <b>اکانت تست</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "سرویس‌ها: <code>{names}</code>\n"
+    "در صف ساخت: {pending}"
+)
+
 
 # Deliberately not `slots=True`: `cached_property` needs a real instance
 # `__dict__`, and the object is short-lived enough that the memory saving would
@@ -141,6 +169,13 @@ class RequestScope:
     #: This shop's rewritten screens, by constant name. Empty for ours and for
     #: a reseller who has changed nothing, which is the common case.
     reseller_texts: dict[str, str] | None = None
+    #: The main bot's own rewritten screens, which a reseller's texts fall
+    #: back to before the built-in copy.
+    platform_texts: dict[str, str] | None = None
+    #: Whether the rules screen is switched on.
+    rules_enabled: bool = False
+    #: Home buttons the operator switched off.
+    hidden_buttons: frozenset[str] = frozenset()
 
     # -- repositories ------------------------------------------------------
 
@@ -241,9 +276,7 @@ class RequestScope:
             coupons=self.catalog_coupons,
             policies=self.pricing_policies,
             clock=self.container.clock,
-            default_retail=(
-                self.reseller.retail_overrides if self.reseller is not None else None
-            ),
+            default_retail=(self.reseller.retail_overrides if self.reseller is not None else None),
         )
 
     @cached_property
@@ -503,7 +536,24 @@ class RequestScope:
             orders=self.order_service,
             provisioning=self.provisioning,
             jalali_year=year,
+            order_repository=self.orders,
+            clock=self.container.clock,
+            trials_given=self._trials_given,
+            trial_terms=self._trial_terms,
         )
+
+    async def _trials_given(self, reseller: Reseller) -> int:
+        return await self.orders.count_trials_for_reseller(reseller.id, owner=owner_id(reseller))
+
+    async def _trial_room(self) -> bool:
+        """Whether this shop may hand out one more free trial.
+
+        The platform's own shop has no limit; a reseller's counts their bot
+        customers' trials and the test accounts they made themselves.
+        """
+        if self.reseller is None or self.reseller.trial_limit is None:
+            return True
+        return await self._trials_given(self.reseller) < self.reseller.trial_limit
 
     @cached_property
     def free_trials(self) -> SqlAlchemyFreeTrialRepository:
@@ -522,6 +572,26 @@ class RequestScope:
             provisioning=self.provisioning,
             clock=self.container.clock,
             jalali_year=year,
+            terms=self._trial_terms,
+            announce=self._announce_trial,
+            room=self._trial_room,
+        )
+
+    async def _announce_trial(self, telegram_id: int, delivery: TrialDelivery) -> None:
+        names = ", ".join(sub.remote_username for sub in delivery.subscriptions) or "—"
+        text = TRIAL_REPORT_FA.format(user_id=telegram_id, names=names, pending=delivery.pending)
+
+        def work(sync: SyncScope) -> None:
+            sync.operator_reports.send(AlertKind.TRIAL, text)
+
+        await self.in_shop(work)
+
+    async def _trial_terms(self) -> TrialTerms:
+        settings = self.settings_service
+        return TrialTerms(
+            enabled=await settings.get(TRIAL_ENABLED),
+            traffic_mib=await settings.get(TRIAL_TRAFFIC_MIB),
+            duration_days=await settings.get(TRIAL_DURATION_DAYS),
         )
 
     @cached_property
@@ -649,11 +719,32 @@ class RequestScope:
             # fetched, so a reseller's customer can never be handed a link
             # built from a different shop's settings.
             shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
+            products=self.catalog_products,
+            config_name=self._config_name,
         )
 
-    async def _announce_delivery(
-        self, event: SubscriptionActivated, link: str | None
-    ) -> None:
+    async def _config_name(self, order: Order) -> tuple[str | None, str | None]:
+        """The selling reseller's prefix and suffix, from the order itself.
+
+        A customer of a reseller's bot is found by the shop the order row was
+        placed in. A sale from the reseller's own portal is placed in no shop
+        and filed under the reseller's derived owner id instead - so that is
+        matched too, or the portal's sales would carry our name.
+        """
+        reseller: Reseller | None = None
+        shop = await self.orders.shop_of(order.id)
+        if shop is not None:
+            reseller = await self.resellers.get(shop)
+        elif order.source is OrderSource.RESELLER:
+            reseller = next(
+                (r for r in await self.resellers.list_all() if owner_id(r) == order.user_id),
+                None,
+            )
+        if reseller is None:
+            return None, None
+        return reseller.config_prefix, reseller.config_suffix
+
+    async def _announce_delivery(self, event: SubscriptionActivated, link: str | None) -> None:
         def work(sync: SyncScope) -> None:
             sync.delivery_notifications.on_subscription_activated(event, link)
 
@@ -682,7 +773,71 @@ class RequestScope:
             nodes=self.nodes,
             panels=self.panel_provider,
             clock=self.container.clock,
+            shop_hosts=self.reseller.subscription_hosts if self.reseller else None,
         )
+
+    @cached_property
+    def unused_refund(self) -> UnusedRefund:
+        """Returning a service that carried no traffic, for its price back."""
+
+        async def revoke(subscription_id: str, reason_fa: str) -> Subscription:
+            return await self.subscription_admin.revoke(subscription_id, reason_fa=reason_fa)
+
+        async def credit(user_id: int, amount: Money, order_number: str) -> None:
+            # Committed on its own connection before the order is marked: the
+            # wallet is on the synchronous side, and `in_shop` keeps it in the
+            # shop the customer bought from.
+            def work(sync: SyncScope) -> None:
+                sync.wallet.credit_reward(
+                    user_id=user_id,
+                    amount=amount,
+                    kind=TransactionKind.REFUND,
+                    description_fa=f"{REFUND_REASON_FA} ({order_number})",
+                    reference=order_number,
+                )
+
+            await self.in_shop(work)
+
+        async def window() -> int:
+            return await self.settings_service.get(REFUND_WINDOW_HOURS)
+
+        return UnusedRefund(
+            subscriptions=self.subscriptions,
+            orders=self.orders,
+            refresh_usage=self.usage_sync.sync_subscription,
+            revoke=revoke,
+            credit=credit,
+            window=window,
+            clock=self.container.clock,
+        )
+
+    async def remove_from_channels(self, telegram_id: int) -> int:
+        """Take a suspended customer out of this shop's required channels.
+
+        Only when the operator asked for it. Through the shop's own bot, which
+        is the one that is an administrator of its channels. A channel that
+        refuses - the bot is not an admin there - is logged and skipped:
+        suspending the account is what matters, and it has already happened.
+        """
+        if not await self.settings_service.get(KICK_ON_SUSPEND):
+            return 0
+        if self.reseller is not None:
+            token = await self.resellers.bot_token(self.reseller.id)
+        else:
+            token = self.container.settings.telegram.bot_token.get_secret_value()
+        if not token:
+            return 0
+        sender = HttpOperatorSender(token)
+        removed = 0
+        for channel in await self.required_channels.active():
+            try:
+                await run_in_threadpool(
+                    partial(sender.ban_chat_member, chat=channel.chat_ref, user_id=telegram_id)
+                )
+                removed += 1
+            except Exception:
+                logger.warning("channels.kick_failed", channel=channel.chat_ref, exc_info=True)
+        return removed
 
     async def grant_signup_bonus(self, telegram_id: int) -> int:
         """Credit a new customer's welcome bonus. Returns what was given.
@@ -702,9 +857,7 @@ class RequestScope:
         note = await self.settings_service.get(SIGNUP_BONUS_NOTE_FA)
 
         def work(sync: SyncScope) -> int:
-            entry = sync.signup_bonus.grant(
-                user_id=telegram_id, amount_toman=amount, note_fa=note
-            )
+            entry = sync.signup_bonus.grant(user_id=telegram_id, amount_toman=amount, note_fa=note)
             return amount if entry is not None else 0
 
         return await self.in_shop(work)

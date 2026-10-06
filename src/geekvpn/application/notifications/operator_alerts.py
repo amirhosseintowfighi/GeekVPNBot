@@ -14,7 +14,8 @@ Telegram, as the image, with the two buttons that decide it.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import enum
+from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
 import structlog
@@ -41,6 +42,131 @@ RECEIPT_ALERT_FA = (
 APPROVE_LABEL_FA = "\u2705 تأیید"
 REJECT_LABEL_FA = "\u274c رد"
 RECEIPT_ALERT_NO_IMAGE_FA = "برای این پرداخت تصویری ثبت نشده."
+TICKET_OPENED_FA = (
+    "🎫 <b>تیکت تازه</b> <code>{reference}</code>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "موضوع: {subject}\n\n"
+    "{body}"
+)
+TICKET_REPLIED_FA = "💬 <b>پاسخ کاربر به تیکت</b>\n\nکاربر: <code>{user_id}</code>\n\n{body}"
+TICKET_OPEN_LABEL_FA = "📂 باز کردن تیکت"
+TOPUP_REPORT_FA = (
+    "💳 <b>شارژ کیف پول</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "مبلغ: <b>{amount:,}</b> تومان\n"
+    "موجودی جدید: {balance:,} تومان\n"
+    "فاکتور: <code>{reference}</code>"
+)
+TRANSFER_REPORT_FA = (
+    "🔁 <b>انتقال موجودی</b>\n\n"
+    "از: <code>{from_user}</code>\n"
+    "به: <code>{to_user}</code>\n"
+    "مبلغ: <b>{amount:,}</b> تومان"
+)
+
+
+class AlertKind(enum.StrEnum):
+    """Which stream an operator alert belongs to, and so which chat gets it."""
+
+    RECEIPT = "receipt"
+    PAYMENT = "payment"
+    TICKET = "ticket"
+    REPORT = "report"
+    #: Services that ended or were deleted.
+    SERVICE = "service"
+    #: Free trials handed out.
+    TRIAL = "trial"
+
+
+class OperatorReports:
+    """Sends an operator alert to the chat configured for its kind.
+
+    A kind with no chat configured goes to every linked admin privately,
+    which is exactly what every alert did before groups existed - so a shop
+    that never sets a group sees no change.
+    """
+
+    def __init__(
+        self,
+        *,
+        sender: OperatorSender,
+        directory: OperatorDirectory,
+        route: Callable[[AlertKind], int],
+    ) -> None:
+        self._sender = sender
+        self._directory = directory
+        self._route = route
+
+    def chats(self, kind: AlertKind) -> list[int]:
+        try:
+            chat = self._route(kind)
+        except Exception:
+            # A settings read failing must not also cost the alert.
+            logger.exception("alerts.route_failed", kind=kind.value)
+            chat = 0
+        if chat:
+            return [chat]
+        return list(self._directory.operator_chat_ids())
+
+    def send(
+        self, kind: AlertKind, text: str, buttons: Sequence[tuple[str, str]] = ()
+    ) -> None:
+        """Never raises: an alert is never worth rolling back what it reports."""
+        for chat_id in self.chats(kind):
+            try:
+                self._sender.send_text(chat_id=chat_id, text=text, buttons=buttons)
+            except Exception:
+                logger.exception("alerts.operator_send_failed", chat_id=chat_id, kind=kind.value)
+
+    def on_ticket_opened(self, event: Any) -> None:
+        """Until now nothing told anybody a ticket arrived."""
+        self.send(
+            AlertKind.TICKET,
+            TICKET_OPENED_FA.format(
+                reference=event.reference,
+                user_id=event.user_id,
+                subject=_escape(event.subject_fa),
+                body=_escape(_clip(event.first_message_fa)),
+            ),
+            buttons=[(TICKET_OPEN_LABEL_FA, f"adm:ticket:{event.ticket_id}")],
+        )
+
+    def on_wallet_credited(self, event: Any) -> None:
+        """A settled top-up, whichever way it settled.
+
+        The receipt alert covers a card payment while it waits; a gateway
+        top-up never waits, so without this nobody heard of it at all.
+        """
+        if str(getattr(event, "kind", "")) != "topup":
+            return
+        self.send(
+            AlertKind.PAYMENT,
+            TOPUP_REPORT_FA.format(
+                user_id=event.user_id,
+                amount=event.amount,
+                balance=event.balance_after,
+                reference=event.reference or "—",
+            ),
+        )
+
+    def on_ticket_replied(self, event: Any) -> None:
+        # Only the customer's side. An operator's own reply echoing back to the
+        # group would be noise, and a note is not a message.
+        if str(getattr(event, "kind", "")) != "customer":
+            return
+        self.send(
+            AlertKind.TICKET,
+            TICKET_REPLIED_FA.format(user_id=event.user_id, body=_escape(_clip(event.body_fa))),
+            buttons=[(TICKET_OPEN_LABEL_FA, f"adm:ticket:{event.ticket_id}")],
+        )
+
+
+def _clip(text: str, limit: int = 600) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 class OperatorSender(Protocol):
@@ -122,7 +248,10 @@ class ReceiptAlerts:
         reject_label: str,
         caption: str,
         no_image_caption: str,
+        #: Where a receipt goes. Without it, every linked admin privately.
+        reports: OperatorReports | None = None,
     ) -> None:
+        self._reports = reports
         self._sender = sender
         self._directory = directory
         self._payments = payments
@@ -139,13 +268,19 @@ class ReceiptAlerts:
         stored and the review queue still has it, so a failure here costs an
         operator a notification, not a customer their proof.
         """
-        operators = list(self._directory.operator_chat_ids())
-        if not operators:
-            logger.info("alerts.no_operators", payment_id=event.payment_id)
-            return
-
         payment = self._payments.get(event.payment_id)
         if payment is None:
+            return
+
+        if self._reports is not None:
+            # Card receipts and everything else apart: on a busy day the crypto
+            # proofs were lost in a scroll of card photos.
+            is_card = str(getattr(payment, "method", "")) == "card"
+            operators = self._reports.chats(AlertKind.RECEIPT if is_card else AlertKind.PAYMENT)
+        else:
+            operators = list(self._directory.operator_chat_ids())
+        if not operators:
+            logger.info("alerts.no_operators", payment_id=event.payment_id)
             return
 
         amount = getattr(getattr(payment, "amount", None), "amount", 0)
@@ -188,8 +323,10 @@ __all__ = [
     "RECEIPT_ALERT_FA",
     "RECEIPT_ALERT_NO_IMAGE_FA",
     "REJECT_LABEL_FA",
+    "AlertKind",
     "DeliveryNotifications",
     "OperatorDirectory",
+    "OperatorReports",
     "OperatorSender",
     "ReceiptAlerts",
     "rendered",

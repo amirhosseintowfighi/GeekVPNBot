@@ -38,14 +38,22 @@ import contextlib
 import signal
 import time
 import uuid
+from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 from sqlalchemy import select
 
+from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
+from geekvpn.application.platform.settings_service import DELETE_EXPIRED_AFTER_HOURS
+from geekvpn.application.provisioning.expired_cleanup import ExpiredCleanup
 from geekvpn.domain.notifications.enums import JobKind
-from geekvpn.infrastructure.bot.auto_renew import run_auto_renewals
+from geekvpn.infrastructure.backup.service import LAST_RUN_KEY as LAST_BACKUP_KEY
+from geekvpn.infrastructure.backup.service import backup_settings, is_due, send_backup
+from geekvpn.infrastructure.bot.auto_renew import build_auto_renewal
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.di.scope import build_scope
@@ -60,6 +68,12 @@ from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 _BROADCAST_BATCH = 5
 
 logger = get_logger(__name__)
+
+#: To the operators' service channel, so a deleted account is not a surprise
+#: when its owner writes in a week later.
+EXPIRED_REPORT_FA = "⌛ <b>{count} سرویس منقضی شد</b>"
+CLEANUP_REPORT_FA = "🗑 <b>{count} سرویس منقضی حذف شد</b>\n\n<code>{names}</code>"
+NEWCOMER_GIFT_REPORT_FA = "🎁 <b>هدیهٔ عضو جدید به {count} نفر داده شد</b>"
 
 #: How often the loop wakes. The scheduler decides what is actually due, so this
 #: is a resolution, not a job interval.
@@ -95,6 +109,21 @@ AUTO_RENEW_INTERVAL_SECONDS = 900
 LOCK_TTL_SECONDS = 300
 LOCK_KEY = "worker:tick"
 
+#: Auto-renewal looks a day ahead, so every quarter of an hour is plenty; the
+#: attempt log keeps a slow tick from charging anybody twice.
+AUTO_RENEW_INTERVAL_SECONDS = 900
+
+#: How often the worker asks whether a backup is due. The operator's interval
+#: is in hours; this only decides how late within the hour it can be.
+BACKUP_CHECK_INTERVAL_SECONDS = 600
+
+#: Deleting lapsed services is housekeeping; hourly is plenty.
+CLEANUP_INTERVAL_SECONDS = 3600
+#: The newcomer gift's wait is set in hours, so an hourly look is on time.
+NEWCOMER_GIFT_INTERVAL_SECONDS = 3600
+#: Likewise for the follow-up after a free trial.
+TRIAL_FOLLOWUP_INTERVAL_SECONDS = 3600
+
 
 class Worker:
     """Runs scheduled jobs until told to stop."""
@@ -102,6 +131,21 @@ class Worker:
     def __init__(self, container: Container) -> None:
         self._container = container
         self._stopping = asyncio.Event()
+        #: Jobs added after the three counters in `run`: name, interval, job.
+        #: A table rather than a fourth hand-kept counter, the kind that was
+        #: once read every tick and never written.
+        self._periodic: list[tuple[str, float, Callable[[], Awaitable[None]]]] = [
+            ("auto_renew", AUTO_RENEW_INTERVAL_SECONDS, self._auto_renew),
+            ("backup", BACKUP_CHECK_INTERVAL_SECONDS, self._backup),
+            ("cleanup", CLEANUP_INTERVAL_SECONDS, self._delete_lapsed),
+            ("newcomer_gift", NEWCOMER_GIFT_INTERVAL_SECONDS, self._newcomer_gifts),
+            ("trial_followup", TRIAL_FOLLOWUP_INTERVAL_SECONDS, self._trial_followups),
+        ]
+        self._next_run: dict[str, float] = {
+            # Not at once on start: usage should be read before "almost out
+            # of traffic" is judged, or a stale counter renews nobody.
+            "auto_renew": time.monotonic() + USAGE_SYNC_INTERVAL_SECONDS,
+        }
 
     def request_stop(self) -> None:
         """Finish the current tick, then exit. Wired to SIGTERM and SIGINT."""
@@ -113,14 +157,11 @@ class Worker:
         provisioning_due = 0.0
         usage_due = 0.0
         expiry_due = 0.0
-        # Not at once on start: usage should be read before "almost out" is judged.
-        auto_renew_due = float(USAGE_SYNC_INTERVAL_SECONDS)
         while not self._stopping.is_set():
             await self._guarded_tick(
                 run_provisioning=provisioning_due <= 0,
                 run_usage_sync=usage_due <= 0,
                 run_expiry_sweep=expiry_due <= 0,
-                run_auto_renew=auto_renew_due <= 0,
             )
             provisioning_due = (
                 PROVISIONING_INTERVAL_SECONDS
@@ -134,11 +175,6 @@ class Worker:
             # table.
             expiry_due = (
                 EXPIRY_SWEEP_INTERVAL_SECONDS if expiry_due <= 0 else expiry_due - TICK_SECONDS
-            )
-            auto_renew_due = (
-                AUTO_RENEW_INTERVAL_SECONDS
-                if auto_renew_due <= 0
-                else auto_renew_due - TICK_SECONDS
             )
             self._beat()
             with contextlib.suppress(TimeoutError):
@@ -165,7 +201,6 @@ class Worker:
         run_provisioning: bool,
         run_usage_sync: bool,
         run_expiry_sweep: bool,
-        run_auto_renew: bool = False,
     ) -> None:
         """Take the cross-process lock, then tick. Skip quietly if held."""
         redis = self._container.redis
@@ -180,8 +215,7 @@ class Worker:
                 await self._sync_usage()
             if run_expiry_sweep:
                 await self._expire_lapsed()
-            if run_auto_renew:
-                await self._auto_renew()
+            await self._run_periodic()
             await self._run_scheduled_jobs()
         except Exception:
             # Never let one bad tick kill the process; the next one may succeed.
@@ -231,12 +265,6 @@ class Worker:
             failed_nodes=report.failed_nodes,
         )
 
-    async def _auto_renew(self) -> None:
-        """Renew from the wallet the services whose owners asked for it."""
-        report = await run_auto_renewals(self._container)
-        if report.results:
-            logger.info("worker.auto_renewed", **report.results)
-
     async def _expire_lapsed(self) -> None:
         """Move subscriptions past their date into EXPIRED.
 
@@ -256,6 +284,137 @@ class Worker:
                 await scope.aclose()
         if expired:
             logger.info("worker.subscriptions_expired", count=expired)
+            await self._report(AlertKind.SERVICE, EXPIRED_REPORT_FA.format(count=expired))
+
+    async def _run_periodic(self) -> None:
+        """Run each job in `_periodic` whose interval has passed.
+
+        One job failing is logged and does not stop the others: a panel that
+        refuses a renewal must not also cancel tonight's backup.
+        """
+        now = time.monotonic()
+        for name, interval, job in self._periodic:
+            if self._next_run.get(name, 0.0) > now:
+                continue
+            self._next_run[name] = now + interval
+            try:
+                await job()
+            except Exception:
+                logger.exception("worker.job_failed", job=name)
+
+    async def _auto_renew(self) -> None:
+        report = await build_auto_renewal(self._container).run()
+        if report.examined:
+            logger.info(
+                "worker.auto_renewed",
+                examined=report.examined,
+                renewed=report.renewed,
+                short=report.short,
+                failed=report.failed,
+            )
+
+    async def _backup(self) -> None:
+        """Send the database to the backup channel when the interval has passed.
+
+        The last run is kept in the shared cache rather than in memory, so a
+        worker restarted every few hours still backs up once a day and not on
+        every start.
+        """
+        settings = await asyncio.to_thread(backup_settings, self._container)
+        if not settings.chat_id:
+            return
+        cache = self._container.cache
+        stamp = await cache.get(LAST_BACKUP_KEY)
+        now = self._container.clock.now()
+        last = datetime.fromisoformat(stamp) if stamp else None
+        if not is_due(last, now=now, interval_hours=settings.interval_hours):
+            return
+        # Stamped before sending: a backup that fails is retried next
+        # interval, not every ten minutes against a channel that refuses it.
+        await cache.set(LAST_BACKUP_KEY, now.isoformat())
+        await asyncio.to_thread(send_backup, self._container, settings.chat_id)
+
+    async def _delete_lapsed(self) -> None:
+        """Delete panel accounts of services that ended past the grace period."""
+        async with self._container.session_factory() as session:
+            scope = build_scope(self._container, session)
+
+            async def revoke(subscription_id: str, reason_fa: str) -> object:
+                revoked = await scope.subscription_admin.revoke(
+                    subscription_id, reason_fa=reason_fa
+                )
+                # Each one committed as it goes: the panel account is already
+                # gone, and a later failure must not roll the record back to
+                # claim it still exists.
+                await session.commit()
+                return revoked
+
+            async def hours() -> int:
+                return await scope.settings_service.get(DELETE_EXPIRED_AFTER_HOURS)
+
+            try:
+                removed = await ExpiredCleanup(
+                    lapsed=scope.subscriptions,
+                    revoke=revoke,
+                    hours=hours,
+                    clock=self._container.clock,
+                ).run()
+            finally:
+                await scope.aclose()
+        if removed:
+            logger.info("worker.lapsed_deleted", count=len(removed))
+            await self._report_cleanup(removed)
+
+    async def _newcomer_gifts(self) -> None:
+        def work() -> list[int]:
+            with self._container.sync_sessions() as session:
+                given = build_sync_scope(self._container, session).give_newcomer_gifts()
+                session.commit()
+                return given
+
+        given = await asyncio.to_thread(work)
+        if given:
+            logger.info("worker.newcomer_gifts", count=len(given))
+            await self._report(
+                AlertKind.REPORT, NEWCOMER_GIFT_REPORT_FA.format(count=len(given))
+            )
+
+    async def _trial_followups(self) -> None:
+        """Each shop's trial takers, through that shop's own bot."""
+
+        def work() -> int:
+            reached = 0
+            for reseller_id in self._shops():
+                with self._container.sync_sessions() as session:
+                    shop = build_sync_scope(self._container, session, reseller_id=reseller_id)
+                    try:
+                        reached += shop.send_trial_followups()
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        logger.exception(
+                            "worker.trial_followup_failed",
+                            reseller=str(reseller_id) if reseller_id else None,
+                        )
+            return reached
+
+        reached = await asyncio.to_thread(work)
+        if reached:
+            logger.info("worker.trial_followups", count=reached)
+
+    async def _report_cleanup(self, removed: list[Any]) -> None:
+        names = ", ".join(sub.remote_username for sub in removed[:30])
+        more = f" (+{len(removed) - 30})" if len(removed) > 30 else ""
+        await self._report(
+            AlertKind.SERVICE, CLEANUP_REPORT_FA.format(count=len(removed), names=names + more)
+        )
+
+    async def _report(self, kind: AlertKind, text: str) -> None:
+        def work() -> None:
+            with self._container.sync_sessions() as session:
+                build_sync_scope(self._container, session).operator_reports.send(kind, text)
+
+        await asyncio.to_thread(work)
 
     async def _run_scheduled_jobs(self) -> None:
         """Hand the due jobs to the notification scheduler.

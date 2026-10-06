@@ -76,6 +76,7 @@ class MarzbanAdapter(HttpPanelAdapter):
     capabilities: ClassVar[frozenset[Capability]] = frozenset(
         {
             Capability.RESET_TRAFFIC,
+            Capability.REVOKE_ACCESS,
             Capability.NATIVE_EXPIRY_EXTEND,
             Capability.NATIVE_QUOTA_EXTEND,
             Capability.BULK_USAGE,
@@ -241,6 +242,22 @@ class MarzbanAdapter(HttpPanelAdapter):
         if response.status_code == 404:
             raise AccountNotFound(panel=self.kind.value, username=ref.username)
         return self._to_account(self._http.json(response))
+
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
+        """The panel's own `revoke_sub`: new proxy credentials and a new token."""
+        self.require(Capability.REVOKE_ACCESS)
+        response = await self._http.request(
+            "POST",
+            f"/api/user/{ref.username}/revoke_sub",
+            headers=await self._auth_headers(),
+            expected=(200,),
+            allow_status=(404,),
+        )
+        if response.status_code == 404:
+            raise AccountNotFound(panel=self.kind.value, username=ref.username)
+        # Re-read rather than trust the body: not every version returns the
+        # user, and the new subscription link is the whole point of the call.
+        return await self.get_account(ref)
 
     async def find_by_subscription(self, url: str) -> PanelAccount | None:
         """Match a pasted link against this panel's own subscription URLs.

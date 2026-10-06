@@ -1,3 +1,5 @@
+import type { GatewayProvider } from './gateway-providers'
+
 /**
  * Admin read models.
  *
@@ -56,6 +58,8 @@ export type TransactionKind =
   | 'referral'
   | 'refund'
   | 'adjustment'
+  | 'transfer_in'
+  | 'transfer_out'
 /** domain/provisioning/enums.py NodeState. A node's health *is* its state. */
 export type ServerHealth = 'online' | 'degraded' | 'offline' | 'maintenance' | 'retired'
 export type TicketState = 'open' | 'waiting_user' | 'answered' | 'closed'
@@ -70,6 +74,8 @@ export type PanelKind =
   | 'marzneshin'
   | 'sanaei'
   | 'alireza'
+  | 'rebecca'
+  | 'wgdashboard'
 export type UserState = 'active' | 'suspended' | 'banned'
 /** domain/provisioning/enums.py OrderState. */
 export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'
@@ -590,7 +596,12 @@ export interface BroadcastAudience {
     | 'never_purchased'
     | 'tier'
     | 'explicit'
-  /** Only read for `tier` (a loyalty tier) and `explicit` (ids, comma-separated). */
+    | 'no_service'
+    | 'lapsed_buyers'
+    | 'on_server'
+    | 'suspended_service'
+  /** Read for `tier` (a loyalty tier), `explicit` (ids, comma-separated),
+   *  `lapsed_buyers` (days, default 30) and `on_server` (a node id). */
   reference?: string | null
 }
 
@@ -632,7 +643,7 @@ export interface PolicySetting {
   key: string
   labelFa: string
   descriptionFa: string
-  kind: 'toman' | 'bps' | 'number' | 'count' | 'boolean' | 'text'
+  kind: 'toman' | 'bps' | 'number' | 'count' | 'boolean' | 'text' | 'map'
   value: number | boolean | string
   min: number | null
   max: number | null
@@ -802,6 +813,11 @@ export interface ResellerRow {
   hasBot: boolean
   botUsername: string | null
   inArrears: boolean
+  /** Around the order number in their customers' config names. */
+  configPrefix: string | null
+  configSuffix: string | null
+  /** Test accounts this shop may hand out. null is no limit. */
+  trialLimit: number | null
 }
 
 /** The one response that carries a password. It is never readable again. */
@@ -872,6 +888,8 @@ export interface ResellerSelf {
   inArrears: boolean
   botUsername: string | null
   hasBot: boolean
+  configPrefix: string | null
+  configSuffix: string | null
 }
 
 /** GET /api/v1/reseller/summary - four sums off their own ledger. */
@@ -948,7 +966,7 @@ export interface ResellerTextRow {
 /** A configured online payment provider. The merchant id never comes back. */
 export interface GatewayRow {
   id: string
-  provider: 'zarinpal' | 'zibal' | 'aqayepardakht' | 'atlaspay'
+  provider: GatewayProvider
   /** What the button says in the bot. Empty means the adapter's own name. */
   labelFa: string
   hasMerchantId: boolean

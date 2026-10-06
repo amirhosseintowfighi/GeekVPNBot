@@ -1,94 +1,201 @@
-"""The worker's auto-renew pass (see ``application.provisioning.auto_renew``).
+"""The worker's half of auto-renewal: charging a wallet the way the bot does.
 
-A renewal is the same wallet checkout the app and the bot use, with
-``renews_subscription_id`` set, so pricing, coupons, the ledger, provisioning
-and the customer's "service renewed" message all stay in one place.
+A renewal from the wallet is exactly what the bot's "renew" button does when
+the customer picks the wallet - quote, order, debit, provision onto the same
+service - so it goes through the same `BotCheckoutAdapter.pay_from_wallet`
+rather than a second path that could price or provision differently.
 """
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from datetime import datetime, timedelta
 
-from geekvpn.application.provisioning.auto_renew import (
-    AutoRenewResult,
-    RenewalCandidate,
-    is_due,
+from geekvpn.application.platform.settings_service import AUTO_RENEW_ENABLED
+from geekvpn.application.provisioning.auto_renew import AutoRenewResult
+from geekvpn.application.provisioning.auto_renewal import (
+    AutoRenewal,
+    ChargeResult,
+    RenewalOutcome,
 )
+from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.notifications.message import RenderedMessage
 from geekvpn.domain.payments.errors import InsufficientFunds
 from geekvpn.domain.provisioning.errors import DeliveryPending
-from geekvpn.infrastructure.bot.services import build_bot_services
+from geekvpn.domain.provisioning.subscription import Subscription
+from geekvpn.infrastructure.bot.checkout import BotCheckoutAdapter
+from geekvpn.infrastructure.bot.sync_readers import SyncBridge
+from geekvpn.infrastructure.cache.redis import RedisCache
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.scope import build_scope
+from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.infrastructure.persistence.repositories.auto_renew import SqlAutoRenewals
 
-logger = get_logger(__name__)
+logger = get_logger("worker.auto_renew")
+
+#: Longer than any service could stay inside the renewal window, so an attempt
+#: is remembered until its expiry has passed.
+ATTEMPT_TTL = timedelta(days=7)
 
 
-@dataclass(slots=True)
-class AutoRenewReport:
-    results: dict[str, int] = field(default_factory=dict)
+class CacheAttemptLog:
+    """``AttemptLog`` over the shared cache, so a restart does not retry."""
 
-    def add(self, result: AutoRenewResult) -> None:
-        self.results[result.value] = self.results.get(result.value, 0) + 1
+    def __init__(self, cache: RedisCache) -> None:
+        self._cache = cache
 
+    async def seen(self, key: str) -> bool:
+        return await self._cache.get(f"auto_renew:{key}") is not None
 
-async def run_auto_renewals(container: Container) -> AutoRenewReport:
-    report = AutoRenewReport()
-    now = container.clock.now()
-    async with container.session_factory() as session:
-        due = [c for c in await SqlAutoRenewals(session).candidates(now) if is_due(c, now)]
-    for candidate in due:
-        # One transaction per renewal: a customer without balance must not
-        # hold back the next one.
-        result = await _renew(container, candidate)
-        report.add(result)
-        async with container.session_factory() as session:
-            await SqlAutoRenewals(session).record(
-                candidate.subscription_id, result, container.clock.now()
-            )
-            await session.commit()
-    return report
+    async def mark(self, key: str) -> None:
+        await self._cache.set(
+            f"auto_renew:{key}", "1", ttl_seconds=int(ATTEMPT_TTL.total_seconds())
+        )
 
 
-async def _renew(container: Container, candidate: RenewalCandidate) -> AutoRenewResult:
+async def charge_from_wallet(container: Container, subscription: Subscription) -> ChargeResult:
+    """Renew one service onto its own plan, from its owner's wallet.
+
+    Its own session: each renewal commits on its own, so one customer's panel
+    failing cannot roll back another customer's renewal.
+    """
+    if subscription.plan_id is None:
+        return ChargeResult(RenewalOutcome.NOT_RENEWABLE)
+    reseller_id = _reseller(subscription)
+
     async with container.session_factory() as session:
         scope = build_scope(container, session)
         try:
-            user = await scope.users.get_by_telegram_id(candidate.telegram_id)
-            if user is None or candidate.plan_id is None:
-                return AutoRenewResult.UNAVAILABLE
-            services = build_bot_services(scope)
-            await services.checkout.pay_from_wallet(
-                user.id,
-                plan_id=uuid.UUID(candidate.plan_id),
-                renews_subscription_id=candidate.subscription_id,
+            user = await scope.users.get_by_telegram_id(
+                subscription.user_id, reseller_id=reseller_id
             )
+            plan_id = uuid.UUID(subscription.plan_id)
+            plan = await scope.catalog_plans.get(plan_id)
+            if user is None or plan is None or not plan.is_visible:
+                return ChargeResult(RenewalOutcome.NOT_RENEWABLE)
+            jalali_year, _, _ = to_jalali(container.clock.now().date())
+            checkout = BotCheckoutAdapter(
+                bridge=SyncBridge(container=container, users=scope.users, reseller_id=reseller_id),
+                quoting=scope.quoting,
+                orders=scope.order_service,
+                order_repository=scope.orders,
+                provisioning=scope.provisioning,
+                session=session,
+                plans=scope.catalog_plans,
+                coupons=scope.catalog_coupons,
+                subscriptions=scope.subscriptions,
+                clock=container.clock,
+                jalali_year=jalali_year,
+            )
+            quote = await scope.quoting.quote(plan_id=plan_id, user_id=user.id)
+            try:
+                await checkout.pay_from_wallet(
+                    user.id, plan_id=plan_id, renews_subscription_id=subscription.id
+                )
+            except InsufficientFunds as short:
+                return ChargeResult(
+                    RenewalOutcome.SHORT, amount=int(short.details.get("shortfall", 0))
+                )
+            except DeliveryPending:
+                # Paid, and the retry queue owes the service: renewed as far as
+                # the customer's money is concerned.
+                pass
             await session.commit()
-            logger.info("auto_renew.renewed", subscription_id=candidate.subscription_id)
-            return AutoRenewResult.RENEWED
-        except DeliveryPending:
-            # Paid; the provisioning retry queue finishes it.
-            return AutoRenewResult.PENDING
-        except InsufficientFunds:
+            return ChargeResult(RenewalOutcome.RENEWED, amount=quote.total.amount)
+        except DomainError:
             await session.rollback()
-            return AutoRenewResult.INSUFFICIENT_FUNDS
-        except DomainError as exc:
-            await session.rollback()
-            logger.info(
-                "auto_renew.refused",
-                subscription_id=candidate.subscription_id,
-                error=type(exc).__name__,
-            )
-            return AutoRenewResult.UNAVAILABLE
-        except Exception:
-            await session.rollback()
-            logger.exception("auto_renew.failed", subscription_id=candidate.subscription_id)
-            return AutoRenewResult.UNAVAILABLE
+            logger.warning("auto_renew.refused", subscription=subscription.id, exc_info=True)
+            return ChargeResult(RenewalOutcome.FAILED)
         finally:
             await scope.aclose()
 
 
-__all__ = ["AutoRenewReport", "run_auto_renewals"]
+class _Candidates:
+    def __init__(self, container: Container) -> None:
+        self._container = container
+
+    async def list_auto_renew_due(
+        self, *, before: datetime, limit: int = 200
+    ) -> Sequence[Subscription]:
+        async with self._container.session_factory() as session:
+            scope = build_scope(self._container, session)
+            try:
+                return await scope.subscriptions.list_auto_renew_due(before=before, limit=limit)
+            finally:
+                await scope.aclose()
+
+
+def build_auto_renewal(container: Container) -> AutoRenewal:
+    async def charge(subscription: Subscription) -> ChargeResult:
+        result = await charge_from_wallet(container, subscription)
+        await _record(container, subscription, result)
+        return result
+
+    async def notify(subscription: Subscription, message: RenderedMessage) -> None:
+        # Through the shop that sold it, so a reseller's customer hears from
+        # the reseller's bot rather than ours.
+        def work(scope: SyncScope) -> None:
+            scope.engine.dispatch(
+                user_id=subscription.user_id, message=message, source="renewal.auto"
+            )
+
+        async with container.session_factory() as session:
+            scope = build_scope(container, session)
+            try:
+                bridge = SyncBridge(
+                    container=container, users=scope.users, reseller_id=_reseller(subscription)
+                )
+                await bridge.run(work)
+            finally:
+                await scope.aclose()
+
+    async def enabled() -> bool:
+        async with container.session_factory() as session:
+            scope = build_scope(container, session)
+            try:
+                return await scope.settings_service.get(AUTO_RENEW_ENABLED)
+            finally:
+                await scope.aclose()
+
+    return AutoRenewal(
+        candidates=_Candidates(container),
+        charge=charge,
+        attempts=CacheAttemptLog(container.cache),
+        notify=notify,
+        enabled=enabled,
+        clock=container.clock,
+    )
+
+
+#: The bot's outcomes in the words the app shows.
+_APP_RESULT = {
+    RenewalOutcome.RENEWED: AutoRenewResult.RENEWED,
+    RenewalOutcome.SHORT: AutoRenewResult.INSUFFICIENT_FUNDS,
+    RenewalOutcome.NOT_RENEWABLE: AutoRenewResult.UNAVAILABLE,
+    RenewalOutcome.FAILED: AutoRenewResult.UNAVAILABLE,
+}
+
+
+async def _record(container: Container, subscription: Subscription, result: ChargeResult) -> None:
+    """Keep the outcome for the app's switch. Never fails the renewal."""
+    try:
+        async with container.session_factory() as session:
+            await SqlAutoRenewals(session).record(
+                subscription.id,
+                telegram_id=subscription.user_id,
+                result=_APP_RESULT[result.outcome],
+                at=container.clock.now(),
+            )
+            await session.commit()
+    except Exception:
+        logger.warning("auto_renew.record_failed", subscription=subscription.id, exc_info=True)
+
+
+def _reseller(subscription: Subscription) -> uuid.UUID | None:
+    return uuid.UUID(subscription.reseller_id) if subscription.reseller_id else None
+
+
+__all__ = ["CacheAttemptLog", "build_auto_renewal", "charge_from_wallet"]

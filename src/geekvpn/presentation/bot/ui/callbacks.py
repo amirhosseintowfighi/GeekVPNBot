@@ -50,11 +50,12 @@ class SubCB(CallbackData, prefix="sub"):
     """An owned subscription."""
 
     action: str  # view | config | qr | renew | traffic | rotate
+    #              | auto | rename | transfer | xfer_ok | refund | refund_ok
     ref: str = ""
 
 
 class WalletCB(CallbackData, prefix="wlt"):
-    action: str  # topup | history | page | method
+    action: str  # topup | history | page | method | send | send_go
     ref: str = ""
 
 
@@ -121,6 +122,18 @@ class AdminCB(CallbackData, prefix="adm"):
     #                | tickets | ticket | reply | close
     #                | admins | add_admin | role
     ref: str = ""
+
+
+class GuideCB(CallbackData, prefix="gd"):
+    """One device's connection tutorial."""
+
+    device: str
+
+
+class TrialCB(CallbackData, prefix="trl"):
+    """The free trial screen."""
+
+    action: str  # view | claim
 
 
 class NoopCB(CallbackData, prefix="noop"):

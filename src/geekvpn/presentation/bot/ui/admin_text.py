@@ -271,3 +271,90 @@ APPLICATION_APPROVED: Final = (
 )
 APPLICATION_REJECTED: Final = "درخواست رد شد."
 APPLICATION_GONE: Final = "\u0627\u06cc\u0646 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u062f\u06cc\u06af\u0647 \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0646\u06cc\u0633\u062a."
+
+BTN_BACKUP: Final = "🗄 بکاپ دیتابیس الان"
+BACKUP_WORKING: Final = "⏳ دارم بکاپ می‌گیرم…"
+BACKUP_SENT: Final = "✅ بکاپ ({rows} رکورد) فرستاده شد."
+BACKUP_FAILED: Final = "❌ بکاپ گرفته نشد. لاگ سرور رو ببین."
+BACKUP_SUPER_ONLY: Final = "بکاپ کل دیتابیس فقط دست مدیر ارشده."
+
+BTN_TEXTS: Final = "📝 متن‌های ربات"
+TEXTS_TITLE: Final = "📝 <b>متن‌های ربات</b>\n\nکدوم متن رو می‌خوای ببینی یا عوض کنی؟"
+TEXT_SCREEN: Final = (
+    "📝 <b>{label}</b> {state}\n\n"
+    "{current}\n\n"
+    "———\n"
+    "{placeholders}"
+)
+TEXT_CUSTOM: Final = "(سفارشی)"
+TEXT_DEFAULT: Final = "(پیش‌فرض)"
+TEXT_PLACEHOLDERS: Final = "این‌ها باید در متن بمانند: {names}"
+TEXT_NO_PLACEHOLDERS: Final = "این متن جای خالی ندارد."
+BTN_TEXT_EDIT: Final = "✏️ ویرایش"
+BTN_TEXT_RESET: Final = "↩️ برگرداندن به پیش‌فرض"
+TEXT_ASK: Final = "متن جدید رو بفرست. قالب‌بندی HTML تلگرام (مثل <b>پررنگ</b>) پشتیبانی می‌شه."
+TEXT_MISSING: Final = "این‌ها از متن حذف شده‌اند و باید بمانند: {names}"
+TEXT_SAVED: Final = "✅ ذخیره شد."
+TEXT_RESET_DONE: Final = "✅ به متن پیش‌فرض برگشت."
+BTN_RULES_ON: Final = "📜 بخش قوانین: روشن ✅"
+BTN_RULES_OFF: Final = "📜 بخش قوانین: خاموش"
+TEXTS_NOT_ALLOWED: Final = "تغییر متن‌ها دسترسی تنظیمات می‌خواد."
+
+BTN_EXPORT: Final = "📊 خروجی اکسل سفارش‌ها و کاربران"
+EXPORT_WORKING: Final = "⏳ دارم فایل اکسل رو می‌سازم…"
+EXPORT_CAPTION: Final = "📊 سفارش‌ها و کاربران تا {date}"
+EXPORT_FAILED: Final = "❌ ساخت فایل اکسل ممکن نشد. لاگ سرور رو ببین."
+EXPORT_NOT_ALLOWED: Final = "خروجی گرفتن دسترسی خروجی آمار می‌خواد."
+
+BTN_MENU_BUTTONS: Final = "🔘 دکمه‌های صفحهٔ اصلی"
+MENU_BUTTONS_TITLE: Final = "🔘 <b>دکمه‌های صفحهٔ اصلی</b>\n\nروی هر دکمه بزن تا روشن یا خاموش بشه."
+
+BTN_FAKE_RECEIPT: Final = "🚫 فیش جعلی بود"
+FAKE_CONFIRM: Final = (
+    "⚠️ مطمئنی این فیش جعلی بوده؟\n\n"
+    "سرویسی که با این پرداخت ساخته شده حذف می‌شه (یا شارژ کیف پول پس گرفته می‌شه) "
+    "و کاربر مسدود می‌شه."
+)
+BTN_FAKE_CONFIRM: Final = "✅ بله، حذف و مسدود کن"
+FAKE_DONE: Final = "🚫 انجام شد: {what} و کاربر <code>{user_id}</code> مسدود شد."
+FAKE_SERVICE_REMOVED: Final = "سرویس حذف شد"
+FAKE_TOPUP_REVERSED: Final = "شارژ کیف پول پس گرفته شد"
+FAKE_NOTHING_FOUND: Final = "چیزی برای حذف پیدا نشد"
+FAKE_REASON: Final = "فیش واریزی جعلی"
+
+BTN_TOP: Final = "🏆 برترین کاربران"
+TOP_TITLE: Final = "🏆 <b>برترین کاربران</b>\n\nکدوم فهرست رو می‌خوای؟"
+TOP_LADDERS: Final = {
+    "spent": "💰 بیشترین مبلغ خرید",
+    "services": "📦 بیشترین سرویس فعال",
+    "topped_up": "💳 بیشترین شارژ کیف پول",
+    "balance": "👛 بیشترین موجودی",
+}
+TOP_EMPTY: Final = "هنوز کسی در این فهرست نیست."
+TOP_ROW: Final = "{rank}. <code>{telegram_id}</code> {name} — {value}"
+
+BTN_TUTORIALS: Final = "📚 آموزش‌های اتصال"
+TUTORIALS_TITLE: Final = "📚 <b>آموزش‌های اتصال</b>\n\nبرای کدوم دستگاه؟ (✅ یعنی آموزش داره)"
+TUTORIAL_ASK: Final = (
+    "آموزش {device} رو بفرست: یه متن، یا یه عکس یا ویدیو با توضیح زیرش.\n"
+    "همون‌طوری که بفرستی به کاربر نشون داده می‌شه."
+)
+TUTORIAL_SAVED: Final = "✅ آموزش {device} ذخیره شد."
+TUTORIAL_REMOVED: Final = "🗑 آموزش {device} حذف شد."
+BTN_TUTORIAL_REMOVE: Final = "🗑 حذف این آموزش"
+TUTORIAL_UNSUPPORTED: Final = "فقط متن، عکس یا ویدیو قبول می‌شه."
+
+BTN_PIN: Final = "📌 پیام سنجاق‌شده برای همه"
+PIN_ASK: Final = (
+    "پیامی که می‌خوای برای همهٔ کاربرها سنجاق بشه رو بفرست: متن، عکس، ویدیو یا فایل.\n"
+    "همون‌طوری که بفرستی برای هر کاربر کپی و سنجاق می‌شه."
+)
+PIN_CONFIRM: Final = "این پیام برای {count} کاربر فرستاده و سنجاق می‌شه. شروع کنم؟"
+BTN_PIN_GO: Final = "✅ شروع ارسال و سنجاق"
+PIN_STARTED: Final = "⏳ ارسال شروع شد. وقتی تموم شد خبرت می‌کنم."
+PIN_DONE: Final = "📌 تموم شد: برای {pinned} کاربر سنجاق شد، {failed} نشد (احتمالاً ربات رو بلاک کرده‌اند)."
+BTN_UNPIN: Final = "🧹 برداشتن آخرین پیام سنجاق‌شده"
+UNPIN_DONE: Final = "🧹 سنجاق از {count} گفتگو برداشته شد."
+UNPIN_NONE: Final = "پیام سنجاق‌شده‌ای از طرف ربات ثبت نشده."
+PIN_NOT_ALLOWED: Final = "این کار دسترسی ارسال پیام همگانی می‌خواد."
+PIN_BUSY: Final = "یک ارسال سنجاق هنوز در جریانه. صبر کن تموم بشه."

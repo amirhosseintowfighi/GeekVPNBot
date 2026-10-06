@@ -8,7 +8,7 @@ real source of support tickets.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from aiogram import F, Router
@@ -17,8 +17,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from geekvpn.application.bot.read_models import OwnerOptions, SubscriptionState
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.provisioning.claim_service import ClaimOutcome
+from geekvpn.domain.provisioning.errors import RotationUnavailable
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     match_ref,
@@ -31,6 +34,8 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, SubCB
+
+logger = get_logger("bot.dashboard")
 
 router = Router(name="dashboard")
 
@@ -50,7 +55,7 @@ def _list_keyboard(cards: list[Any]) -> InlineKeyboardMarkup:
     return K.stack(rows)
 
 
-def _detail_keyboard(card: Any) -> InlineKeyboardMarkup:
+def _detail_keyboard(card: Any, options: OwnerOptions | None = None) -> InlineKeyboardMarkup:
     ref = short_ref(card.subscription_id)
     rows: list[list[Any]] = []
     if card.subscription_url:
@@ -67,8 +72,48 @@ def _detail_keyboard(card: Any) -> InlineKeyboardMarkup:
         rows.append([K.btn(T.BTN_RENEW, SubCB(action="renew", ref=ref), style=K.YES)])
     if card.subscription_url:
         rows.append([K.btn(T.BTN_ROTATE, SubCB(action="rotate", ref=ref))])
+    if options is not None and options.has_tutorials:
+        rows.append([K.btn(T.BTN_GUIDE, NavCB(to="guide"))])
+    if options is not None:
+        if options.auto_renew and card.is_renewable:
+            label = T.BTN_AUTO_RENEW_ON if card.auto_renew else T.BTN_AUTO_RENEW_OFF
+            rows.append([K.btn(label, SubCB(action="auto", ref=ref))])
+        owner_row = []
+        if options.transfer:
+            owner_row.append(K.btn(T.BTN_TRANSFER, SubCB(action="transfer", ref=ref)))
+        if options.rename:
+            owner_row.append(K.btn(T.BTN_RENAME, SubCB(action="rename", ref=ref)))
+        if owner_row:
+            rows.append(owner_row)
+        if _refundable(card, options.refund_window_hours):
+            rows.append([K.btn(T.BTN_REFUND, SubCB(action="refund", ref=ref), style=K.NO)])
     rows.append([K.btn(T.BTN_BACK, NavCB(to="dashboard")), K.home_button()])
     return K.stack(rows)
+
+
+def _refundable(card: Any, window_hours: int) -> bool:
+    """Whether to offer the refund. The adapter decides for real, with fresh usage."""
+    if window_hours <= 0 or card.used_gib > 0 or card.created_at is None:
+        return False
+    if card.state is not SubscriptionState.ACTIVE:
+        return False
+    return bool(datetime.now(UTC) - card.created_at <= timedelta(hours=window_hours))
+
+
+async def owner_options(services: BotServices) -> OwnerOptions | None:
+    """The shop's switches for the owner's controls. None hides them all."""
+    if services.ownership is None:
+        return None
+    try:
+        return await services.ownership.options()
+    except Exception:
+        # The detail screen must still open when a settings read fails.
+        return None
+
+
+async def show_detail(query: CallbackQuery, services: BotServices, card: Any) -> None:
+    body = R.subscription_detail(card, now=datetime.now(UTC))
+    await safe_edit(query, body, markup=_detail_keyboard(card, await owner_options(services)))
 
 
 async def _load(services: BotServices, user: Any) -> list[Any]:
@@ -150,8 +195,7 @@ async def on_view(
     if card is None:
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
-    body = R.subscription_detail(card, now=datetime.now(UTC))
-    await safe_edit(query, body, markup=_detail_keyboard(card))
+    await show_detail(query, services, card)
 
 
 @router.callback_query(SubCB.filter(F.action == "config"))
@@ -242,10 +286,16 @@ async def on_rotate(
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
     try:
-        link = await services.subscriptions.rotate_link(user.id, card.subscription_id)
+        rotated = await services.subscriptions.rotate_link(user.id, card.subscription_id)
+    except RotationUnavailable:
+        await safe_edit(query, T.ROTATE_UNAVAILABLE, markup=K.single(K.home_button()))
+        return
     except Exception:
+        logger.exception("dashboard.rotate_failed")
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return
+    # The port hands back the whole card; the link is one field of it.
+    link = rotated.subscription_url
     if not link:
         await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
         return

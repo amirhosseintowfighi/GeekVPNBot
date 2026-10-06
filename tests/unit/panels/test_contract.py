@@ -42,6 +42,8 @@ _CONFIGS: dict[PanelKind, dict[str, object]] = {
     PanelKind.MARZNESHIN: {},
     PanelKind.SANAEI: {"inbound_id": 1},
     PanelKind.ALIREZA: {"inbound_id": 1},
+    PanelKind.REBECCA: {},
+    PanelKind.WGDASHBOARD: {"api_key": "k", "configuration": "wg0"},
 }
 
 ALL_KINDS = sorted(registry.kinds, key=lambda k: k.value)

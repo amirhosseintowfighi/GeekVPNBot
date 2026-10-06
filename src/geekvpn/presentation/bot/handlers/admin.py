@@ -17,6 +17,7 @@ established by the update itself rather than typed in by the person using it.
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 import uuid
 from typing import Any
@@ -40,6 +41,7 @@ from geekvpn.domain.notifications.message import RenderedMessage
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.payments.enums import PaymentState
 from geekvpn.domain.provisioning.enums import OrderState, SubscriptionState
+from geekvpn.infrastructure.backup.service import backup_settings, send_backup
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
@@ -160,6 +162,13 @@ def _menu() -> InlineKeyboardMarkup:
             [K.btn(A.BTN_APPLICATIONS, AdminCB(action="apps"), style=K.GO)],
             [K.btn(A.BTN_TOPUPS, AdminCB(action="topups"), style=K.YES)],
             [K.btn(A.BTN_ADMINS, AdminCB(action="admins"))],
+            [K.btn(A.BTN_TEXTS, AdminCB(action="texts"))],
+            [K.btn(A.BTN_MENU_BUTTONS, AdminCB(action="menu_buttons"))],
+            [K.btn(A.BTN_TUTORIALS, AdminCB(action="tutorials"))],
+            [K.btn(A.BTN_PIN, AdminCB(action="pin"))],
+            [K.btn(A.BTN_TOP, AdminCB(action="top"))],
+            [K.btn(A.BTN_EXPORT, AdminCB(action="export"))],
+            [K.btn(A.BTN_BACKUP, AdminCB(action="backup"))],
         ]
     )
 
@@ -293,7 +302,117 @@ async def on_approve(
         return
 
     await toast(query, A.PAYMENT_APPROVED, alert=True)
-    await safe_edit(query, A.PAYMENT_APPROVED, markup=_back("payments"))
+    # The approval is not the last word: a forged receipt is often only
+    # noticed when the bank statement arrives, and by then this message is
+    # the one place the payment can still be found from.
+    await safe_edit(
+        query,
+        A.PAYMENT_APPROVED,
+        markup=K.stack(
+            [
+                [K.btn(A.BTN_FAKE_RECEIPT, AdminCB(action="fake", ref=payment_id), style=K.NO)],
+                [K.btn(A.BTN_BACK, AdminCB(action="payments"))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(AdminCB.filter(F.action == "fake"))
+async def on_fake(
+    query: CallbackQuery, callback_data: AdminCB, scope: Any = None, user: Any = None
+) -> None:
+    if await _guard(scope, user) is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    await toast(query)
+    await safe_edit(
+        query,
+        A.FAKE_CONFIRM,
+        markup=K.stack(
+            [
+                [
+                    K.btn(
+                        A.BTN_FAKE_CONFIRM,
+                        AdminCB(action="fake_ok", ref=callback_data.ref),
+                        style=K.NO,
+                    )
+                ],
+                [K.btn(A.BTN_BACK, AdminCB(action="payments"))],
+            ]
+        ),
+    )
+
+
+@router.callback_query(AdminCB.filter(F.action == "fake_ok"))
+async def on_fake_confirmed(
+    query: CallbackQuery,
+    callback_data: AdminCB,
+    container: Container,
+    scope: Any = None,
+    user: Any = None,
+) -> None:
+    """Undo what a forged receipt bought, and close the account that sent it.
+
+    A purchase loses its service, deleted on the panel; a top-up has the
+    credit taken back, no further than the wallet still holds. Either way the
+    customer is suspended, which also takes them out of every audience.
+    """
+    admin = await _guard(scope, user)
+    if admin is None or user is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    payment_id = callback_data.ref
+    actor = user.telegram_id
+
+    def find(sync: SyncScope) -> tuple[int, str | None, int] | None:
+        payment = sync.payments.get(payment_id)
+        if payment is None:
+            return None
+        order = sync.orders.get_by_invoice(payment.invoice_id)
+        return payment.user_id, order.id if order else None, payment.amount.amount
+
+    found = await read_scope(container, find)
+    if found is None:
+        await toast(query, A.ACTION_FAILED.format(reason=A.FAKE_NOTHING_FOUND), alert=True)
+        return
+    customer_id, order_id, amount = found
+
+    what = A.FAKE_NOTHING_FOUND
+    try:
+        if order_id is not None:
+            subscription = await scope.subscriptions.get_by_order(order_id)
+            if subscription is not None:
+                await scope.subscription_admin.revoke(subscription.id, reason_fa=A.FAKE_REASON)
+                what = A.FAKE_SERVICE_REMOVED
+        else:
+
+            def reverse(sync: SyncScope) -> None:
+                sync.wallet.adjust_many(
+                    user_ids=[customer_id],
+                    signed_amount=-amount,
+                    actor_id=actor,
+                    reason_fa=A.FAKE_REASON,
+                )
+
+            await mutate_scope(container, reverse)
+            what = A.FAKE_TOPUP_REVERSED
+        customer = await scope.users.get_by_telegram_id(
+            customer_id, reseller_id=getattr(scope.reseller, "id", None)
+        )
+        if customer is not None:
+            customer.suspend(reason=A.FAKE_REASON)
+            await scope.users.update(customer)
+        await scope.session.commit()
+        if customer is not None:
+            await scope.remove_from_channels(customer.telegram_id)
+    except DomainError as failure:
+        await toast(query, A.ACTION_FAILED.format(reason=str(failure)), alert=True)
+        return
+    await safe_edit(
+        query,
+        A.FAKE_DONE.format(what=what, user_id=customer_id),
+        markup=_back("payments"),
+    )
 
 
 @router.callback_query(AdminCB.filter(F.action == "reject"))
@@ -770,6 +889,36 @@ def _setup_link(scope: Any, approval: Any) -> str:
 # -- admins ----------------------------------------------------------------
 
 
+@router.callback_query(AdminCB.filter(F.action == "backup"))
+async def on_backup(
+    query: CallbackQuery, container: Container, scope: Any = None, user: Any = None
+) -> None:
+    """The whole database, now, to the backup channel - or to this chat.
+
+    Super admins only: the file holds every customer, every payment and the
+    encrypted panel credentials, which is more than any other role may see.
+    """
+    admin = await _guard(scope, user)
+    if admin is None:
+        await toast(query, A.NOT_AN_ADMIN, alert=True)
+        return
+    if admin.role is not AdminRole.SUPER_ADMIN:
+        await toast(query, A.BACKUP_SUPER_ONLY, alert=True)
+        return
+    await toast(query, A.BACKUP_WORKING)
+    settings = await asyncio.to_thread(backup_settings, container)
+    chat_id = settings.chat_id or query.from_user.id
+    try:
+        summary = await asyncio.to_thread(send_backup, container, chat_id)
+    except Exception:
+        logger.exception("admin.backup_failed")
+        await safe_edit(query, A.BACKUP_FAILED, markup=_back())
+        return
+    await safe_edit(
+        query, A.BACKUP_SENT.format(rows=fa_digits(summary.total_rows)), markup=_back()
+    )
+
+
 @router.callback_query(AdminCB.filter(F.action == "admins"))
 async def on_admins(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
     admin = await _guard(scope, user)
@@ -1167,6 +1316,8 @@ async def on_suspend_reason(
 
     customer.suspend(reason=normalize_input(message.text or ""))
     await scope.users.update(customer)
+    await scope.session.commit()
+    await scope.remove_from_channels(customer.telegram_id)
     await answer(message, A.SUSPENDED, reply_markup=K.main_menu())
 
 

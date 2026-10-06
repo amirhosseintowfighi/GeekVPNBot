@@ -37,6 +37,7 @@ from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
+from geekvpn.domain.provisioning.errors import RotationUnavailable
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
 from geekvpn.infrastructure.bot.services import build_bot_services
@@ -477,7 +478,10 @@ async def payment_methods(user: CurrentMiniAppUser, services: ServicesDep) -> An
     through it, and a shop with no crypto address offered a button that ended
     in an apology.
     """
-    return [{"key": key, "label_fa": label} for key, label in await services.checkout.methods()]
+    return [
+        {"key": key, "label_fa": label}
+        for key, label in await services.checkout.methods(user.id)
+    ]
 
 
 @router.post("/checkout/gateway", summary="Start an online-gateway payment")
@@ -721,22 +725,18 @@ async def rotate_link(
     services: ServicesDep,
     uow: UnitOfWorkDep,
 ) -> Any:
-    """Still unimplemented, and the reason is a missing panel capability.
+    """New credentials and link from the panel; the old link stops working.
 
-    Rotating a link means asking the panel to reissue the subscription token.
-    No adapter exposes that - `PanelAdapter` can read a subscription but not
-    regenerate one - so honouring this would mean adding a capability across
-    six panel implementations, each with a different API, none of which can be
-    verified without the panels themselves.
-
-    Answering 501 rather than returning the existing card is the whole point:
-    telling a customer their leaked link was replaced while it still works is
-    worse than telling them the button does not work yet.
+    409 when this service's panel cannot do it, rather than returning the
+    existing card: telling a customer their leaked link was replaced while it
+    still works is worse than telling them it cannot be done here.
     """
     try:
         card = await services.subscriptions.rotate_link(user.id, subscription_id)
-    except NotImplementedError as exc:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.") from exc
+    except RotationUnavailable as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=exc.message) from exc
     await uow.commit()
     return card
 
@@ -771,7 +771,9 @@ class AutoRenewRequest(ApiModel):
 
 def _auto_renew_view(subscription: Subscription, row: AutoRenewalModel | None) -> AutoRenewView:
     return AutoRenewView(
-        enabled=bool(row and row.enabled),
+        # The service's own switch, shared with the bot: the row only keeps
+        # what the worker last did.
+        enabled=subscription.auto_renew,
         available=subscription.reseller_id is None and subscription.plan_id is not None,
         last_result=row.last_result if row else None,
         last_attempt_at=row.last_attempt_at if row else None,
@@ -809,6 +811,10 @@ async def set_auto_renew(
             status.HTTP_400_BAD_REQUEST,
             detail="This service cannot renew automatically.",
         )
+    # The one switch the worker reads, the same one the bot's button flips -
+    # two would renew a service twice.
+    subscription.set_auto_renew(payload.enabled)
+    await scope.subscriptions.update(subscription)
     renewals = SqlAutoRenewals(scope.session)
     await renewals.set_enabled(
         subscription.id,

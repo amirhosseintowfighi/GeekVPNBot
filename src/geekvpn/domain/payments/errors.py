@@ -79,6 +79,13 @@ class InsufficientFunds(PaymentError):
         )
 
 
+class CardNotForNewCustomers(ConflictError):
+    """The shop offers card-to-card only to customers who have bought before."""
+
+    code = "card_not_for_new_customers"
+    message = "پرداخت کارت‌به‌کارت بعد از اولین خرید فعال می‌شه. لطفاً از روش دیگه‌ای پرداخت کن."
+
+
 class DuplicateReceipt(ConflictError):
     """The same receipt file or transaction hash was submitted twice.
 
@@ -183,6 +190,7 @@ class PaymentExpired(ConflictError):
 
 __all__ = [
     "AmountMismatch",
+    "CardNotForNewCustomers",
     "DuplicateReceipt",
     "GatewayError",
     "GatewayNotRegistered",
@@ -196,3 +204,10 @@ __all__ = [
     "RefundNotAllowed",
     "VerificationFailed",
 ]
+
+
+class WalletTransferRefused(ConflictError):
+    """A wallet-to-wallet transfer the shop does not allow; the message says why."""
+
+    code = "wallet_transfer_refused"
+    message = "انتقال موجودی انجام نشد."

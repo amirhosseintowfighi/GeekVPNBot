@@ -16,13 +16,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { GATEWAY_PROVIDERS, GATEWAY_PROVIDER_KEYS } from '@/lib/gateway-providers'
 
-const PROVIDER_LABEL: Record<string, string> = {
-  zarinpal: 'زرین‌پال',
-  zibal: 'زیبال',
-  aqayepardakht: 'آقای پرداخت',
-  atlaspay: 'اطلس‌پی',
-}
+const PROVIDER_LABEL: Record<string, string> = Object.fromEntries(
+  // AtlasPay is the operator's own arrangement and not offered to resellers.
+  GATEWAY_PROVIDER_KEYS.filter((key) => key !== 'atlaspay').map((key) => [
+    key,
+    GATEWAY_PROVIDERS[key].label,
+  ]),
+)
 
 /**
  * A reseller's own payment destinations.
@@ -207,11 +209,14 @@ export function ShopPaymentMethodsCard() {
             onChange={(event) =>
               setGateway({ ...gateway, merchantId: event.target.value })
             }
-            placeholder="شناسهٔ پذیرنده"
+            placeholder={
+              GATEWAY_PROVIDERS[gateway.provider as keyof typeof GATEWAY_PROVIDERS]?.field ??
+              'شناسهٔ پذیرنده'
+            }
           />
         </div>
         <Button
-          disabled={busy || gateway.merchantId.trim().length < 4}
+          disabled={busy || gateway.merchantId.trim().length < 1}
           onClick={() =>
             void run(async () => {
               await api.addMyGateway({

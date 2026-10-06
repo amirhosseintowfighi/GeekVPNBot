@@ -191,6 +191,24 @@ class SubscriptionRevokedEvent(DomainEvent):
         }
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SubscriptionTransferred(DomainEvent):
+    """A customer handed their service to somebody else."""
+
+    name: ClassVar[str] = "provisioning.subscription.transferred.v1"
+
+    subscription_id: str
+    from_user_id: int
+    to_user_id: int
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "subscription_id": self.subscription_id,
+            "from_user_id": self.from_user_id,
+            "to_user_id": self.to_user_id,
+        }
+
+
 __all__ = [
     "OrderCancelled",
     "OrderFailed",
@@ -203,4 +221,5 @@ __all__ = [
     "SubscriptionRenewed",
     "SubscriptionRevokedEvent",
     "SubscriptionSuspended",
+    "SubscriptionTransferred",
 ]

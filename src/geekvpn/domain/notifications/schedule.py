@@ -68,23 +68,54 @@ def campaign_dedupe_key(campaign_id: str, user_id: int) -> str:
     return f"campaign:{campaign_id}:{user_id}"
 
 
-def expiry_threshold_for(days_left: int) -> int | None:
+@dataclass(frozen=True, slots=True)
+class ReminderThresholds:
+    """The marks an operator chose. Defaults are the ones above."""
+
+    expiry_days: tuple[int, ...] = EXPIRY_REMINDER_DAYS
+    traffic_percents: tuple[int, ...] = TRAFFIC_THRESHOLDS
+
+
+def parse_thresholds(raw: object, *, low: int, high: int) -> tuple[int, ...] | None:
+    """``"7, 3,1"`` -> ``(7, 3, 1)``: distinct, descending, within bounds.
+
+    None for anything else, so the caller decides between refusing (on write)
+    and falling back to the defaults (on read). Persian digits are accepted,
+    because that is what an operator's phone keyboard types.
+    """
+    if not isinstance(raw, str):
+        return None
+    text = raw.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٬،", "0123456789,,"))
+    parts = [part.strip() for part in text.split(",") if part.strip()]
+    if not parts or not all(part.isdigit() for part in parts):
+        return None
+    values = sorted({int(part) for part in parts}, reverse=True)
+    if not all(low <= value <= high for value in values):
+        return None
+    return tuple(values)
+
+
+def expiry_threshold_for(
+    days_left: int, days: tuple[int, ...] = EXPIRY_REMINDER_DAYS
+) -> int | None:
     """The threshold a given remaining-days value triggers, if any.
 
     Exact matching is deliberate. A sweep that fired for "<= 7" would warn
     every single day from day seven onward, and the dedupe key would not save
     us because each day is a different key.
     """
-    return days_left if days_left in EXPIRY_REMINDER_DAYS else None
+    return days_left if days_left in days else None
 
 
-def traffic_threshold_for(percent_used: float) -> int | None:
+def traffic_threshold_for(
+    percent_used: float, thresholds: tuple[int, ...] = TRAFFIC_THRESHOLDS
+) -> int | None:
     """The highest crossed traffic threshold, or None below the lowest.
 
     Highest-first means a customer who jumps from 50% to 97% in one sweep gets
     the 95% warning, not a stale 80% one.
     """
-    for threshold in sorted(TRAFFIC_THRESHOLDS, reverse=True):
+    for threshold in sorted(thresholds, reverse=True):
         if percent_used >= threshold:
             return threshold
     return None

@@ -12,6 +12,7 @@ from geekvpn.application.provisioning.free_trial import (
     TRIAL_DURATION_DAYS,
     TRIAL_TRAFFIC_MIB,
     FreeTrial,
+    TrialTerms,
 )
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
@@ -102,8 +103,18 @@ def plan(owner: Product, *, days: int, price: int, published: bool = True) -> Pl
 
 
 def build(
-    catalogue: Catalogue, *, panel: FakePanel | None = None
+    catalogue: Catalogue,
+    *,
+    panel: FakePanel | None = None,
+    terms: TrialTerms | None = None,
+    room: bool = True,
 ) -> tuple[FreeTrial, InMemoryClaims, InMemoryOrders, FakePanel]:
+    async def has_room() -> bool:
+        return room
+
+    async def current_terms() -> TrialTerms:
+        return terms or TrialTerms()
+
     orders = InMemoryOrders()
     claims = InMemoryClaims()
     panel = panel or FakePanel()
@@ -132,6 +143,8 @@ def build(
         ),
         clock=clock,
         jalali_year=1405,
+        terms=current_terms,
+        room=has_room,
     )
     return trial, claims, orders, panel
 
@@ -267,3 +280,76 @@ async def test_a_panel_failure_leaves_the_order_owed_not_lost() -> None:
     assert delivery.pending == 2
     assert USER in claims.rows
     assert all(orders.rows[o.id].state is OrderState.FAILED for o in placed)
+
+
+# -- the operator's terms ----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_trial_switched_off_is_not_offered() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, _ = build(catalogue, terms=TrialTerms(enabled=False))
+
+    assert (await trial.offer(USER)).available is False
+
+
+@pytest.mark.asyncio
+async def test_a_trial_switched_off_cannot_be_claimed_by_a_stale_button() -> None:
+    catalogue, _, _ = shop()
+    trial, claims, _, _ = build(catalogue, terms=TrialTerms(enabled=False))
+
+    with pytest.raises(FreeTrialUnavailable):
+        await trial.place(USER)
+    # Refused before the claim was recorded, so switching it back on later
+    # still gives this customer their trial.
+    assert claims.rows == {}
+
+
+@pytest.mark.asyncio
+async def test_the_operator_decides_how_big_and_how_long_the_trial_is() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, panel = build(
+        catalogue, terms=TrialTerms(enabled=True, traffic_mib=2048, duration_days=5)
+    )
+
+    offer = await trial.offer(USER)
+    placed = await trial.place(USER)
+    await trial.deliver(placed)
+
+    assert (offer.traffic_mib, offer.duration_days) == (2048, 5)
+    assert all(order.traffic_mib == 2048 and order.duration_days == 5 for order in placed)
+    assert all(spec.expires_at == NOW + timedelta(days=5) for spec in panel.created)
+
+
+@pytest.mark.asyncio
+async def test_the_trial_channel_is_told_who_took_one() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, _ = build(catalogue)
+    told: list[tuple[int, int]] = []
+
+    async def announce(user_id: int, delivery: object) -> None:
+        told.append((user_id, len(delivery.subscriptions)))  # type: ignore[attr-defined]
+
+    trial._announce = announce
+    await trial.deliver(await trial.place(USER))
+
+    assert told == [(USER, 2)]
+
+
+@pytest.mark.asyncio
+async def test_a_reseller_shop_out_of_trials_offers_none() -> None:
+    catalogue, _, _ = shop()
+    trial, _, _, _ = build(catalogue, room=False)
+
+    assert (await trial.offer(USER)).available is False
+
+
+@pytest.mark.asyncio
+async def test_a_reseller_shop_out_of_trials_records_no_claim() -> None:
+    catalogue, _, _ = shop()
+    trial, claims, orders, _ = build(catalogue, room=False)
+
+    with pytest.raises(FreeTrialUnavailable):
+        await trial.place(USER)
+    assert claims.rows == {}
+    assert orders.rows == {}

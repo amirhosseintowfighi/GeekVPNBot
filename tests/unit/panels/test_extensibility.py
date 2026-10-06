@@ -113,6 +113,9 @@ class HypotheticalAdapter:
     async def reset_traffic(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
         return self.store[ref.username]
 
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
+        return self.store[ref.username]
+
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         raise NotImplementedError
 

@@ -131,6 +131,9 @@ async def suspend_customer(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Customer not found.")
     user.suspend(reason=payload.reason)
     await scope.users.update(user)
+    await scope.session.commit()
+    # After the commit: the suspension stands whatever Telegram answers.
+    await scope.remove_from_channels(user.telegram_id)
     return CustomerResponse.of(user)
 
 

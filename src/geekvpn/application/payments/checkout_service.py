@@ -21,7 +21,7 @@ the payment system is a free order that never provisions.
 from __future__ import annotations
 
 import secrets
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Final
@@ -135,6 +135,7 @@ class CheckoutService:
         "_ids",
         "_invoices",
         "_payments",
+        "_topup_limits",
         "_wallets",
     )
 
@@ -151,7 +152,11 @@ class CheckoutService:
         audit: PaymentAuditLog,
         digests: ReceiptDigestRepository | None = None,
         callback_base: str = "",
+        #: The shop's own (minimum, maximum) top-up, inside the wallet's hard
+        #: bounds. Checked here so the bot and the Mini App cannot disagree.
+        topup_limits: Callable[[], tuple[int, int]] | None = None,
     ) -> None:
+        self._topup_limits = topup_limits
         self._invoices = invoices
         self._payments = payments
         self._wallets = wallets
@@ -290,11 +295,19 @@ class CheckoutService:
         """
         if gateway_key == "wallet":
             raise PaymentValidationError("A wallet cannot be topped up from itself.")
-        if amount.amount < MIN_TOPUP:
+        minimum, maximum = self._topup_limits() if self._topup_limits else (MIN_TOPUP, None)
+        minimum = max(minimum, MIN_TOPUP)
+        if amount.amount < minimum:
             raise PaymentValidationError(
                 "The top-up amount is below the minimum.",
                 amount=amount.amount,
-                minimum=MIN_TOPUP,
+                minimum=minimum,
+            )
+        if maximum is not None and amount.amount > maximum:
+            raise PaymentValidationError(
+                "The top-up amount is above the maximum.",
+                amount=amount.amount,
+                maximum=maximum,
             )
         return self.begin(
             CheckoutRequest(

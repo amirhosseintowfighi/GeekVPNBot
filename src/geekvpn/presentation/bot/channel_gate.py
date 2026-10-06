@@ -70,6 +70,12 @@ class ChannelGateMiddleware(BaseMiddleware):
             # away. Not ours to decide.
             return await handler(event, data)
 
+        if getattr(event, "chat_member", None) is not None:
+            # Somebody's membership changed - often somebody leaving a required
+            # channel, who by definition has not "joined". Gating it would
+            # swallow the very update the leave message is sent from.
+            return await handler(event, data)
+
         if _is_recheck(event):
             # Fall through to the handler, which runs the check itself and
             # either opens the bot or redraws the gate.

@@ -155,6 +155,10 @@ class HttpPanelAdapter:
         self.require(Capability.RESET_TRAFFIC)
         raise NotImplementedError  # pragma: no cover
 
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> Any:
+        self.require(Capability.REVOKE_ACCESS)
+        raise NotImplementedError  # pragma: no cover
+
     async def username_behind(self, url: str) -> str | None:
         """Ask the panel itself who a subscription link belongs to.
 

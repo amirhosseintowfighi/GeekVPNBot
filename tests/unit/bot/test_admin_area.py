@@ -122,7 +122,11 @@ def _actions() -> tuple[set[str], set[str]]:
     import ast
     from pathlib import Path
 
-    source = Path(bot_admin.__file__).read_text(encoding="utf-8")
+    # Every operator module: a button in one may be handled in another.
+    folder = Path(bot_admin.__file__).parent
+    source = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(folder.glob("admin*.py"))
+    )
     tree = ast.parse(source)
 
     emitted: set[str] = set()

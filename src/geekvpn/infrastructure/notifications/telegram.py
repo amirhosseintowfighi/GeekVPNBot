@@ -23,6 +23,7 @@ Two adapters, both small, because the hard part was never the code:
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -35,6 +36,8 @@ logger = get_logger(__name__)
 #: Long enough for a slow route out of Iran, short enough that a broadcast to a
 #: few thousand people cannot wedge a worker for an afternoon.
 TIMEOUT_SECONDS = 10.0
+#: For uploading a file rather than a message.
+UPLOAD_TIMEOUT_SECONDS = 300.0
 
 
 class TelegramApiError(RuntimeError):
@@ -250,12 +253,32 @@ class HttpOperatorSender:
             },
         )
 
+    def ban_chat_member(self, *, chat: str, user_id: int) -> None:
+        """Remove somebody from a channel or group and keep them out."""
+        self._post("banChatMember", {"chat_id": chat, "user_id": user_id})
+
+    def send_document(self, *, chat_id: int, path: Path, caption: str) -> None:
+        """Upload a file. Multipart, so it cannot share `_post`'s JSON body."""
+        with path.open("rb") as handle:
+            response = httpx.post(
+                f"https://api.telegram.org/bot{self._token}/sendDocument",
+                data={"chat_id": str(chat_id), "caption": caption, "parse_mode": self._parse_mode},
+                files={"document": (path.name, handle, "application/zip")},
+                # A backup is megabytes over a connection that may be slow;
+                # the JSON timeout would cut it off halfway.
+                timeout=UPLOAD_TIMEOUT_SECONDS,
+            )
+        self._check(response, "sendDocument")
+
     def _post(self, method: str, payload: dict[str, Any]) -> None:
         response = httpx.post(
             f"https://api.telegram.org/bot{self._token}/{method}",
             json=payload,
             timeout=TIMEOUT_SECONDS,
         )
+        self._check(response, method)
+
+    def _check(self, response: httpx.Response, method: str) -> None:
         if response.status_code == httpx.codes.OK:
             return
 

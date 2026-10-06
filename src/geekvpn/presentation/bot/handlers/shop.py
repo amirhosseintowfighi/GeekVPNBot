@@ -18,6 +18,9 @@ from aiogram.types import CallbackQuery, Message
 
 from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import CategoryView, ProductView, StorefrontView
+from geekvpn.application.platform.settings_service import SHOW_CAPACITY
+from geekvpn.application.provisioning import panel_id_for
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     brand_of,
@@ -33,6 +36,9 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, ShopCB
+from geekvpn.presentation.bot.ui.fa import fa_digits
+
+logger = get_logger("bot.shop")
 
 router = Router(name="shop")
 
@@ -221,4 +227,41 @@ async def on_product(
     if not product.plans:
         await safe_edit(query, T.PRODUCT_NO_PLANS, markup=K.single(K.home_button()))
         return
-    await safe_edit(query, R.product_card(product), markup=_plan_keyboard(product))
+    body = R.product_card(product)
+    capacity = await capacity_line(scope, product.id)
+    if capacity:
+        body = f"{body}\n\n{capacity}"
+    await safe_edit(query, body, markup=_plan_keyboard(product))
+
+
+#: Below this many free places the line turns amber: worth buying now.
+LOW_CAPACITY = 10
+
+
+async def capacity_line(scope: Any, product_id: Any) -> str:
+    """How much room the product's server has left, when the shop shows it.
+
+    Only for a product bound to a server with a declared ceiling: an unbound
+    product can land anywhere, and "unlimited" is not a number to show.
+    """
+    try:
+        if not await scope.settings_service.get(SHOW_CAPACITY):
+            return ""
+        product = await scope.catalog_products.get(product_id)
+        bound = getattr(product, "panel_id", None)
+        if bound is None:
+            return ""
+        node = next(
+            (n for n in await scope.nodes.list_every() if panel_id_for(n.id) == bound), None
+        )
+    except Exception:
+        logger.warning("shop.capacity_unreadable", exc_info=True)
+        return ""
+    if node is None or node.capacity <= 0:
+        return ""
+    left = max(0, node.capacity - node.account_count)
+    if left == 0:
+        return T.CAPACITY_FULL
+    if left <= LOW_CAPACITY:
+        return T.CAPACITY_LOW.format(count=fa_digits(left))
+    return T.CAPACITY_LEFT.format(count=fa_digits(left))

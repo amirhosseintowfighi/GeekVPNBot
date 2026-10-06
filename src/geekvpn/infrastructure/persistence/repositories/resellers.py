@@ -91,6 +91,9 @@ class SqlAlchemyResellerRepository:
             contact_fa=row.contact_fa,
             brand_fa=row.brand_fa,
             subscription_hosts=dict(row.subscription_hosts or {}),
+            config_prefix=row.config_prefix,
+            config_suffix=row.config_suffix,
+            trial_limit=row.trial_limit,
         )
 
     # -- writing -----------------------------------------------------------
@@ -107,6 +110,9 @@ class SqlAlchemyResellerRepository:
                 contact_fa=reseller.contact_fa,
                 brand_fa=reseller.brand_fa,
                 subscription_hosts=dict(reseller.subscription_hosts),
+                config_prefix=reseller.config_prefix,
+                config_suffix=reseller.config_suffix,
+                trial_limit=reseller.trial_limit,
             )
         )
         await self._session.flush()
@@ -124,6 +130,9 @@ class SqlAlchemyResellerRepository:
         row.contact_fa = reseller.contact_fa
         row.brand_fa = reseller.brand_fa
         row.subscription_hosts = dict(reseller.subscription_hosts)
+        row.config_prefix = reseller.config_prefix
+        row.config_suffix = reseller.config_suffix
+        row.trial_limit = reseller.trial_limit
         await self._write_children(reseller)
 
     async def _write_children(self, reseller: Reseller) -> None:

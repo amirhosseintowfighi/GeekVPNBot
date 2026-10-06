@@ -22,6 +22,8 @@ class PanelKind(StrEnum):
     MARZNESHIN = "marzneshin"
     SANAEI = "sanaei"
     ALIREZA = "alireza"
+    REBECCA = "rebecca"
+    WGDASHBOARD = "wgdashboard"
 
 
 @unique
@@ -57,6 +59,9 @@ class Capability(StrEnum):
     SUBSCRIPTION_URL = "subscription_url"
     #: Enforces a concurrent-device / IP limit.
     DEVICE_LIMIT = "device_limit"
+    #: Can issue new credentials and a new subscription token for an account,
+    #: so a leaked link stops working while the account itself stays.
+    REVOKE_ACCESS = "revoke_access"
 
 
 @unique

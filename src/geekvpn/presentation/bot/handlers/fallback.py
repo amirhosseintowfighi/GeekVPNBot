@@ -252,7 +252,10 @@ async def unknown_message(
     await answer(message, T.ERR_UNKNOWN_COMMAND, reply_markup=K.main_menu())
     if user is not None:
         body, markup = await render_home(
-            user=user, services=services, is_admin=await is_admin(scope, user)
+            user=user,
+        services=services,
+        is_admin=await is_admin(scope, user),
+        scope=scope,
         )
         await answer(message, body, reply_markup=markup)
 

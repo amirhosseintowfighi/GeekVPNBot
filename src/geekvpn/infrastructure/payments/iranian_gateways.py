@@ -17,6 +17,7 @@ verified" rather than failing, and every one of them is called by the callback
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -36,6 +37,13 @@ from geekvpn.domain.payments.gateway import (
 )
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.infrastructure.payments.atlaspay import AtlasPayGateway
+from geekvpn.infrastructure.payments.crypto_gateways import (
+    ExchangeRates,
+    NowPaymentsGateway,
+    PlisioGateway,
+    TonGateway,
+)
+from geekvpn.infrastructure.payments.stars import StarsGateway
 
 logger = get_logger(__name__)
 
@@ -343,16 +351,39 @@ BUILDERS: Final[dict[str, type]] = {
     # Card-to-card with automatic confirmation rather than a redirect, and it
     # takes Toman. Its own module because almost nothing above is true of it.
     "atlaspay": AtlasPayGateway,
+    # Crypto that confirms itself. They price in dollars or TON, so they also
+    # take the operator's exchange rates.
+    "nowpayments": NowPaymentsGateway,
+    "plisio": PlisioGateway,
+    "ton": TonGateway,
+    # Paid inside Telegram to the shop's own bot. Needs that bot's token,
+    # which the registry hands it.
+    "stars": StarsGateway,
 }
 
+#: The providers that convert from Toman at the operator's rates.
+PRICED_IN_CRYPTO: Final = frozenset({"nowpayments", "plisio", "ton"})
 
-def build(provider: str, merchant_id: str) -> Any:
-    return BUILDERS[provider](merchant_id=merchant_id)
+
+def build(
+    provider: str,
+    merchant_id: str,
+    *,
+    rates: Callable[[], ExchangeRates] | None = None,
+    bot_token: Callable[[], str] | None = None,
+) -> Any:
+    gateway_type = BUILDERS[provider]
+    if provider in PRICED_IN_CRYPTO and rates is not None:
+        return gateway_type(merchant_id=merchant_id, rates=rates)
+    if provider == "stars" and bot_token is not None:
+        return gateway_type(merchant_id=merchant_id, bot_token=bot_token)
+    return gateway_type(merchant_id=merchant_id)
 
 
 __all__ = [
     "BUILDERS",
     "ONLINE_CAPABILITIES",
+    "PRICED_IN_CRYPTO",
     "RIAL_PER_TOMAN",
     "AqayePardakhtGateway",
     "AtlasPayGateway",

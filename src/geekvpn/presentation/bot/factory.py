@@ -21,7 +21,12 @@ from geekvpn.infrastructure.di.container import Container
 from geekvpn.presentation.bot.channel_gate import ChannelGateMiddleware
 from geekvpn.presentation.bot.handlers import (
     admin,
+    admin_export,
+    admin_pin,
+    admin_texts,
+    admin_top,
     app_login,
+    channel_leave,
     dashboard,
     errors,
     fallback,
@@ -32,11 +37,16 @@ from geekvpn.presentation.bot.handlers import (
     referral,
     renewal,
     reseller,
+    rules,
     server_status,
+    service_owner,
     shop,
+    stars,
     start,
     support,
     system,
+    trial,
+    tutorials,
     wallet,
 )
 from geekvpn.presentation.bot.handlers import (
@@ -57,7 +67,14 @@ from geekvpn.presentation.bot.ui.stickers import StickerBook
 ROUTERS = (
     errors,
     system,
+    # Early: a `successful_payment` can arrive while the customer is in any
+    # flow's state, and a state handler matching every message would take it.
+    stars,
     admin,
+    admin_texts,
+    admin_export,
+    admin_top,
+    admin_pin,
     start,
     menu,
     shop,
@@ -73,6 +90,11 @@ ROUTERS = (
     settings_handlers,
     faq,
     server_status,
+    trial,
+    service_owner,
+    rules,
+    tutorials,
+    channel_leave,
     fallback,
 )
 

@@ -20,6 +20,7 @@ from geekvpn.application.bot.read_models import (
     CryptoPaymentDetails,
     GatewayScreen,
     NotificationPreferences,
+    OwnerOptions,
     PendingPayment,
     ProfileSummary,
     ReferralSummary,
@@ -27,6 +28,8 @@ from geekvpn.application.bot.read_models import (
     SubscriptionCard,
     TicketCard,
     TicketMessageCard,
+    TrialClaimCard,
+    TrialOfferCard,
     WalletSnapshot,
     WalletTransaction,
 )
@@ -135,7 +138,7 @@ class CheckoutService(Protocol):
         renews_subscription_id: str | None = None,
     ) -> SubscriptionCard: ...
 
-    async def methods(self) -> list[tuple[str, str]]:
+    async def methods(self, user_id: uuid.UUID | None = None) -> list[tuple[str, str]]:
         """Which ways of paying this shop actually has, as (key, label).
 
         Asked rather than assumed: the bot used to offer card and crypto
@@ -195,3 +198,55 @@ class CheckoutService(Protocol):
     async def attach_txid(
         self, user_id: uuid.UUID, *, payment_id: uuid.UUID, txid: str
     ) -> PendingPayment: ...
+
+
+@runtime_checkable
+class TrialService(Protocol):
+    """The one-time free trial, from inside the bot.
+
+    It existed only in the Android app and the Mini App, so a customer who
+    never left Telegram - most of them - could not try before buying.
+    """
+
+    async def offer(self, user_id: uuid.UUID) -> TrialOfferCard: ...
+
+    async def claim(self, user_id: uuid.UUID) -> TrialClaimCard:
+        """Claim and deliver.
+
+        :raises FreeTrialAlreadyClaimed: this customer has had it.
+        :raises FreeTrialUnavailable: switched off, or nothing to base it on.
+        """
+        ...
+
+
+@runtime_checkable
+class ServiceOwnership(Protocol):
+    """What a customer may change about a service they own.
+
+    Every method checks ownership itself: ids arrive from callback data, and a
+    customer must not be able to rename, re-bill or give away somebody else's
+    service by editing a button.
+    """
+
+    async def options(self) -> OwnerOptions: ...
+
+    async def set_auto_renew(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, enabled: bool
+    ) -> SubscriptionCard: ...
+
+    async def rename(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, name: str | None
+    ) -> SubscriptionCard: ...
+
+    async def transfer(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, to_telegram_id: int
+    ) -> None:
+        """:raises LookupError: no such recipient in this shop."""
+        ...
+
+    async def refund_unused(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> int:
+        """Return a service that carried no traffic. Returns the Toman credited.
+
+        :raises RefundNotAllowed: with the reason, in Persian.
+        """
+        ...

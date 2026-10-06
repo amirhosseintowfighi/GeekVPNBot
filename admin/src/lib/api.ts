@@ -499,6 +499,9 @@ export const api = {
       status: string
       discountPercent: number
       contactFa: string | null
+      configPrefix: string
+      configSuffix: string
+      trialLimit: number | null
     }>,
   ) => mutate<ResellerRow>('PATCH', `${ROOT}/resellers/${id}`, patch),
   setResellerPanels: (id: string, nodeIds: string[]) =>
@@ -617,6 +620,8 @@ export const api = {
     mutate<ResellerTopupRow[]>('POST', '/api/v1/reseller/topups', { amount, noteFa }),
   setMyBrand: (brandFa: string) =>
     mutate<ResellerSelf>('PUT', '/api/v1/reseller/brand', { brandFa }),
+  setMyConfigName: (configPrefix: string, configSuffix: string) =>
+    mutate<ResellerSelf>('PUT', '/api/v1/reseller/config-name', { configPrefix, configSuffix }),
   setMyBot: (token: string) => mutate<ResellerSelf>('PUT', '/api/v1/reseller/bot', { token }),
 
   // The operator's view of one shop. The scoping was never about hiding a
@@ -800,6 +805,19 @@ export const api = {
       'POST',
       `${ROOT}/wallets/${userId}/adjust`,
       { signedAmount, reasonFa },
+    ),
+
+  // Every wallet in a broadcast audience, credited or debited at once.
+  bulkAdjustWallets: (body: {
+    signedAmount: number
+    reasonFa: string
+    segment: BroadcastAudience['segment']
+    reference?: string | null
+  }) =>
+    mutate<{ audience: number; adjusted: number; partial: number; skipped: number }>(
+      'POST',
+      `${ROOT}/wallets/bulk-adjust`,
+      body,
     ),
 
   // Direct message to one customer. Sends through the notification engine

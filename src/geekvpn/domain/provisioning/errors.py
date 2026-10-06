@@ -85,6 +85,27 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class RefundNotAllowed(ConflictError):
+    """A refund for an unused service was refused; the message says why."""
+
+    code = "unused_refund_refused"
+    message = "برگشت وجه برای این سرویس ممکن نیست."
+
+
+class DailyPurchaseLimitReached(ConflictError):
+    """This customer has bought as many services today as the shop allows."""
+
+    code = "daily_purchase_limit"
+    message = "سقف خرید امروزت پر شده. فردا دوباره می‌تونی خرید کنی."
+
+
+class RotationUnavailable(ConflictError):
+    """This service's panel cannot issue a new link, or it has no panel at all."""
+
+    code = "rotation_unavailable"
+    message = "A new link cannot be issued for this service."
+
+
 class FreeTrialAlreadyClaimed(ConflictError):
     """One free trial per customer, and this one has had it."""
 
@@ -104,6 +125,7 @@ class FreeTrialUnavailable(ConflictError):
 
 
 __all__ = [
+    "DailyPurchaseLimitReached",
     "FreeTrialAlreadyClaimed",
     "FreeTrialUnavailable",
     "IllegalOrderTransition",
@@ -114,6 +136,8 @@ __all__ = [
     "OrderValidationError",
     "ProvisioningError",
     "ProvisioningFailed",
+    "RefundNotAllowed",
+    "RotationUnavailable",
     "SubscriptionNotFound",
     "SubscriptionRevoked",
 ]

@@ -22,16 +22,19 @@ and inventing one would put strangers in the platform's customer list.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import structlog
 
+from geekvpn.application.ports.clock import Clock
+from geekvpn.application.provisioning.free_trial import TRIAL_DEVICE_LIMIT, TrialTerms
+from geekvpn.application.provisioning.ports import OrderRepository
 from geekvpn.application.resellers.service import ResellerService
 from geekvpn.domain.catalog.money import Money
-from geekvpn.domain.provisioning.enums import OrderSource
-from geekvpn.domain.resellers.errors import NodeNotAllowed, ResellerSuspended
+from geekvpn.domain.provisioning.enums import OrderSource, OrderState
+from geekvpn.domain.resellers.errors import NodeNotAllowed, ResellerSuspended, TrialLimitReached
 from geekvpn.domain.resellers.reseller import Reseller
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -75,6 +78,7 @@ class Orders(Protocol):
         duration_days: int,
         list_price: Money,
         total: Money,
+        product_id: str | None = ...,
         traffic_mib: int | None = ...,
         device_limit: int = ...,
         source: OrderSource = ...,
@@ -111,7 +115,17 @@ class ResellerSalesService:
         orders: Orders,
         provisioning: Provisioning,
         jalali_year: int,
+        order_repository: OrderRepository,
+        clock: Clock,
+        #: How many test accounts this reseller has handed out so far.
+        trials_given: Callable[[Reseller], Awaitable[int]],
+        #: The size and length of a test account: the shop's free trial.
+        trial_terms: Callable[[], Awaitable[TrialTerms]],
     ) -> None:
+        self._order_repository = order_repository
+        self._clock = clock
+        self._trials_given = trials_given
+        self._trial_terms = trial_terms
         self._resellers = resellers
         self._plans = plans
         self._orders = orders
@@ -148,7 +162,7 @@ class ResellerSalesService:
         order = await self._orders.place(
             # Attributed to the reseller's own account, because their customer
             # is not a user of this platform.
-            user_id=_owner_id(reseller),
+            user_id=owner_id(reseller),
             jalali_year=self._jalali_year,
             plan_id=str(plan_id),
             plan_name_fa=plan.name_fa,
@@ -157,8 +171,10 @@ class ResellerSalesService:
             total=cost,
             traffic_mib=_traffic_of(plan),
             device_limit=plan.device_limit,
+            product_id=str(plan.product_id),
             source=OrderSource.RESELLER,
         )
+        await self._pay(order)
 
         try:
             subscription = await self._provisioning.provision(
@@ -180,6 +196,12 @@ class ResellerSalesService:
                 description_fa="بازگشت اعتبار — فروش ناموفق",
                 reference=order.id,
             )
+            # Refunded, so no longer owed: left failed, the retry queue would
+            # deliver it later and the reseller would have it for nothing.
+            current = await self._order_repository.get(order.id) or order
+            if current.can_transition_to(OrderState.CANCELLED):
+                current.cancel()
+                await self._order_repository.update(current)
             raise
 
         return ResellerSale(
@@ -190,6 +212,61 @@ class ResellerSalesService:
             charged=cost,
             balance_after=after.balance_amount,
         )
+
+    async def give_trial(self, *, reseller_id: uuid.UUID, plan_id: uuid.UUID) -> ResellerSale:
+        """A free test account, for a reseller to show a customer the service.
+
+        The plan only decides which product and therefore which servers; the
+        size and length are the shop's free trial, so a test account is never
+        a free month. Counted against the reseller's limit before anything is
+        placed, so a refused one leaves nothing behind.
+
+        :raises TrialLimitReached: the operator's limit is used up.
+        """
+        reseller = await self._resellers.get(reseller_id)
+        if not reseller.status.may_provision:
+            raise ResellerSuspended("This reseller account cannot sell right now.")
+        limit = reseller.trial_limit
+        if limit is not None and await self._trials_given(reseller) >= limit:
+            raise TrialLimitReached(limit=limit)
+        plan = await self._plans.get(plan_id)
+        if plan is None:
+            raise LookupError("No such package.")
+        terms = await self._trial_terms()
+
+        order = await self._orders.place(
+            user_id=owner_id(reseller),
+            jalali_year=self._jalali_year,
+            plan_id=str(plan_id),
+            plan_name_fa=f"تست {plan.name_fa}",
+            duration_days=terms.duration_days,
+            list_price=Money(0),
+            total=Money(0),
+            traffic_mib=terms.traffic_mib,
+            device_limit=TRIAL_DEVICE_LIMIT,
+            product_id=str(plan.product_id),
+            source=OrderSource.TRIAL,
+        )
+        await self._pay(order)
+        subscription = await self._provisioning.provision(
+            order.id,
+            reseller_id=str(reseller_id),
+            allowed_node_ids=reseller.allowed_node_ids or None,
+        )
+        return ResellerSale(
+            subscription_id=subscription.id,
+            subscription_url=subscription.subscription_url,
+            remote_username=subscription.remote_username,
+            expires_at=subscription.expires_at,
+            charged=Money(0),
+            balance_after=reseller.balance_amount,
+        )
+
+    async def _pay(self, order: Any) -> None:
+        # Paid from credit already taken (or free), so nothing else will ever
+        # approve it - and provisioning refuses an order that is still pending.
+        order.mark_paid(at=self._clock.now())
+        await self._order_repository.update(order)
 
     async def price_list(self, reseller_id: uuid.UUID, plans: Sequence[Any]) -> list[dict[str, Any]]:
         """Every package with all three numbers on it.
@@ -216,7 +293,7 @@ class ResellerSalesService:
         return rows
 
 
-def _owner_id(reseller: Reseller) -> int:
+def owner_id(reseller: Reseller) -> int:
     """A stable integer for orders sold by this reseller.
 
     Orders key on a Telegram id, and a reseller's customer has none that this
@@ -241,4 +318,4 @@ def _traffic_of(plan: Any) -> int | None:
     return None if gib is None else int(gib) * 1024
 
 
-__all__ = ["NodeNotAllowed", "ResellerSale", "ResellerSalesService"]
+__all__ = ["NodeNotAllowed", "ResellerSale", "ResellerSalesService", "owner_id"]

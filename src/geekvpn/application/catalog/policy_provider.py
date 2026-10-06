@@ -40,6 +40,8 @@ KEY_REFERRAL_FIRST_BPS: Final = "pricing.referral.first_purchase_bps"
 KEY_REFERRAL_RECURRING_BPS: Final = "pricing.referral.recurring_bps"
 KEY_REFERRAL_INVITEE_BONUS: Final = "pricing.referral.invitee_bonus"
 KEY_REFERRAL_MAX_PER_ORDER: Final = "pricing.referral.max_reward_per_order"
+KEY_REFERRAL_FIRST_FIXED: Final = "pricing.referral.first_purchase_fixed"
+KEY_REFERRAL_RECURRING_FIXED: Final = "pricing.referral.recurring_fixed"
 
 #: Declared so the admin panel can render every knob even before it is written
 #: once. Without this, a fresh install shows an empty settings page.
@@ -57,6 +59,8 @@ PRICING_SETTING_DEFAULTS: dict[str, Any] = {
     KEY_REFERRAL_RECURRING_BPS: 0,
     KEY_REFERRAL_INVITEE_BONUS: 0,
     KEY_REFERRAL_MAX_PER_ORDER: None,
+    KEY_REFERRAL_FIRST_FIXED: 0,
+    KEY_REFERRAL_RECURRING_FIXED: 0,
 }
 
 
@@ -82,6 +86,8 @@ class PricingPolicyProvider:
             recurring_bps=_as_int(values, KEY_REFERRAL_RECURRING_BPS),
             invitee_bonus=_as_money(values, KEY_REFERRAL_INVITEE_BONUS) or Money.zero(),
             max_reward_per_order=_as_money(values, KEY_REFERRAL_MAX_PER_ORDER),
+            first_purchase_fixed=_as_money(values, KEY_REFERRAL_FIRST_FIXED) or Money.zero(),
+            recurring_fixed=_as_money(values, KEY_REFERRAL_RECURRING_FIXED) or Money.zero(),
         )
         return PricingPolicy(
             rounding_step=_as_int(values, KEY_ROUNDING_STEP),

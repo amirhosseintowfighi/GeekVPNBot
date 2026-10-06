@@ -11,6 +11,7 @@ the engine. They only decide *who* has crossed *what*.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from geekvpn.application.notifications.engine import NotificationEngine
@@ -24,10 +25,9 @@ from geekvpn.domain.notifications.enums import JobKind
 from geekvpn.domain.notifications.events import ReminderJobCompleted
 from geekvpn.domain.notifications.message import fa_gib
 from geekvpn.domain.notifications.schedule import (
-    EXPIRY_REMINDER_DAYS,
     IDLE_NUDGE_HOURS,
     TRAFFIC_EXHAUSTED_PERCENT,
-    TRAFFIC_THRESHOLDS,
+    ReminderThresholds,
     expiry_dedupe_key,
     expiry_threshold_for,
     idle_dedupe_key,
@@ -78,7 +78,11 @@ class ReminderService:
         subscriptions: SubscriptionReader,
         clock: Clock,
         events: EventPublisher,
+        #: Read at the start of each sweep, so an operator's change applies
+        #: to the next run rather than the next deployment.
+        thresholds: Callable[[], ReminderThresholds] = ReminderThresholds,
     ) -> None:
+        self._thresholds = thresholds
         self._engine = engine
         self._subscriptions = subscriptions
         self._clock = clock
@@ -141,14 +145,15 @@ class ReminderService:
     # ---- Expiration -----------------------------------------------------
 
     def run_expiration_reminders(self) -> SweepReport:
-        """Warn at 7, 3 and 1 days out, and once on the day it dies.
+        """Warn at the operator's day marks (7, 3 and 1 by default), and once on the day it dies.
 
         Exact-day matching, not "<= 7", so each customer gets three warnings
         rather than seven.
         """
         now = self._clock.now()
         report = SweepReport(job=JobKind.EXPIRATION_REMINDER)
-        widest = max(EXPIRY_REMINDER_DAYS)
+        days_marks = self._thresholds().expiry_days
+        widest = max(days_marks)
 
         for snapshot in self._subscriptions.expiring_within(widest, now=now):
             if not snapshot.active:
@@ -164,7 +169,7 @@ class ReminderService:
                     report = report.with_skipped()
                 continue
 
-            threshold = expiry_threshold_for(days)
+            threshold = expiry_threshold_for(days, days_marks)
             if threshold is None:
                 report = report.with_skipped()
                 continue
@@ -209,14 +214,16 @@ class ReminderService:
     # ---- Traffic --------------------------------------------------------
 
     def run_traffic_reminders(self) -> SweepReport:
-        """Warn at 80% and 95%, and separately when the plan is finished.
+        """Warn at the operator's percent marks (80 and 95 by default), and separately when
+        the plan is finished.
 
         Unmetered plans are skipped rather than treated as zero-capacity,
         which would otherwise warn every unlimited customer immediately.
         """
         now = self._clock.now()
         report = SweepReport(job=JobKind.TRAFFIC_REMINDER)
-        floor = float(min(TRAFFIC_THRESHOLDS))
+        percent_marks = self._thresholds().traffic_percents
+        floor = float(min(percent_marks))
 
         for snapshot in self._subscriptions.with_traffic_usage(min_percent=floor, now=now):
             if not snapshot.active:
@@ -241,7 +248,7 @@ class ReminderService:
                 report = report.with_queued() if result.was_queued else report.with_skipped()
                 continue
 
-            threshold = traffic_threshold_for(percent)
+            threshold = traffic_threshold_for(percent, percent_marks)
             if threshold is None:
                 report = report.with_skipped()
                 continue

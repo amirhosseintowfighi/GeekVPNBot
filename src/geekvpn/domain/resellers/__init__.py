@@ -22,6 +22,7 @@ from geekvpn.domain.resellers.errors import (
     NodeNotAllowed,
     ResellerNotFound,
     ResellerSuspended,
+    TrialLimitReached,
 )
 from geekvpn.domain.resellers.reseller import PriceOverride, Reseller
 
@@ -33,4 +34,5 @@ __all__ = [
     "ResellerNotFound",
     "ResellerStatus",
     "ResellerSuspended",
+    "TrialLimitReached",
 ]

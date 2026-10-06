@@ -28,6 +28,8 @@ const PANEL_KIND_LABEL: Record<PanelKind, string> = {
   marzneshin: 'Marzneshin',
   sanaei: '3x-ui (Sanaei)',
   alireza: 'x-ui (Alireza)',
+  rebecca: 'Rebecca',
+  wgdashboard: 'WGDashboard',
 }
 
 /**

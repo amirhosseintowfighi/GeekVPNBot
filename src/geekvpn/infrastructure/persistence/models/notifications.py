@@ -176,7 +176,9 @@ class BroadcastModel(TimestampMixin, Base):
 
     recipient_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     suppressed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_by: Mapped[int | None] = mapped_column(BigInteger)

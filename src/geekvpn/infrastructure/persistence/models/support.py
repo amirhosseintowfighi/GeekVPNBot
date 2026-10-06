@@ -137,7 +137,7 @@ class ReplyTemplateModel(TimestampMixin, Base):
     categories: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     use_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_by: Mapped[int | None] = mapped_column(BigInteger)
 

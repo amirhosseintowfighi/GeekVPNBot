@@ -89,6 +89,15 @@ BTN_SELL: Final = "⚡ ساخت سرویس"
 BTN_PRICES: Final = "🏷️ قیمت‌ها"
 BTN_LEDGER: Final = "🧾 گردش اعتبار"
 BTN_SET_PRICE: Final = "✏️ تغییر قیمت فروش"
+BTN_TRIAL: Final = "🎁 ساخت اکانت تست"
+CHOOSE_TRIAL_PLAN: Final = (
+    "اکانت تست از کدوم سرویس؟\n\n"
+    "حجم و مدتش همون تست رایگان فروشگاهه و از اعتبارت چیزی کم نمی‌شه."
+)
+TRIAL_LIMIT_REACHED: Final = (
+    "❌ همهٔ اکانت‌های تستت ({limit}) رو ساختی.\n\n"
+    "برای سهمیهٔ بیشتر با پشتیبانی تماس بگیر."
+)
 
 NOT_A_RESELLER: Final = "\u0627\u06cc\u0646 \u0628\u062e\u0634 \u0645\u0627\u0644 \u0646\u0645\u0627\u06cc\u0646\u062f\u0647\u200c\u0647\u0627\u0633\u062a."
 SUSPENDED: Final = "\u062d\u0633\u0627\u0628 \u0646\u0645\u0627\u06cc\u0646\u062f\u06af\u06cc\u062a \u0641\u0639\u0644\u0627\u064b \u0645\u0639\u0644\u0642\u0647. \u0628\u0627 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u062a\u0645\u0627\u0633 \u0628\u06af\u06cc\u0631."
@@ -171,6 +180,22 @@ def sold(sale: Any, *, plan_name: str) -> str:
     return "\n".join(body)
 
 
+def trial_made(sale: Any, *, plan_name: str) -> str:
+    body = [
+        rtl_line("✅ <b>اکانت تست ساخته شد</b>"),
+        "",
+        rtl_line(f"📦 {plan_name}"),
+        rtl_line(f"👤 <code>{sale.remote_username}</code>"),
+        "",
+    ]
+    if sale.subscription_url:
+        body.append(rtl_line("🔗 <b>لینک اشتراک:</b>"))
+        body.append(f"<code>{sale.subscription_url}</code>")
+    else:
+        body.append(rtl_line("لینک اتصال تا چند لحظهٔ دیگه تو پنل آماده می‌شه."))
+    return "\n".join(body)
+
+
 __all__ = [
     "APPLICATION_PENDING",
     "APPLICATION_SENT",
@@ -182,7 +207,9 @@ __all__ = [
     "BTN_PRICES",
     "BTN_SELL",
     "BTN_SET_PRICE",
+    "BTN_TRIAL",
     "CHOOSE_PLAN",
+    "CHOOSE_TRIAL_PLAN",
     "CONSOLE",
     "CONSOLE_ARREARS",
     "CONSOLE_BALANCE",
@@ -193,8 +220,10 @@ __all__ = [
     "NO_PLANS",
     "PLAN_GONE",
     "SUSPENDED",
+    "TRIAL_LIMIT_REACHED",
     "ledger",
     "plan_button",
     "price_table",
     "sold",
+    "trial_made",
 ]

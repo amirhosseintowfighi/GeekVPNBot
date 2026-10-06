@@ -15,8 +15,13 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from geekvpn.application.bot.services import BotServices
+from geekvpn.application.platform.settings_service import (
+    CARD_FOR_NEW_CUSTOMERS,
+    DAILY_PURCHASE_LIMIT,
+)
 from geekvpn.domain.analytics.calendar import to_jalali
 from geekvpn.infrastructure.bot.checkout import BotCheckoutAdapter
+from geekvpn.infrastructure.bot.ownership import BotServiceOwnership
 from geekvpn.infrastructure.bot.readers import (
     SqlProfileReader,
     SqlReferralSummaryReader,
@@ -29,6 +34,7 @@ from geekvpn.infrastructure.bot.sync_readers import (
     SyncTicketCardReader,
     SyncWalletCardReader,
 )
+from geekvpn.infrastructure.bot.trial import BotTrialAdapter
 from geekvpn.infrastructure.di.scope import RequestScope
 
 
@@ -62,6 +68,8 @@ def build_bot_services(
             orders=scope.orders,
             plans=scope.catalog_plans,
             products=scope.catalog_products,
+            rotate=scope.subscription_admin.rotate_access,
+            commit=scope.session.commit,
         ),
         wallet=SyncWalletCardReader(bridge),
         referrals=SqlReferralSummaryReader(session=scope.session, users=scope.users),
@@ -82,6 +90,24 @@ def build_bot_services(
             clock=container.clock,
             jalali_year=jalali_year,
             fetch_receipt=fetch_receipt,
+            daily_limit=lambda: scope.settings_service.get(DAILY_PURCHASE_LIMIT),
+            card_for_new_customers=lambda: scope.settings_service.get(CARD_FOR_NEW_CUSTOMERS),
+        ),
+        trial=BotTrialAdapter(
+            trial=scope.free_trial,
+            settings=scope.settings_service,
+            session=scope.session,
+            telegram_id=bridge.telegram_id,
+        ),
+        ownership=BotServiceOwnership(
+            users=scope.users,
+            subscriptions=scope.subscriptions,
+            orders=scope.orders,
+            session=scope.session,
+            settings=scope.settings_service,
+            bridge=bridge,
+            reseller_id=scope.reseller.id if scope.reseller is not None else None,
+            refunds=scope.unused_refund,
         ),
     )
 

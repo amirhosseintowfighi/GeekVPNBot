@@ -202,8 +202,17 @@ class ResellerService:
         discount_percent: int | None = None,
         contact_fa: str | None = None,
         brand_fa: str | None = None,
+        config_prefix: str | None = None,
+        config_suffix: str | None = None,
     ) -> Reseller:
         reseller = await self.get(reseller_id)
+        if config_prefix is not None or config_suffix is not None:
+            # Either alone keeps the other: a form that sends only the prefix
+            # must not quietly clear the suffix. Empty clears.
+            reseller.set_config_name(
+                prefix=reseller.config_prefix if config_prefix is None else config_prefix,
+                suffix=reseller.config_suffix if config_suffix is None else config_suffix,
+            )
         if brand_fa is not None:
             # Empty clears it, falling back to their own name rather than to
             # ours - a customer seeing the reseller's name is right either way.
@@ -218,6 +227,13 @@ class ResellerService:
             # Through the aggregate, so the cap is enforced in one place rather
             # than by whichever caller remembered.
             reseller.set_discount(discount_percent)
+        await self._resellers.save(reseller)
+        return reseller
+
+    async def set_trial_limit(self, reseller_id: uuid.UUID, limit: int | None) -> Reseller:
+        """Its own method: ``None`` here means "no limit", not "unchanged"."""
+        reseller = await self.get(reseller_id)
+        reseller.set_trial_limit(limit)
         await self._resellers.save(reseller)
         return reseller
 

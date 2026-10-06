@@ -27,7 +27,12 @@ from geekvpn.application.resellers.topups import TopupNotFound
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.resellers.enums import ResellerStatus
 from geekvpn.domain.resellers.errors import ResellerNotFound
-from geekvpn.domain.resellers.reseller import MAX_DISCOUNT_PERCENT, Reseller
+from geekvpn.domain.resellers.reseller import (
+    CONFIG_PREFIX_PATTERN,
+    CONFIG_SUFFIX_PATTERN,
+    MAX_DISCOUNT_PERCENT,
+    Reseller,
+)
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
 from geekvpn.presentation.bot.ui import copy as C
@@ -59,10 +64,18 @@ class ResellerResponse(ApiModel):
     #: A reseller whose balance has gone under. Their customers' services are
     #: suspended until it is positive again.
     in_arrears: bool = False
+    #: Around the order number in their customers' config names.
+    config_prefix: str | None = None
+    config_suffix: str | None = None
+    #: Test accounts this shop may hand out. Absent is no limit.
+    trial_limit: int | None = None
 
     @classmethod
     def of(cls, reseller: Reseller, *, bot_username: str | None = None) -> ResellerResponse:
         return cls(
+            config_prefix=reseller.config_prefix,
+            config_suffix=reseller.config_suffix,
+            trial_limit=reseller.trial_limit,
             bot_username=bot_username,
             has_bot=bool(bot_username),
             id=reseller.id,
@@ -186,6 +199,11 @@ class UpdateResellerRequest(ApiModel):
     status: ResellerStatus | None = None
     discount_percent: int | None = Field(default=None, ge=0, le=MAX_DISCOUNT_PERCENT)
     contact_fa: str | None = Field(default=None, max_length=256)
+    #: Empty clears; absent leaves it alone.
+    config_prefix: str | None = Field(default=None, pattern=CONFIG_PREFIX_PATTERN)
+    config_suffix: str | None = Field(default=None, pattern=CONFIG_SUFFIX_PATTERN)
+    #: Sent as null to lift the limit; left out to leave it alone.
+    trial_limit: int | None = Field(default=None, ge=0, le=100_000)
 
 
 class PanelsRequest(ApiModel):
@@ -300,7 +318,13 @@ async def update_reseller(
             status=payload.status,
             discount_percent=payload.discount_percent,
             contact_fa=payload.contact_fa,
+            config_prefix=payload.config_prefix,
+            config_suffix=payload.config_suffix,
         )
+        if "trial_limit" in payload.model_fields_set:
+            reseller = await scope.reseller_service.set_trial_limit(
+                reseller_id, payload.trial_limit
+            )
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)
@@ -319,9 +343,7 @@ async def set_panels(
     if unknown:
         # Refused rather than stored: a reseller allowed onto a panel that does
         # not exist is a restriction that silently does nothing.
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"Unknown panels: {', '.join(unknown)}"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown panels: {', '.join(unknown)}")
     try:
         reseller = await scope.reseller_service.set_panels(reseller_id, payload.node_ids)
     except ResellerNotFound as failure:
@@ -344,13 +366,9 @@ async def set_subscription_hosts(
         # Refused rather than stored, like `set_panels`: a host recorded
         # against a panel that does not exist is a setting that silently does
         # nothing, and the operator would have no way to see that.
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"Unknown panels: {', '.join(unknown)}"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown panels: {', '.join(unknown)}")
     try:
-        reseller = await scope.reseller_service.set_subscription_hosts(
-            reseller_id, payload.hosts
-        )
+        reseller = await scope.reseller_service.set_subscription_hosts(reseller_id, payload.hosts)
     except ResellerNotFound as failure:
         raise _not_found() from failure
     return ResellerResponse.of(reseller)
@@ -398,9 +416,7 @@ async def set_retail(
     response_model=BotResponse,
     dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
 )
-async def attach_bot(
-    reseller_id: uuid.UUID, payload: BotRequest, scope: ScopeDep
-) -> BotResponse:
+async def attach_bot(reseller_id: uuid.UUID, payload: BotRequest, scope: ScopeDep) -> BotResponse:
     """Give a reseller their own Telegram bot.
 
     The token goes in and never comes back out. It is a full credential - one
@@ -484,9 +500,7 @@ async def approve_topup(topup_id: uuid.UUID, scope: ScopeDep) -> None:
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
 )
-async def reject_topup(
-    topup_id: uuid.UUID, payload: RejectTopupRequest, scope: ScopeDep
-) -> None:
+async def reject_topup(topup_id: uuid.UUID, payload: RejectTopupRequest, scope: ScopeDep) -> None:
     try:
         await scope.reseller_topups.reject(topup_id, reason_fa=payload.reason_fa)
     except TopupNotFound as failure:
@@ -531,9 +545,7 @@ async def reseller_customers(
     response_model=list[ResellerTextResponse],
     dependencies=[Depends(requires(Permission.RESELLERS_READ))],
 )
-async def reseller_texts(
-    reseller_id: uuid.UUID, scope: ScopeDep
-) -> list[ResellerTextResponse]:
+async def reseller_texts(reseller_id: uuid.UUID, scope: ScopeDep) -> list[ResellerTextResponse]:
     """Which screens a reseller has rewritten, and what they say now.
 
     Only the ones they changed carry a body - the rest follow ours, which is

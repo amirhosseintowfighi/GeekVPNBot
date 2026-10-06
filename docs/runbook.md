@@ -386,3 +386,30 @@ write an unencrypted dump; the disk is full; the off-site upload failed.
 against the result. **A backup that has never been test-restored is not a backup.**
 Schedule a real restore rehearsal into a scratch database quarterly; the dry run
 verifies the archive is readable, not that the data is usable.
+
+### Backups sent to Telegram
+
+Separate from `scripts/backup.sh`, and not a replacement for it. Set
+`backup.chat_id` (a channel the bot is an admin of) and `backup.interval_hours`
+in the admin settings; the worker sends a zip of every table on that interval.
+A super admin can also send one on demand from the bot's admin menu.
+
+**The zip is not encrypted.** Panel passwords stay encrypted inside it (they
+are encrypted columns), but every customer, order and payment is readable by
+anyone in that channel. Use a private channel with nobody else in it.
+
+Restoring, from the server with the application stopped:
+
+```bash
+docker compose stop api bot worker
+# An empty database, migrated to the revision named in the zip's manifest.json:
+docker compose run --rm api alembic upgrade <revision>
+docker compose run --rm -v "$PWD/geekvpn-XXXX.zip:/tmp/b.zip" api \
+    python -m geekvpn.entrypoints.backup restore /tmp/b.zip
+docker compose run --rm api alembic upgrade head
+docker compose start api bot worker
+```
+
+The restore refuses a zip from a different schema revision rather than guess
+how columns moved, and runs as one transaction: a failure leaves the database
+as it was.

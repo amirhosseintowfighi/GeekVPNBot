@@ -21,6 +21,7 @@ import secrets
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from functools import cached_property
 from typing import Any
 
@@ -36,7 +37,10 @@ from geekvpn.application.notifications.operator_alerts import (
     RECEIPT_ALERT_FA,
     RECEIPT_ALERT_NO_IMAGE_FA,
     REJECT_LABEL_FA,
+    TRANSFER_REPORT_FA,
+    AlertKind,
     DeliveryNotifications,
+    OperatorReports,
     ReceiptAlerts,
 )
 from geekvpn.application.notifications.ports import Channel, EventPublisher
@@ -47,29 +51,72 @@ from geekvpn.application.notifications.subscribers import (
     WalletNotifications,
     register,
 )
+from geekvpn.application.notifications.trial_followup import DEDUPE_KEY as TRIAL_FOLLOWUP_KEY
+from geekvpn.application.notifications.trial_followup import TrialFollowUp
 from geekvpn.application.payments.adapters import (
     CardTransferGateway,
     CryptoTransferGateway,
     WalletGateway,
 )
 from geekvpn.application.payments.checkout_service import CheckoutService
+from geekvpn.application.payments.newcomer_gift import NewcomerGift
 from geekvpn.application.payments.referral_rewards import ReferralRewards
 from geekvpn.application.payments.refund_service import RefundService
 from geekvpn.application.payments.review_service import PaymentReviewService
 from geekvpn.application.payments.signup_bonus import SignupBonusService
 from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.application.payments.wallet_service import WalletService
-from geekvpn.application.platform.settings_service import CARD_LABEL_FA, CRYPTO_LABEL_FA
+from geekvpn.application.payments.wallet_transfer import WalletTransfers
+from geekvpn.application.platform.settings_service import (
+    ALERTS_PAYMENTS_CHAT,
+    ALERTS_RECEIPTS_CHAT,
+    ALERTS_REPORTS_CHAT,
+    ALERTS_SERVICES_CHAT,
+    ALERTS_TICKETS_CHAT,
+    ALERTS_TRIALS_CHAT,
+    CARD_LABEL_FA,
+    CRYPTO_LABEL_FA,
+    NEWCOMER_GIFT_AFTER_HOURS,
+    NEWCOMER_GIFT_MESSAGE_FA,
+    NEWCOMER_GIFT_TOMAN,
+    NOWPAYMENTS_CURRENCY,
+    PLISIO_CURRENCY,
+    REMINDER_EXPIRY_DAYS,
+    REMINDER_TRAFFIC_PERCENTS,
+    TON_RATE_TOMAN,
+    TOPUP_MAX_TOMAN,
+    TOPUP_MIN_TOMAN,
+    TRANSFER_ENABLED_WALLET,
+    TRANSFER_MIN_TOMAN,
+    TRIAL_FOLLOWUP_AFTER_HOURS,
+    TRIAL_FOLLOWUP_MESSAGE_FA,
+    USD_RATE_TOMAN,
+    SettingDefinition,
+)
 from geekvpn.application.ports.clock import Clock
-from geekvpn.application.provisioning.order_service import INVOICE_ORDER_KEY, OrderPaymentBridge
+from geekvpn.application.provisioning.order_service import (
+    INVOICE_ORDER_KEY,
+    OrderPaymentBridge,
+    UnpaidOrderRelease,
+)
 from geekvpn.application.support.search_service import SearchService
 from geekvpn.application.support.template_service import TemplateService
 from geekvpn.application.support.ticket_service import TicketService
 from geekvpn.domain.audit.entry import AuditAction, AuditOutcome
 from geekvpn.domain.identity.enums import SubjectType
-from geekvpn.domain.payments.events import PaymentApproved, ProofSubmitted
+from geekvpn.domain.notifications.message import render
+from geekvpn.domain.notifications.schedule import ReminderThresholds, parse_thresholds
+from geekvpn.domain.payments.events import (
+    PaymentApproved,
+    PaymentExpiredEvent,
+    PaymentFailed,
+    PaymentRejected,
+    ProofSubmitted,
+    WalletCredited,
+)
 from geekvpn.domain.payments.gateway import GatewayRegistry
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
+from geekvpn.domain.support.events import TicketOpened, TicketReplied
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.events.dispatcher import DispatchingEventPublisher
 from geekvpn.infrastructure.logging.context import get_correlation_id
@@ -80,8 +127,10 @@ from geekvpn.infrastructure.notifications.telegram import (
     HttpTelegramSender,
     TelegramIdIsTheUserId,
 )
+from geekvpn.infrastructure.payments.crypto_gateways import ExchangeRates
 from geekvpn.infrastructure.payments.iranian_gateways import build as build_online_gateway
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
+from geekvpn.infrastructure.persistence.models.identity import UserModel
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
@@ -95,8 +144,12 @@ from geekvpn.infrastructure.persistence.repositories.provisioning import (
 from geekvpn.infrastructure.persistence.repositories.subscription_reader import (
     SqlSubscriptionReader,
 )
+from geekvpn.infrastructure.persistence.repositories.sync_catalog import SyncCouponReleaser
 from geekvpn.infrastructure.persistence.repositories.sync_directory import (
     SyncUserDirectory,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_newcomers import (
+    newcomers_without_purchase,
 )
 from geekvpn.infrastructure.persistence.repositories.sync_notifications import (
     SyncBroadcastRepository,
@@ -115,14 +168,30 @@ from geekvpn.infrastructure.persistence.repositories.sync_payments import (
 from geekvpn.infrastructure.persistence.repositories.sync_referrals import (
     SyncReferralLedger,
 )
+from geekvpn.infrastructure.persistence.repositories.sync_settings import SyncSettings
 from geekvpn.infrastructure.persistence.repositories.sync_support import (
     SyncTemplateRepository,
     SyncTicketRepository,
+)
+from geekvpn.infrastructure.persistence.repositories.sync_trial_takers import (
+    trial_takers_without_purchase,
 )
 from geekvpn.infrastructure.push.tokens import SqlAppPush
 
 logger = get_logger(__name__)
 
+
+
+#: The setting that names each operator stream's chat. PAYMENT is resolved in
+#: `_alert_chat`, because it falls back to the receipts group.
+_ALERT_SETTING: dict[AlertKind, SettingDefinition[int]] = {
+    AlertKind.RECEIPT: ALERTS_RECEIPTS_CHAT,
+    AlertKind.PAYMENT: ALERTS_PAYMENTS_CHAT,
+    AlertKind.TICKET: ALERTS_TICKETS_CHAT,
+    AlertKind.REPORT: ALERTS_REPORTS_CHAT,
+    AlertKind.SERVICE: ALERTS_SERVICES_CHAT,
+    AlertKind.TRIAL: ALERTS_TRIALS_CHAT,
+}
 
 class Uuid4IdGenerator:
     """Concrete ``IdGenerator``.
@@ -222,7 +291,10 @@ class SyncAuditLog:
 
 
 def build_gateway_registry(
-    session: Session, *, reseller_id: uuid.UUID | None = None
+    session: Session,
+    *,
+    reseller_id: uuid.UUID | None = None,
+    bot_token: Callable[[], str] | None = None,
 ) -> GatewayRegistry:
     """Register the payment methods this deployment can actually take money by.
 
@@ -319,9 +391,24 @@ def build_gateway_registry(
         )
         .order_by(GatewayAccountModel.sort_order, GatewayAccountModel.id)
     )
+    settings = SyncSettings(session)
+
+    def rates() -> ExchangeRates:
+        # A callable, read when a payment starts rather than when the registry
+        # is built: four settings reads per scope is a waste on every request
+        # that never touches a crypto gateway.
+        return ExchangeRates(
+            usd_toman=settings.get(USD_RATE_TOMAN),
+            ton_toman=settings.get(TON_RATE_TOMAN),
+            nowpayments_currency=settings.get(NOWPAYMENTS_CURRENCY).strip() or "usdttrc20",
+            plisio_currency=settings.get(PLISIO_CURRENCY).strip(),
+        )
+
     for account in session.execute(gateway_stmt).scalars().all():
         try:
-            gateway = build_online_gateway(account.provider, account.merchant_id_encrypted)
+            gateway = build_online_gateway(
+                account.provider, account.merchant_id_encrypted, rates=rates, bot_token=bot_token
+            )
             _rename(gateway, account.label_fa)
             registry.register(gateway)
         except KeyError:
@@ -431,6 +518,14 @@ class SyncScope:
         table[ProofSubmitted.name] = self.receipt_alerts.on_proof_submitted
         for name, handler in table.items():
             publisher.subscribe(name, handler)
+        # Beside the customer's notification, not instead of it: `table` holds
+        # one handler per name and `PaymentRejected` already has one.
+        # And the tickets. Nothing told an operator a customer had written.
+        publisher.subscribe(TicketOpened.name, self.operator_reports.on_ticket_opened)
+        publisher.subscribe(TicketReplied.name, self.operator_reports.on_ticket_replied)
+        publisher.subscribe(WalletCredited.name, self.operator_reports.on_wallet_credited)
+        for abandoned in (PaymentRejected, PaymentFailed, PaymentExpiredEvent):
+            publisher.subscribe(abandoned.name, self.unpaid_orders.on_payment_abandoned)
         return publisher
 
     @cached_property
@@ -494,7 +589,30 @@ class SyncScope:
             reject_label=REJECT_LABEL_FA,
             caption=RECEIPT_ALERT_FA,
             no_image_caption=RECEIPT_ALERT_NO_IMAGE_FA,
+            reports=self.operator_reports,
         )
+
+    @cached_property
+    def operator_reports(self) -> OperatorReports:
+        """Operator alerts, each kind to the chat an operator chose for it."""
+        return OperatorReports(
+            sender=HttpOperatorSender(
+                self.container.settings.telegram.bot_token.get_secret_value()
+            ),
+            directory=self.operator_directory,
+            route=self._alert_chat,
+        )
+
+    def _alert_chat(self, kind: AlertKind) -> int:
+        settings = SyncSettings(self.session)
+        if kind is AlertKind.PAYMENT:
+            # Unset falls back to the receipts group, not to private chats: an
+            # operator who made one group expects every payment in it.
+            return settings.get(ALERTS_PAYMENTS_CHAT) or settings.get(ALERTS_RECEIPTS_CHAT)
+        if kind in (AlertKind.SERVICE, AlertKind.TRIAL):
+            # Narrower streams of reports; unset, they are reports.
+            return settings.get(_ALERT_SETTING[kind]) or settings.get(ALERTS_REPORTS_CHAT)
+        return settings.get(_ALERT_SETTING[kind])
 
     @cached_property
     def order_bridge(self) -> OrderPaymentBridge:
@@ -511,6 +629,24 @@ class SyncScope:
             events=LoggingEventPublisher(),
             order_id_for_invoice=self._order_id_for_invoice,
         )
+
+    @cached_property
+    def unpaid_orders(self) -> UnpaidOrderRelease:
+        """Cancels an order whose payment never landed and returns its coupon.
+
+        Same logging-only publisher as the bridge, for the same re-entry reason.
+        """
+        return UnpaidOrderRelease(
+            orders=self.orders,
+            coupons=SyncCouponReleaser(self.session),
+            events=LoggingEventPublisher(),
+            invoice_for_payment=self._invoice_for_payment,
+            order_id_for_invoice=self._order_id_for_invoice,
+        )
+
+    def _invoice_for_payment(self, payment_id: str) -> str | None:
+        payment = self.payments.get(payment_id)
+        return payment.invoice_id if payment is not None else None
 
     def _order_id_for_invoice(self, invoice_id: str) -> str | None:
         """The order an invoice was raised for, from its own metadata.
@@ -548,7 +684,11 @@ class SyncScope:
         has already bought the package out of their credit, so money arriving
         on ours for it would charge twice for one service.
         """
-        return build_gateway_registry(self.session, reseller_id=self.reseller_id)
+        # The shop's own bot, for Stars: the stars belong to whichever bot
+        # issued the invoice, and that must be the bot the customer is in.
+        return build_gateway_registry(
+            self.session, reseller_id=self.reseller_id, bot_token=self._bot_token
+        )
 
     # -- a shop's payment destinations -------------------------------------
     #
@@ -840,7 +980,7 @@ class SyncScope:
 
     @cached_property
     def audiences(self) -> SqlAudienceResolver:
-        return SqlAudienceResolver(self.session)
+        return SqlAudienceResolver(self.session, reseller_id=self.reseller_id)
 
     @cached_property
     def broadcast_service(self) -> BroadcastService:
@@ -877,7 +1017,26 @@ class SyncScope:
             subscriptions=self.subscription_reader,
             clock=self.container.clock,
             events=self.events,
+            thresholds=self._reminder_thresholds,
         )
+
+    def _reminder_thresholds(self) -> ReminderThresholds:
+        settings = SyncSettings(self.session)
+        defaults = ReminderThresholds()
+        # A value that no longer parses (written before validation existed, or
+        # by hand) falls back to the defaults rather than silencing reminders.
+        return ReminderThresholds(
+            expiry_days=parse_thresholds(settings.get(REMINDER_EXPIRY_DAYS), low=1, high=60)
+            or defaults.expiry_days,
+            traffic_percents=parse_thresholds(
+                settings.get(REMINDER_TRAFFIC_PERCENTS), low=1, high=99
+            )
+            or defaults.traffic_percents,
+        )
+
+    def _topup_limits(self) -> tuple[int, int]:
+        settings = SyncSettings(self.session)
+        return settings.get(TOPUP_MIN_TOMAN), settings.get(TOPUP_MAX_TOMAN)
 
     @cached_property
     def inbox(self) -> InboxService:
@@ -918,6 +1077,7 @@ class SyncScope:
             # Where a gateway sends the customer back. The API's own base URL:
             # the callback is served by this application, not the panel.
             callback_base=self.container.settings.app.base_url,
+            topup_limits=self._topup_limits,
         )
 
     @cached_property
@@ -980,6 +1140,83 @@ class SyncScope:
             wallets=self.wallet,
             ledger=self.wallets,
             reseller_id=self.reseller_id,
+        )
+
+    @cached_property
+    def newcomer_gift(self) -> NewcomerGift:
+        def candidates(after: datetime, before: datetime) -> list[int]:
+            return newcomers_without_purchase(self.session, after, before)
+
+        def notify(user_id: int, amount: int, message_fa: str) -> None:
+            self.engine.dispatch(
+                user_id=user_id,
+                message=render("wallet.newcomer_gift", message=message_fa, amount=amount),
+                source="gifts.newcomer",
+            )
+
+        return NewcomerGift(
+            wallets=self.wallet, candidates=candidates, notify=notify, clock=self.container.clock
+        )
+
+    @cached_property
+    def wallet_transfers(self) -> WalletTransfers:
+        settings = SyncSettings(self.session)
+
+        def is_customer(telegram_id: int) -> bool:
+            shop = (
+                UserModel.reseller_id.is_(None)
+                if self.reseller_id is None
+                else UserModel.reseller_id == self.reseller_id
+            )
+            found = self.session.execute(
+                select(UserModel.id).where(UserModel.telegram_id == telegram_id, shop).limit(1)
+            ).first()
+            return found is not None
+
+        def report(from_user: int, to_user: int, amount: int) -> None:
+            self.operator_reports.send(
+                AlertKind.PAYMENT,
+                TRANSFER_REPORT_FA.format(from_user=from_user, to_user=to_user, amount=amount),
+            )
+
+        return WalletTransfers(
+            wallets=self.wallet,
+            is_customer=is_customer,
+            enabled=lambda: settings.get(TRANSFER_ENABLED_WALLET),
+            minimum_toman=lambda: settings.get(TRANSFER_MIN_TOMAN),
+            report=report,
+        )
+
+    def send_trial_followups(self) -> int:
+        """The worker's hourly run for this shop, with today's settings."""
+        settings = SyncSettings(self.session)
+
+        def candidates(after: datetime, before: datetime) -> list[int]:
+            return trial_takers_without_purchase(self.session, self.reseller_id, after, before)
+
+        def send(user_id: int, message_fa: str) -> bool:
+            result = self.engine.dispatch(
+                user_id=user_id,
+                message=render("trial.followup", message=message_fa),
+                dedupe_key=TRIAL_FOLLOWUP_KEY,
+                source="trial.followup",
+            )
+            return result.skipped is None
+
+        return TrialFollowUp(
+            candidates=candidates, send=send, clock=self.container.clock
+        ).run(
+            after_hours=settings.get(TRIAL_FOLLOWUP_AFTER_HOURS),
+            message_fa=settings.get(TRIAL_FOLLOWUP_MESSAGE_FA),
+        )
+
+    def give_newcomer_gifts(self) -> list[int]:
+        """The worker's hourly run, with today's settings."""
+        settings = SyncSettings(self.session)
+        return self.newcomer_gift.run(
+            after_hours=settings.get(NEWCOMER_GIFT_AFTER_HOURS),
+            amount_toman=settings.get(NEWCOMER_GIFT_TOMAN),
+            message_fa=settings.get(NEWCOMER_GIFT_MESSAGE_FA),
         )
 
     # -- support -----------------------------------------------------------

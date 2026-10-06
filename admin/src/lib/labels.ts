@@ -120,6 +120,8 @@ export const TRANSACTION_KIND: Record<TransactionKind, LabelMeta> = {
   cashback: { fa: '\u06a9\u0634\u0628\u06a9', tone: 'success' },
   referral: { fa: '\u067e\u0627\u062f\u0627\u0634 \u0645\u0639\u0631\u0641\u06cc', tone: 'success' },
   adjustment: { fa: '\u062a\u0639\u062f\u06cc\u0644 \u062f\u0633\u062a\u06cc', tone: 'warning' },
+  transfer_in: { fa: 'دریافت انتقال', tone: 'info' },
+  transfer_out: { fa: 'انتقال به دیگری', tone: 'muted' },
 }
 
 export const BROADCAST_STATE: Record<BroadcastState, LabelMeta> = {

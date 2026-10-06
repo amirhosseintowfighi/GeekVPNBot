@@ -56,6 +56,7 @@ class XuiFamilyAdapter(HttpPanelAdapter):
     capabilities: ClassVar[frozenset[Capability]] = frozenset(
         {
             Capability.RESET_TRAFFIC,
+            Capability.REVOKE_ACCESS,
             Capability.NATIVE_EXPIRY_EXTEND,
             Capability.NATIVE_QUOTA_EXTEND,
             Capability.DEVICE_LIMIT,
@@ -279,6 +280,37 @@ class XuiFamilyAdapter(HttpPanelAdapter):
         )
         return self._to_account(updated, await self._traffic(ref.username))
 
+    async def revoke_access(self, ref: PanelAccountRef, *, idempotency_key: str) -> PanelAccount:
+        """A new client uuid (or trojan password) and a new `subId`.
+
+        Everything else on the client - traffic, expiry, limits - is resent as
+        it is. The update is addressed by the *old* key, which is how the panel
+        finds the client it is replacing.
+        """
+        self.require(Capability.REVOKE_ACCESS)
+        inbound = await self._inbound()
+        client = self._find_client(inbound, ref.username)
+        if client is None:
+            raise AccountNotFound(panel=self.kind.value, username=ref.username)
+        old_key = str(client.get("id") or client.get("password") or client.get("email"))
+        updated = dict(client)
+        if "id" in client:
+            updated["id"] = str(uuid_module.uuid4())
+        if "password" in client:
+            updated["password"] = uuid_module.uuid4().hex
+        updated["subId"] = uuid_module.uuid4().hex[:16]
+        await self._auth_headers()
+        await self._http.request(
+            "POST",
+            self._url(f"/updateClient/{old_key}"),
+            json={
+                "id": self._config.inbound_id,
+                "settings": json.dumps({"clients": [updated]}),
+            },
+            expected=(200,),
+        )
+        return self._to_account(updated, await self._traffic(ref.username))
+
     async def usage(self, ref: PanelAccountRef) -> AccountUsage:
         stats = await self._traffic(ref.username)
         if not stats:
@@ -364,7 +396,20 @@ class XuiFamilyAdapter(HttpPanelAdapter):
             state=state,
             usage=usage,
             expires_at=expires_at,
+            subscription_url=self._subscription_link(client),
         )
+
+    def _subscription_link(self, client: Mapping[str, Any]) -> str | None:
+        """The panel's own subscription link for this client, when it serves one.
+
+        Every account used to be delivered with no link at all: the adapter
+        set `subId` on create and never told anyone where it could be fetched.
+        """
+        sub_id = str(client.get("subId") or "")
+        base = self._config.subscription_url
+        if not sub_id or not base:
+            return None
+        return f"{base}/{sub_id}"
 
     async def bulk_usage(self, refs: Sequence[PanelAccountRef]) -> Mapping[str, AccountUsage]:
         self.require(Capability.BULK_USAGE)

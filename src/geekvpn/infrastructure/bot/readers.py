@@ -18,6 +18,7 @@ Two impedance mismatches are resolved here rather than pushed onto the handlers:
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,12 +84,19 @@ class SqlSubscriptionCardReader:
         orders: SqlAlchemyOrderRepository,
         plans: SqlAlchemyPlanRepository | None = None,
         products: SqlAlchemyProductRepository | None = None,
+        rotate: Callable[[str], Awaitable[Subscription]] | None = None,
+        commit: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self._users = users
         self._subscriptions = subscriptions
         self._orders = orders
         self._plans = plans
         self._products = products
+        #: `SubscriptionAdminService.rotate_access`, and the commit after it:
+        #: the panel has already issued the new link, so the record must not
+        #: wait for a later write that may never come.
+        self._rotate = rotate
+        self._commit = commit
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[SubscriptionCard]:
         telegram_id = await _telegram_id(self._users, user_id)
@@ -127,15 +135,24 @@ class SqlSubscriptionCardReader:
         return product.tier if product else None
 
     async def rotate_link(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> SubscriptionCard:
-        """Not implemented: a fresh link is a panel call, not a read.
+        """A new link from the panel; the old one stops working.
 
-        Raising is deliberate. Returning the existing card would tell the
-        customer their link was rotated while the leaked one still works, which
-        is worse than an error for the single case rotation exists for.
+        Looked up among the customer's own services, so a forged id cannot
+        rotate - and so cut off - somebody else's.
+
+        :raises RotationUnavailable: the service's panel cannot do it.
         """
-        raise NotImplementedError(
-            "Link rotation needs a panel adapter call; see docs/next-tasks.md."
-        )
+        telegram_id = await _telegram_id(self._users, user_id)
+        if telegram_id is None or self._rotate is None:
+            raise LookupError(f"No subscription {subscription_id} for this customer.")
+        for subscription in await self._subscriptions.list_for_user(telegram_id):
+            if _as_uuid(subscription.id) == subscription_id:
+                rotated = await self._rotate(subscription.id)
+                if self._commit is not None:
+                    await self._commit()
+                order = await self._orders.get(rotated.order_id) if rotated.order_id else None
+                return to_card(rotated, order)
+        raise LookupError(f"No subscription {subscription_id} for this customer.")
 
 
 class SqlProfileReader:
@@ -279,6 +296,9 @@ def to_card(
         created_at=subscription.started_at,
         remote_username=subscription.remote_username,
         tier=tier,
+        auto_renew=subscription.auto_renew,
+        display_name=subscription.display_name,
+        last_connected_at=subscription.last_connected_at,
     )
 
 

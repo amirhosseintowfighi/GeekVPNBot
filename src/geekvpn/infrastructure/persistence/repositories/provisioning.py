@@ -18,10 +18,11 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from geekvpn.application.provisioning.auto_renew import TRAFFIC_FLOOR_FRACTION, TRAFFIC_FLOOR_MIB
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.provisioning.enums import OrderSource, OrderState, SubscriptionState
 from geekvpn.domain.provisioning.order import Order
@@ -160,6 +161,28 @@ class SqlAlchemyOrderRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [order_to_domain(row) for row in rows], total
 
+    async def count_new_purchases_since(self, user_id: int, since: datetime) -> int:
+        """New services this customer ordered since a moment, for the daily cap.
+
+        Renewals, trials and orders that came to nothing are left out: the cap
+        is on accounts being created, and a rejected receipt is not a purchase.
+        """
+        stmt = (
+            select(func.count())
+            .select_from(OrderModel)
+            .where(
+                OrderModel.user_id == user_id,
+                self._shop(OrderModel.reseller_id),
+                OrderModel.placed_at >= since,
+                OrderModel.is_renewal.is_(False),
+                OrderModel.source != OrderSource.TRIAL.value,
+                OrderModel.state.not_in(
+                    (OrderState.CANCELLED.value, OrderState.FAILED.value)
+                ),
+            )
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
     async def has_completed_order(self, user_id: int) -> bool:
         """Used for first-purchase pricing and referral conversion.
 
@@ -200,6 +223,38 @@ class SqlAlchemyOrderRepository:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [order_to_domain(row) for row in rows]
+
+    async def count_trials_for_reseller(self, reseller_id: uuid.UUID, *, owner: int) -> int:
+        """Test accounts a reseller has handed out, from every door.
+
+        Their bot customers' free trials are filed in their shop; the ones
+        they made themselves from the console are filed under their derived
+        owner id, in whichever shop the console was opened. Both count. A
+        cancelled one never reached anybody and does not.
+        """
+        return (
+            await self._session.execute(
+                select(func.count())
+                .select_from(OrderModel)
+                .where(
+                    OrderModel.source == OrderSource.TRIAL.value,
+                    OrderModel.state != OrderState.CANCELLED.value,
+                    (OrderModel.reseller_id == reseller_id) | (OrderModel.user_id == owner),
+                )
+            )
+        ).scalar_one()
+
+    async def shop_of(self, order_id: str) -> uuid.UUID | None:
+        """Which reseller's shop the order was placed in; ``None`` is ours.
+
+        Read straight from the row, unscoped: a platform operator retrying a
+        reseller's order still has to know whose it is.
+        """
+        return (
+            await self._session.execute(
+                select(OrderModel.reseller_id).where(OrderModel.id == order_id)
+            )
+        ).scalar_one_or_none()
 
     async def add(self, order: Order) -> None:
         row = order_to_row(order)
@@ -368,6 +423,57 @@ class SqlAlchemySubscriptionRepository:
             .where(
                 SubscriptionModel.state == SubscriptionState.ACTIVE.value,
                 SubscriptionModel.expires_at <= now,
+            )
+            .order_by(SubscriptionModel.expires_at)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows]
+
+    async def list_lapsed_before(self, *, cutoff: datetime, limit: int = 200) -> Sequence[Subscription]:
+        """Expired or used-up services whose date passed before `cutoff`.
+
+        For the clean-up job. Suspended services are left alone: suspension is
+        an operator's decision, and deleting the account would make it final.
+        """
+        stmt = (
+            select(SubscriptionModel)
+            .where(
+                SubscriptionModel.state.in_(
+                    (SubscriptionState.EXPIRED.value, SubscriptionState.EXHAUSTED.value)
+                ),
+                SubscriptionModel.expires_at <= cutoff,
+            )
+            .order_by(SubscriptionModel.expires_at)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [subscription_to_domain(row) for row in rows]
+
+    async def list_auto_renew_due(
+        self, *, before: datetime, limit: int = 200
+    ) -> Sequence[Subscription]:
+        """Active services whose owner asked for auto-renewal, ending soon or
+        nearly out of traffic."""
+        stmt = (
+            select(SubscriptionModel)
+            .where(
+                SubscriptionModel.state == SubscriptionState.ACTIVE.value,
+                SubscriptionModel.auto_renew.is_(True),
+                or_(
+                    SubscriptionModel.expires_at <= before,
+                    # Nearly out of traffic: the same floor `needs_renewal`
+                    # applies, so the limit below is not spent on services
+                    # with plenty left.
+                    and_(
+                        SubscriptionModel.traffic_limit_mib > 0,
+                        SubscriptionModel.traffic_limit_mib - SubscriptionModel.traffic_used_mib
+                        <= func.greatest(
+                            SubscriptionModel.traffic_limit_mib * TRAFFIC_FLOOR_FRACTION,
+                            TRAFFIC_FLOOR_MIB,
+                        ),
+                    ),
+                ),
             )
             .order_by(SubscriptionModel.expires_at)
             .limit(limit)

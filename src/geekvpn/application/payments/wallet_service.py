@@ -39,6 +39,15 @@ Shared with the bot and the Mini App so the ladder is identical everywhere.
 """
 
 
+@dataclass(frozen=True, slots=True)
+class BulkAdjustment:
+    adjusted: int
+    #: Debits that took less than asked because the wallet held less.
+    partial: int
+    #: Debits skipped because the wallet was empty.
+    skipped: int
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Statement:
     """A page of history together with the balance it belongs to.
@@ -190,6 +199,36 @@ class WalletService:
             )
         return entry
 
+    def adjust_many(
+        self, *, user_ids: Sequence[int], signed_amount: int, actor_id: int, reason_fa: str
+    ) -> BulkAdjustment:
+        """The same adjustment for many wallets: a gift to everyone, a correction.
+
+        Each wallet gets its own ledger entry with the reason and the operator,
+        exactly as a single adjustment would, so a customer's statement reads
+        the same whichever screen the money came from.
+
+        A debit takes no more than the wallet holds. Removing a gift from
+        somebody who already spent it must not push them into a debt they
+        never agreed to, so they lose what is left and are counted as partial.
+        """
+        adjusted = partial = skipped = 0
+        for user_id in user_ids:
+            amount = signed_amount
+            if amount < 0:
+                balance = self._wallets.get_or_create(user_id).balance.amount
+                if balance <= 0:
+                    skipped += 1
+                    continue
+                if -amount > balance:
+                    amount = -balance
+                    partial += 1
+            self.adjust(
+                user_id=user_id, signed_amount=amount, actor_id=actor_id, reason_fa=reason_fa
+            )
+            adjusted += 1
+        return BulkAdjustment(adjusted=adjusted, partial=partial, skipped=skipped)
+
     def credit_reward(
         self,
         *,
@@ -225,6 +264,41 @@ class WalletService:
                 reason_fa=description_fa,
             )
         return entry
+
+    def transfer(
+        self, *, from_user: int, to_user: int, amount: Money, reference: str
+    ) -> LedgerEntry:
+        """Move balance from one customer's wallet to another's.
+
+        Both locked, lower id first, so two customers sending to each other in
+        the same second wait for one another instead of deadlocking. The debit
+        comes first and raises on a short balance before anything is written.
+        """
+        for user_id in sorted({from_user, to_user}):
+            self._wallets.lock(user_id)
+        sender = self._wallets.get_or_create(from_user)
+        recipient = self._wallets.get_or_create(to_user)
+        now = self._clock.now()
+        sent = sender.debit(
+            amount,
+            entry_id=self._ids.new_id(),
+            kind=TransactionKind.TRANSFER_OUT,
+            occurred_at=now,
+            description_fa=f"انتقال به {to_user}",
+            reference=reference,
+        )
+        recipient.credit(
+            amount,
+            entry_id=self._ids.new_id(),
+            kind=TransactionKind.TRANSFER_IN,
+            occurred_at=now,
+            description_fa=f"انتقال از {from_user}",
+            reference=reference,
+        )
+        self._wallets.save(sender)
+        self._wallets.save(recipient)
+        self._publish(sender, recipient)
+        return sent
 
     # -- internals ---------------------------------------------------------
 
