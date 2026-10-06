@@ -1,3 +1,5 @@
+import type { GatewayProvider } from './gateway-providers'
+
 /**
  * Admin read models.
  *
@@ -962,7 +964,7 @@ export interface ResellerTextRow {
 /** A configured online payment provider. The merchant id never comes back. */
 export interface GatewayRow {
   id: string
-  provider: 'zarinpal' | 'zibal' | 'aqayepardakht' | 'atlaspay'
+  provider: GatewayProvider
   /** What the button says in the bot. Empty means the adapter's own name. */
   labelFa: string
   hasMerchantId: boolean

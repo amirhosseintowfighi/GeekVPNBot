@@ -184,8 +184,9 @@ class NewCrypto(ApiModel):
 class NewGateway(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["zarinpal", "zibal", "aqayepardakht"]
-    merchant_id: str = Field(min_length=4, max_length=128)
+    provider: Literal["zarinpal", "zibal", "aqayepardakht", "nowpayments", "plisio", "ton", "stars"]
+    #: For Stars this is the price of one star in Toman, not a credential.
+    merchant_id: str = Field(min_length=1, max_length=256)
 
 
 class ActiveRequest(ApiModel):

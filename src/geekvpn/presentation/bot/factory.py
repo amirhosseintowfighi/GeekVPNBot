@@ -41,6 +41,7 @@ from geekvpn.presentation.bot.handlers import (
     server_status,
     service_owner,
     shop,
+    stars,
     start,
     support,
     system,
@@ -66,6 +67,9 @@ from geekvpn.presentation.bot.ui.stickers import StickerBook
 ROUTERS = (
     errors,
     system,
+    # Early: a `successful_payment` can arrive while the customer is in any
+    # flow's state, and a state handler matching every message would take it.
+    stars,
     admin,
     admin_texts,
     admin_export,

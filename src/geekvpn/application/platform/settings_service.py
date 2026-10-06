@@ -610,6 +610,42 @@ DELETE_EXPIRED_AFTER_HOURS = SettingDefinition[int](
     ),
 )
 
+USD_RATE_TOMAN = SettingDefinition[int](
+    key="payments.usd_rate_toman",
+    label_fa="نرخ دلار برای درگاه‌های ارزی (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=100_000_000,
+    description=(
+        "Toman per US dollar, used by NowPayments and Plisio to price a payment."
+        " 0 leaves them unable to start one."
+    ),
+)
+TON_RATE_TOMAN = SettingDefinition[int](
+    key="payments.ton_rate_toman",
+    label_fa="نرخ هر TON (تومان)",
+    default=0,
+    type_=int,
+    minimum=0,
+    maximum=1_000_000_000,
+    description="Toman per TON, used by the TON gateway. 0 leaves it unable to start one.",
+)
+NOWPAYMENTS_CURRENCY = SettingDefinition[str](
+    key="payments.nowpayments_currency",
+    label_fa="ارز پرداخت NowPayments",
+    default="usdttrc20",
+    type_=str,
+    description="The coin NowPayments asks for, in its own code, e.g. usdttrc20, trx, ton.",
+)
+PLISIO_CURRENCY = SettingDefinition[str](
+    key="payments.plisio_currency",
+    label_fa="ارز پرداخت Plisio",
+    default="",
+    type_=str,
+    description="Plisio's coin code, e.g. USDT_TRX. Empty lets the customer choose.",
+)
+
 TRANSFER_ENABLED_WALLET = SettingDefinition[bool](
     key="wallet.transfer_enabled",
     label_fa="انتقال موجودی بین کاربران",
@@ -721,6 +757,10 @@ SETTING_REGISTRY: dict[str, SettingDefinition[Any]] = {
         TRANSFER_MIN_TOMAN,
         TRIAL_FOLLOWUP_AFTER_HOURS,
         TRIAL_FOLLOWUP_MESSAGE_FA,
+        USD_RATE_TOMAN,
+        TON_RATE_TOMAN,
+        NOWPAYMENTS_CURRENCY,
+        PLISIO_CURRENCY,
     )
 }
 

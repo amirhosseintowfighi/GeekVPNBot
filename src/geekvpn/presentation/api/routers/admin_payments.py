@@ -307,11 +307,14 @@ class GatewayBody(ApiModel):
 
     # Kept in step with `iranian_gateways.BUILDERS` - a provider accepted
     # here but absent there is a row that silently registers nothing.
-    provider: Literal["zarinpal", "zibal", "aqayepardakht", "atlaspay"]
+    provider: Literal[
+        "zarinpal", "zibal", "aqayepardakht", "atlaspay", "nowpayments", "plisio", "ton", "stars"
+    ]
     #: Goes in encrypted and never comes back. It identifies the shop to the
     #: provider, and it is the only thing between somebody and a payment
     #: request billed to that shop.
-    merchant_id: str = Field(min_length=4, max_length=128)
+    #: For Stars this is the price of one star in Toman, not a credential.
+    merchant_id: str = Field(min_length=1, max_length=256)
     #: What the button says in the bot. Empty keeps the adapter's own name.
     label_fa: str = Field(default="", max_length=64)
     sort_order: int = 0
@@ -322,7 +325,7 @@ class GatewayBody(ApiModel):
 class GatewayPatchBody(ApiModel):
     model_config = ConfigDict(extra="forbid")
 
-    merchant_id: str | None = Field(default=None, min_length=4, max_length=128)
+    merchant_id: str | None = Field(default=None, min_length=1, max_length=256)
     #: An empty string clears it, which restores the adapter's own name.
     label_fa: str | None = Field(default=None, max_length=64)
     sort_order: int | None = None

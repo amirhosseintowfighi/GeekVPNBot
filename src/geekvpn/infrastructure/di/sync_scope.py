@@ -79,14 +79,18 @@ from geekvpn.application.platform.settings_service import (
     NEWCOMER_GIFT_AFTER_HOURS,
     NEWCOMER_GIFT_MESSAGE_FA,
     NEWCOMER_GIFT_TOMAN,
+    NOWPAYMENTS_CURRENCY,
+    PLISIO_CURRENCY,
     REMINDER_EXPIRY_DAYS,
     REMINDER_TRAFFIC_PERCENTS,
+    TON_RATE_TOMAN,
     TOPUP_MAX_TOMAN,
     TOPUP_MIN_TOMAN,
     TRANSFER_ENABLED_WALLET,
     TRANSFER_MIN_TOMAN,
     TRIAL_FOLLOWUP_AFTER_HOURS,
     TRIAL_FOLLOWUP_MESSAGE_FA,
+    USD_RATE_TOMAN,
     SettingDefinition,
 )
 from geekvpn.application.ports.clock import Clock
@@ -123,6 +127,7 @@ from geekvpn.infrastructure.notifications.telegram import (
     HttpTelegramSender,
     TelegramIdIsTheUserId,
 )
+from geekvpn.infrastructure.payments.crypto_gateways import ExchangeRates
 from geekvpn.infrastructure.payments.iranian_gateways import build as build_online_gateway
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.identity import UserModel
@@ -285,7 +290,10 @@ class SyncAuditLog:
 
 
 def build_gateway_registry(
-    session: Session, *, reseller_id: uuid.UUID | None = None
+    session: Session,
+    *,
+    reseller_id: uuid.UUID | None = None,
+    bot_token: Callable[[], str] | None = None,
 ) -> GatewayRegistry:
     """Register the payment methods this deployment can actually take money by.
 
@@ -382,9 +390,24 @@ def build_gateway_registry(
         )
         .order_by(GatewayAccountModel.sort_order, GatewayAccountModel.id)
     )
+    settings = SyncSettings(session)
+
+    def rates() -> ExchangeRates:
+        # A callable, read when a payment starts rather than when the registry
+        # is built: four settings reads per scope is a waste on every request
+        # that never touches a crypto gateway.
+        return ExchangeRates(
+            usd_toman=settings.get(USD_RATE_TOMAN),
+            ton_toman=settings.get(TON_RATE_TOMAN),
+            nowpayments_currency=settings.get(NOWPAYMENTS_CURRENCY).strip() or "usdttrc20",
+            plisio_currency=settings.get(PLISIO_CURRENCY).strip(),
+        )
+
     for account in session.execute(gateway_stmt).scalars().all():
         try:
-            gateway = build_online_gateway(account.provider, account.merchant_id_encrypted)
+            gateway = build_online_gateway(
+                account.provider, account.merchant_id_encrypted, rates=rates, bot_token=bot_token
+            )
             _rename(gateway, account.label_fa)
             registry.register(gateway)
         except KeyError:
@@ -660,7 +683,11 @@ class SyncScope:
         has already bought the package out of their credit, so money arriving
         on ours for it would charge twice for one service.
         """
-        return build_gateway_registry(self.session, reseller_id=self.reseller_id)
+        # The shop's own bot, for Stars: the stars belong to whichever bot
+        # issued the invoice, and that must be the bot the customer is in.
+        return build_gateway_registry(
+            self.session, reseller_id=self.reseller_id, bot_token=self._bot_token
+        )
 
     # -- a shop's payment destinations -------------------------------------
     #

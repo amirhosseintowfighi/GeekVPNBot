@@ -375,7 +375,8 @@ class GatewayAccountModel(TimestampMixin, Base):
         # which would read as configured in the panel and never appear as a
         # payment method. A test compares it against the registry.
         CheckConstraint(
-            "provider IN ('zarinpal', 'zibal', 'aqayepardakht', 'atlaspay')",
+            "provider IN ('zarinpal', 'zibal', 'aqayepardakht', 'atlaspay',"
+            " 'nowpayments', 'plisio', 'ton', 'stars')",
             name="ck_gateway_accounts_provider",
         ),
     )

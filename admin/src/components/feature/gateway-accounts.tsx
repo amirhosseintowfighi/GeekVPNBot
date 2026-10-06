@@ -16,20 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { GATEWAY_PROVIDERS, GATEWAY_PROVIDER_KEYS, type GatewayProvider } from '@/lib/gateway-providers'
 
-const PROVIDERS = [
-  { value: 'zarinpal', label: 'زرین‌پال' },
-  { value: 'zibal', label: 'زیبال' },
-  { value: 'aqayepardakht', label: 'آقای پرداخت' },
-  { value: 'atlaspay', label: 'اطلس‌پی' },
-] as const
-
-const LABEL: Record<GatewayRow['provider'], string> = {
-  zarinpal: 'زرین‌پال',
-  zibal: 'زیبال',
-  aqayepardakht: 'آقای پرداخت',
-  atlaspay: 'اطلس‌پی',
-}
 
 /**
  * Online payment providers for one shop.
@@ -51,7 +39,7 @@ export function GatewayAccounts({
   const { data, mutate } = useSWR<GatewayRow[]>(['gateways', resellerId ?? 'platform'], () =>
     api.gateways(resellerId),
   )
-  const [provider, setProvider] = React.useState<string>('zarinpal')
+  const [provider, setProvider] = React.useState<GatewayProvider>('zarinpal')
   const [merchantId, setMerchantId] = React.useState('')
   const [labelFa, setLabelFa] = React.useState('')
   const [busy, setBusy] = React.useState(false)
@@ -91,7 +79,7 @@ export function GatewayAccounts({
           {data.map((row) => (
             <div key={row.id} className="flex items-center justify-between gap-3 p-2">
               <div>
-                {LABEL[row.provider]}
+                {GATEWAY_PROVIDERS[row.provider]?.label ?? row.provider}
                 <div className="text-xs text-muted-foreground">
                   {row.hasMerchantId ? 'شناسه ثبت شده' : 'بدون شناسه'}
                   {row.labelFa ? ' · ' + row.labelFa : ''}
@@ -120,14 +108,17 @@ export function GatewayAccounts({
       {writable ? (
         <div className="space-y-3 rounded-md border p-3">
           <Field label="درگاه">
-            <Select value={provider} onValueChange={setProvider}>
+            <Select
+              value={provider}
+              onValueChange={(value) => setProvider(value as GatewayProvider)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PROVIDERS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                {GATEWAY_PROVIDER_KEYS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {GATEWAY_PROVIDERS[key].label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -137,8 +128,8 @@ export function GatewayAccounts({
               provider, and it is the only thing between somebody and a payment
               request billed to that shop. */}
           <Field
-            label={provider === 'atlaspay' ? 'کلید API' : 'شناسهٔ پذیرنده'}
-            hint="مرچنت‌کد زرین‌پال، مرچنت زیبال، یا پین آقای پرداخت"
+            label={GATEWAY_PROVIDERS[provider].field}
+            hint={GATEWAY_PROVIDERS[provider].hint}
           >
             <Input
               dir="ltr"
@@ -157,7 +148,7 @@ export function GatewayAccounts({
               placeholder="مثلاً: پرداخت آنلاین"
             />
           </Field>
-          <Button disabled={merchantId.trim().length < 4 || busy} onClick={() => void add()}>
+          <Button disabled={merchantId.trim().length < 1 || busy} onClick={() => void add()}>
             افزودن درگاه
           </Button>
         </div>
