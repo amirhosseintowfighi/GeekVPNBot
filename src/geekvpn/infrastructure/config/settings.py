@@ -322,6 +322,15 @@ class AppReleaseSettings(Section):
     #: How long one answer from GitHub is reused. The unauthenticated API
     #: allows 60 requests an hour per address.
     cache_seconds: int = 600
+    #: `owner/repo` of the desktop app (Windows, macOS, Linux). Its release
+    #: workflow attaches a signed `latest.json`; `/api/app/desktop/update/...`
+    #: hands the matching entry to the app. Empty switches desktop updates off.
+    #: The files are fetched from `mirror_base_url` too when it is set; the
+    #: app checks each package's minisign signature, so the mirror cannot
+    #: swap one.
+    desktop_github_repo: str = ""
+    #: Desktop versions older than this are told the update is required.
+    desktop_min_version: str = ""
 
 
 class PushSettings(Section):

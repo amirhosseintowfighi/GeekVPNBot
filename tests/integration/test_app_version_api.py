@@ -41,3 +41,13 @@ def test_the_minimum_version_is_passed_on_without_a_session(
 
     assert response.status_code == 200
     assert response.json()["minVersion"] == "1.2.0"
+
+
+def test_the_desktop_updater_hears_nothing_newer_until_a_repository_is_configured(
+    api: TestClient,
+) -> None:
+    response = api.get("/api/app/desktop/update/windows/x86_64/0.1.0?bundle=nsis")
+
+    # 204 is what Tauri's updater reads as "no update".
+    assert response.status_code == 204
+    assert response.content == b""

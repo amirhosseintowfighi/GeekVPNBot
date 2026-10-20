@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
+from fastapi.responses import JSONResponse
 
 from geekvpn.application.platform.settings_service import (
     APP_PROMO_BODY_FA,
@@ -19,6 +20,7 @@ from geekvpn.application.platform.settings_service import (
 )
 from geekvpn.application.provisioning.usage_history import tehran_day
 from geekvpn.infrastructure.app_release import AppRelease, GithubReleaseSource
+from geekvpn.infrastructure.desktop_release import DesktopReleaseSource, update_for
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep
 from geekvpn.presentation.api.security import ScopeDep
@@ -82,6 +84,44 @@ async def version(container: ContainerDep) -> AppVersionResponse:
     return AppVersionResponse(
         latest=_latest(await source.latest()), min_version=settings.min_version.strip()
     )
+
+
+@router.get(
+    "/desktop/update/{target}/{arch}/{current_version}",
+    summary="The desktop app's update, in Tauri's updater format",
+    responses={
+        status.HTTP_200_OK: {"description": "A newer version for this platform"},
+        status.HTTP_204_NO_CONTENT: {"description": "Nothing newer"},
+    },
+)
+async def desktop_update(
+    target: str, arch: str, current_version: str, container: ContainerDep, bundle: str = ""
+) -> Response:
+    """What the desktop app's built-in updater asks, with its own variables.
+
+    Public like `/version`. 204 is the updater's "nothing newer", including
+    when updates are off or GitHub cannot be reached: the app simply asks
+    again later, and falls back to GitHub itself if it can reach it.
+    """
+    settings = container.settings.app_release
+    source = DesktopReleaseSource(
+        repo=settings.desktop_github_repo,
+        cache=container.cache,
+        cache_seconds=settings.cache_seconds,
+        mirror_base_url=settings.mirror_base_url,
+    )
+    answer = update_for(
+        await source.latest(),
+        target=target,
+        arch=arch,
+        bundle=bundle,
+        current_version=current_version,
+        min_version=settings.desktop_min_version,
+    )
+    if answer is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Tauri's own field names (`pub_date`), not the camelCase of the rest.
+    return JSONResponse(answer)
 
 
 class AppPromo(ApiModel):
