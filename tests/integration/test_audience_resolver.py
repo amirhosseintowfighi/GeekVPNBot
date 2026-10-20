@@ -33,7 +33,10 @@ from geekvpn.infrastructure.persistence.models.provisioning import (
 
 pytestmark = pytest.mark.integration
 
-NOW = datetime(2026, 6, 1, tzinfo=UTC)
+#: The resolver reads the wall clock, so the data is laid out around it. A
+#: fixed date here made "expires in three days" quietly become "expired" once
+#: the calendar passed it, and the tests failed with nothing changed.
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture
@@ -95,6 +98,8 @@ def add_paid_order(session: Session, telegram_id: int, *, total: int) -> None:
             user_id=telegram_id,
             state="active",
             plan_id=uuid.uuid4(),
+            product_id=uuid.uuid4(),
+            plan_name_fa="ماهانه",
             duration_days=30,
             device_limit=1,
             list_price=total,
@@ -114,7 +119,8 @@ def test_a_suspended_customer_is_in_no_audience(session: Session) -> None:
     """
     add_user(session, 111)
     add_user(session, 222, status="suspended")
-    add_user(session, 333, status="banned")
+    # The status a closed account carries now; "banned" is no longer one.
+    add_user(session, 333, status="deleted")
 
     resolved = SqlAudienceResolver(session).resolve(AudienceKind.ALL)
 
