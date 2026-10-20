@@ -195,15 +195,12 @@ jobs:
         # entrypoint - everything it does except the final `exec nginx`. A
         # hand-copied render here had already drifted from the real one (it
         # substituted three of six variables) and was never valid shell.
-        # The DH parameters are pre-made at 1024 bits only to keep CI fast.
         run: |
           docker run --rm \
             -e PRIMARY_DOMAIN=example.com \
             -e ADMIN_ALLOW_CIDRS="10.0.0.0/8" \
             --entrypoint /bin/sh geekvpn-nginx:ci -c \
-            'mkdir -p /etc/nginx/tls &&
-             openssl dhparam -out /etc/nginx/tls/dhparam.pem 1024 2>/dev/null &&
-             sed "/^exec nginx/d" /usr/local/bin/entrypoint.sh > /tmp/render.sh &&
+            'sed "/^exec nginx/d" /usr/local/bin/entrypoint.sh > /tmp/render.sh &&
              sh /tmp/render.sh'
 
   compose:
