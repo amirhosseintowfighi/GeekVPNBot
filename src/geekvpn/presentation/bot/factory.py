@@ -32,6 +32,7 @@ from geekvpn.presentation.bot.handlers import (
     fallback,
     faq,
     menu,
+    paycheck,
     profile,
     purchase,
     referral,
@@ -70,6 +71,7 @@ ROUTERS = (
     # Early: a `successful_payment` can arrive while the customer is in any
     # flow's state, and a state handler matching every message would take it.
     stars,
+    paycheck,
     admin,
     admin_texts,
     admin_export,

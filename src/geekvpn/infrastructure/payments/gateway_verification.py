@@ -60,6 +60,13 @@ def verify_payment(container: Container, payment_id: str) -> VerificationResult:
         return result
 
 
+def owner_of(container: Container, payment_id: str) -> int | None:
+    """Whose payment this is, for a customer asking about their own."""
+    with container.sync_sessions() as session:
+        row = session.get(PaymentModel, payment_id)
+        return int(row.user_id) if row is not None else None
+
+
 def waiting_at_a_gateway(container: Container) -> list[str]:
     """Every shop's payments still waiting on a provider, oldest first."""
     since = container.clock.now() - SWEEP_WINDOW
@@ -89,4 +96,10 @@ def sweep_gateways(container: Container) -> dict[str, int]:
     return counts
 
 
-__all__ = ["SWEEP_WINDOW", "sweep_gateways", "verify_payment", "waiting_at_a_gateway"]
+__all__ = [
+    "SWEEP_WINDOW",
+    "owner_of",
+    "sweep_gateways",
+    "verify_payment",
+    "waiting_at_a_gateway",
+]

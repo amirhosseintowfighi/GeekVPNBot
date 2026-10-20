@@ -308,7 +308,15 @@ class GatewayBody(ApiModel):
     # Kept in step with `iranian_gateways.BUILDERS` - a provider accepted
     # here but absent there is a row that silently registers nothing.
     provider: Literal[
-        "zarinpal", "zibal", "aqayepardakht", "atlaspay", "nowpayments", "plisio", "ton", "stars"
+        "zarinpal",
+        "zibal",
+        "aqayepardakht",
+        "atlaspay",
+        "nowpayments",
+        "plisio",
+        "ton",
+        "stars",
+        "isunnymoney",
     ]
     #: Goes in encrypted and never comes back. It identifies the shop to the
     #: provider, and it is the only thing between somebody and a payment

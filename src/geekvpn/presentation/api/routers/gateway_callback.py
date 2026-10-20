@@ -166,11 +166,16 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
     )
 
 
-@router.post("/callback/{payment_id}")
+@router.post("/callback/{payment_id}", response_model=None)
 async def gateway_notification(
     payment_id: str, request: Request, background: BackgroundTasks
-) -> JSONResponse:
-    """A provider saying "this one settled" - AtlasPay's per-order webhook.
+) -> HTMLResponse | JSONResponse:
+    """A provider saying "this one settled" - AtlasPay's per-order webhook -
+    or a customer's browser sent back by a POST form.
+
+    The browser gets the same page a GET would: some bank pages return the
+    customer with a form post, and a raw JSON reply at the end of paying
+    reads as "something broke".
 
     Treated as a knock, never as news: the body is not read, so a forged
     one achieves exactly what a forged GET does - we ask the provider, on our
@@ -181,6 +186,8 @@ async def gateway_notification(
     retries, while verifying can mean a panel call to deliver the service; a
     late answer would only cost the speed-up, but there is no reason to.
     """
+    if "text/html" in request.headers.get("accept", ""):
+        return await gateway_callback(payment_id, request)
     container = request.app.state.container
     background.add_task(_verify_quietly, container, payment_id)
     return JSONResponse({"ok": True})

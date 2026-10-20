@@ -389,11 +389,12 @@ async def _begin_topup(
         # An online provider draws its own screen and settles by itself, so
         # there is no receipt to wait for and no state to keep.
         await state.clear()
-        rows = [[K.url_btn(T.BTN_PAY_ONLINE, details.url)]] if details.url else []
         await safe_edit(
             query,
             details.body_fa or T.PAY_GATEWAY_READY,
-            markup=K.stack(rows, home=True),
+            markup=K.gateway_screen(
+                details.url, details.payment_id.hex if details.payment_id else ""
+            ),
         )
         return
 

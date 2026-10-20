@@ -134,6 +134,7 @@ from geekvpn.infrastructure.payments.iranian_gateways import build as build_onli
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.identity import UserModel
 from geekvpn.infrastructure.persistence.models.payments import (
+    ISUNNY_ORDER_SEQUENCE,
     CardAccountModel,
     CryptoAccountModel,
     GatewayAccountModel,
@@ -406,10 +407,18 @@ def build_gateway_registry(
             plisio_currency=settings.get(PLISIO_CURRENCY).strip(),
         )
 
+    def order_ids() -> int:
+        # Drawn when a payment starts, from the sequence 0044 created.
+        return int(session.execute(ISUNNY_ORDER_SEQUENCE.next_value()).scalar_one())
+
     for account in session.execute(gateway_stmt).scalars().all():
         try:
             gateway = build_online_gateway(
-                account.provider, account.merchant_id_encrypted, rates=rates, bot_token=bot_token
+                account.provider,
+                account.merchant_id_encrypted,
+                rates=rates,
+                bot_token=bot_token,
+                order_ids=order_ids,
             )
             _rename(gateway, account.label_fa)
             registry.register(gateway)

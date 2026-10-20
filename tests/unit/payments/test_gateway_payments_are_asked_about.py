@@ -106,7 +106,10 @@ async def test_a_providers_knock_is_answered_at_once_and_verified_after(
     monkeypatch.setattr(
         gateway_callback, "verify_payment", lambda _container, payment_id: asked.append(payment_id)
     )
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(container=object())))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(container=object())),
+        headers={"accept": "application/json"},
+    )
     background = BackgroundTasks()
 
     response = await gateway_callback.gateway_notification("p1", request, background)  # type: ignore[arg-type]
@@ -115,3 +118,30 @@ async def test_a_providers_knock_is_answered_at_once_and_verified_after(
     assert asked == []
     await background()
     assert asked == ["p1"]
+
+
+@pytest.mark.asyncio
+async def test_a_browser_sent_back_by_a_form_post_sees_the_result_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bank page that returns the customer with a POST must not end the
+    payment on a raw JSON reply."""
+    monkeypatch.setattr(
+        gateway_callback,
+        "verify_payment",
+        lambda _c, _id: VerificationResult(outcome=VerificationOutcome.CONFIRMED),
+    )
+
+    async def not_from_app(_cache: Any, _payment_id: str) -> bool:
+        return False
+
+    monkeypatch.setattr(gateway_callback, "_started_in_app", not_from_app)
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(container=SimpleNamespace(cache=None))),
+        headers={"accept": "text/html,application/xhtml+xml"},
+    )
+
+    response = await gateway_callback.gateway_notification("p1", request, BackgroundTasks())  # type: ignore[arg-type]
+
+    assert response.media_type == "text/html"
+    assert "تأیید شد" in response.body.decode()

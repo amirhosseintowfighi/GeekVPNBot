@@ -24,6 +24,11 @@ export const GATEWAY_PROVIDERS = {
     field: 'آدرس کیف پول TON',
     hint: 'آدرس کیف پول TON خودت. اختیاری: بعدش | و کلید API تون‌سنتر. نرخ TON در تنظیمات پرداخت.',
   },
+  isunnymoney: {
+    label: 'آی‌سانی‌مانی (درگاه بانکی)',
+    field: 'کلید مرچنت',
+    hint: 'کلید مرچنت از پنل core.isunnymoney.com. پرداخت‌ها خودکار تأیید یا رد می‌شن.',
+  },
   stars: {
     label: 'استارز تلگرام',
     field: 'قیمت هر استار (تومان)',
