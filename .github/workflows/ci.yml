@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    # `master` is this repository's default branch. Without it a merge was
+    # never checked, and the deploy workflow's "refuse a red commit" gate had
+    # no result to read on the commits it actually ships.
+    branches: [master, main, develop]
   pull_request:
 
 concurrency:
