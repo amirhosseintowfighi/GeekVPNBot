@@ -63,9 +63,15 @@ jobs:
         # Fails the build on a known CVE in a pinned dependency. This closes the
         # gap docs/security.md section 5 admits to: until now nothing checked our
         # dependencies at all.
+        #
+        # Audits an exact freeze of what is installed, minus this project:
+        # geekvpn is installed editable and is not on PyPI, and under --strict
+        # pip-audit fails on a package it cannot look up - even one it was told
+        # to skip. Every dependency is still audited, at its installed version.
         run: |
           python -m pip install pip-audit
-          pip-audit --strict --desc
+          python -m pip freeze --exclude-editable > /tmp/installed.txt
+          pip-audit --strict --desc --no-deps --disable-pip -r /tmp/installed.txt
 
       - name: Static analysis (bandit)
         run: |
@@ -148,7 +154,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (backend)
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned by commit, not tag: the 0.28.0 tag was deleted upstream and
+        # broke this job before it started. A tag can move; a commit cannot.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: geekvpn-backend:ci
           severity: HIGH,CRITICAL
@@ -170,7 +178,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy scan (nginx)
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned by commit, not tag: the 0.28.0 tag was deleted upstream and
+        # broke this job before it started. A tag can move; a commit cannot.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: geekvpn-nginx:ci
           severity: HIGH,CRITICAL

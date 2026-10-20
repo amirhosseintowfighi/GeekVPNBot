@@ -81,7 +81,7 @@ NEWCOMER_GIFT_REPORT_FA = "🎁 <b>هدیهٔ عضو جدید به {count} نف�
 TICK_SECONDS = 30
 
 #: Touched after every tick; the container healthcheck reads its age.
-HEARTBEAT_PATH = Path("/tmp/worker-heartbeat")  # noqa: S108 - a container-local path
+HEARTBEAT_PATH = Path("/tmp/worker-heartbeat")  # noqa: S108  # nosec B108 - a container-local path
 
 #: The provisioning retry queue runs on its own cadence. An order stuck because
 #: a panel blipped should recover in under a minute, not at the next reminder
@@ -382,9 +382,7 @@ class Worker:
         given = await asyncio.to_thread(work)
         if given:
             logger.info("worker.newcomer_gifts", count=len(given))
-            await self._report(
-                AlertKind.REPORT, NEWCOMER_GIFT_REPORT_FA.format(count=len(given))
-            )
+            await self._report(AlertKind.REPORT, NEWCOMER_GIFT_REPORT_FA.format(count=len(given)))
 
     async def _trial_followups(self) -> None:
         """Each shop's trial takers, through that shop's own bot."""

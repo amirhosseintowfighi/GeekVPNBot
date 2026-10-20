@@ -52,8 +52,31 @@ def fail(message: str) -> None:
     findings.append(message)
 
 
+class _ComposeLoader(yaml.SafeLoader):
+    """Safe loading, plus the tags Compose adds to YAML.
+
+    `!override` and `!reset` tell Compose how to merge files; for what this gate
+    reads - service names, ports, variables - the value under the tag is all
+    that matters. Plain `safe_load` refused them, and the gate crashed on the
+    production overlay instead of checking it.
+    """
+
+
+def _untagged(loader: yaml.SafeLoader, node: yaml.Node) -> object:
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)  # type: ignore[arg-type]
+
+
+for _tag in ("!override", "!reset"):
+    _ComposeLoader.add_constructor(_tag, _untagged)
+
+
 def load_yaml(relative: str) -> dict:
-    return yaml.safe_load((ROOT / relative).read_text(encoding="utf-8")) or {}
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    return yaml.load(text, Loader=_ComposeLoader) or {}  # noqa: S506 - a SafeLoader subclass
 
 
 def registered_metrics() -> set[str]:
@@ -156,18 +179,26 @@ _PROMQL_WORDS = {
 # ---------------------------------------------------------------------------
 # 3. Every nginx proxy_pass upstream must be declared.
 # ---------------------------------------------------------------------------
-def check_nginx_upstreams() -> None:
+def check_nginx_upstreams(services: set[str]) -> None:
+    """Every proxy target must resolve to something that exists.
+
+    Most targets are variables now, not `upstream` blocks: nginx resolves a
+    variable at request time, so a stopped blue/green colour is a 502 on that
+    route instead of an edge that will not start (see 00-upstreams.conf). So a
+    variable must be set somewhere nginx reads it, and the active colour must
+    be a real compose service.
+    """
     upstream_src = (ROOT / "docker/nginx/conf.d/00-upstreams.conf").read_text(encoding="utf-8")
     declared = set(re.findall(r"upstream\s+(\w+)\s*\{", upstream_src))
 
     active_src = (ROOT / "docker/nginx/conf.d/active-api.conf").read_text(encoding="utf-8")
-    variables = set(re.findall(r"set\s+\$(\w+)\s+(\w+);", active_src))
-    variable_names = {name for name, _ in variables}
-    for _, value in variables:
-        if value not in declared:
-            fail(f"active-api.conf points at {value!r}, which is not a declared upstream")
+    colours = set(re.findall(r"set\s+\$active_api\s+(\w+);", active_src))
+    for colour in colours:
+        if colour not in services and colour not in declared:
+            fail(f"active-api.conf points at {colour!r}, which is not a compose service")
 
     template = (ROOT / "docker/nginx/templates/geekvpn.conf").read_text(encoding="utf-8")
+    variable_names = set(re.findall(r"set\s+\$(\w+)\s+", active_src + template))
     passes = re.findall(r"proxy_pass\s+https?://([\w$]+)", template)
     for target in passes:
         if target.startswith("$"):
@@ -191,8 +222,13 @@ def check_nginx_upstreams() -> None:
     # repository and must not be, because shipping our own mime.types would
     # silently diverge from the base image on every upgrade.
     base_image_includes = {"/etc/nginx/mime.types", "/etc/nginx/fastcgi_params"}
+    # Files the entrypoint writes at container start: the rendered template,
+    # the front-end pools, the admin allowlist. They exist in the running
+    # container and, by design, not in git.
+    entrypoint = (ROOT / "docker/nginx/entrypoint.sh").read_text(encoding="utf-8")
+    generated = set(re.findall(r"=(/etc/nginx/conf\.d/[\w.-]+)", entrypoint))
     for include in set(re.findall(r"include\s+(/etc/nginx/[\w/.-]+);", template + main)):
-        if "*" in include or include in base_image_includes:
+        if "*" in include or include in base_image_includes or include in generated:
             continue
         local = include.replace("/etc/nginx/", "docker/nginx/")
         if not (ROOT / local).exists():
@@ -287,7 +323,7 @@ def main() -> int:
 
     check_scrape_targets(services)
     check_alert_metrics(registered)
-    check_nginx_upstreams()
+    check_nginx_upstreams(services)
     check_env_documented()
     check_dashboard(registered)
     check_no_exposed_datastores()
