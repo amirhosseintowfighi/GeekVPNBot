@@ -33,6 +33,12 @@ FROM base AS runtime
 RUN groupadd --system --gid 1001 app \
  && useradd --system --uid 1001 --gid app --create-home app
 COPY --from=deps ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+# Nothing installs packages at runtime, and pip is the image's only source of
+# HIGH findings: its bundled SBOM lists the msgpack, urllib3 and setuptools it
+# vendors, none of which the application imports. Remove it rather than chase
+# pip's vendoring schedule.
+RUN rm -rf "${VIRTUAL_ENV}"/bin/pip* "${VIRTUAL_ENV}"/lib/python*/site-packages/pip \
+    "${VIRTUAL_ENV}"/lib/python*/site-packages/pip-*.dist-info
 COPY --chown=app:app pyproject.toml alembic.ini ./
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app src ./src
