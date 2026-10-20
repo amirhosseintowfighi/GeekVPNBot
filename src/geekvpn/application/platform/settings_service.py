@@ -412,6 +412,7 @@ REMINDER_TRAFFIC_PERCENTS = SettingDefinition[str](
     description="Percent of traffic used at which the customer is warned, comma separated.",
 )
 
+
 def _text_map(raw: Any) -> str | None:
     if not all(isinstance(k, str) and isinstance(v, str) for k, v in raw.items()):
         return "every key and value must be text"
@@ -444,8 +445,7 @@ DAILY_PURCHASE_LIMIT = SettingDefinition[int](
     type_=int,
     minimum=0,
     description=(
-        "New services one customer may buy per Tehran day. Renewals do not count."
-        " 0 means no limit."
+        "New services one customer may buy per Tehran day. Renewals do not count. 0 means no limit."
     ),
 )
 

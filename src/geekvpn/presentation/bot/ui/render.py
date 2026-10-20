@@ -239,7 +239,9 @@ def plan_detail(
         lines.append(rtl_line(f"<i>{plan.description}</i>"))
 
     lines.append("")
-    lines.append(rtl_line(f"{E.CALENDAR} {T.LBL_DURATION}: <b>{fa_duration(plan.duration_days)}</b>"))
+    lines.append(
+        rtl_line(f"{E.CALENDAR} {T.LBL_DURATION}: <b>{fa_duration(plan.duration_days)}</b>")
+    )
     lines.append(rtl_line(f"{E.CHART} {T.LBL_TRAFFIC}: <b>{gib(plan.quota_gib)}</b>"))
     lines.append(rtl_line(f"{E.DEVICE} {T.LBL_DEVICES}: <b>{fa_digits(plan.device_limit)}</b>"))
 
@@ -274,9 +276,7 @@ def _card_name(card: SubscriptionCard) -> str:
         # The customer's own name for it wins: "گوشی مامان" says more to them
         # than the package it was bought as.
         return card.display_name
-    named = " \u00b7 ".join(
-        part for part in (card.product_name_fa, card.plan_name_fa) if part
-    )
+    named = " \u00b7 ".join(part for part in (card.product_name_fa, card.plan_name_fa) if part)
     return named or card.remote_username or T.ERR_NOT_FOUND
 
 

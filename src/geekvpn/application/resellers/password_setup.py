@@ -61,9 +61,7 @@ class PasswordSetup:
 
     async def redeem(self, admin_id: uuid.UUID, *, token: str, password: str) -> None:
         if len(password) < MIN_PASSWORD_LENGTH:
-            raise ValueError(
-                f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
-            )
+            raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
 
         issued = await self._tokens.find(admin_id)
         if issued is None:

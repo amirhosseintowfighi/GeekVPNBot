@@ -118,7 +118,6 @@ class XuiFamilyConfig(PanelConnectionConfig):
         value = value.strip().strip("/")
         return f"/{value}" if value else ""
 
-
     @field_validator("subscription_url")
     @classmethod
     def _normalise_subscription(cls, value: str) -> str:

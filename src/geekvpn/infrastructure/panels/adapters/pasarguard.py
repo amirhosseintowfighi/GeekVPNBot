@@ -275,9 +275,7 @@ class PasarGuardAdapter(HttpPanelAdapter):
             raise AccountNotFound(panel=self.kind.value, username=ref.username)
         return self._to_account(self._http.json(response))
 
-    async def _verify_groups(
-        self, created: Any, *, asked: tuple[str, ...], username: str
-    ) -> None:
+    async def _verify_groups(self, created: Any, *, asked: tuple[str, ...], username: str) -> None:
         """Check that the groups we asked for are actually on the account.
 
         Nothing here raises. The account exists and the customer has paid, so
@@ -593,5 +591,3 @@ def _group_id(value: str | int) -> str | int:
         return value
     text = str(value).strip()
     return int(text) if text.lstrip("-").isdigit() else text
-
-

@@ -231,9 +231,7 @@ def test_a_reseller_sets_their_own_selling_price():
 def test_an_undecided_retail_price_falls_back_to_the_list_price():
     """A reasonable default, and more importantly a number rather than a blank
     on the screen where their customer is choosing."""
-    assert _reseller(discount_percent=30).retail_price_for(PLAN, Money(680_000)) == Money(
-        680_000
-    )
+    assert _reseller(discount_percent=30).retail_price_for(PLAN, Money(680_000)) == Money(680_000)
 
 
 def test_a_reseller_may_sell_below_what_it_costs_them():

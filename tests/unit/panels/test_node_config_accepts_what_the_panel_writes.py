@@ -49,7 +49,12 @@ def test_the_snake_case_spelling_still_works():
 @pytest.mark.parametrize(
     ("model", "payload", "field", "expected"),
     [
-        (MarzbanConfig, {"defaultInbounds": {"vless": ["A"]}}, "default_inbounds", {"vless": ("A",)}),
+        (
+            MarzbanConfig,
+            {"defaultInbounds": {"vless": ["A"]}},
+            "default_inbounds",
+            {"vless": ("A",)},
+        ),
         (MarzneshinConfig, {"serviceIds": [1, 2]}, "service_ids", (1, 2)),
         (XuiFamilyConfig, {"inboundId": 3}, "inbound_id", 3),
     ],

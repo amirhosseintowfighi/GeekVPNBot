@@ -79,9 +79,9 @@ def test_looking_a_customer_up_asks_which_shop():
     Read from the source: a test that calls the repository needs a database,
     and this is checking a signature, not a result.
     """
-    source = pathlib.Path(
-        "src/geekvpn/infrastructure/persistence/repositories/user.py"
-    ).read_text(encoding="utf-8")
+    source = pathlib.Path("src/geekvpn/infrastructure/persistence/repositories/user.py").read_text(
+        encoding="utf-8"
+    )
     tree = ast.parse(source)
 
     lookup = next(

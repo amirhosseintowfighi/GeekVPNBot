@@ -164,9 +164,7 @@ class IsunnyMoneyGateway:
         age = self.now() - started
 
         try:
-            body = self._call(
-                "/verify", {"authority": authority, "merchant": self.merchant_id}
-            )
+            body = self._call("/verify", {"authority": authority, "merchant": self.merchant_id})
         except IsunnyMoneyError as failure:
             logger.warning("isunny.verify_failed", payment_id=payment_id, error=str(failure))
             return self._unanswered(reference, age)

@@ -116,7 +116,9 @@ def test_it_is_deduped_per_subscription() -> None:
 # -- the receipt alert -----------------------------------------------------
 
 
-def build(sender: Sender, *, operators: list[int], file_id: str | None = "photo-1") -> ReceiptAlerts:
+def build(
+    sender: Sender, *, operators: list[int], file_id: str | None = "photo-1"
+) -> ReceiptAlerts:
     return ReceiptAlerts(
         sender=sender,
         directory=Directory(operators),

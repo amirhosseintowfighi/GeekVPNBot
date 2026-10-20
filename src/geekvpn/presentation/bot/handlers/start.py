@@ -242,9 +242,7 @@ async def on_gate_recheck(
         # Built by the same function the check uses. Two hand-written keys
         # would drift, and a warm entry under the wrong key is a round trip to
         # Telegram on every tap that nobody would notice.
-        await cache.set(
-            cache_key(scope, telegram_id, channels), "1", ttl_seconds=PASS_TTL_SECONDS
-        )
+        await cache.set(cache_key(scope, telegram_id, channels), "1", ttl_seconds=PASS_TTL_SECONDS)
 
     await state.clear()
     body, markup = await render_home(

@@ -107,7 +107,9 @@ def copy_btn(text: str, value: str, *, style: str | None = None) -> InlineKeyboa
     a `<code>` block and drag two handles over a sixteen-digit number, and the
     digits they mistype are the ones that make a transfer unmatchable.
     """
-    return InlineKeyboardButton(text=_label(text), copy_text=CopyTextButton(text=value), style=style)
+    return InlineKeyboardButton(
+        text=_label(text), copy_text=CopyTextButton(text=value), style=style
+    )
 
 
 def url_btn(text: str, url: str, *, style: str | None = None) -> InlineKeyboardButton:
@@ -331,5 +333,7 @@ def gateway_screen(url: str, payment_id: str) -> InlineKeyboardMarkup:
     if url:
         rows.append([url_btn(T.BTN_PAY_ONLINE, url)])
     if payment_id:
-        rows.append([btn(T.BTN_PAYCHECK, PayCB(action="check", method="-", ref=payment_id), style=GO)])
+        rows.append(
+            [btn(T.BTN_PAYCHECK, PayCB(action="check", method="-", ref=payment_id), style=GO)]
+        )
     return stack(rows, home=True)

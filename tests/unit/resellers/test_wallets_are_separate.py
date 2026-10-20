@@ -123,9 +123,7 @@ def test_the_scope_hands_the_shop_to_all_three():
     """A repository that takes the argument and a scope that never passes it
     is a filter that is always `IS NULL` - which looks exactly like working
     code from every side."""
-    wiring = pathlib.Path(
-        "src/geekvpn/infrastructure/di/sync_scope.py"
-    ).read_text(encoding="utf-8")
+    wiring = pathlib.Path("src/geekvpn/infrastructure/di/sync_scope.py").read_text(encoding="utf-8")
 
     for name in (
         "SyncWalletRepository",
@@ -174,9 +172,7 @@ NOTIFY = "src/geekvpn/infrastructure/persistence/repositories/sync_notifications
         (NOTIFY, "SyncNotificationRepository", "dedupe_exists"),
     ],
 )
-def test_every_remaining_per_customer_read_asks_which_shop(
-    path: str, class_name: str, method: str
-):
+def test_every_remaining_per_customer_read_asks_which_shop(path: str, class_name: str, method: str):
     """One person, two shops, two histories.
 
     A customer of ours who also buys from a reseller had one order list, one
@@ -200,13 +196,15 @@ def test_every_remaining_insert_stamps_the_shop(path: str, class_name: str, meth
 
 
 def test_a_first_purchase_is_per_shop():
-    """"Have they bought before" is a question about *this* shop.
+    """ "Have they bought before" is a question about *this* shop.
 
     A customer's first purchase from a reseller is a first purchase, whatever
     they have bought from us - and first-purchase pricing is money, so getting
     it from the wrong shop's history charges the wrong price.
     """
-    assert _calls_shop(_find(_source(PROVISIONING), "SqlAlchemyOrderRepository", "has_completed_order"))
+    assert _calls_shop(
+        _find(_source(PROVISIONING), "SqlAlchemyOrderRepository", "has_completed_order")
+    )
 
 
 def test_both_scopes_hand_the_shop_over():

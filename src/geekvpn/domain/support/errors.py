@@ -33,7 +33,9 @@ class TicketClosed(ConflictError):
 
 class MessageTooShort(ValidationError):
     code = "message_too_short"
-    message = "\u067e\u06cc\u0627\u0645 \u062e\u06cc\u0644\u06cc \u06a9\u0648\u062a\u0627\u0647\u0647."
+    message = (
+        "\u067e\u06cc\u0627\u0645 \u062e\u06cc\u0644\u06cc \u06a9\u0648\u062a\u0627\u0647\u0647."
+    )
 
     def __init__(self, *, minimum: int, actual: int) -> None:
         super().__init__(

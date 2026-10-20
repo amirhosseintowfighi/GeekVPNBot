@@ -183,9 +183,7 @@ class ResellerApplications:
             decided_at=self._clock.now(),
             reseller_id=created.reseller.id,
         )
-        return Approval(
-            reseller=created.reseller, username=created.username, setup_token=token
-        )
+        return Approval(reseller=created.reseller, username=created.username, setup_token=token)
 
     async def reject(
         self,

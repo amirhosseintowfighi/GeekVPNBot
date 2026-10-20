@@ -107,9 +107,7 @@ class SyncBridge:
     async def run(self, work: Callable[[SyncScope], T]) -> T:
         def _call() -> T:
             with self._container.sync_sessions() as session:
-                scope = build_sync_scope(
-                    self._container, session, reseller_id=self._reseller_id
-                )
+                scope = build_sync_scope(self._container, session, reseller_id=self._reseller_id)
                 try:
                     result = work(scope)
                     session.commit()
@@ -197,9 +195,7 @@ class SyncTicketCardReader:
 
         return await self._bridge.run(work)
 
-    async def thread(
-        self, user_id: uuid.UUID, *, ticket_id: uuid.UUID
-    ) -> list[TicketMessageCard]:
+    async def thread(self, user_id: uuid.UUID, *, ticket_id: uuid.UUID) -> list[TicketMessageCard]:
         """The conversation, oldest first.
 
         Ownership is checked here and not assumed: a ticket id reaches this
@@ -231,9 +227,7 @@ class SyncTicketCardReader:
 
         return await self._bridge.run(work)
 
-    async def reply(
-        self, user_id: uuid.UUID, *, ticket_id: uuid.UUID, message: str
-    ) -> TicketCard:
+    async def reply(self, user_id: uuid.UUID, *, ticket_id: uuid.UUID, message: str) -> TicketCard:
         telegram_id = await self._bridge.telegram_id(user_id)
         if telegram_id is None:
             raise LookupError(f"No user {user_id}.")
@@ -251,9 +245,7 @@ class SyncTicketCardReader:
 
         return await self._bridge.run(work)
 
-    async def find_by_reference(
-        self, user_id: uuid.UUID, *, reference: str
-    ) -> TicketCard | None:
+    async def find_by_reference(self, user_id: uuid.UUID, *, reference: str) -> TicketCard | None:
         """Matched against this customer's own tickets, never searched globally.
 
         The reference is printed in every message the bot sends about a ticket,
@@ -262,7 +254,11 @@ class SyncTicketCardReader:
         """
         wanted = reference.strip().upper()
         return next(
-            (card for card in await self.list_for_user(user_id) if card.reference.upper() == wanted),
+            (
+                card
+                for card in await self.list_for_user(user_id)
+                if card.reference.upper() == wanted
+            ),
             None,
         )
 

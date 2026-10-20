@@ -74,9 +74,7 @@ def test_an_unreadable_account_list_is_not_the_same_as_no_match():
     adapter.kind = Mock(value="pasarguard")
 
     with pytest.raises(PanelContractViolation):
-        asyncio.run(
-            PasarGuardAdapter.find_by_subscription(adapter, "https://x/sub/token")
-        )
+        asyncio.run(PasarGuardAdapter.find_by_subscription(adapter, "https://x/sub/token"))
 
 
 def test_the_link_that_was_reported_as_missing():

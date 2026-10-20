@@ -182,9 +182,7 @@ class CheckoutService:
         lines = tuple(request.lines)
         # Not on a free invoice: a 100% coupon must stay free, and asking for
         # 500 Toman to prove it would be worse than any collision.
-        if gateway.capabilities.requires_manual_review and sum(
-            line.amount for line in lines
-        ) > 0:
+        if gateway.capabilities.requires_manual_review and sum(line.amount for line in lines) > 0:
             lines = (*lines, _identifying_line())
 
         sequence = self._invoices.next_sequence(year=request.jalali_year)
@@ -225,9 +223,7 @@ class CheckoutService:
             user_id=request.user_id,
             invoice_number=invoice.number,
             callback_url=(
-                f"{self._callback_base}/pay/callback/{payment.id}"
-                if self._callback_base
-                else None
+                f"{self._callback_base}/pay/callback/{payment.id}" if self._callback_base else None
             ),
         )
         # Kept on the payment, not re-derived when the screen is reopened.
@@ -265,8 +261,7 @@ class CheckoutService:
                 # it back on a callback; a gateway that must be *polled* needs
                 # the handle it answers to, and there is nowhere else to keep
                 # it - `verify` is given the reference and nothing more.
-                reference=instruction.metadata.get("gatewayReference")
-                or instruction.payment_id,
+                reference=instruction.metadata.get("gatewayReference") or instruction.payment_id,
             )
 
         self._invoices.save(invoice)

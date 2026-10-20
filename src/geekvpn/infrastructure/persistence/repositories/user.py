@@ -102,7 +102,11 @@ class SqlAlchemyUserRepository:
         if not wanted:
             return {}
         rows = (
-            (await self._session.execute(select(UserModel).where(UserModel.telegram_id.in_(wanted))))
+            (
+                await self._session.execute(
+                    select(UserModel).where(UserModel.telegram_id.in_(wanted))
+                )
+            )
             .scalars()
             .all()
         )

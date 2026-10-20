@@ -79,9 +79,7 @@ def test_an_upgrade_to_another_product_is_on_the_same_screen() -> None:
     )
 
     labels = _labels(
-        _upgrade_keyboard(
-            _view(mine, other), same_plan_id=mine.plans[0].id, own_product_id=mine.id
-        )
+        _upgrade_keyboard(_view(mine, other), same_plan_id=mine.plans[0].id, own_product_id=mine.id)
     )
 
     # The other product is offered, and named - a button reads
@@ -105,9 +103,7 @@ class _Bridge:
 
 class _Plans:
     async def get(self, plan_id: uuid.UUID):
-        return SimpleNamespace(
-            name_fa="سه ماهه", duration_days=90, quota_gib=100, device_limit=2
-        )
+        return SimpleNamespace(name_fa="سه ماهه", duration_days=90, quota_gib=100, device_limit=2)
 
 
 class _Subscriptions:

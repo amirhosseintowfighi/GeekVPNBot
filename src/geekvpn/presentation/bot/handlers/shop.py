@@ -72,9 +72,7 @@ async def load_storefront(*, user: Any, scope: Any, services: BotServices) -> St
         # Read off the scope rather than taken as an argument: this is called
         # from seven places, and one that forgot would quietly show a
         # reseller's customer our prices.
-        retail_prices=(
-            scope.reseller.retail_overrides if scope.reseller is not None else None
-        ),
+        retail_prices=(scope.reseller.retail_overrides if scope.reseller is not None else None),
     )
     return view
 

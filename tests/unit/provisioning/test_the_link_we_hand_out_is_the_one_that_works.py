@@ -25,9 +25,7 @@ TOKEN = "djMsMSwxNzg4NDQxMjYw.Xs1JrAv7"
 
 
 def test_the_panels_own_host_is_swapped_for_the_public_one():
-    assert (
-        public_link(f"{API}/sub/{TOKEN}", SUB) == f"{SUB}/sub/{TOKEN}"
-    )
+    assert public_link(f"{API}/sub/{TOKEN}", SUB) == f"{SUB}/sub/{TOKEN}"
 
 
 def test_the_token_survives_the_rewrite():
@@ -52,7 +50,10 @@ def test_a_node_without_a_separate_host_is_left_alone():
 def test_a_bare_hostname_is_accepted():
     """An operator typing `sub.example.com` means https, and a field that
     silently ignored the entry would be worse than one that rejected it."""
-    assert public_link(f"{API}/sub/{TOKEN}", "sub.example.com") == f"https://sub.example.com/sub/{TOKEN}"
+    assert (
+        public_link(f"{API}/sub/{TOKEN}", "sub.example.com")
+        == f"https://sub.example.com/sub/{TOKEN}"
+    )
 
 
 def test_a_port_on_the_public_host_is_honoured():

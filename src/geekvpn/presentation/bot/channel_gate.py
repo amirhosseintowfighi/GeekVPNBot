@@ -56,9 +56,7 @@ _ABSENT = {"left", "kicked"}
 class ChannelGateMiddleware(BaseMiddleware):
     """Refuses everything except the gate itself until the channels are joined."""
 
-    async def __call__(
-        self, handler: Handler, event: TelegramObject, data: dict[str, Any]
-    ) -> Any:
+    async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         scope = data.get("scope")
         user = data.get("user")
         bot = data.get("bot")
@@ -135,9 +133,7 @@ async def unjoined(
     if cache is not None and await cache.get(key) == "1":
         return []
 
-    missing = await missing_channels(
-        channels, telegram_id=telegram_id, is_member=_membership(bot)
-    )
+    missing = await missing_channels(channels, telegram_id=telegram_id, is_member=_membership(bot))
     if not missing and cache is not None:
         await cache.set(key, "1", ttl_seconds=PASS_TTL_SECONDS)
     return missing

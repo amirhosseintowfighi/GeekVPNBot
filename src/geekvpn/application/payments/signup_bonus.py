@@ -76,9 +76,7 @@ class SignupBonusService:
 
     def _already_granted(self, user_id: int) -> bool:
         wallet = self._ledger.get_or_create(user_id)
-        return any(
-            entry.kind is KIND and entry.reference == REFERENCE for entry in wallet.entries
-        )
+        return any(entry.kind is KIND and entry.reference == REFERENCE for entry in wallet.entries)
 
 
 __all__ = ["KIND", "REFERENCE", "SignupBonusService"]

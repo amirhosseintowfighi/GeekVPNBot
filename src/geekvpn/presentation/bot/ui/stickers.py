@@ -31,7 +31,6 @@ from geekvpn.application.notifications.sticker_sections import SECTION_EMOJI
 logger = structlog.stdlib.get_logger(__name__)
 
 
-
 class StickerBook:
     """Resolves a section to a sticker, once, then remembers.
 

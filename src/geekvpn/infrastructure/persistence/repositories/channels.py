@@ -61,9 +61,7 @@ class SqlRequiredChannelRepository:
             for row in rows.scalars().all()
         ]
 
-    async def add(
-        self, *, chat_ref: str, title_fa: str, invite_url: str | None
-    ) -> None:
+    async def add(self, *, chat_ref: str, title_fa: str, invite_url: str | None) -> None:
         self._session.add(
             RequiredChannelModel(
                 id=uuid.uuid4().hex,
@@ -92,9 +90,7 @@ class SqlRequiredChannelRepository:
         """A real delete. Unlike a plan or a coupon, nothing references this
         afterwards - it is a rule that applied while it existed."""
         result: CursorResult[Any] = await self._session.execute(  # type: ignore[assignment]
-            delete(RequiredChannelModel).where(
-                self._shop(), RequiredChannelModel.id == channel_id
-            )
+            delete(RequiredChannelModel).where(self._shop(), RequiredChannelModel.id == channel_id)
         )
         await self._session.flush()
         return bool(result.rowcount)

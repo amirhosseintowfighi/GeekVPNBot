@@ -149,9 +149,7 @@ async def me(subject: CurrentAdmin, scope: ScopeDep) -> AdminResponse:
     response_model=RecoveryCodesResponse,
     summary="Issue a fresh set of recovery codes",
 )
-async def issue_recovery_codes(
-    subject: CurrentAdmin, scope: ScopeDep
-) -> RecoveryCodesResponse:
+async def issue_recovery_codes(subject: CurrentAdmin, scope: ScopeDep) -> RecoveryCodesResponse:
     """Generate ten single-use codes, show them once, store only the hashes.
 
     Replaces any existing set rather than adding to it. A new set is asked for

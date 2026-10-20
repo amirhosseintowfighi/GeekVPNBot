@@ -74,7 +74,10 @@ def test_every_enum_constraint_allows_what_the_enum_allows():
     migrations_say = _migration_constraints()
 
     drifted = {
-        key: (sorted(models_say[key] - migrations_say[key]), sorted(migrations_say[key] - models_say[key]))
+        key: (
+            sorted(models_say[key] - migrations_say[key]),
+            sorted(migrations_say[key] - models_say[key]),
+        )
         for key in models_say
         if key in migrations_say and models_say[key] != migrations_say[key]
     }

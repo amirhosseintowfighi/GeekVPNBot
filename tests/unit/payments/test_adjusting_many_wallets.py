@@ -29,7 +29,9 @@ def test_taking_money_back_never_pushes_a_wallet_below_zero() -> None:
         user_ids=[1, 2], signed_amount=20_000, actor_id=99, reason_fa=REASON
     )
     # User 2 spent half of it in the meantime.
-    world.wallet_service.adjust(user_id=2, signed_amount=-10_000, actor_id=99, reason_fa="خرید سرویس ماهانه")
+    world.wallet_service.adjust(
+        user_id=2, signed_amount=-10_000, actor_id=99, reason_fa="خرید سرویس ماهانه"
+    )
 
     result = world.wallet_service.adjust_many(
         user_ids=[1, 2, 3], signed_amount=-20_000, actor_id=99, reason_fa="پس گرفتن هدیه"

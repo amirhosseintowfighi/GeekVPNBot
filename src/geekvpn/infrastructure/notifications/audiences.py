@@ -122,17 +122,13 @@ class SqlAudienceResolver:
                 raise UnknownAudience("A server audience needs a server.", audience=str(audience))
             statement = statement.where(
                 UserModel.telegram_id.in_(
-                    self._with_live_subscription(now).where(
-                        SubscriptionModel.node_id == reference
-                    )
+                    self._with_live_subscription(now).where(SubscriptionModel.node_id == reference)
                 )
             )
         elif audience is AudienceKind.SUSPENDED_SERVICE:
             statement = statement.where(
                 UserModel.telegram_id.in_(
-                    select(SubscriptionModel.user_id).where(
-                        SubscriptionModel.state == "suspended"
-                    )
+                    select(SubscriptionModel.user_id).where(SubscriptionModel.state == "suspended")
                 )
             )
         else:  # pragma: no cover - the enum is exhaustive above
@@ -143,7 +139,7 @@ class SqlAudienceResolver:
 
     # ---- building blocks ------------------------------------------------
 
-    def _reachable(self) -> Select[tuple[int]]:
+    def _reachable(self) -> Select[int]:
         """Active customers only, in a stable order.
 
         A suspended or banned account is not an audience member: they are
@@ -164,13 +160,13 @@ class SqlAudienceResolver:
             .order_by(UserModel.telegram_id)
         )
 
-    def _with_live_subscription(self, now: datetime) -> Select[tuple[int]]:
+    def _with_live_subscription(self, now: datetime) -> Select[int]:
         return select(SubscriptionModel.user_id).where(
             SubscriptionModel.state == "active",
             SubscriptionModel.expires_at > now,
         )
 
-    def _with_expired_subscription(self, now: datetime) -> Select[tuple[int]]:
+    def _with_expired_subscription(self, now: datetime) -> Select[int]:
         return select(SubscriptionModel.user_id).where(
             or_(
                 SubscriptionModel.state.in_(("expired", "exhausted")),
@@ -178,17 +174,17 @@ class SqlAudienceResolver:
             )
         )
 
-    def _expiring_within(self, days: int, now: datetime) -> Select[tuple[int]]:
+    def _expiring_within(self, days: int, now: datetime) -> Select[int]:
         return select(SubscriptionModel.user_id).where(
             SubscriptionModel.state == "active",
             SubscriptionModel.expires_at > now,
             SubscriptionModel.expires_at <= now + timedelta(days=days),
         )
 
-    def _with_paid_order(self) -> Select[tuple[int]]:
+    def _with_paid_order(self) -> Select[int]:
         return select(OrderModel.user_id).where(OrderModel.state.in_(PAID_ORDER_STATES))
 
-    def _in_tier(self, reference: str | None) -> Select[tuple[int]]:
+    def _in_tier(self, reference: str | None) -> Select[int]:
         """Lifetime spend, bucketed by the same thresholds the storefront uses.
 
         Computed rather than stored: a tier column would be a second source of

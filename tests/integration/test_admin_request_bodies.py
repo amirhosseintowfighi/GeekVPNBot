@@ -87,7 +87,9 @@ def test_every_field_sent_is_a_field_the_endpoint_declares() -> None:
             continue
         unknown = keys - accepted
         if unknown:
-            wrong.append(f"{method.upper()} {path} sends {sorted(unknown)}, accepts {sorted(accepted)}")
+            wrong.append(
+                f"{method.upper()} {path} sends {sorted(unknown)}, accepts {sorted(accepted)}"
+            )
 
     assert not wrong, "the admin client sends fields its endpoints reject:\n  " + "\n  ".join(wrong)
 

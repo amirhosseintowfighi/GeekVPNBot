@@ -69,12 +69,8 @@ async def add_channel(payload: NewChannel, scope: ScopeDep) -> None:
     )
 
 
-@router.post(
-    "/{channel_id}/active", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE]
-)
-async def set_channel_active(
-    channel_id: str, payload: ActiveRequest, scope: ScopeDep
-) -> None:
+@router.post("/{channel_id}/active", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE])
+async def set_channel_active(channel_id: str, payload: ActiveRequest, scope: ScopeDep) -> None:
     if not await scope.required_channels.set_active(channel_id, active=payload.active):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such channel.")
 
@@ -100,10 +96,7 @@ def reject_unreachable(payload: NewChannel) -> None:
     if not payload.chat_ref.startswith("@") and not payload.invite_url:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "برای کانال خصوصی، لینک دعوت لازمه؛ وگرنه کاربر راهی برای"
-                " عضو شدن نداره."
-            ),
+            detail=("برای کانال خصوصی، لینک دعوت لازمه؛ وگرنه کاربر راهی برای عضو شدن نداره."),
         )
     if payload.invite_url and not re.match(r"^https://t\.me/", payload.invite_url):
         raise HTTPException(

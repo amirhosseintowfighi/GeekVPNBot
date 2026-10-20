@@ -48,7 +48,9 @@ class _Resellers:
     async def get(self, reseller_id: uuid.UUID) -> Reseller:
         return self.reseller
 
-    async def charge_for_sale(self, reseller_id: uuid.UUID, *, amount: Money, description_fa: str) -> Reseller:
+    async def charge_for_sale(
+        self, reseller_id: uuid.UUID, *, amount: Money, description_fa: str
+    ) -> Reseller:
         self.charged.append(amount)
         self.reseller.balance_amount -= amount.amount
         return self.reseller

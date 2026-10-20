@@ -86,9 +86,7 @@ def test_the_platforms_own_shop_prices_nothing_differently():
     App, the admin preview, the renewal job - is unaffected."""
     plan = make_plan(base_price=Money(680_000))
 
-    assert quote_plan(
-        plan=plan, product=make_product(), context=_context()
-    ).total == Money(680_000)
+    assert quote_plan(plan=plan, product=make_product(), context=_context()).total == Money(680_000)
 
 
 # -- what the storefront is handed ------------------------------------------
@@ -105,9 +103,7 @@ def test_only_prices_the_reseller_actually_set_are_handed_over():
     show a reseller's customer what the reseller pays us - which is the one
     number in this system a customer must never see."""
     plan_id = uuid.uuid4()
-    reseller = _reseller(
-        overrides=(PriceOverride(plan_id=plan_id, cost=Money(400_000)),)
-    )
+    reseller = _reseller(overrides=(PriceOverride(plan_id=plan_id, cost=Money(400_000)),))
 
     assert reseller.retail_overrides == {}
 
@@ -115,9 +111,7 @@ def test_only_prices_the_reseller_actually_set_are_handed_over():
 def test_a_retail_price_is_handed_over():
     plan_id = uuid.uuid4()
     reseller = _reseller(
-        overrides=(
-            PriceOverride(plan_id=plan_id, cost=Money(400_000), retail=Money(900_000)),
-        )
+        overrides=(PriceOverride(plan_id=plan_id, cost=Money(400_000), retail=Money(900_000)),)
     )
 
     assert reseller.retail_overrides == {plan_id: Money(900_000)}

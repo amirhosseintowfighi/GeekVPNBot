@@ -147,9 +147,7 @@ async def test_the_shop_does_not_reach_for_a_money_sticker_first() -> None:
     order = SECTION_EMOJI["shop"]
 
     first_money = next((i for i, e in enumerate(order) if e in money), len(order))
-    last_friendly = max(
-        (i for i, e in enumerate(order) if e in friendly), default=-1
-    )
+    last_friendly = max((i for i, e in enumerate(order) if e in friendly), default=-1)
 
     assert last_friendly < first_money, "a money emoji is reached before a friendly one"
 

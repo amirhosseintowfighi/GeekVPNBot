@@ -130,7 +130,11 @@ async def test_a_transfer_waits_for_a_second_yes(screens: list[Any]) -> None:
     assert "2002" in typed.replies[-1]
 
     await service_owner.on_transfer_confirm(
-        Query(), SubCB(action="xfer_ok", ref=REF), state, services, user=USER  # type: ignore[arg-type]
+        Query(),
+        SubCB(action="xfer_ok", ref=REF),
+        state,
+        services,
+        user=USER,  # type: ignore[arg-type]
     )
     assert ownership.transfers == [2002]
     assert screens[-1][0] == T.TRANSFER_DONE
@@ -144,7 +148,11 @@ async def test_a_transfer_to_nobody_says_so(screens: list[Any]) -> None:
     await state.update_data(owner_ref=REF, owner_to=2002)
 
     await service_owner.on_transfer_confirm(
-        Query(), SubCB(action="xfer_ok", ref=REF), state, services, user=USER  # type: ignore[arg-type]
+        Query(),
+        SubCB(action="xfer_ok", ref=REF),
+        state,
+        services,
+        user=USER,  # type: ignore[arg-type]
     )
 
     assert screens[-1][0] == T.TRANSFER_NO_SUCH_USER

@@ -65,10 +65,7 @@ def _upgrade_keyboard(view: Any, *, same_plan_id: Any, own_product_id: Any) -> I
 
 def _products(view: Any, *, own_first: Any) -> list[Any]:
     products = [
-        product
-        for category in view.categories
-        for product in category.products
-        if product.plans
+        product for category in view.categories for product in category.products if product.plans
     ]
     # Stable, so the storefront's own order survives; it only lifts the family
     # the customer is already in.

@@ -200,7 +200,7 @@ def test_an_admin_with_no_codes_cannot_be_talked_into_one():
 
 
 def test_using_one_is_its_own_audit_entry():
-    """"Somebody got in without their authenticator" is exactly the line a
+    """ "Somebody got in without their authenticator" is exactly the line a
     person reviewing a breach is looking for, and it must not be buried in an
     ordinary successful login."""
     codes, hashes = _issued()

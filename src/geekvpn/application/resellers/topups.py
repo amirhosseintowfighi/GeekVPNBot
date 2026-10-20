@@ -56,9 +56,7 @@ class TopupRepository(Protocol):
 
     async def list_pending(self, *, limit: int = 50) -> Sequence[TopupView]: ...
 
-    async def list_for(
-        self, reseller_id: uuid.UUID, *, limit: int = 20
-    ) -> Sequence[TopupView]: ...
+    async def list_for(self, reseller_id: uuid.UUID, *, limit: int = 20) -> Sequence[TopupView]: ...
 
     async def decide(
         self,
@@ -111,9 +109,7 @@ class ResellerTopups:
     async def mine(self, reseller_id: uuid.UUID, *, limit: int = 20) -> Sequence[TopupView]:
         return await self._topups.list_for(reseller_id, limit=limit)
 
-    async def approve(
-        self, topup_id: uuid.UUID, *, decided_by: int | None = None
-    ) -> TopupView:
+    async def approve(self, topup_id: uuid.UUID, *, decided_by: int | None = None) -> TopupView:
         """Credit the balance, then record the decision.
 
         In that order. If the decision were written first and the credit then

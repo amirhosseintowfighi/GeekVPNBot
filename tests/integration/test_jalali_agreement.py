@@ -23,7 +23,10 @@ from geekvpn.presentation.bot.ui.fa import to_jalali
 pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
-PORTS = (ROOT / "admin" / "src" / "lib" / "jalali.ts", ROOT / "miniapp" / "src" / "lib" / "jalali.ts")
+PORTS = (
+    ROOT / "admin" / "src" / "lib" / "jalali.ts",
+    ROOT / "miniapp" / "src" / "lib" / "jalali.ts",
+)
 
 
 def test_both_frontends_carry_the_same_port() -> None:

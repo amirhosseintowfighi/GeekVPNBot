@@ -78,7 +78,11 @@ def test_what_was_backed_up_is_what_comes_back(engine: Engine, tmp_path: Path) -
 
     with engine.begin() as connection:
         connection.execute(text("DELETE FROM platform_settings"))
-        connection.execute(text("INSERT INTO funnel_events (user_id, stage, occurred_at) VALUES (9, 'storefront', now())"))
+        connection.execute(
+            text(
+                "INSERT INTO funnel_events (user_id, stage, occurred_at) VALUES (9, 'storefront', now())"
+            )
+        )
 
     loaded = restore_archive(engine, archive)
 
@@ -86,7 +90,11 @@ def test_what_was_backed_up_is_what_comes_back(engine: Engine, tmp_path: Path) -
         value = connection.execute(
             text("SELECT value FROM platform_settings WHERE key = 'support.hours'")
         ).scalar_one()
-        users = connection.execute(text("SELECT user_id FROM funnel_events ORDER BY id")).scalars().all()
+        users = (
+            connection.execute(text("SELECT user_id FROM funnel_events ORDER BY id"))
+            .scalars()
+            .all()
+        )
     assert value == "line one\nline two, with a comma"
     assert users == [1, 2]
     assert loaded["funnel_events"] == 2
@@ -104,7 +112,9 @@ def test_a_restored_serial_column_does_not_collide_on_the_next_insert(
 
     with engine.begin() as connection:
         connection.execute(
-            text("INSERT INTO funnel_events (user_id, stage, occurred_at) VALUES (3, 'storefront', now())")
+            text(
+                "INSERT INTO funnel_events (user_id, stage, occurred_at) VALUES (3, 'storefront', now())"
+            )
         )
         count = connection.execute(text("SELECT count(*) FROM funnel_events")).scalar_one()
     assert count == 3

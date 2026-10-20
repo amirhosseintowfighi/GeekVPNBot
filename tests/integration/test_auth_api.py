@@ -349,7 +349,7 @@ def test_signing_out_clears_both_session_cookies(auth_container, auth_client):
     cleared = response.headers.get_list("set-cookie")
     assert any("geekvpn_admin_access=" in header for header in cleared)
     assert any("geekvpn_admin_refresh=" in header for header in cleared)
-    assert all('Max-Age=0' in header or 'expires=' in header.lower() for header in cleared)
+    assert all("Max-Age=0" in header or "expires=" in header.lower() for header in cleared)
 
 
 def test_a_reused_refresh_token_commits_the_revocation_before_refusing(container, monkeypatch):

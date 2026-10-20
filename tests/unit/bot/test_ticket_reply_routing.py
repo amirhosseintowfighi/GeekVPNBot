@@ -22,9 +22,7 @@ pytestmark = pytest.mark.unit
 def test_a_reference_is_found_in_the_message_the_bot_sends() -> None:
     from geekvpn.domain.notifications.message import render
 
-    body = render(
-        "ticket.answered", reference="SUP-1405-000042", body="سرور عوض شد"
-    ).body_fa
+    body = render("ticket.answered", reference="SUP-1405-000042", body="سرور عوض شد").body_fa
 
     found = REFERENCE.search(body)
     assert found is not None
@@ -71,9 +69,7 @@ def test_a_reply_handler_exists_before_the_flow_handlers() -> None:
 
     tree = ast.parse(source)
     order = [
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef)
+        node.name for node in tree.body if isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef)
     ]
 
     assert order.index("on_reply_to_support") < order.index("on_ticket_reply_text")

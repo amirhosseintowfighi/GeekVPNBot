@@ -202,11 +202,9 @@ async def test_a_read_back_that_finds_the_groups_says_nothing():
 
 @pytest.mark.asyncio
 async def test_a_read_back_we_cannot_make_does_not_cry_wolf():
-    """"We could not look" and "the panel says none" are different answers, and
+    """ "We could not look" and "the panel says none" are different answers, and
     only the second is worth waking somebody for."""
-    adapter, _ = _adapter(
-        default_groups=("1",), created=user_payload(), read_back=False
-    )
+    adapter, _ = _adapter(default_groups=("1",), created=user_payload(), read_back=False)
 
     with capture_logs() as logs:
         await adapter.create_account(SPEC, idempotency_key="k")

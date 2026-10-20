@@ -193,7 +193,8 @@ class SqlRevenueReader:
                 plan_name=name or str(plan_id),
                 orders=int(orders),
                 revenue=int(revenue),
-                traffic_gib=gib_from_mib(int(traffic_mib)),
+                # A plan with only unlimited orders sums to NULL, not zero.
+                traffic_gib=gib_from_mib(int(traffic_mib or 0)),
                 days_sold=int(days),
             )
             for plan_id, name, orders, revenue, traffic_mib, days in rows
@@ -324,7 +325,7 @@ class SqlRetentionReader:
             )
         ).scalar_one()
 
-        lifetime_days = self._session.execute(
+        lifetime_days: float = self._session.execute(
             select(func.coalesce(func.avg(cast(OrderModel.duration_days, Float)), 0.0)).where(
                 self._paid_window(range)
             )
@@ -385,6 +386,8 @@ class SqlRetentionReader:
 
         members: dict[str, list[tuple[int, datetime]]] = {}
         for user_id, first_paid in rows:
+            if first_paid is None:  # pragma: no cover - filtered out by the query
+                continue
             key = first_paid.strftime(MONTH_KEY_FORMAT)
             members.setdefault(key, []).append((int(user_id), first_paid))
 
@@ -574,7 +577,10 @@ class SqlCustomerReader:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def _base_query(self, now: datetime) -> Select[Any]:
+    def _base_query(
+        self, now: datetime
+    ) -> Select[int, datetime, int, int, datetime | None, datetime, int]:
+        # Telegram id, joined, orders, spend, last paid, newest expiry, referrals.
         newest_expiry = func.max(SubscriptionModel.expires_at)
         return (
             select(
@@ -615,7 +621,9 @@ class SqlCustomerReader:
         )
 
     @staticmethod
-    def _to_snapshot(row: Row[Any], now: datetime) -> CustomerSnapshot:
+    def _to_snapshot(
+        row: Row[int, datetime, int, int, datetime | None, datetime, int], now: datetime
+    ) -> CustomerSnapshot:
         (
             user_id,
             joined_at,

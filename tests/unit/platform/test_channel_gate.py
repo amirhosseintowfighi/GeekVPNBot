@@ -16,8 +16,9 @@ from geekvpn.application.platform.channel_gate import RequiredChannel, missing_c
 pytestmark = pytest.mark.unit
 
 NEWS = RequiredChannel(id="1", chat_ref="@geeknews", title_fa="اطلاع‌رسانی")
-VIP = RequiredChannel(id="2", chat_ref="-1001234567890", title_fa="ویژه",
-                      invite_url="https://t.me/+abc")
+VIP = RequiredChannel(
+    id="2", chat_ref="-1001234567890", title_fa="ویژه", invite_url="https://t.me/+abc"
+)
 
 
 def _gate(channels, answers):

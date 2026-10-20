@@ -78,9 +78,7 @@ class FakeAdapter:
 
     async def bulk_usage(self, refs):
         return {
-            ref.username: AccountUsage(
-                used_bytes=self._used * BYTES_PER_MIB, measured_at=NOW
-            )
+            ref.username: AccountUsage(used_bytes=self._used * BYTES_PER_MIB, measured_at=NOW)
             for ref in refs
         }
 

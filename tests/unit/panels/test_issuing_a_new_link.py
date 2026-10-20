@@ -86,7 +86,13 @@ async def test_xui_gets_a_new_client_id_and_sub_id_addressed_by_the_old_one(
 
 @pytest.mark.parametrize(
     "kind",
-    [PanelKind.MARZBAN, PanelKind.MARZNESHIN, PanelKind.PASARGUARD, PanelKind.SANAEI, PanelKind.ALIREZA],
+    [
+        PanelKind.MARZBAN,
+        PanelKind.MARZNESHIN,
+        PanelKind.PASARGUARD,
+        PanelKind.SANAEI,
+        PanelKind.ALIREZA,
+    ],
 )
 def test_every_bundled_panel_declares_it(kind: PanelKind) -> None:
     load_bundled_adapters()

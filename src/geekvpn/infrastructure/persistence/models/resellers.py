@@ -52,7 +52,9 @@ class ResellerModel(TimestampMixin, Base):
     #: Their login. One admin account, one reseller - the account is how they
     #: authenticate and this row is what they are allowed to do once they have.
     admin_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="CASCADE"), nullable=False,
+        PgUUID(as_uuid=True),
+        ForeignKey("admins.id", ondelete="CASCADE"),
+        nullable=False,
         unique=True,
     )
     name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -136,9 +138,7 @@ class ResellerPlanPriceModel(Base):
     __table_args__ = (
         # Zero is allowed here and only here: a giveaway a human typed on
         # purpose, for one package, for one reseller.
-        CheckConstraint(
-            "price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"
-        ),
+        CheckConstraint("price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"),
         CheckConstraint(
             "retail_price IS NULL OR retail_price >= 0",
             name="reseller_plan_prices_retail_non_negative",
@@ -241,8 +241,10 @@ class ResellerTopupModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
     reseller_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        PgUUID(as_uuid=True),
+        ForeignKey("resellers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     note_fa: Mapped[str | None] = mapped_column(String(256))

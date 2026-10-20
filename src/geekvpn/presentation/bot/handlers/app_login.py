@@ -262,9 +262,7 @@ async def on_app_username(
         await answer(message, T.ERR_GENERIC)
         return
     try:
-        username = await scope.app_password_login.is_available(
-            message.text or "", user_id=user.id
-        )
+        username = await scope.app_password_login.is_available(message.text or "", user_id=user.id)
     except AppUsernameInvalidError:
         await answer(message, T.APP_CREDS_USERNAME_INVALID, reply_markup=_cancel_keyboard())
         return

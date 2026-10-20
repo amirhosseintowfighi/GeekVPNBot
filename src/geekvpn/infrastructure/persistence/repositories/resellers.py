@@ -54,19 +54,25 @@ class SqlAlchemyResellerRepository:
 
     async def _hydrate(self, row: ResellerModel) -> Reseller:
         nodes = (
-            await self._session.execute(
-                select(ResellerNodeModel.node_id).where(
-                    ResellerNodeModel.reseller_id == row.id
+            (
+                await self._session.execute(
+                    select(ResellerNodeModel.node_id).where(ResellerNodeModel.reseller_id == row.id)
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         prices = (
-            await self._session.execute(
-                select(ResellerPlanPriceModel).where(
-                    ResellerPlanPriceModel.reseller_id == row.id
+            (
+                await self._session.execute(
+                    select(ResellerPlanPriceModel).where(
+                        ResellerPlanPriceModel.reseller_id == row.id
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         return Reseller(
             id=row.id,
@@ -81,9 +87,7 @@ class SqlAlchemyResellerRepository:
                     plan_id=row_price.plan_id,
                     cost=None if row_price.price is None else Money(row_price.price),
                     retail=(
-                        None
-                        if row_price.retail_price is None
-                        else Money(row_price.retail_price)
+                        None if row_price.retail_price is None else Money(row_price.retail_price)
                     ),
                 )
                 for row_price in prices
@@ -140,14 +144,10 @@ class SqlAlchemyResellerRepository:
             delete(ResellerNodeModel).where(ResellerNodeModel.reseller_id == reseller.id)
         )
         for node_id in sorted(reseller.allowed_node_ids):
-            self._session.add(
-                ResellerNodeModel(reseller_id=reseller.id, node_id=node_id)
-            )
+            self._session.add(ResellerNodeModel(reseller_id=reseller.id, node_id=node_id))
 
         await self._session.execute(
-            delete(ResellerPlanPriceModel).where(
-                ResellerPlanPriceModel.reseller_id == reseller.id
-            )
+            delete(ResellerPlanPriceModel).where(ResellerPlanPriceModel.reseller_id == reseller.id)
         )
         for override in reseller.overrides:
             # A row with neither number is a row that says nothing. It would
@@ -160,9 +160,7 @@ class SqlAlchemyResellerRepository:
                     reseller_id=reseller.id,
                     plan_id=override.plan_id,
                     price=None if override.cost is None else override.cost.amount,
-                    retail_price=(
-                        None if override.retail is None else override.retail.amount
-                    ),
+                    retail_price=(None if override.retail is None else override.retail.amount),
                 )
             )
         await self._session.flush()
@@ -216,9 +214,7 @@ class SqlAlchemyResellerRepository:
         Everything absent follows the platform's copy, so improving a message
         improves it in every shop that has not deliberately taken it over.
         """
-        stmt = select(ResellerTextModel).where(
-            ResellerTextModel.reseller_id == reseller_id
-        )
+        stmt = select(ResellerTextModel).where(ResellerTextModel.reseller_id == reseller_id)
         rows = (await self._session.execute(stmt)).scalars().all()
         return {row.key: row.body_fa for row in rows}
 
@@ -234,9 +230,7 @@ class SqlAlchemyResellerRepository:
                 await self._session.delete(row)
             return
         if row is None:
-            self._session.add(
-                ResellerTextModel(reseller_id=reseller_id, key=key, body_fa=body_fa)
-            )
+            self._session.add(ResellerTextModel(reseller_id=reseller_id, key=key, body_fa=body_fa))
         else:
             row.body_fa = body_fa
         await self._session.flush()
@@ -279,9 +273,7 @@ class SqlAlchemyResellerRepository:
             ResellerModel.bot_token_encrypted.is_not(None),
         )
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [
-            (row.id, row.bot_token_encrypted or "", row.bot_username) for row in rows
-        ]
+        return [(row.id, row.bot_token_encrypted or "", row.bot_username) for row in rows]
 
 
 __all__ = ["SqlAlchemyResellerRepository"]

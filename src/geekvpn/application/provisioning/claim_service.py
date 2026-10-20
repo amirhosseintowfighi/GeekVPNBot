@@ -54,7 +54,9 @@ UNKNOWN_EXPIRY_DAYS = 365
 def _node_hosts(node: NodeRecord) -> tuple[str, ...]:
     """Every host this node answers to: its API address and its link address."""
     return tuple(
-        dict.fromkeys(h for h in (host_of(node.base_url), host_of(node.subscription_base_url or "")) if h)
+        dict.fromkeys(
+            h for h in (host_of(node.base_url), host_of(node.subscription_base_url or "")) if h
+        )
     ) or (node.id,)
 
 
@@ -115,9 +117,7 @@ class ClaimService:
         #: different one.
         self._shop_hosts = shop_hosts
 
-    async def claim(
-        self, *, url: str, user_id: int, reseller_id: str | None = None
-    ) -> ClaimResult:
+    async def claim(self, *, url: str, user_id: int, reseller_id: str | None = None) -> ClaimResult:
         """Find the account behind `url` and record it as this customer's."""
         cleaned = url.strip()
         if not cleaned:
@@ -224,9 +224,7 @@ class ClaimService:
         # thing they saw would have been wrong.
         started_at = min(now, expires_at - timedelta(minutes=1))
         quota = account.usage.quota
-        state = (
-            SubscriptionState.ACTIVE if expires_at > now else SubscriptionState.EXPIRED
-        )
+        state = SubscriptionState.ACTIVE if expires_at > now else SubscriptionState.EXPIRED
         return Subscription(
             str(uuid.uuid4()),
             user_id=user_id,

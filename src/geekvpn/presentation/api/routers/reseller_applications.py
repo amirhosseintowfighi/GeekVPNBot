@@ -138,13 +138,9 @@ async def approve(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(requires(Permission.RESELLERS_WRITE))],
 )
-async def reject(
-    application_id: uuid.UUID, payload: RejectRequest, scope: ScopeDep
-) -> None:
+async def reject(application_id: uuid.UUID, payload: RejectRequest, scope: ScopeDep) -> None:
     try:
-        await scope.reseller_applications.reject(
-            application_id, reason_fa=payload.reason_fa
-        )
+        await scope.reseller_applications.reject(application_id, reason_fa=payload.reason_fa)
     except ApplicationNotFound as failure:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(failure)) from failure
 

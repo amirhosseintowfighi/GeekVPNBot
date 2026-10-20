@@ -334,9 +334,7 @@ class CryptoAccountModel(TimestampMixin, Base):
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
     )
 
-    __table_args__ = (
-        UniqueConstraint("address", "network", name="uq_crypto_address_network"),
-    )
+    __table_args__ = (UniqueConstraint("address", "network", name="uq_crypto_address_network"),)
 
 
 #: iSunnyMoney's order ids: an integer sequence from 100001, as the operator

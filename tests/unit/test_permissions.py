@@ -30,9 +30,7 @@ def test_super_admin_has_every_staff_permission():
     """
     from geekvpn.domain.identity.permissions import RESELLER_PERMISSIONS
 
-    assert permissions_for_role(AdminRole.SUPER_ADMIN) == (
-        ALL_PERMISSIONS - RESELLER_PERMISSIONS
-    )
+    assert permissions_for_role(AdminRole.SUPER_ADMIN) == (ALL_PERMISSIONS - RESELLER_PERMISSIONS)
 
 
 def test_admin_cannot_create_admins_or_change_settings():

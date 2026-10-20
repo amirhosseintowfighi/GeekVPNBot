@@ -116,9 +116,7 @@ class OperatorReports:
             return [chat]
         return list(self._directory.operator_chat_ids())
 
-    def send(
-        self, kind: AlertKind, text: str, buttons: Sequence[tuple[str, str]] = ()
-    ) -> None:
+    def send(self, kind: AlertKind, text: str, buttons: Sequence[tuple[str, str]] = ()) -> None:
         """Never raises: an alert is never worth rolling back what it reports."""
         for chat_id in self.chats(kind):
             try:
@@ -197,8 +195,7 @@ class OperatorSender(Protocol):
         the engine stays testable without the bot installed."""
         ...
 
-    def send_text(self, *, chat_id: int, text: str, buttons: Sequence[tuple[str, str]]) -> None:
-        ...
+    def send_text(self, *, chat_id: int, text: str, buttons: Sequence[tuple[str, str]]) -> None: ...
 
 
 class OperatorDirectory(Protocol):

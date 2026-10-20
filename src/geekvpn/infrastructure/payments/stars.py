@@ -138,9 +138,7 @@ class StarsGateway:
             return self._wait(reference)
         try:
             for offset in range(0, PAGES * PAGE_SIZE, PAGE_SIZE):
-                result = self._call(
-                    "getStarTransactions", {"offset": offset, "limit": PAGE_SIZE}
-                )
+                result = self._call("getStarTransactions", {"offset": offset, "limit": PAGE_SIZE})
                 transactions = result.get("transactions") if isinstance(result, dict) else None
                 if not transactions:
                     break

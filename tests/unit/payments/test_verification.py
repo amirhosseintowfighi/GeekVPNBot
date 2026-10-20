@@ -199,7 +199,16 @@ def _watched(result: VerificationResult):
     told: list[tuple[str, VerificationResult]] = []
     common = {
         name: getattr(world.verification, f"_{name}")
-        for name in ("payments", "invoices", "wallets", "gateways", "clock", "ids", "events", "audit")
+        for name in (
+            "payments",
+            "invoices",
+            "wallets",
+            "gateways",
+            "clock",
+            "ids",
+            "events",
+            "audit",
+        )
     }
     service = VerificationService(
         **common, on_escalated=lambda payment, why: told.append((payment.id, why))

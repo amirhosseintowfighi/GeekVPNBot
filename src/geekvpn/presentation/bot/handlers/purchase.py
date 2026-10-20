@@ -70,9 +70,7 @@ def _review_keyboard(*, has_coupon: bool) -> InlineKeyboardMarkup:
     return K.stack(rows)
 
 
-def _method_keyboard(
-    *, wallet_ok: bool, methods: list[tuple[str, str]]
-) -> InlineKeyboardMarkup:
+def _method_keyboard(*, wallet_ok: bool, methods: list[tuple[str, str]]) -> InlineKeyboardMarkup:
     """Only what this shop can actually take money by.
 
     It used to offer card and crypto unconditionally, so a shop with neither
@@ -218,7 +216,9 @@ async def on_select_plan(
 async def on_ask_coupon(query: CallbackQuery, state: FSMContext) -> None:
     await toast(query)
     await state.set_state(Purchase.entering_coupon)
-    await safe_edit(query, T.ASK_COUPON, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="review"), style=K.NO)))
+    await safe_edit(
+        query, T.ASK_COUPON, markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="review"), style=K.NO))
+    )
 
 
 @router.callback_query(PayCB.filter(F.action == "uncoupon"))
@@ -341,9 +341,7 @@ async def on_choose_method(
         # screen whose only button is "cancel".
         await safe_edit(query, T.PAY_NO_METHODS, markup=K.single(K.home_button()))
         return
-    await safe_edit(
-        query, body, markup=_method_keyboard(wallet_ok=wallet_ok, methods=methods)
-    )
+    await safe_edit(query, body, markup=_method_keyboard(wallet_ok=wallet_ok, methods=methods))
 
 
 @router.callback_query(PayCB.filter(F.action == "pay"))
@@ -394,9 +392,7 @@ async def on_pay(
                         T.PAY_CASHBACK_LINE.format(amount=toman(cashback)) if cashback else ""
                     ),
                 ),
-                markup=K.single(
-                    K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"), style=K.YES)
-                ),
+                markup=K.single(K.btn(T.MENU_DASHBOARD, NavCB(to="dashboard"), style=K.YES)),
             )
             # The one moment in the bot worth celebrating, and the only
             # `SECTION_EMOJI` entry nothing sent. Sent after the screen rather
@@ -467,9 +463,7 @@ async def on_pay(
         await safe_edit(
             query,
             screen.body_fa or T.PAY_GATEWAY_READY,
-            markup=K.gateway_screen(
-                screen.url, screen.payment_id.hex if screen.payment_id else ""
-            ),
+            markup=K.gateway_screen(screen.url, screen.payment_id.hex if screen.payment_id else ""),
         )
     except Exception as failure:
         # Logged, not merely apologised for. This `except` used to swallow the

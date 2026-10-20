@@ -108,11 +108,7 @@ class SqlSubscriptionCardReader:
         for subscription in await self._subscriptions.list_for_user(telegram_id):
             # A claimed account has no order behind it, and asking the
             # order repository for `None` is not a lookup worth making.
-            order = (
-                await self._orders.get(subscription.order_id)
-                if subscription.order_id
-                else None
-            )
+            order = await self._orders.get(subscription.order_id) if subscription.order_id else None
             plan_id = subscription.plan_id or ""
             if plan_id not in tiers:
                 tiers[plan_id] = await self._tier_of(plan_id)

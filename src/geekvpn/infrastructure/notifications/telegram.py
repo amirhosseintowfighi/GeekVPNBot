@@ -116,9 +116,7 @@ class HttpTelegramSender:
             # the plainer drawing.
             if emoji and emoji not in self._pack:
                 self._pack[emoji] = sticker["file_id"]
-        logger.info(
-            "notify.stickers_loaded", set_name=self._sticker_set, emoji=len(self._pack)
-        )
+        logger.info("notify.stickers_loaded", set_name=self._sticker_set, emoji=len(self._pack))
         return self._pack
 
     def send_message(self, *, chat_id: int, text: str, action: str | None = None) -> None:
@@ -175,14 +173,20 @@ class HttpTelegramSender:
 #: reaches. `test_notification_actions_reach_a_handler` holds this table to the
 #: handlers; a destination nobody handles must not ship as a button.
 ACTION_BUTTONS: dict[str, tuple[str, str]] = {
-    "dashboard": ("\U0001f4e6 \u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0645\u0646", "nav:dashboard"),
+    "dashboard": (
+        "\U0001f4e6 \u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0645\u0646",
+        "nav:dashboard",
+    ),
     "shop": ("\U0001f6d2 \u062e\u0631\u06cc\u062f \u0633\u0631\u0648\u06cc\u0633", "nav:shop"),
     "wallet": ("\U0001f45b \u06a9\u06cc\u0641 \u067e\u0648\u0644", "nav:wallet"),
     # The templates call this screen "services" and the bot calls it the
     # dashboard. Same place; this table is where the two names meet.
     "services": ("📦 سرویس‌های من", "nav:dashboard"),
     "support": ("\U0001f4ac \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc", "nav:support"),
-    "referral": ("\U0001f381 \u062f\u0639\u0648\u062a \u062f\u0648\u0633\u062a\u0627\u0646", "nav:referral"),
+    "referral": (
+        "\U0001f381 \u062f\u0639\u0648\u062a \u062f\u0648\u0633\u062a\u0627\u0646",
+        "nav:referral",
+    ),
 }
 
 
@@ -239,9 +243,7 @@ class HttpOperatorSender:
             },
         )
 
-    def send_text(
-        self, *, chat_id: int, text: str, buttons: Sequence[tuple[str, str]]
-    ) -> None:
+    def send_text(self, *, chat_id: int, text: str, buttons: Sequence[tuple[str, str]]) -> None:
         self._post(
             "sendMessage",
             {
@@ -321,9 +323,7 @@ class HttpTelegramFiles:
     def __init__(self, token: str) -> None:
         self._token = token
 
-    def send_photo(
-        self, *, chat_id: int, image: bytes, content_type: str, caption: str
-    ) -> str:
+    def send_photo(self, *, chat_id: int, image: bytes, content_type: str, caption: str) -> str:
         """Send the photo and return the file id of its largest size."""
         response = httpx.post(
             f"https://api.telegram.org/bot{self._token}/sendPhoto",

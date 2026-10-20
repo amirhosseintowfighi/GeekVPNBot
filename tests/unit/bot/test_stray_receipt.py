@@ -108,9 +108,7 @@ async def run(
 ) -> tuple[Message, Checkout, Cache]:
     message = Message([Photo("small"), Photo("largest")])
     checkout = Checkout(pending)
-    cache = Cache(
-        {receipt_intent_key(User.telegram_id): intent.payment_id.hex} if intent else {}
-    )
+    cache = Cache({receipt_intent_key(User.telegram_id): intent.payment_id.hex} if intent else {})
     await stray_receipt(
         message,
         State(),

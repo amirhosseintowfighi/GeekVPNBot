@@ -35,10 +35,7 @@ FALLBACK = (
 
 def captions() -> set[str]:
     return {
-        button.text
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.text is not None
+        button.text for row in K.main_menu().keyboard for button in row if button.text is not None
     }
 
 
@@ -97,10 +94,7 @@ def test_the_menu_is_coloured_at_all() -> None:
     an enhancement rather than a requirement - but a silently dropped `style`
     would be invisible, and this keyboard is on screen under every message."""
     coloured = [
-        button
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.style is not None
+        button for row in K.main_menu().keyboard for button in row if button.style is not None
     ]
 
     assert coloured
@@ -114,10 +108,7 @@ def test_green_means_the_two_things_being_sold() -> None:
     Green is now the shop and the reseller offer - the two buttons that make
     money - and the order matters: the shop is read first."""
     green = [
-        button.text
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.style == "success"
+        button.text for row in K.main_menu().keyboard for button in row if button.style == "success"
     ]
 
     assert green == [K.TAP_SHOP, K.TAP_RESELLER]
@@ -147,10 +138,7 @@ def test_the_ancillary_buttons_do_not_compete() -> None:
     already wrong. Colouring them puts them in the same visual rank as buying,
     which is what a wall of uniform colour does - it stops meaning anything."""
     quiet = {
-        button.text
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.style is None
+        button.text for row in K.main_menu().keyboard for button in row if button.style is None
     }
 
     assert {K.TAP_PROFILE, K.TAP_FAQ, K.TAP_SETTINGS, K.TAP_STATUS} <= quiet
@@ -164,10 +152,7 @@ def test_no_row_is_wider_than_three() -> None:
 def test_only_the_three_known_colours_are_used() -> None:
     """A fourth value would be a typo Telegram accepts and renders as nothing."""
     used = {
-        button.style
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.style is not None
+        button.style for row in K.main_menu().keyboard for button in row if button.style is not None
     }
 
     assert used <= {"primary", "success", "danger"}
@@ -186,8 +171,7 @@ def _home() -> list[list[tuple[str, str | None]]]:
     from geekvpn.presentation.bot.handlers.menu import home_keyboard
 
     return [
-        [(button.text, button.style) for button in row]
-        for row in home_keyboard().inline_keyboard
+        [(button.text, button.style) for button in row] for row in home_keyboard().inline_keyboard
     ]
 
 
@@ -210,10 +194,7 @@ def test_the_home_screen_offers_the_reseller_programme_too() -> None:
 def test_both_keyboards_colour_the_same_two_things_green() -> None:
     home = {label for row in _home() for label, style in row if style == "success"}
     persistent = {
-        button.text
-        for row in K.main_menu().keyboard
-        for button in row
-        if button.style == "success"
+        button.text for row in K.main_menu().keyboard for button in row if button.style == "success"
     }
 
     assert home == persistent

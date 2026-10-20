@@ -32,9 +32,11 @@ class _Loader(yaml.SafeLoader):
 
 _Loader.add_multi_constructor(
     "!",
-    lambda loader, suffix, node: loader.construct_sequence(node, deep=True)
-    if isinstance(node, yaml.SequenceNode)
-    else loader.construct_scalar(node),
+    lambda loader, suffix, node: (
+        loader.construct_sequence(node, deep=True)
+        if isinstance(node, yaml.SequenceNode)
+        else loader.construct_scalar(node)
+    ),
 )
 
 
@@ -67,7 +69,9 @@ def test_the_root_url_matches_the_route() -> None:
 
 def test_websocket_upgrades_are_mapped() -> None:
     """Live panels hang at "connecting" without it, which reads as broken."""
-    assert re.search(r"map \$http_upgrade \$connection_upgrade", NGINX_CONF.read_text(encoding="utf-8"))
+    assert re.search(
+        r"map \$http_upgrade \$connection_upgrade", NGINX_CONF.read_text(encoding="utf-8")
+    )
 
 
 def test_it_is_not_a_second_front_door() -> None:
