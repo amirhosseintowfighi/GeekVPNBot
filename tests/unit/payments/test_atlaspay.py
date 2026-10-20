@@ -13,6 +13,7 @@ three things worth pinning:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -333,3 +334,64 @@ def test_the_database_accepts_the_same_providers_too():
     allowed = set(re.findall(r"'([a-z0-9_]+)'", str(constraint.sqltext)))
 
     assert allowed == set(BUILDERS)
+
+
+# -- the 2026-10 API: shortfalls and webhooks ---------------------------------
+
+
+def test_an_accepted_underpayment_goes_to_a_person_not_to_delivery():
+    """`paid: true` with `requiresManualDelivery`: the customer sent less and
+    AtlasPay accepted it. Their docs: never deliver that automatically."""
+    result = _verify(
+        {
+            "success": True,
+            "status": "confirmed",
+            "paid": True,
+            "requiresManualDelivery": True,
+            "totalAmountToman": 250_739,
+            "actualReceivedAmountToman": 200_000,
+        }
+    )
+
+    assert result.outcome is VerificationOutcome.MISMATCH
+    assert result.amount == Money(200_000)
+
+
+def test_a_full_payment_without_the_flag_still_confirms():
+    result = _verify(
+        {"success": True, "status": "confirmed", "paid": True, "requiresManualDelivery": False}
+    )
+
+    assert result.outcome is VerificationOutcome.CONFIRMED
+
+
+def test_the_order_asks_to_be_told_at_our_own_callback():
+    """AtlasPay's customer never comes back to our page - they pay in its mini
+    app - so the order names where AtlasPay should knock when it settles."""
+    gateway, seen = _begin(CREATED)
+
+    gateway.begin(
+        payment_id="pay-1",
+        amount=PRICE,
+        user_id=123456789,
+        invoice_number="1405-1",
+        callback_url="https://shop.example/pay/callback/pay-1",
+    )
+
+    assert json.loads(seen[0].content)["webhookUrl"] == "https://shop.example/pay/callback/pay-1"
+
+
+@pytest.mark.parametrize("callback", [None, "http://localhost:8000/pay/callback/pay-1"])
+def test_no_webhook_is_asked_for_without_an_https_address(callback):
+    """AtlasPay refuses a webhook that is not https; asking would fail the order."""
+    gateway, seen = _begin(CREATED)
+
+    gateway.begin(
+        payment_id="pay-1",
+        amount=PRICE,
+        user_id=123456789,
+        invoice_number="1405-1",
+        callback_url=callback,
+    )
+
+    assert "webhookUrl" not in json.loads(seen[0].content)

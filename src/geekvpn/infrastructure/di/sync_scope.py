@@ -34,6 +34,7 @@ from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
 from geekvpn.application.notifications.operator_alerts import (
     APPROVE_LABEL_FA,
+    ESCALATED_PAYMENT_FA,
     RECEIPT_ALERT_FA,
     RECEIPT_ALERT_NO_IMAGE_FA,
     REJECT_LABEL_FA,
@@ -114,7 +115,8 @@ from geekvpn.domain.payments.events import (
     ProofSubmitted,
     WalletCredited,
 )
-from geekvpn.domain.payments.gateway import GatewayRegistry
+from geekvpn.domain.payments.gateway import GatewayRegistry, VerificationResult
+from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
 from geekvpn.domain.support.events import TicketOpened, TicketReplied
 from geekvpn.infrastructure.di.container import Container
@@ -1116,6 +1118,27 @@ class SyncScope:
             ids=self.ids,
             events=self.events,
             audit=self.audit,
+            on_escalated=self._alert_escalated,
+        )
+
+    def _alert_escalated(self, payment: Payment, result: VerificationResult) -> None:
+        """A gateway payment a person must decide: a shortfall, or a mismatch.
+
+        With the receipt's own two buttons, so it is decided from the chat.
+        """
+        received = f"{result.amount.amount:,} تومان" if result.amount else "—"
+        self.operator_reports.send(
+            AlertKind.PAYMENT,
+            ESCALATED_PAYMENT_FA.format(
+                user_id=payment.user_id,
+                amount=payment.amount.amount,
+                received=received,
+                gateway=payment.gateway_key or payment.method.value,
+            ),
+            buttons=[
+                (APPROVE_LABEL_FA, f"adm:approve:{payment.id}"),
+                (REJECT_LABEL_FA, f"adm:reject:{payment.id}"),
+            ],
         )
 
     @cached_property

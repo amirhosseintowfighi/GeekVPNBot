@@ -50,6 +50,14 @@ TICKET_OPENED_FA = (
 )
 TICKET_REPLIED_FA = "💬 <b>پاسخ کاربر به تیکت</b>\n\nکاربر: <code>{user_id}</code>\n\n{body}"
 TICKET_OPEN_LABEL_FA = "📂 باز کردن تیکت"
+ESCALATED_PAYMENT_FA = (
+    "⚠️ <b>پرداخت درگاه نیاز به بررسی دارد</b>\n\n"
+    "کاربر: <code>{user_id}</code>\n"
+    "مبلغ فاکتور: <b>{amount:,}</b> تومان\n"
+    "مبلغ واریزشده طبق درگاه: {received}\n"
+    "درگاه: {gateway}\n\n"
+    "سرویس خودکار تحویل داده نشد. اگه مبلغ رو قبول داری تأیید کن."
+)
 TOPUP_REPORT_FA = (
     "💳 <b>شارژ کیف پول</b>\n\n"
     "کاربر: <code>{user_id}</code>\n"
