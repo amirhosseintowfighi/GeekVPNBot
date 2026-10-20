@@ -4,11 +4,18 @@ Shaped like the other online gateways so checkout, the bot and the Mini App
 never learn its name, but it works differently from all three of them in ways
 that matter:
 
-**There is no callback.** AtlasPay never calls us. Confirmation arrives only by
-asking, which is exactly what `VerificationService` already does on a schedule -
-so this adapter needs no webhook, no public endpoint and no signature check. It
-answers `INCONCLUSIVE` until the order settles, and the existing sweeper does
-the rest.
+**The customer never comes back to us.** They pay inside AtlasPay's mini app,
+so the redirect that settles every other online gateway never happens.
+Confirmation comes two ways: the worker asks about every waiting payment on a
+schedule (`VerificationService.sweep`), and each order names our callback as
+its `webhookUrl`, so AtlasPay knocks the moment it settles. The knock is only a
+prompt: nothing in its body is believed, it just makes us ask `verify` now
+instead of at the next sweep - so no signature secret is needed to trust it.
+The sweep stays because AtlasPay sends a webhook once and never retries.
+
+**A shortfall is not a sale.** AtlasPay can let a customer settle for less
+than the order and still answer `paid: true`; `requiresManualDelivery` marks
+it. That goes to an operator, never straight to delivery.
 
 **The customer pays a different number than we quoted.** AtlasPay adds a few
 Toman to the price so its SMS matcher can tell one transfer from another, and
@@ -129,6 +136,13 @@ class AtlasPayGateway:
                 # Ties the order to this customer inside their mini app, so it
                 # opens on the right payment rather than asking them to find it.
                 "customerTelegramId": user_id,
+                # Only https: AtlasPay refuses anything else, and the refusal
+                # would fail the order rather than just the webhook.
+                **(
+                    {"webhookUrl": callback_url}
+                    if callback_url and callback_url.startswith("https://")
+                    else {}
+                ),
             },
         )
 
@@ -187,6 +201,17 @@ class AtlasPayGateway:
         status = str(body.get("status") or "").lower()
         paid = body.get("paid")
         settled = paid is True or status in SETTLED
+
+        if settled and body.get("requiresManualDelivery") is True:
+            # The customer sent less and AtlasPay accepted it. Their own rule:
+            # never deliver that automatically - a person decides.
+            return VerificationResult(
+                outcome=VerificationOutcome.MISMATCH,
+                amount=_as_money(body.get("actualReceivedAmountToman"), fallback=expected),
+                reference=reference,
+                raw={"status": status, "requiresManualDelivery": True},
+                message_fa="مبلغ واریزی کمتر از سفارش بود؛ پرداخت به بررسی ادمین رفت.",
+            )
 
         if settled:
             # What actually arrived, when they say - underpayment they resolved

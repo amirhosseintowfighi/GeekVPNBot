@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from geekvpn.application.payments.checkout_service import CheckoutRequest
+from geekvpn.application.payments.verification_service import VerificationService
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.payments.enums import (
     PaymentMethod,
@@ -187,3 +188,60 @@ def test_the_sweep_leaves_manual_payments_alone():
     )
     report = world.verification.sweep()
     assert report.checked == 0
+
+
+# -- telling a person -----------------------------------------------------------
+
+
+def _watched(result: VerificationResult):
+    """The world above, with a verification service that reports escalations."""
+    world, _gateway, order = _world_with(result)
+    told: list[tuple[str, VerificationResult]] = []
+    common = {
+        name: getattr(world.verification, f"_{name}")
+        for name in ("payments", "invoices", "wallets", "gateways", "clock", "ids", "events", "audit")
+    }
+    service = VerificationService(
+        **common, on_escalated=lambda payment, why: told.append((payment.id, why))
+    )
+    return service, world, order, told
+
+
+def test_an_escalated_payment_is_put_in_front_of_an_operator():
+    """Flagging a payment for review published nothing, so a shortfall sat in
+    a queue nobody was told about while the customer waited."""
+    result = VerificationResult(outcome=VerificationOutcome.MISMATCH, amount=Money(600_000))
+    service, _, order, told = _watched(result)
+
+    service.verify(order.payment.id)
+
+    assert told == [(order.payment.id, result)]
+
+
+def test_an_underpayment_is_reported_too():
+    result = VerificationResult(outcome=VerificationOutcome.CONFIRMED, amount=Money(600_000))
+    service, _, order, told = _watched(result)
+
+    service.verify(order.payment.id)
+
+    assert [payment_id for payment_id, _ in told] == [order.payment.id]
+
+
+def test_asking_again_about_an_escalated_payment_does_not_alert_twice():
+    result = VerificationResult(outcome=VerificationOutcome.MISMATCH)
+    service, _, order, told = _watched(result)
+
+    service.verify(order.payment.id)
+    service.verify(order.payment.id)
+
+    assert len(told) == 1
+
+
+def test_a_settled_payment_alerts_nobody():
+    service, _, order, told = _watched(
+        VerificationResult(outcome=VerificationOutcome.CONFIRMED, amount=Money(680_000))
+    )
+
+    service.verify(order.payment.id)
+
+    assert told == []

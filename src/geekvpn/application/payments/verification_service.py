@@ -21,6 +21,8 @@ must not be provisioned.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from geekvpn.application.payments.loaders import require_invoice, require_payment
@@ -42,6 +44,8 @@ from geekvpn.domain.payments.enums import (
 )
 from geekvpn.domain.payments.gateway import GatewayRegistry, VerificationResult
 from geekvpn.domain.payments.payment import Payment
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -65,6 +69,7 @@ class VerificationService:
         "_gateways",
         "_ids",
         "_invoices",
+        "_on_escalated",
         "_payments",
         "_wallets",
     )
@@ -80,7 +85,11 @@ class VerificationService:
         ids: IdGenerator,
         events: EventPublisher,
         audit: PaymentAuditLog,
+        #: Told when a payment is handed to a person, with why. Without it a
+        #: shortfall went into the review queue and nobody heard of it.
+        on_escalated: Callable[[Payment, VerificationResult], None] | None = None,
     ) -> None:
+        self._on_escalated = on_escalated
         self._payments = payments
         self._invoices = invoices
         self._wallets = wallets
@@ -119,7 +128,7 @@ class VerificationService:
             self._payments.save(payment)
             self._publish(payment)
         elif result.outcome is VerificationOutcome.MISMATCH:
-            self._escalate(payment)
+            self._escalate(payment, result)
         # INCONCLUSIVE deliberately does nothing: no state change, no event.
 
         self._audit.record(
@@ -163,7 +172,7 @@ class VerificationService:
             # A confirmed *underpayment* is still not a sale. It goes to a
             # human rather than being silently failed, because the customer
             # really did send money and someone must decide what happens to it.
-            self._escalate(payment)
+            self._escalate(payment, result)
             return
 
         now = self._clock.now()
@@ -205,12 +214,24 @@ class VerificationService:
         self._invoices.save(invoice)
         self._publish(payment, invoice, wallet)
 
-    def _escalate(self, payment: Payment) -> None:
-        """Put a machine-ambiguous payment in front of a person."""
-        if payment.state is PaymentState.PENDING_GATEWAY:
-            payment.flag_for_review()
-            self._payments.save(payment)
-            self._publish(payment)
+    def _escalate(self, payment: Payment, result: VerificationResult) -> None:
+        """Put a machine-ambiguous payment in front of a person.
+
+        Told once: a payment already under review is not flagged again, so a
+        repeated callback cannot repeat the alert.
+        """
+        if payment.state is not PaymentState.PENDING_GATEWAY:
+            return
+        payment.flag_for_review()
+        self._payments.save(payment)
+        self._publish(payment)
+        if self._on_escalated is not None:
+            try:
+                self._on_escalated(payment, result)
+            except Exception:
+                # The payment is safely in the queue; a lost alert is not
+                # worth rolling that back.
+                _log.exception("verification.escalation_alert_failed payment=%s", payment.id)
 
     def _publish(self, *aggregates: object) -> None:
         collected: list[object] = []

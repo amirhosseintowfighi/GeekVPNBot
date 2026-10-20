@@ -21,14 +21,15 @@ import json
 import uuid
 from typing import Final
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from geekvpn.application.ports.cache import Cache
 from geekvpn.domain.payments.enums import VerificationOutcome
-from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.presentation.api.admin_common import mutate_scope
+from geekvpn.infrastructure.payments.gateway_verification import verify_payment
 
 logger = get_logger(__name__)
 
@@ -124,11 +125,12 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
             return None
         return f"{APP_RESULT_URI}?payment={html.escape(payment_id)}&result={result}"
 
-    def work(scope: SyncScope) -> str:
-        return str(scope.verification.verify(payment_id).outcome)
-
     try:
-        outcome = await mutate_scope(container, work)
+        # In the payment's own shop: a reseller's payment must be asked about
+        # with the reseller's merchant account, not ours.
+        outcome = str(
+            (await run_in_threadpool(verify_payment, container, payment_id)).outcome
+        )
     except Exception:
         logger.exception("gateway.callback_failed", payment_id=payment_id)
         return _page(
@@ -162,3 +164,38 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
         "چیزی از حسابت کم نشده. می‌تونی دوباره امتحان کنی.",
         app_link=app_link("failed"),
     )
+
+
+@router.post("/callback/{payment_id}", response_model=None)
+async def gateway_notification(
+    payment_id: str, request: Request, background: BackgroundTasks
+) -> HTMLResponse | JSONResponse:
+    """A provider saying "this one settled" - AtlasPay's per-order webhook -
+    or a customer's browser sent back by a POST form.
+
+    The browser gets the same page a GET would: some bank pages return the
+    customer with a form post, and a raw JSON reply at the end of paying
+    reads as "something broke".
+
+    Treated as a knock, never as news: the body is not read, so a forged
+    one achieves exactly what a forged GET does - we ask the provider, on our
+    own connection, and it says no. That is also why no signature secret is
+    needed to trust it.
+
+    Answered before the asking happens. AtlasPay waits five seconds and never
+    retries, while verifying can mean a panel call to deliver the service; a
+    late answer would only cost the speed-up, but there is no reason to.
+    """
+    if "text/html" in request.headers.get("accept", ""):
+        return await gateway_callback(payment_id, request)
+    container = request.app.state.container
+    background.add_task(_verify_quietly, container, payment_id)
+    return JSONResponse({"ok": True})
+
+
+async def _verify_quietly(container: Container, payment_id: str) -> None:
+    try:
+        await run_in_threadpool(verify_payment, container, payment_id)
+    except Exception:
+        # The worker's sweep asks again within half a minute.
+        logger.warning("gateway.notification_verify_failed", payment_id=payment_id, exc_info=True)

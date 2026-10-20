@@ -33,6 +33,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Sequence,
     String,
     UniqueConstraint,
 )
@@ -338,6 +339,19 @@ class CryptoAccountModel(TimestampMixin, Base):
     )
 
 
+#: iSunnyMoney's order ids: an integer sequence from 100001, as the operator
+#: asked, ending at the gateway's 32-bit limit. A sequence rather than a
+#: counter row, so two payments started at once can never draw the same id -
+#: the gateway would refuse the second as a duplicate.
+ISUNNY_ORDER_SEQUENCE = Sequence(
+    "isunnymoney_order_seq",
+    start=100001,
+    minvalue=100001,
+    maxvalue=2_147_483_647,
+    metadata=Base.metadata,
+)
+
+
 class GatewayAccountModel(TimestampMixin, Base):
     """A shop's merchant account with an online provider.
 
@@ -376,7 +390,7 @@ class GatewayAccountModel(TimestampMixin, Base):
         # payment method. A test compares it against the registry.
         CheckConstraint(
             "provider IN ('zarinpal', 'zibal', 'aqayepardakht', 'atlaspay',"
-            " 'nowpayments', 'plisio', 'ton', 'stars')",
+            " 'nowpayments', 'plisio', 'ton', 'stars', 'isunnymoney')",
             name="ck_gateway_accounts_provider",
         ),
     )

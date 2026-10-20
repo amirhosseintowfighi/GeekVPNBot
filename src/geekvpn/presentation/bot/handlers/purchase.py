@@ -464,11 +464,12 @@ async def on_pay(
         # transfer happens in their banking app and every digit comes from this
         # message. Its link is still offered - it is how a receipt is uploaded
         # when the automatic matcher does not fire.
-        rows = [[K.url_btn(T.BTN_PAY_ONLINE, screen.url)]] if screen.url else []
         await safe_edit(
             query,
             screen.body_fa or T.PAY_GATEWAY_READY,
-            markup=K.stack(rows, home=True),
+            markup=K.gateway_screen(
+                screen.url, screen.payment_id.hex if screen.payment_id else ""
+            ),
         )
     except Exception as failure:
         # Logged, not merely apologised for. This `except` used to swallow the

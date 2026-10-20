@@ -59,6 +59,7 @@ from geekvpn.infrastructure.di.container import Container, build_container, clos
 from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.di.sync_scope import build_sync_scope
 from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
+from geekvpn.infrastructure.payments.gateway_verification import sweep_gateways
 from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 
 #: How many scheduled broadcasts one tick will start.
@@ -123,6 +124,9 @@ CLEANUP_INTERVAL_SECONDS = 3600
 NEWCOMER_GIFT_INTERVAL_SECONDS = 3600
 #: Likewise for the follow-up after a free trial.
 TRIAL_FOLLOWUP_INTERVAL_SECONDS = 3600
+#: Payments waiting at a gateway. AtlasPay's own guidance is every 15 to 30
+#: seconds; the tick is 30, so this asks on every tick.
+GATEWAY_VERIFY_INTERVAL_SECONDS = 30
 
 
 class Worker:
@@ -140,6 +144,9 @@ class Worker:
             ("cleanup", CLEANUP_INTERVAL_SECONDS, self._delete_lapsed),
             ("newcomer_gift", NEWCOMER_GIFT_INTERVAL_SECONDS, self._newcomer_gifts),
             ("trial_followup", TRIAL_FOLLOWUP_INTERVAL_SECONDS, self._trial_followups),
+            # Before anything else could miss it: a customer who has paid is
+            # waiting on this, and nothing else confirms AtlasPay at all.
+            ("gateway_verify", GATEWAY_VERIFY_INTERVAL_SECONDS, self._verify_gateways),
         ]
         self._next_run: dict[str, float] = {
             # Not at once on start: usage should be read before "almost out
@@ -401,6 +408,16 @@ class Worker:
         reached = await asyncio.to_thread(work)
         if reached:
             logger.info("worker.trial_followups", count=reached)
+
+    async def _verify_gateways(self) -> None:
+        """Ask each gateway about every payment still waiting on it.
+
+        Its own thread: the gateways are called synchronously, and a slow one
+        must not stall the provisioning drain behind it.
+        """
+        counts = await asyncio.to_thread(sweep_gateways, self._container)
+        if counts:
+            logger.info("worker.gateways_verified", **counts)
 
     async def _report_cleanup(self, removed: list[Any]) -> None:
         names = ", ".join(sub.remote_username for sub in removed[:30])

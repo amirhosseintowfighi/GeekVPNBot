@@ -46,6 +46,7 @@ from geekvpn.presentation.bot.ui.callbacks import (
     NavCB,
     NoopCB,
     PageCB,
+    PayCB,
 )
 from geekvpn.presentation.bot.ui.fa import fa_digits, truncate
 
@@ -318,3 +319,17 @@ def toggle_label(text: str, enabled: bool) -> str:
     mark = "\u2705" if enabled else "\u2b1c"
     state = T.ON if enabled else T.OFF
     return f"{mark} {text} \u2014 {state}"
+
+
+def gateway_screen(url: str, payment_id: str) -> InlineKeyboardMarkup:
+    """The pay link, and a button to ask about it now.
+
+    The check button is for the customer looking at the chat right after
+    paying; the worker settles the payment either way.
+    """
+    rows: list[list[InlineKeyboardButton]] = []
+    if url:
+        rows.append([url_btn(T.BTN_PAY_ONLINE, url)])
+    if payment_id:
+        rows.append([btn(T.BTN_PAYCHECK, PayCB(action="check", method="-", ref=payment_id), style=GO)])
+    return stack(rows, home=True)

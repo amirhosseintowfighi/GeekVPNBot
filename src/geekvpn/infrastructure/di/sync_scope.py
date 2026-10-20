@@ -34,6 +34,7 @@ from geekvpn.application.notifications.engine import NotificationEngine
 from geekvpn.application.notifications.inbox_service import InboxService
 from geekvpn.application.notifications.operator_alerts import (
     APPROVE_LABEL_FA,
+    ESCALATED_PAYMENT_FA,
     RECEIPT_ALERT_FA,
     RECEIPT_ALERT_NO_IMAGE_FA,
     REJECT_LABEL_FA,
@@ -114,7 +115,8 @@ from geekvpn.domain.payments.events import (
     ProofSubmitted,
     WalletCredited,
 )
-from geekvpn.domain.payments.gateway import GatewayRegistry
+from geekvpn.domain.payments.gateway import GatewayRegistry, VerificationResult
+from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.provisioning.events import OrderPaid, SubscriptionActivated
 from geekvpn.domain.support.events import TicketOpened, TicketReplied
 from geekvpn.infrastructure.di.container import Container
@@ -132,6 +134,7 @@ from geekvpn.infrastructure.payments.iranian_gateways import build as build_onli
 from geekvpn.infrastructure.persistence.models.audit import AuditLogModel
 from geekvpn.infrastructure.persistence.models.identity import UserModel
 from geekvpn.infrastructure.persistence.models.payments import (
+    ISUNNY_ORDER_SEQUENCE,
     CardAccountModel,
     CryptoAccountModel,
     GatewayAccountModel,
@@ -404,10 +407,18 @@ def build_gateway_registry(
             plisio_currency=settings.get(PLISIO_CURRENCY).strip(),
         )
 
+    def order_ids() -> int:
+        # Drawn when a payment starts, from the sequence 0044 created.
+        return int(session.execute(ISUNNY_ORDER_SEQUENCE.next_value()).scalar_one())
+
     for account in session.execute(gateway_stmt).scalars().all():
         try:
             gateway = build_online_gateway(
-                account.provider, account.merchant_id_encrypted, rates=rates, bot_token=bot_token
+                account.provider,
+                account.merchant_id_encrypted,
+                rates=rates,
+                bot_token=bot_token,
+                order_ids=order_ids,
             )
             _rename(gateway, account.label_fa)
             registry.register(gateway)
@@ -1116,6 +1127,27 @@ class SyncScope:
             ids=self.ids,
             events=self.events,
             audit=self.audit,
+            on_escalated=self._alert_escalated,
+        )
+
+    def _alert_escalated(self, payment: Payment, result: VerificationResult) -> None:
+        """A gateway payment a person must decide: a shortfall, or a mismatch.
+
+        With the receipt's own two buttons, so it is decided from the chat.
+        """
+        received = f"{result.amount.amount:,} تومان" if result.amount else "—"
+        self.operator_reports.send(
+            AlertKind.PAYMENT,
+            ESCALATED_PAYMENT_FA.format(
+                user_id=payment.user_id,
+                amount=payment.amount.amount,
+                received=received,
+                gateway=payment.gateway_key or payment.method.value,
+            ),
+            buttons=[
+                (APPROVE_LABEL_FA, f"adm:approve:{payment.id}"),
+                (REJECT_LABEL_FA, f"adm:reject:{payment.id}"),
+            ],
         )
 
     @cached_property

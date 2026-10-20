@@ -43,6 +43,7 @@ from geekvpn.infrastructure.payments.crypto_gateways import (
     PlisioGateway,
     TonGateway,
 )
+from geekvpn.infrastructure.payments.isunnymoney import IsunnyMoneyGateway
 from geekvpn.infrastructure.payments.stars import StarsGateway
 
 logger = get_logger(__name__)
@@ -359,6 +360,9 @@ BUILDERS: Final[dict[str, type]] = {
     # Paid inside Telegram to the shop's own bot. Needs that bot's token,
     # which the registry hands it.
     "stars": StarsGateway,
+    # Nabik's redirect gateway, in Toman. Its order id is an integer from a
+    # database sequence, which the registry hands it.
+    "isunnymoney": IsunnyMoneyGateway,
 }
 
 #: The providers that convert from Toman at the operator's rates.
@@ -371,12 +375,15 @@ def build(
     *,
     rates: Callable[[], ExchangeRates] | None = None,
     bot_token: Callable[[], str] | None = None,
+    order_ids: Callable[[], int] | None = None,
 ) -> Any:
     gateway_type = BUILDERS[provider]
     if provider in PRICED_IN_CRYPTO and rates is not None:
         return gateway_type(merchant_id=merchant_id, rates=rates)
     if provider == "stars" and bot_token is not None:
         return gateway_type(merchant_id=merchant_id, bot_token=bot_token)
+    if provider == "isunnymoney" and order_ids is not None:
+        return gateway_type(merchant_id=merchant_id, next_order_id=order_ids)
     return gateway_type(merchant_id=merchant_id)
 
 
