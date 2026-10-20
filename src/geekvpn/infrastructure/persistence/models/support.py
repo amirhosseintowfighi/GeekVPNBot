@@ -32,9 +32,12 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    event,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Mapped, mapped_column
 
 from geekvpn.domain.support.enums import (
@@ -70,7 +73,11 @@ class TicketModel(TimestampMixin, Base):
     category: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     priority: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=TicketState.OPEN.value, index=True
+        String(16),
+        nullable=False,
+        default=TicketState.OPEN.value,
+        index=True,
+        server_default=text("'open'"),
     )
 
     assignee_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
@@ -81,7 +88,9 @@ class TicketModel(TimestampMixin, Base):
     last_reply_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     #: Denormalised for the grid; the messages table remains the truth.
-    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -94,6 +103,27 @@ class TicketModel(TimestampMixin, Base):
         # The operator queue: open work, most overdue first.
         Index("ix_support_tickets_state_waiting", "state", "waiting_since"),
         Index("ix_support_tickets_user_state", "user_id", "state"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_support_tickets_shop", "reseller_id", "user_id"),
+        Index(
+            "ix_support_tickets_assignee_open",
+            "assignee_id",
+            postgresql_where=text("state IN ('open', 'waiting_user', 'answered')"),
+        ),
+        Index(
+            "ix_support_tickets_queue",
+            "state",
+            "priority",
+            "waiting_since",
+            postgresql_where=text("state IN ('open', 'waiting_user', 'answered')"),
+        ),
+        Index(
+            "ix_support_tickets_subject_trgm",
+            "subject_fa",
+            postgresql_using="gin",
+            postgresql_ops={"subject_fa": "gin_trgm_ops"},
+        ),
     )
 
 
@@ -114,11 +144,22 @@ class TicketMessageModel(TimestampMixin, Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     template_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    attachments: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    attachments: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
 
     __table_args__ = (
         CheckConstraint(f"kind IN ({_values(MessageKind)})", name="support_messages_kind"),
         Index("ix_support_messages_ticket_sent", "ticket_id", "sent_at"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_support_messages_ticket_time", "ticket_id", "sent_at"),
+        Index(
+            "ix_support_messages_body_trgm",
+            "body_fa",
+            postgresql_using="gin",
+            postgresql_ops={"body_fa": "gin_trgm_ops"},
+        ),
     )
 
 
@@ -137,8 +178,12 @@ class ReplyTemplateModel(TimestampMixin, Base):
     categories: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    use_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    use_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     created_by: Mapped[int | None] = mapped_column(BigInteger)
 
     __table_args__ = (
@@ -147,3 +192,13 @@ class ReplyTemplateModel(TimestampMixin, Base):
         # parses every value through the TicketCategory enum on load.
         Index("ix_support_templates_active", "active"),
     )
+
+
+# The trigram search indexes need `pg_trgm`. Migration 0004 installs it; this
+# covers a schema built straight from the models (`create_all`), which the
+# tests do and which would otherwise fail on the operator class.
+def _install_trigram(_target: Any, connection: Connection, **_kw: Any) -> None:
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+
+
+event.listen(Base.metadata, "before_create", _install_trigram)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import MetaData, func
+from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 NAMING_CONVENTION = {
@@ -26,11 +26,16 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    """``created_at`` / ``updated_at`` maintained by the database, not the app."""
+    """``created_at`` / ``updated_at`` maintained by the database, not the app.
+
+    The type is spelled out because the migrations created these as
+    ``timestamptz``; a bare ``Mapped[datetime]`` maps to a naive timestamp and
+    the models silently disagreed with the schema they describe.
+    """
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False, index=True
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

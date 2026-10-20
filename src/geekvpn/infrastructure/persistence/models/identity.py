@@ -76,7 +76,7 @@ class UserModel(TimestampMixin, Base):
     is_premium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     photo_url: Mapped[str | None] = mapped_column(String(512))
     referral_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
-    referred_by_code: Mapped[str | None] = mapped_column(String(16), index=True)
+    referred_by_code: Mapped[str | None] = mapped_column(String(16))
     suspended_reason: Mapped[str | None] = mapped_column(String(256))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
