@@ -53,6 +53,10 @@ logger = get_logger(__name__)
 
 BASE_URL: Final = "https://core.isunnymoney.com"
 TIMEOUT_SECONDS: Final = 15.0
+#: Anything but httpx's default. The gateway's firewall answers 403 to a
+#: `python-httpx/x` User-Agent before the request reaches iSunnyMoney at all,
+#: so every checkout failed with an HTML "Forbidden" page; curl's passed.
+USER_AGENT: Final = "GeekVPN/1.0"
 #: The largest order id the gateway keeps as given.
 MAX_ORDER_ID: Final = 2_147_483_647
 
@@ -243,7 +247,7 @@ class IsunnyMoneyGateway:
                 "POST",
                 f"{self.base_url}{path}",
                 json=payload,
-                headers={"Accept": "application/json"},
+                headers={"Accept": "application/json", "User-Agent": USER_AGENT},
                 timeout=TIMEOUT_SECONDS,
             )
         except httpx.HTTPError as failure:
@@ -251,7 +255,11 @@ class IsunnyMoneyGateway:
         try:
             body = response.json()
         except ValueError as failure:
-            raise IsunnyMoneyError(response.text[:200]) from failure
+            # The status first: a firewall's HTML page is otherwise hard to
+            # tell apart from the gateway itself misbehaving.
+            raise IsunnyMoneyError(
+                f"HTTP {response.status_code}: {response.text[:200]}"
+            ) from failure
         if not isinstance(body, dict):
             raise IsunnyMoneyError("The gateway did not answer with an object.")
         if response.status_code >= 500:

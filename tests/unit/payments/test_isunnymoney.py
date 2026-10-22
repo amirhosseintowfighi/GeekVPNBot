@@ -98,6 +98,23 @@ def test_the_request_is_json_with_an_integer_order_id_in_toman(gateway: Any) -> 
     assert body["callback"] == "https://shop.example/pay/callback/pay-1"
 
 
+def test_starting_a_payment_does_not_announce_itself_as_python(gateway: Any) -> None:
+    """The gateway's firewall answers 403 to httpx's default `python-httpx/x`
+    User-Agent before the request reaches it; curl's passes. Seen in production:
+    every iSunnyMoney checkout failed with an HTML "Forbidden" page."""
+    gw, seen = gateway(_ok(CREATED))
+
+    _begin(gw)
+
+    assert "python" not in seen[0].headers["user-agent"].lower()
+
+
+def test_verifying_a_payment_does_not_announce_itself_as_python(gateway: Any) -> None:
+    _, seen = _verify(gateway, _paid(), after=timedelta(minutes=1))
+
+    assert "python" not in seen[0].headers["user-agent"].lower()
+
+
 def test_the_customer_is_sent_to_the_payment_link(gateway: Any) -> None:
     gw, _ = gateway(_ok(CREATED))
 
