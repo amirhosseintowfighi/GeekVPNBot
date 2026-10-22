@@ -124,7 +124,9 @@ def _console(reseller: Any) -> str:
 async def on_apply(query: CallbackQuery, state: FSMContext) -> None:
     await toast(query)
     await state.set_state(ResellerFlow.naming_shop)
-    await safe_edit(query, R.ASK_SHOP_NAME, markup=K.single(K.btn(R.BTN_CANCEL, NavCB(to="home"), style=K.NO)))
+    await safe_edit(
+        query, R.ASK_SHOP_NAME, markup=K.single(K.btn(R.BTN_CANCEL, NavCB(to="home"), style=K.NO))
+    )
 
 
 @router.message(ResellerFlow.naming_shop, F.text)
@@ -193,9 +195,7 @@ async def on_prices(
 
 
 @router.callback_query(ResellerCB.filter(F.action == "ledger"))
-async def on_ledger(
-    query: CallbackQuery, user: Any = None, scope: Any = None, **_: Any
-) -> None:
+async def on_ledger(query: CallbackQuery, user: Any = None, scope: Any = None, **_: Any) -> None:
     await toast(query)
     if user is None or scope is None:
         return

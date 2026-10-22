@@ -77,9 +77,7 @@ class SyncInvoiceRepository:
 
     def _shop(self) -> Any:
         column = InvoiceModel.reseller_id
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def get(self, invoice_id: str) -> Invoice | None:
         row = self._session.get(InvoiceModel, invoice_id)
@@ -155,9 +153,7 @@ class SyncPaymentRepository:
 
     def _shop(self) -> Any:
         column = PaymentModel.reseller_id
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def _refunds(self, payment_id: str) -> Sequence[RefundModel]:
         stmt = (

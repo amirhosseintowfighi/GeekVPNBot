@@ -152,7 +152,6 @@ class TelegramSignatureVerifier:
         if age < -60 or age > (max_age_seconds if max_age_seconds is not None else self._max_age):
             raise InvalidTelegramAuthError("Telegram authentication data has expired.")
 
-
     def _signature_matches(self, fields: dict[str, str], provided: str) -> bool:
         """Both spellings of the data-check string, because Telegram has two.
 

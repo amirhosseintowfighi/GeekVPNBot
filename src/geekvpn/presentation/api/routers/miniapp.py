@@ -479,8 +479,7 @@ async def payment_methods(user: CurrentMiniAppUser, services: ServicesDep) -> An
     in an apology.
     """
     return [
-        {"key": key, "label_fa": label}
-        for key, label in await services.checkout.methods(user.id)
+        {"key": key, "label_fa": label} for key, label in await services.checkout.methods(user.id)
     ]
 
 
@@ -746,9 +745,9 @@ async def _own_subscription(
 ) -> Subscription:
     """The caller's service, or 404 - also for somebody else's, so ids cannot be probed."""
     # Ids are stored both ways: hex from provisioning, dashed from a claim.
-    subscription = await scope.subscriptions.get(subscription_id.hex) or await scope.subscriptions.get(
-        str(subscription_id)
-    )
+    subscription = await scope.subscriptions.get(
+        subscription_id.hex
+    ) or await scope.subscriptions.get(str(subscription_id))
     if subscription is None or subscription.user_id != telegram_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
     return subscription
@@ -954,9 +953,7 @@ async def topup(
 
 
 @router.get("/referral", summary="Invite code and its results")
-async def referral(
-    user: CurrentMiniAppUser, services: ServicesDep, scope: ScopeDep
-) -> Any:
+async def referral(user: CurrentMiniAppUser, services: ServicesDep, scope: ScopeDep) -> Any:
     """The customer's own results, plus the terms they are being offered.
 
     The rates are admin-configurable settings rather than constants, so the

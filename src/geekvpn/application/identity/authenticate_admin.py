@@ -231,9 +231,7 @@ class AuthenticateAdmin:
             )
             raise TwoFactorInvalidError()
 
-    async def _spend_recovery_code(
-        self, admin: Admin, code: str, context: RequestContext
-    ) -> None:
+    async def _spend_recovery_code(self, admin: Admin, code: str, context: RequestContext) -> None:
         """Accept a single-use code, and burn it whether or not it was right.
 
         Burnt on success only - a wrong guess must not destroy a code the

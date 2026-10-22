@@ -59,9 +59,7 @@ def _adapter(rows: list[dict[str, Any]], *, confirms: str | None) -> Any:
     # The real mapper, so a row matched by link returns an account rather than
     # a Mock that would agree with any assertion put to it.
     adapter._to_account = lambda item: PanelAccount(
-        ref=PanelAccountRef(
-            panel_id=adapter._panel_id, username=str(item["username"])
-        ),
+        ref=PanelAccountRef(panel_id=adapter._panel_id, username=str(item["username"])),
         state=AccountState.ACTIVE,
         usage=AccountUsage(used_bytes=0, measured_at=NOW, quota=TrafficQuota()),
         subscription_url=item.get("subscription_url"),
@@ -71,9 +69,7 @@ def _adapter(rows: list[dict[str, Any]], *, confirms: str | None) -> Any:
         return PanelAccount(
             ref=ref,
             state=AccountState.ACTIVE,
-            usage=AccountUsage(
-                used_bytes=0, measured_at=NOW, quota=TrafficQuota()
-            ),
+            usage=AccountUsage(used_bytes=0, measured_at=NOW, quota=TrafficQuota()),
             subscription_url=confirms,
         )
 

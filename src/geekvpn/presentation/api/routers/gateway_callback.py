@@ -128,16 +128,13 @@ async def gateway_callback(payment_id: str, request: Request) -> HTMLResponse:
     try:
         # In the payment's own shop: a reseller's payment must be asked about
         # with the reseller's merchant account, not ours.
-        outcome = str(
-            (await run_in_threadpool(verify_payment, container, payment_id)).outcome
-        )
+        outcome = str((await run_in_threadpool(verify_payment, container, payment_id)).outcome)
     except Exception:
         logger.exception("gateway.callback_failed", payment_id=payment_id)
         return _page(
             "⚠️",
             "نتیجهٔ پرداخت مشخص نشد",
-            "اگه مبلغ از حسابت کم شده، نگران نباش — به پشتیبانی پیام بده "
-            "و همون‌جا پیگیری می‌کنیم.",
+            "اگه مبلغ از حسابت کم شده، نگران نباش — به پشتیبانی پیام بده و همون‌جا پیگیری می‌کنیم.",
             status_code=502,
             app_link=app_link("unknown"),
         )

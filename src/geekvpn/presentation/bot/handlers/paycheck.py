@@ -1,4 +1,4 @@
-""""Check my payment": ask the gateway now, instead of waiting for the sweep.
+""" "Check my payment": ask the gateway now, instead of waiting for the sweep.
 
 The worker asks about every payment waiting at a gateway every half minute,
 so this button is never the only way a payment settles - it is for the

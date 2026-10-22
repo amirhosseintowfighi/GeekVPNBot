@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    # `master` is this repository's default branch. Without it a merge was
+    # never checked, and the deploy workflow's "refuse a red commit" gate had
+    # no result to read on the commits it actually ships.
+    branches: [master, main, develop]
   pull_request:
 
 concurrency:
@@ -63,9 +66,15 @@ jobs:
         # Fails the build on a known CVE in a pinned dependency. This closes the
         # gap docs/security.md section 5 admits to: until now nothing checked our
         # dependencies at all.
+        #
+        # Audits an exact freeze of what is installed, minus this project:
+        # geekvpn is installed editable and is not on PyPI, and under --strict
+        # pip-audit fails on a package it cannot look up - even one it was told
+        # to skip. Every dependency is still audited, at its installed version.
         run: |
           python -m pip install pip-audit
-          pip-audit --strict --desc
+          python -m pip freeze --exclude-editable > /tmp/installed.txt
+          pip-audit --strict --desc --no-deps --disable-pip -r /tmp/installed.txt
 
       - name: Static analysis (bandit)
         run: |
@@ -148,7 +157,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (backend)
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned by commit, not tag: the 0.28.0 tag was deleted upstream and
+        # broke this job before it started. A tag can move; a commit cannot.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: geekvpn-backend:ci
           severity: HIGH,CRITICAL
@@ -170,7 +181,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy scan (nginx)
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned by commit, not tag: the 0.28.0 tag was deleted upstream and
+        # broke this job before it started. A tag can move; a commit cannot.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: geekvpn-nginx:ci
           severity: HIGH,CRITICAL
@@ -178,26 +191,17 @@ jobs:
           ignore-unfixed: true
 
       - name: Nginx configuration is valid
-        # `nginx -t` inside the built image, with the templating entrypoint doing
-        # its substitution first. This is what catches a typo in a server block
-        # before it takes the edge down at deploy time.
+        # `nginx -t` inside the built image, rendered by the image's own
+        # entrypoint - everything it does except the final `exec nginx`. A
+        # hand-copied render here had already drifted from the real one (it
+        # substituted three of six variables) and was never valid shell.
         run: |
           docker run --rm \
             -e PRIMARY_DOMAIN=example.com \
             -e ADMIN_ALLOW_CIDRS="10.0.0.0/8" \
             --entrypoint /bin/sh geekvpn-nginx:ci -c \
-            'PRIMARY_DOMAIN=example.com ADMIN_DOMAIN=admin.example.com MINIAPP_DOMAIN=app.example.com \
-             envsubst "\$$PRIMARY_DOMAIN \$$ADMIN_DOMAIN \$$MINIAPP_DOMAIN" \
-               < /etc/nginx/templates/geekvpn.conf > /etc/nginx/conf.d/geekvpn.conf &&
-             printf "# test\n" > /etc/nginx/conf.d/admin-allow.conf &&
-             mkdir -p /etc/nginx/tls /etc/letsencrypt/live/example.com &&
-             openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-               -keyout /etc/letsencrypt/live/example.com/privkey.pem \
-               -out /etc/letsencrypt/live/example.com/fullchain.pem \
-               -subj "/CN=example.com" 2>/dev/null &&
-             cp /etc/letsencrypt/live/example.com/fullchain.pem /etc/letsencrypt/live/example.com/chain.pem &&
-             openssl dhparam -out /etc/nginx/tls/dhparam.pem 1024 2>/dev/null &&
-             nginx -t
+            'sed "/^exec nginx/d" /usr/local/bin/entrypoint.sh > /tmp/render.sh &&
+             sh /tmp/render.sh'
 
   compose:
     name: Compose config is valid

@@ -113,9 +113,7 @@ def session() -> Iterator[Session]:
 def test_only_a_recent_platform_customer_who_never_bought_or_got_it_is_due(
     session: Session,
 ) -> None:
-    due = newcomers_without_purchase(
-        session, NOW - timedelta(days=7), NOW - timedelta(hours=24)
-    )
+    due = newcomers_without_purchase(session, NOW - timedelta(days=7), NOW - timedelta(hours=24))
 
     # Someone who only took a free trial is exactly who the gift is for.
     assert sorted(due) == [WAITING, ONLY_TRIED]

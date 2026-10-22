@@ -175,9 +175,7 @@ async def test_a_top_up_is_recorded():
     world = World()
     reseller = await world.make()
 
-    await world.service.adjust_credit(
-        reseller.id, amount=1_000_000, description_fa="شارژ اولیه"
-    )
+    await world.service.adjust_credit(reseller.id, amount=1_000_000, description_fa="شارژ اولیه")
 
     assert world.repo.rows[reseller.id].balance_amount == 1_000_000
     assert world.repo.ledger[-1].kind == TOPUP
@@ -239,9 +237,7 @@ async def test_an_operator_can_deduct_by_hand():
     world = World()
     reseller = await world.make(balance=1_000_000)
 
-    await world.service.adjust_credit(
-        reseller.id, amount=-200_000, description_fa="تسویه"
-    )
+    await world.service.adjust_credit(reseller.id, amount=-200_000, description_fa="تسویه")
 
     assert world.repo.rows[reseller.id].balance_amount == 800_000
 
@@ -258,9 +254,7 @@ async def test_a_deduction_may_take_a_reseller_into_arrears():
     world = World()
     reseller = await world.make(balance=100_000)
 
-    await world.service.adjust_credit(
-        reseller.id, amount=-200_000, description_fa="تسویه"
-    )
+    await world.service.adjust_credit(reseller.id, amount=-200_000, description_fa="تسویه")
 
     assert world.repo.rows[reseller.id].balance_amount == -100_000
     assert world.repo.rows[reseller.id].in_arrears
@@ -288,9 +282,7 @@ async def test_a_suspended_reseller_can_still_have_their_balance_corrected():
     reseller = await world.make(balance=100_000)
     await world.service.update(reseller.id, status=ResellerStatus.SUSPENDED)
 
-    await world.service.adjust_credit(
-        reseller.id, amount=-50_000, description_fa="اصلاح"
-    )
+    await world.service.adjust_credit(reseller.id, amount=-50_000, description_fa="اصلاح")
 
     assert world.repo.rows[reseller.id].balance_amount == 50_000
 
@@ -347,9 +339,7 @@ async def test_a_deduction_into_arrears_suspends_the_customers():
     world.service._arrears = arrears
     reseller = await world.make(balance=100_000)
 
-    await world.service.adjust_credit(
-        reseller.id, amount=-200_000, description_fa="تسویه"
-    )
+    await world.service.adjust_credit(reseller.id, amount=-200_000, description_fa="تسویه")
 
     assert arrears.calls == [(reseller.id, True)]
 
@@ -360,9 +350,7 @@ async def test_a_top_up_out_of_arrears_brings_them_back():
     world.service._arrears = arrears
     reseller = await world.make(balance=-100_000)
 
-    await world.service.adjust_credit(
-        reseller.id, amount=300_000, description_fa="شارژ"
-    )
+    await world.service.adjust_credit(reseller.id, amount=300_000, description_fa="شارژ")
 
     assert arrears.calls == [(reseller.id, False)]
 
@@ -376,9 +364,7 @@ async def test_it_runs_after_every_movement_not_only_a_crossing():
     world.service._arrears = arrears
     reseller = await world.make(balance=1_000_000)
 
-    await world.service.charge_for_sale(
-        reseller.id, amount=Money(1), description_fa="x"
-    )
+    await world.service.charge_for_sale(reseller.id, amount=Money(1), description_fa="x")
     await world.service.refund_sale(reseller.id, amount=Money(1), description_fa="x")
 
     assert len(arrears.calls) == 2

@@ -38,9 +38,7 @@ def _quote(*, total: int = 544_000, base: int = 680_000) -> QuoteView:
         cashback=27_200,
         lines=(
             PriceLineView(kind="base", label="قیمت پایه", amount=base, is_deduction=False),
-            PriceLineView(
-                kind="campaign", label="تخفیف", amount=base - total, is_deduction=True
-            ),
+            PriceLineView(kind="campaign", label="تخفیف", amount=base - total, is_deduction=True),
         ),
     )
 

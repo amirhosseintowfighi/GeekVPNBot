@@ -39,9 +39,7 @@ class Paid:
 
     name = "provisioning.order.paid.v1"
 
-    def __init__(
-        self, order_id: str = "o-1", user_id: int = INVITEE, total: int = 200_000
-    ) -> None:
+    def __init__(self, order_id: str = "o-1", user_id: int = INVITEE, total: int = 200_000) -> None:
         self.order_id = order_id
         self.user_id = user_id
         self.total = total
@@ -107,7 +105,7 @@ def test_the_referrer_is_credited_a_share_of_the_first_purchase():
 
 
 def test_the_conversion_is_recorded_against_the_edge():
-    """"Invited" and "converted" are two different numbers on the operator's
+    """ "Invited" and "converted" are two different numbers on the operator's
     report, and the second one was always zero."""
     ledger = Ledger(_edge())
 
@@ -222,8 +220,7 @@ def test_the_handler_is_actually_subscribed() -> None:
     from pathlib import Path
 
     source = (
-        Path(__file__).resolve().parents[3]
-        / "src/geekvpn/infrastructure/di/sync_scope.py"
+        Path(__file__).resolve().parents[3] / "src/geekvpn/infrastructure/di/sync_scope.py"
     ).read_text(encoding="utf-8")
 
     assert "table[OrderPaid.name] = self._pay_referrer" in source

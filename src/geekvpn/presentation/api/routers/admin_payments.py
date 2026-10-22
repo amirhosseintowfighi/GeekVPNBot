@@ -126,7 +126,9 @@ def _proof_dict(payment: Any) -> dict[str, Any] | None:
     }
 
 
-def _with_people(scope: SyncScope, payments: Sequence[Any], *, now: Any = None) -> list[dict[str, Any]]:
+def _with_people(
+    scope: SyncScope, payments: Sequence[Any], *, now: Any = None
+) -> list[dict[str, Any]]:
     """Label a page of payments with who made them.
 
     One lookup for the page, the same as the ticket queue. This is the screen
@@ -135,14 +137,11 @@ def _with_people(scope: SyncScope, payments: Sequence[Any], *, now: Any = None) 
     """
     people = scope.directory.by_telegram_ids(payment.user_id for payment in payments)
     return [
-        _payment_dict(payment, now=now, person=people.get(payment.user_id))
-        for payment in payments
+        _payment_dict(payment, now=now, person=people.get(payment.user_id)) for payment in payments
     ]
 
 
-def _payment_dict(
-    payment: Any, *, now: Any = None, person: Person | None = None
-) -> dict[str, Any]:
+def _payment_dict(payment: Any, *, now: Any = None, person: Person | None = None) -> dict[str, Any]:
     data: dict[str, Any] = {
         "id": payment.id,
         "invoiceId": payment.invoice_id,
@@ -400,9 +399,7 @@ async def list_cards(
         if reseller_id is not None:
             stmt = stmt.where(CardAccountModel.reseller_id == reseller_id)
         rows = (
-            scope.session.execute(
-                stmt.order_by(CardAccountModel.sort_order, CardAccountModel.id)
-            )
+            scope.session.execute(stmt.order_by(CardAccountModel.sort_order, CardAccountModel.id))
             .scalars()
             .all()
         )
@@ -449,12 +446,16 @@ async def create_crypto(
     await claim_idempotency(container, idempotency_key, scope_label="crypto.create")
 
     def work(scope: SyncScope) -> dict[str, Any]:
-        existing = scope.session.execute(
-            select(CryptoAccountModel).where(
-                CryptoAccountModel.address == payload.address,
-                CryptoAccountModel.network == payload.network,
+        existing = (
+            scope.session.execute(
+                select(CryptoAccountModel).where(
+                    CryptoAccountModel.address == payload.address,
+                    CryptoAccountModel.network == payload.network,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if existing is not None:
             raise ConflictError("این آدرس روی همین شبکه قبلاً ثبت شده.")
 
@@ -537,14 +538,18 @@ async def create_gateway(
     await claim_idempotency(container, idempotency_key, scope_label="gateway.create")
 
     def work(scope: SyncScope) -> dict[str, Any]:
-        existing = scope.session.execute(
-            select(GatewayAccountModel).where(
-                GatewayAccountModel.provider == payload.provider,
-                GatewayAccountModel.reseller_id.is_(None)
-                if payload.reseller_id is None
-                else GatewayAccountModel.reseller_id == payload.reseller_id,
+        existing = (
+            scope.session.execute(
+                select(GatewayAccountModel).where(
+                    GatewayAccountModel.provider == payload.provider,
+                    GatewayAccountModel.reseller_id.is_(None)
+                    if payload.reseller_id is None
+                    else GatewayAccountModel.reseller_id == payload.reseller_id,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if existing is not None:
             # One account per provider per shop. Two would be two merchant ids
             # for the same button, and which one a customer got would depend on
@@ -578,9 +583,7 @@ async def update_gateway(
     idempotency_key: IdempotencyKey,
     container: ContainerDep,
 ) -> dict[str, Any]:
-    await claim_idempotency(
-        container, idempotency_key, scope_label=f"gateway.update:{gateway_id}"
-    )
+    await claim_idempotency(container, idempotency_key, scope_label=f"gateway.update:{gateway_id}")
 
     def work(scope: SyncScope) -> dict[str, Any]:
         row = scope.session.get(GatewayAccountModel, gateway_id)
@@ -614,11 +617,13 @@ async def create_card(
     await claim_idempotency(container, idempotency_key, scope_label="card.create")
 
     def work(scope: SyncScope) -> dict[str, Any]:
-        existing = scope.session.execute(
-            select(CardAccountModel).where(
-                CardAccountModel.card_number == payload.card_number
+        existing = (
+            scope.session.execute(
+                select(CardAccountModel).where(CardAccountModel.card_number == payload.card_number)
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if existing is not None:
             raise ConflictError("این شماره کارت قبلاً ثبت شده.")
 
@@ -846,7 +851,11 @@ async def payment_receipt(
         described = await client.get(
             f"https://api.telegram.org/bot{token}/getFile", params={"file_id": file_id}
         )
-        path = (described.json().get("result") or {}).get("file_path") if described.is_success else None
+        path = (
+            (described.json().get("result") or {}).get("file_path")
+            if described.is_success
+            else None
+        )
         if not path:
             raise NotFoundError("تلگرام این رسید رو برنگردوند. شاید منقضی شده باشه.")
 

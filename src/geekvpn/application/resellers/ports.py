@@ -115,9 +115,7 @@ class ResellerNames(Protocol):
     a page of fifty becomes fifty queries.
     """
 
-    async def names_for(
-        self, reseller_ids: Sequence[uuid.UUID]
-    ) -> dict[uuid.UUID, str]: ...
+    async def names_for(self, reseller_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, str]: ...
 
 
 class PlanPrices(Protocol):
@@ -131,4 +129,12 @@ class PlanPrices(Protocol):
     async def list_price(self, plan_id: uuid.UUID) -> Money | None: ...
 
 
-__all__ = ["BotIdentity", "BotTokens", "Clock", "LedgerEntry", "PlanPrices", "ResellerNames", "ResellerRepository"]
+__all__ = [
+    "BotIdentity",
+    "BotTokens",
+    "Clock",
+    "LedgerEntry",
+    "PlanPrices",
+    "ResellerNames",
+    "ResellerRepository",
+]

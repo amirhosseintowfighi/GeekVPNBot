@@ -63,7 +63,9 @@ async def test_a_photo_tutorial_is_sent_back_as_a_photo(monkeypatch: pytest.Monk
     monkeypatch.setattr(tutorials, "Message", Chat)
     query = SimpleNamespace(message=chat, answer=lambda *a, **k: _noop())
     scope = SimpleNamespace(
-        settings_service=Settings({"android": {"kind": "photo", "file_id": "F1", "text": "مرحله ۱"}})
+        settings_service=Settings(
+            {"android": {"kind": "photo", "file_id": "F1", "text": "مرحله ۱"}}
+        )
     )
 
     await tutorials.on_device(query, GuideCB(device="android"), scope=scope)  # type: ignore[arg-type]

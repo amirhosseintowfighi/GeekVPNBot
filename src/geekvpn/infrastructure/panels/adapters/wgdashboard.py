@@ -130,7 +130,10 @@ class WgDashboardAdapter(HttpPanelAdapter):
         data = self._data(response)
         info = require_mapping(data, panel=self.kind.value, what="configuration")
         peers: list[tuple[Mapping[str, Any], bool]] = []
-        for key, restricted in (("configurationPeers", False), ("configurationRestrictedPeers", True)):
+        for key, restricted in (
+            ("configurationPeers", False),
+            ("configurationRestrictedPeers", True),
+        ):
             rows = info.get(key) or []
             if not isinstance(rows, list):
                 raise PanelContractViolation(f"{key} was not a list.", panel=self.kind.value)
@@ -160,9 +163,7 @@ class WgDashboardAdapter(HttpPanelAdapter):
             await self._get("/api/handshake")
         except Exception as exc:
             return PanelHealth(is_healthy=False, message=str(exc) or type(exc).__name__)
-        return PanelHealth(
-            is_healthy=True, latency_ms=(now_utc() - started).total_seconds() * 1000
-        )
+        return PanelHealth(is_healthy=True, latency_ms=(now_utc() - started).total_seconds() * 1000)
 
     async def create_account(self, spec: AccountSpec, *, idempotency_key: str) -> PanelAccount:
         existing = await self._find(spec.username)
@@ -413,7 +414,9 @@ def _share_ids(peer: Mapping[str, Any]) -> list[str]:
     links = peer.get("ShareLink") or []
     if not isinstance(links, list):
         return []
-    return [str(link["ShareID"]) for link in links if isinstance(link, Mapping) and link.get("ShareID")]
+    return [
+        str(link["ShareID"]) for link in links if isinstance(link, Mapping) and link.get("ShareID")
+    ]
 
 
 def _share_id(url: str) -> str | None:

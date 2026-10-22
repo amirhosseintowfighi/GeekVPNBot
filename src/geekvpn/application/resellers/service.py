@@ -131,9 +131,7 @@ class ResellerService:
         """
         if self._arrears is None:
             return
-        await self._arrears.apply(
-            reseller_id=reseller.id, in_arrears=reseller.in_arrears
-        )
+        await self._arrears.apply(reseller_id=reseller.id, in_arrears=reseller.in_arrears)
 
     # -- administration ----------------------------------------------------
 
@@ -267,9 +265,7 @@ class ResellerService:
         await self._resellers.save(reseller)
         return reseller
 
-    async def set_costs(
-        self, reseller_id: uuid.UUID, costs: dict[uuid.UUID, int]
-    ) -> Reseller:
+    async def set_costs(self, reseller_id: uuid.UUID, costs: dict[uuid.UUID, int]) -> Reseller:
         """What the platform charges this reseller, package by package.
 
         An operator's decision. Sent whole, and it leaves the reseller's own
@@ -285,9 +281,7 @@ class ResellerService:
         await self._resellers.save(reseller)
         return reseller
 
-    async def set_retail(
-        self, reseller_id: uuid.UUID, prices: dict[uuid.UUID, int]
-    ) -> Reseller:
+    async def set_retail(self, reseller_id: uuid.UUID, prices: dict[uuid.UUID, int]) -> Reseller:
         """What this reseller charges their own customers.
 
         Theirs, not ours. Any number they like, including below what it costs
@@ -330,9 +324,7 @@ class ResellerService:
         reseller = await self.get(reseller_id)
         identity = await self._tokens.identify(token)
 
-        await self._resellers.set_bot(
-            reseller.id, token=token.strip(), username=identity.username
-        )
+        await self._resellers.set_bot(reseller.id, token=token.strip(), username=identity.username)
         await self._tokens.register_webhook(
             token=token.strip(),
             url=webhook_base_url.rstrip("/") + tenant_path(webhook_path, reseller.id),
@@ -447,9 +439,7 @@ class ResellerService:
         await self._enforce(reseller)
         return reseller
 
-    async def history(
-        self, reseller_id: uuid.UUID, *, limit: int = 50
-    ) -> Sequence[LedgerEntry]:
+    async def history(self, reseller_id: uuid.UUID, *, limit: int = 50) -> Sequence[LedgerEntry]:
         return await self._resellers.history(reseller_id, limit=limit)
 
     async def summary(self, reseller_id: uuid.UUID) -> dict[str, int]:

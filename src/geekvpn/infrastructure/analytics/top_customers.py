@@ -50,9 +50,7 @@ def _shop(
     return column.is_(None) if reseller_id is None else column == reseller_id
 
 
-def _statement(
-    ladder: Ladder, *, reseller_id: uuid.UUID | None, now: datetime
-) -> Select[int, int]:
+def _statement(ladder: Ladder, *, reseller_id: uuid.UUID | None, now: datetime) -> Select[int, int]:
     if ladder is Ladder.SPENT:
         value = func.sum(OrderModel.total)
         return (

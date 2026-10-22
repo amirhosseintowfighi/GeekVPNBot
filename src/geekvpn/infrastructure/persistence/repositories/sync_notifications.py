@@ -62,9 +62,7 @@ DUE_BROADCAST_STATES = (
 class SyncNotificationRepository:
     """``application.notifications.ports.NotificationRepository``."""
 
-    def __init__(
-        self, session: Session, *, reseller_id: uuid.UUID | None = None
-    ) -> None:
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
         self._reseller_id = reseller_id
 
@@ -75,10 +73,7 @@ class SyncNotificationRepository:
         the ones with no reseller, and matching everything would put a
         reseller's customers back in front of our own bot.
         """
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
-
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def get(self, notification_id: str) -> Notification:
         row = self._session.get(NotificationModel, notification_id)
@@ -215,9 +210,7 @@ class SyncBroadcastRepository:
 
     def _shop(self) -> Any:
         column = BroadcastModel.reseller_id
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def shop_of(self, broadcast_id: str) -> uuid.UUID | None:
         """Which shop a broadcast belongs to, without loading the aggregate.

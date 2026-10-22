@@ -44,9 +44,7 @@ def _fields_of(interface: str) -> set[str]:
 
 def _sent_by(model: type) -> set[str]:
     """The names the API actually puts on the wire, which are the aliases."""
-    return {
-        (field.alias or name) for name, field in model.model_fields.items()
-    }
+    return {(field.alias or name) for name, field in model.model_fields.items()}
 
 
 @pytest.mark.parametrize(
@@ -61,9 +59,7 @@ def _sent_by(model: type) -> set[str]:
 def test_the_mini_app_reads_only_fields_the_api_sends(model: type, interface: str) -> None:
     missing = _fields_of(interface) - _sent_by(model)
 
-    assert not missing, (
-        f"{interface} reads fields /storefront never sends: {sorted(missing)}"
-    )
+    assert not missing, f"{interface} reads fields /storefront never sends: {sorted(missing)}"
 
 
 def test_the_payload_is_camel_case() -> None:
@@ -120,9 +116,7 @@ COMPOSED: dict[str, set[str]] = {
         (read_models.PendingPayment, "PendingPayment"),
     ],
 )
-def test_the_mini_app_reads_only_fields_the_read_model_carries(
-    model: type, interface: str
-) -> None:
+def test_the_mini_app_reads_only_fields_the_read_model_carries(model: type, interface: str) -> None:
     sent = _sent_by_dataclass(model) | COMPOSED.get(interface, set())
     missing = _fields_of(interface) - sent
 
@@ -134,9 +128,7 @@ def test_the_mini_app_reads_only_fields_the_read_model_carries(
 def test_the_router_camel_cases_what_it_sends() -> None:
     """Without this every field above arrives under its Python name."""
     assert miniapp.router.route_class is miniapp._CamelCaseRoute
-    assert miniapp._camelize({"used_gib": [{"quota_gib": 1}]}) == {
-        "usedGib": [{"quotaGib": 1}]
-    }
+    assert miniapp._camelize({"used_gib": [{"quota_gib": 1}]}) == {"usedGib": [{"quotaGib": 1}]}
 
 
 def test_every_composed_field_is_actually_composed_somewhere() -> None:
@@ -147,10 +139,7 @@ def test_every_composed_field_is_actually_composed_somewhere() -> None:
     """
     source = Path(miniapp.__file__).read_text(encoding="utf-8")
     unsent = [
-        name
-        for names in COMPOSED.values()
-        for name in names
-        if f'"{to_snake(name)}"' not in source
+        name for names in COMPOSED.values() for name in names if f'"{to_snake(name)}"' not in source
     ]
 
     assert not unsent, f"claimed to be composed by the router, but never sent: {unsent}"

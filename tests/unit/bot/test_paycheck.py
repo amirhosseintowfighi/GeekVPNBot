@@ -1,4 +1,4 @@
-""""Check my payment": the owner asks, at most every few seconds, and hears
+""" "Check my payment": the owner asks, at most every few seconds, and hears
 one of four answers."""
 
 from __future__ import annotations

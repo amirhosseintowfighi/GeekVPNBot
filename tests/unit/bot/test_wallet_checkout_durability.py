@@ -43,9 +43,7 @@ def _function(name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
 
 def _commits(node: ast.AST) -> int:
     return sum(
-        1
-        for child in ast.walk(node)
-        if isinstance(child, ast.Attribute) and child.attr == "commit"
+        1 for child in ast.walk(node) if isinstance(child, ast.Attribute) and child.attr == "commit"
     )
 
 
@@ -74,7 +72,7 @@ def test_a_delivery_failure_keeps_the_order() -> None:
 
 
 def test_the_customer_is_told_their_money_arrived() -> None:
-    """"Something went wrong" after a debit reads as "your money is gone"."""
+    """ "Something went wrong" after a debit reads as "your money is gone"."""
     assert any("؀" <= ch <= "ۿ" for ch in DeliveryPending.message)
     assert DeliveryPending.code == "delivery_pending"
 

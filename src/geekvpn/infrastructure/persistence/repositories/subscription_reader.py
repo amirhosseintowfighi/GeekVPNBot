@@ -79,7 +79,7 @@ class SqlSubscriptionReader:
         that row exactly once.
         """
         horizon = now + timedelta(days=days)
-        stmt: Select[Any] = (
+        stmt: Select[SubscriptionModel] = (
             select(SubscriptionModel)
             .where(
                 self._shop(),
@@ -101,7 +101,7 @@ class SqlSubscriptionReader:
         subscription in the system to discard 95% of them.
         """
         ratio = min_percent / 100.0
-        stmt: Select[Any] = (
+        stmt: Select[SubscriptionModel] = (
             select(SubscriptionModel)
             .where(
                 self._shop(),
@@ -115,7 +115,6 @@ class SqlSubscriptionReader:
         )
         rows = self._session.execute(stmt).scalars().all()
         return [_snapshot(row) for row in rows]
-
 
     def idle_since(self, hours: int, *, now: datetime) -> list[SubscriptionSnapshot]:
         """Live subscriptions the panel has not seen connect for `hours`.
@@ -139,7 +138,7 @@ class SqlSubscriptionReader:
         at their silence is how the old version got it wrong.
         """
         cutoff = now - timedelta(hours=hours)
-        stmt: Select[Any] = (
+        stmt: Select[SubscriptionModel] = (
             select(SubscriptionModel)
             .where(
                 self._shop(),

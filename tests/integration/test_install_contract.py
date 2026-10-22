@@ -572,5 +572,5 @@ def test_the_installer_reads_the_compose_project_name_rather_than_guessing() -> 
     """
     text = INSTALL.read_text(encoding="utf-8")
 
-    assert 'PROJECT_NAME=$(awk' in text, "install.sh still derives the project name from the path"
-    assert 'PROJECT_NAME=$(basename' not in text
+    assert "PROJECT_NAME=$(awk" in text, "install.sh still derives the project name from the path"
+    assert "PROJECT_NAME=$(basename" not in text

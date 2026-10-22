@@ -187,9 +187,7 @@ class ResellerSalesService:
             # Money back. The charge and the refund both stay on the ledger:
             # a reseller reconciling their balance is better served by two
             # honest rows than by one that quietly vanished.
-            logger.info(
-                "reseller.sale_failed", reseller_id=str(reseller_id), order_id=order.id
-            )
+            logger.info("reseller.sale_failed", reseller_id=str(reseller_id), order_id=order.id)
             await self._resellers.refund_sale(
                 reseller_id,
                 amount=cost,
@@ -268,7 +266,9 @@ class ResellerSalesService:
         order.mark_paid(at=self._clock.now())
         await self._order_repository.update(order)
 
-    async def price_list(self, reseller_id: uuid.UUID, plans: Sequence[Any]) -> list[dict[str, Any]]:
+    async def price_list(
+        self, reseller_id: uuid.UUID, plans: Sequence[Any]
+    ) -> list[dict[str, Any]]:
         """Every package with all three numbers on it.
 
         List price, what it costs this reseller, and what they have decided to

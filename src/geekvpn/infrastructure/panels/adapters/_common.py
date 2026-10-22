@@ -195,9 +195,7 @@ def report_unmatched(rows: Sequence[Any], *, panel: str, had_id: bool) -> None:
     )
 
 
-def require_a_readable_link(
-    seen: int, with_link: int, *, panel: str, had_id: bool = False
-) -> None:
+def require_a_readable_link(seen: int, with_link: int, *, panel: str, had_id: bool = False) -> None:
     """Refuse to call it "not found" when we had no way to look.
 
     If the panel returned accounts, not one of them carried a subscription link
@@ -247,6 +245,7 @@ LOOKUP_PAGE = 1000
 #: shop fits inside it, and `LOOKUP_PAGE` is far past where these panels are
 #: comfortable anyway.
 BULK_PAGE = 1000
+
 
 def sub_token(url: str) -> str:
     """The identifying tail of a subscription link.

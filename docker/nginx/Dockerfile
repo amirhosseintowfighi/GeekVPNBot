@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1.7
-ARG NGINX_VERSION=1.27
+# The stable line. 1.27 stopped being rebuilt, so its Alpine base kept
+# accumulating fixed-but-unshipped CVEs (expat, libpng, libxml2, musl, ...).
+ARG NGINX_VERSION=1.30
 FROM nginx:${NGINX_VERSION}-alpine
 
 # openssl for the bootstrap self-signed certificate and the DH parameters;
 # gettext for envsubst. The official alpine image ships a trimmed envsubst that
 # does not accept a variable allowlist, and without that allowlist templating
 # would silently blank every nginx variable in the config.
-RUN apk add --no-cache openssl gettext
+#
+# `apk upgrade` because a base tag is only as fresh as its last rebuild; this
+# picks up security fixes published since then.
+RUN apk upgrade --no-cache && apk add --no-cache openssl gettext
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY snippets/ /etc/nginx/snippets/

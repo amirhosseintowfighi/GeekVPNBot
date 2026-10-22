@@ -152,7 +152,9 @@ async def test_a_charge_that_crashes_is_reported_and_not_retried() -> None:
 
 async def test_one_customer_failing_does_not_stop_the_next() -> None:
     world = World(
-        ending_soon("sub-1"), ending_soon("sub-2"), result=RuntimeError("boom")  # type: ignore[arg-type]
+        ending_soon("sub-1"),
+        ending_soon("sub-2"),
+        result=RuntimeError("boom"),  # type: ignore[arg-type]
     )
 
     await world.service.run()

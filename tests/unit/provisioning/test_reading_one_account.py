@@ -191,4 +191,6 @@ def test_a_subscription_never_provisioned_is_still_nothing_to_ask_about():
     )
     subscriptions = FakeSubscriptions(orphan)
 
-    assert asyncio.run(_service(OnlyKnowsByName(), subscriptions).sync_subscription(orphan.id)) is None
+    assert (
+        asyncio.run(_service(OnlyKnowsByName(), subscriptions).sync_subscription(orphan.id)) is None
+    )

@@ -57,7 +57,8 @@ def _services() -> dict:
     # for Compose's own `!override` tag, which constructs no objects of its
     # own. S506 is right to ask, and this is the answer.
     return yaml.load(
-        COMPOSE.read_text(encoding="utf-8"), Loader=_Loader  # noqa: S506
+        COMPOSE.read_text(encoding="utf-8"),
+        Loader=_Loader,  # noqa: S506
     )["services"]
 
 

@@ -253,8 +253,6 @@ class ManageAdmins:
         )
 
 
-
-
 def _validate_password(password: str) -> None:
     if len(password) < MIN_PASSWORD_LENGTH:
         raise ValidationError(

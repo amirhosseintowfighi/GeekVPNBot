@@ -40,6 +40,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -69,9 +70,15 @@ class CategoryModel(TimestampMixin, Base):
     name_en: Mapped[str | None] = mapped_column(String(128))
     description_fa: Mapped[str | None] = mapped_column(String(512))
     icon: Mapped[str | None] = mapped_column(String(64))
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=PublicationState.DRAFT.value, index=True
+        String(16),
+        nullable=False,
+        default=PublicationState.DRAFT.value,
+        index=True,
+        server_default=text("'draft'"),
     )
 
     __table_args__ = (
@@ -94,14 +101,24 @@ class ProductModel(TimestampMixin, Base):
     name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
     tagline_fa: Mapped[str | None] = mapped_column(String(256))
     description_fa: Mapped[str | None] = mapped_column(String(2048))
-    features_fa: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    features_fa: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     icon: Mapped[str | None] = mapped_column(String(64))
     badge_fa: Mapped[str | None] = mapped_column(String(64))
     accent_color: Mapped[str | None] = mapped_column(String(32))
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    is_featured: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=PublicationState.DRAFT.value, index=True
+        String(16),
+        nullable=False,
+        default=PublicationState.DRAFT.value,
+        index=True,
+        server_default=text("'draft'"),
     )
 
     # Deliberately not a foreign key to a panels table: panels are configured
@@ -109,7 +126,9 @@ class ProductModel(TimestampMixin, Base):
     # nullable UUID keeps the binding recordable now without inventing a table
     # this phase does not own.
     panel_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), index=True)
-    node_tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    node_tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
 
     __table_args__ = (
         CheckConstraint(f"tier IN ({_values(ProductTier)})", name="catalog_products_tier"),
@@ -152,18 +171,32 @@ class PlanModel(TimestampMixin, Base):
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False)
     quota_gib: Mapped[int | None] = mapped_column(Integer)
     daily_quota_gib: Mapped[int | None] = mapped_column(Integer)
-    device_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    device_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
 
     base_price: Mapped[int] = mapped_column(BigInteger, nullable=False)
     compare_at_price: Mapped[int | None] = mapped_column(BigInteger)
-    min_price: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    cashback_bps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    min_price: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    cashback_bps: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
 
     max_per_user: Mapped[int | None] = mapped_column(Integer)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    is_featured: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=PublicationState.DRAFT.value, index=True
+        String(16),
+        nullable=False,
+        default=PublicationState.DRAFT.value,
+        index=True,
+        server_default=text("'draft'"),
     )
 
     __table_args__ = (
@@ -216,21 +249,37 @@ class CouponModel(TimestampMixin, Base):
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
-    scope: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    scope: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     max_redemptions: Mapped[int | None] = mapped_column(Integer)
-    max_per_user: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    redemption_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    min_order_amount: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    max_per_user: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    redemption_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    min_order_amount: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     target_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
-    stacks_with_campaign: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    first_purchase_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    stacks_with_campaign: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    first_purchase_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=PublicationState.PUBLISHED.value, index=True
+        String(16),
+        nullable=False,
+        default=PublicationState.PUBLISHED.value,
+        index=True,
+        server_default=text("'published'"),
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="SET NULL")
@@ -320,14 +369,24 @@ class CampaignModel(TimestampMixin, Base):
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
-    scope: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    scope: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     max_redemptions: Mapped[int | None] = mapped_column(Integer)
-    redemption_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
+    redemption_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    priority: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, index=True, server_default=text("0")
+    )
 
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=PublicationState.DRAFT.value, index=True
+        String(16),
+        nullable=False,
+        default=PublicationState.DRAFT.value,
+        index=True,
+        server_default=text("'draft'"),
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="SET NULL")

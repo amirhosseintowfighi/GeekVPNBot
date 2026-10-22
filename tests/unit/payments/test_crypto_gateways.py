@@ -193,9 +193,7 @@ def test_plisio_sends_the_customer_to_its_invoice(provider: Any) -> None:
     ],
 )
 def test_plisio_reads_its_status(provider: Any, status: str, outcome: Any) -> None:
-    provider(
-        lambda r: httpx.Response(200, json={"status": "success", "data": {"status": status}})
-    )
+    provider(lambda r: httpx.Response(200, json={"status": "success", "data": {"status": status}}))
 
     result = PlisioGateway(merchant_id="k").verify(
         payment_id="p1", reference="5f3d", expected=PRICE

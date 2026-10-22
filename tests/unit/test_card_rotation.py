@@ -57,9 +57,7 @@ class Session:
                     # `scalars()`, because it selects two columns.
                     all=lambda: [],
                 )
-        return SimpleNamespace(
-            scalars=lambda: SimpleNamespace(all=lambda: []), all=lambda: []
-        )
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []), all=lambda: [])
 
 
 def card(number: str) -> SimpleNamespace:

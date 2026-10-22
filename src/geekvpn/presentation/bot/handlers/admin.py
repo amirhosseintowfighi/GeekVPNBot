@@ -476,7 +476,12 @@ async def on_tickets(
         return
 
     rows = [
-        [K.btn(ticket.subject_fa[:40] or ticket.reference, AdminCB(action="ticket", ref=ticket.ticket_id))]
+        [
+            K.btn(
+                ticket.subject_fa[:40] or ticket.reference,
+                AdminCB(action="ticket", ref=ticket.ticket_id),
+            )
+        ]
         for ticket in tickets
     ]
     rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
@@ -524,9 +529,7 @@ async def on_ticket(
             [
                 [
                     K.btn(A.BTN_REPLY, AdminCB(action="reply", ref=ticket_id), style=K.GO),
-                    K.btn(
-                        A.BTN_CLOSE_TICKET, AdminCB(action="close", ref=ticket_id), style=K.NO
-                    ),
+                    K.btn(A.BTN_CLOSE_TICKET, AdminCB(action="close", ref=ticket_id), style=K.NO),
                 ],
                 [K.btn(A.BTN_BACK, AdminCB(action="tickets"))],
             ]
@@ -562,9 +565,7 @@ async def on_reply_text(
     actor = user.telegram_id
 
     def work(sync: SyncScope) -> None:
-        sync.support.agent_reply(
-            ReplyRequest(ticket_id=ticket_id, body_fa=body, author_id=actor)
-        )
+        sync.support.agent_reply(ReplyRequest(ticket_id=ticket_id, body_fa=body, author_id=actor))
 
     try:
         await mutate_scope(container, work)
@@ -704,13 +705,9 @@ async def on_topup_decision(
     try:
         topup_id = uuid.UUID(hex=callback_data.ref)
         if approving:
-            decided = await scope.reseller_topups.approve(
-                topup_id, decided_by=user.telegram_id
-            )
+            decided = await scope.reseller_topups.approve(topup_id, decided_by=user.telegram_id)
         else:
-            decided = await scope.reseller_topups.reject(
-                topup_id, decided_by=user.telegram_id
-            )
+            decided = await scope.reseller_topups.reject(topup_id, decided_by=user.telegram_id)
     except TopupNotFound:
         # Already decided, by the panel or by another operator with the same
         # queue open. Saying so beats crediting one transfer twice.
@@ -720,15 +717,11 @@ async def on_topup_decision(
         return
 
     message = (
-        A.TOPUP_APPROVED.format(
-            amount=toman(decided.amount), name=decided.reseller_name_fa
-        )
+        A.TOPUP_APPROVED.format(amount=toman(decided.amount), name=decided.reseller_name_fa)
         if approving
         else A.TOPUP_REJECTED
     )
-    await safe_edit(
-        query, message, markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="topups")))
-    )
+    await safe_edit(query, message, markup=K.single(K.btn(A.BTN_BACK, AdminCB(action="topups"))))
 
 
 @router.callback_query(AdminCB.filter(F.action == "apps"))
@@ -751,9 +744,7 @@ async def on_applications(query: CallbackQuery, scope: Any = None, user: Any = N
     rows = [
         [
             K.btn(
-                A.APPLICATION_ROW.format(
-                    name=row.name_fa, contact=row.contact_fa or "—"
-                ),
+                A.APPLICATION_ROW.format(name=row.name_fa, contact=row.contact_fa or "—"),
                 AdminCB(action="app", ref=row.id.hex),
             )
         ]
@@ -914,9 +905,7 @@ async def on_backup(
         logger.exception("admin.backup_failed")
         await safe_edit(query, A.BACKUP_FAILED, markup=_back())
         return
-    await safe_edit(
-        query, A.BACKUP_SENT.format(rows=fa_digits(summary.total_rows)), markup=_back()
-    )
+    await safe_edit(query, A.BACKUP_SENT.format(rows=fa_digits(summary.total_rows)), markup=_back())
 
 
 @router.callback_query(AdminCB.filter(F.action == "admins"))
@@ -1209,9 +1198,7 @@ async def on_wallet_reason(
     actor = user.telegram_id
 
     def work(sync: SyncScope) -> int:
-        sync.wallet.adjust(
-            user_id=target, signed_amount=signed, actor_id=actor, reason_fa=reason
-        )
+        sync.wallet.adjust(user_id=target, signed_amount=signed, actor_id=actor, reason_fa=reason)
         return int(sync.wallet.balance(target).amount)
 
     try:
@@ -1220,9 +1207,7 @@ async def on_wallet_reason(
         await answer(message, A.ACTION_FAILED.format(reason=str(failure)))
         return
 
-    await answer(
-        message, A.WALLET_DONE.format(balance=toman(balance)), reply_markup=K.main_menu()
-    )
+    await answer(message, A.WALLET_DONE.format(balance=toman(balance)), reply_markup=K.main_menu())
 
 
 # -- writing to them -------------------------------------------------------
@@ -1628,9 +1613,7 @@ async def on_stats(
         return
 
     lines = "\n".join(A.STATS_ROW.format(label=label, value=value) for label, value in metrics)
-    await safe_edit(
-        query, A.STATS_CARD.format(title=A.BTN_STATS, lines=lines), markup=_back()
-    )
+    await safe_edit(query, A.STATS_CARD.format(title=A.BTN_STATS, lines=lines), markup=_back())
 
 
 # -- shared ----------------------------------------------------------------

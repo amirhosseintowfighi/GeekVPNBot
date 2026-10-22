@@ -1,0 +1,22 @@
+# Known test fixtures that look like secrets to gitleaks. Each line is one
+# exact finding (commit:file:rule:line), not a pattern: a real secret added
+# anywhere - tests included - still fails the scan.
+#
+# Fake panel subscription tokens: base64 of "v3,1,1788441260".
+9d5d9633fa5c0687ce4e132cfd95a38aa627d5d4:tests/unit/provisioning/test_the_link_we_hand_out_is_the_one_that_works.py:generic-api-key:24
+88704b27b0d9683f7436e6820cd4ccb7e8de30d9:tests/unit/provisioning/test_a_shop_hands_out_its_own_domain.py:generic-api-key:41
+9d5d9633fa5c0687ce4e132cfd95a38aa627d5d4:tests/unit/provisioning/test_which_panel_the_link_came_from.py:generic-api-key:34
+9e8ed2ae13245967f1fc474272efdafc3f7e11e8:tests/unit/panels/test_the_panel_names_the_link_owner.py:generic-api-key:24
+6cd6febf5d8efcb3599867c08307b50d22cfaba6:tests/unit/panels/test_claiming_when_the_list_omits_the_link.py:generic-api-key:41
+# The CI job's own throwaway test key, visible in ci.yml by design.
+7c436a98893101f6a61732170beb429552dae7cf:.github/workflows/ci.yml:generic-api-key:113
+# A fake Stripe key, there to prove the secret scanner catches one.
+7c436a98893101f6a61732170beb429552dae7cf:tests/unit/security/test_secrets.py:stripe-access-token:187
+# The same fixtures as a working-tree scan names them (`gitleaks dir`).
+.github/workflows/ci.yml:generic-api-key:119
+tests/unit/panels/test_claiming_when_the_list_omits_the_link.py:generic-api-key:41
+tests/unit/panels/test_the_panel_names_the_link_owner.py:generic-api-key:24
+tests/unit/provisioning/test_a_shop_hands_out_its_own_domain.py:generic-api-key:41
+tests/unit/provisioning/test_the_link_we_hand_out_is_the_one_that_works.py:generic-api-key:24
+tests/unit/provisioning/test_which_panel_the_link_came_from.py:generic-api-key:34
+tests/unit/security/test_secrets.py:stripe-access-token:187

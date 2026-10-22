@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Index, String
+from sqlalchemy import CheckConstraint, DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -57,4 +57,13 @@ class AuditLogModel(Base):
         # "Everything this actor did, newest first" - the query support runs.
         Index("ix_audit_logs_actor_id_occurred_at", "actor_id", "occurred_at"),
         Index("ix_audit_logs_target", "target_type", "target_id"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_audit_logs_actor_time", "actor_id", text("occurred_at DESC")),
+        Index("ix_audit_logs_action_time", "action", text("occurred_at DESC")),
+        Index(
+            "ix_audit_logs_failures",
+            text("occurred_at DESC"),
+            postgresql_where=text("outcome = 'failure'"),
+        ),
     )

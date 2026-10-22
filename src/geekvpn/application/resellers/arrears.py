@@ -78,9 +78,7 @@ class ArrearsOutcome:
 
 
 class ArrearsEnforcer:
-    def __init__(
-        self, *, subscriptions: ResellerSubscriptions, access: SubscriptionAccess
-    ) -> None:
+    def __init__(self, *, subscriptions: ResellerSubscriptions, access: SubscriptionAccess) -> None:
         self._subscriptions = subscriptions
         self._access = access
 
@@ -101,15 +99,11 @@ class ArrearsEnforcer:
 
             if in_arrears and state is SubscriptionState.ACTIVE:
                 try:
-                    await self._access.suspend(
-                        subscription.id, reason_fa=ARREARS_REASON_FA
-                    )
+                    await self._access.suspend(subscription.id, reason_fa=ARREARS_REASON_FA)
                     suspended += 1
                 except Exception:
                     failed += 1
-                    logger.info(
-                        "reseller.arrears.suspend_failed", subscription_id=subscription.id
-                    )
+                    logger.info("reseller.arrears.suspend_failed", subscription_id=subscription.id)
             elif (
                 not in_arrears
                 and state is SubscriptionState.SUSPENDED
@@ -123,9 +117,7 @@ class ArrearsEnforcer:
                     resumed += 1
                 except Exception:
                     failed += 1
-                    logger.info(
-                        "reseller.arrears.resume_failed", subscription_id=subscription.id
-                    )
+                    logger.info("reseller.arrears.resume_failed", subscription_id=subscription.id)
 
         if suspended or resumed or failed:
             logger.info(

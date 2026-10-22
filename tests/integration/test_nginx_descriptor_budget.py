@@ -50,7 +50,9 @@ def test_the_container_allows_what_nginx_asks_for() -> None:
     source = NGINX_CONF.read_text(encoding="utf-8")
     descriptors = _directive("worker_rlimit_nofile", source)
 
-    match = re.search(r"nofile:\s*\n\s*soft:\s*(\d+)\s*\n\s*hard:\s*(\d+)", COMPOSE.read_text(encoding="utf-8"))
+    match = re.search(
+        r"nofile:\s*\n\s*soft:\s*(\d+)\s*\n\s*hard:\s*(\d+)", COMPOSE.read_text(encoding="utf-8")
+    )
     assert match, "the nginx service sets no nofile ulimit"
     soft, hard = int(match.group(1)), int(match.group(2))
 

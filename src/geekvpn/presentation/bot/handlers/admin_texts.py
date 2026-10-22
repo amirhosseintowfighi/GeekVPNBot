@@ -161,9 +161,7 @@ async def on_text_written(
     missing = [name for name in C.placeholders(key) if f"{{{name}}}" not in written]
     if missing:
         # Stay in the state: the next message is the corrected text.
-        await answer(
-            message, A.TEXT_MISSING.format(names=" ".join(f"{{{n}}}" for n in missing))
-        )
+        await answer(message, A.TEXT_MISSING.format(names=" ".join(f"{{{n}}}" for n in missing)))
         return
     overrides = await _overrides(scope)
     overrides[key] = written

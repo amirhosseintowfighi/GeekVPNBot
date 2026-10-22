@@ -97,9 +97,7 @@ class SqlAlchemySetupTokens:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def issue(
-        self, admin_id: uuid.UUID, *, token_hash: str, expires_at: datetime
-    ) -> None:
+    async def issue(self, admin_id: uuid.UUID, *, token_hash: str, expires_at: datetime) -> None:
         row = await self._session.get(AdminModel, admin_id)
         if row is None:
             return
@@ -164,9 +162,7 @@ class SqlAlchemyTopupRepository:
         )
         return [_topup(*row) for row in (await self._session.execute(stmt)).all()]
 
-    async def list_for(
-        self, reseller_id: uuid.UUID, *, limit: int = 20
-    ) -> Sequence[TopupView]:
+    async def list_for(self, reseller_id: uuid.UUID, *, limit: int = 20) -> Sequence[TopupView]:
         stmt = (
             select(ResellerTopupModel, ResellerModel.name_fa)
             .join(ResellerModel, ResellerModel.id == ResellerTopupModel.reseller_id)

@@ -161,9 +161,7 @@ def test_already_verified_still_counts_as_paid(posted, gateway: Any, reply: dict
     """
     posted(reply)
 
-    result = gateway(merchant_id="m").verify(
-        payment_id="p1", reference="A1", expected=PRICE
-    )
+    result = gateway(merchant_id="m").verify(payment_id="p1", reference="A1", expected=PRICE)
 
     assert result.outcome is VerificationOutcome.CONFIRMED
 
@@ -179,16 +177,12 @@ def test_already_verified_still_counts_as_paid(posted, gateway: Any, reply: dict
 def test_a_refusal_is_declined(posted, gateway: Any, reply: dict[str, Any]):
     posted(reply)
 
-    result = gateway(merchant_id="m").verify(
-        payment_id="p1", reference="A1", expected=PRICE
-    )
+    result = gateway(merchant_id="m").verify(payment_id="p1", reference="A1", expected=PRICE)
 
     assert result.outcome is VerificationOutcome.DECLINED
 
 
-@pytest.mark.parametrize(
-    "gateway", [G.ZarinPalGateway, G.ZibalGateway, G.AqayePardakhtGateway]
-)
+@pytest.mark.parametrize("gateway", [G.ZarinPalGateway, G.ZibalGateway, G.AqayePardakhtGateway])
 def test_an_unreachable_provider_is_inconclusive_not_failed(
     monkeypatch: pytest.MonkeyPatch, gateway: Any
 ):
@@ -204,9 +198,7 @@ def test_an_unreachable_provider_is_inconclusive_not_failed(
 
     monkeypatch.setattr(G, "_post", explode)
 
-    result = gateway(merchant_id="m").verify(
-        payment_id="p1", reference="A1", expected=PRICE
-    )
+    result = gateway(merchant_id="m").verify(payment_id="p1", reference="A1", expected=PRICE)
 
     assert result.outcome is VerificationOutcome.INCONCLUSIVE
 
@@ -221,9 +213,7 @@ def test_every_provider_can_be_built_by_the_key_stored_on_a_payment():
         assert G.build(key, "m").key == key
 
 
-@pytest.mark.parametrize(
-    "gateway", [G.ZarinPalGateway, G.ZibalGateway, G.AqayePardakhtGateway]
-)
+@pytest.mark.parametrize("gateway", [G.ZarinPalGateway, G.ZibalGateway, G.AqayePardakhtGateway])
 def test_none_of_them_claims_an_online_refund(gateway: Any):
     """All three refund from their own panel on a settlement cycle. Claiming
     otherwise promises a customer their money back in a way the code cannot

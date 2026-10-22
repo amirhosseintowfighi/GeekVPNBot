@@ -51,9 +51,7 @@ def _statements(filename: str, function: str) -> list[str]:
 
 
 @pytest.mark.parametrize(("filename", "function"), WRITERS)
-def test_the_ticket_is_flushed_before_a_message_references_it(
-    filename: str, function: str
-) -> None:
+def test_the_ticket_is_flushed_before_a_message_references_it(filename: str, function: str) -> None:
     unparsed = "\n".join(_statements(filename, function))
 
     ticket_added = unparsed.index("ticket_to_row(ticket)")

@@ -149,9 +149,7 @@ def test_they_are_told_why_rather_than_met_with_silence():
     """The reported bug. Blocking the handler and drawing nothing is worse than
     not gating at all: the customer presses /start and the bot is simply mute,
     with no way to know a channel is what stands between them and it."""
-    dispatcher, _ = _dispatcher(
-        ChannelGateMiddleware(), scope=_Scope([_channel()]), user=_User()
-    )
+    dispatcher, _ = _dispatcher(ChannelGateMiddleware(), scope=_Scope([_channel()]), user=_User())
     bot = _Bot(joined=False)
 
     asyncio.run(dispatcher.feed_update(bot, _update(1)))
@@ -160,9 +158,7 @@ def test_they_are_told_why_rather_than_met_with_silence():
 
 
 def test_a_shop_with_no_channels_gates_nobody():
-    dispatcher, handled = _dispatcher(
-        ChannelGateMiddleware(), scope=_Scope([]), user=_User()
-    )
+    dispatcher, handled = _dispatcher(ChannelGateMiddleware(), scope=_Scope([]), user=_User())
 
     asyncio.run(dispatcher.feed_update(_Bot(joined=False), _update(1)))
 
@@ -227,9 +223,7 @@ def test_swapping_a_requirement_invalidates_the_pass():
     from geekvpn.presentation.bot.channel_gate import cache_key
 
     before = cache_key(_Scope([]), 1, [_channel()])
-    after = cache_key(
-        _Scope([]), 1, [RequiredChannel(id="2", chat_ref="@other", title_fa="دیگر")]
-    )
+    after = cache_key(_Scope([]), 1, [RequiredChannel(id="2", chat_ref="@other", title_fa="دیگر")])
 
     assert before != after
 

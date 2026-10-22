@@ -47,7 +47,7 @@ def test_a_topup_is_reported_to_the_payments_chat() -> None:
     reports.on_wallet_credited(_credited("topup"))
 
     assert routed == [AlertKind.PAYMENT]
-    (chat, text), = sender.sent
+    ((chat, text),) = sender.sent
     assert chat == -100
     assert "500,000" in text and "<code>42</code>" in text and "1405-0009" in text
 

@@ -76,10 +76,10 @@ def test_the_dialog_follows_the_row_it_was_opened_from():
 
 
 def test_a_server_that_refuses_deletion_says_how_many_are_on_it():
-    """"It still has subscriptions" leaves an operator with no idea whether
+    """ "It still has subscriptions" leaves an operator with no idea whether
     that is one test account or four hundred customers."""
-    source = pathlib.Path(
-        "src/geekvpn/presentation/api/routers/admin_panels.py"
-    ).read_text(encoding="utf-8")
+    source = pathlib.Path("src/geekvpn/presentation/api/routers/admin_panels.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "{live}" in source

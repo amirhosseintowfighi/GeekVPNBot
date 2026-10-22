@@ -163,7 +163,9 @@ class AddTrafficRequest(ApiModel):
     gib: int = Field(gt=0, le=10_000)
 
 
-async def _act(scope: ScopeDep, action: str, subscription_id: str, **kwargs: object) -> Subscription:
+async def _act(
+    scope: ScopeDep, action: str, subscription_id: str, **kwargs: object
+) -> Subscription:
     """Run one operator action, turning its two failure modes into HTTP.
 
     A `PanelError` is the panel being unreachable or refusing, which is news
@@ -241,7 +243,9 @@ async def extend_subscription(
 async def add_traffic(
     subscription_id: str, payload: AddTrafficRequest, scope: ScopeDep
 ) -> SubscriptionResponse:
-    return SubscriptionResponse.of(await _act(scope, "add_traffic", subscription_id, gib=payload.gib))
+    return SubscriptionResponse.of(
+        await _act(scope, "add_traffic", subscription_id, gib=payload.gib)
+    )
 
 
 @router.post(

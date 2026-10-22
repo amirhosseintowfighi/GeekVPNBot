@@ -88,7 +88,6 @@ class ReminderService:
         self._clock = clock
         self._events = events
 
-
     # ---- Silence --------------------------------------------------------
 
     def run_idle_nudges(self) -> SweepReport:

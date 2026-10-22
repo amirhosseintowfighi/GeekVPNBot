@@ -24,12 +24,27 @@ ROUTERS = pathlib.Path("src/geekvpn/presentation/api/routers")
 
 #: Screen, the client method it must call, and the route that must exist.
 REMOVABLE = [
-    ("admin/src/app/products/page.tsx", "archiveCategory", "admin_catalog.py", "/categories/{category_id}"),
-    ("admin/src/app/products/page.tsx", "archiveProduct", "admin_catalog.py", "/products/{product_id}"),
+    (
+        "admin/src/app/products/page.tsx",
+        "archiveCategory",
+        "admin_catalog.py",
+        "/categories/{category_id}",
+    ),
+    (
+        "admin/src/app/products/page.tsx",
+        "archiveProduct",
+        "admin_catalog.py",
+        "/products/{product_id}",
+    ),
     ("admin/src/app/products/page.tsx", "archivePlan", "admin_catalog.py", "/plans/{plan_id}"),
     ("admin/src/app/servers/page.tsx", "deleteNode", "admin_panels.py", "/{node_id}"),
     ("admin/src/app/coupons/page.tsx", "archiveCoupon", "admin_catalog.py", "/coupons/{coupon_id}"),
-    ("admin/src/app/campaigns/page.tsx", "archiveCampaign", "admin_catalog.py", "/campaigns/{campaign_id}"),
+    (
+        "admin/src/app/campaigns/page.tsx",
+        "archiveCampaign",
+        "admin_catalog.py",
+        "/campaigns/{campaign_id}",
+    ),
 ]
 
 

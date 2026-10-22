@@ -234,9 +234,7 @@ class AuthenticateTelegramUser:
                 joined_at=now,
             )
         except Exception:
-            logger.warning(
-                "referral.edge_not_recorded", code=code, telegram_id=user.telegram_id
-            )
+            logger.warning("referral.edge_not_recorded", code=code, telegram_id=user.telegram_id)
 
     async def _unique_referral_code(self, *, attempts: int = 8) -> str:
         """Collision-check the code instead of trusting entropy blindly.

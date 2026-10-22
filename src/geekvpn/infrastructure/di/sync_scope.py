@@ -184,7 +184,6 @@ from geekvpn.infrastructure.push.tokens import SqlAppPush
 logger = get_logger(__name__)
 
 
-
 #: The setting that names each operator stream's chat. PAYMENT is resolved in
 #: `_alert_chat`, because it falls back to the receipts group.
 _ALERT_SETTING: dict[AlertKind, SettingDefinition[int]] = {
@@ -195,6 +194,7 @@ _ALERT_SETTING: dict[AlertKind, SettingDefinition[int]] = {
     AlertKind.SERVICE: ALERTS_SERVICES_CHAT,
     AlertKind.TRIAL: ALERTS_TRIALS_CHAT,
 }
+
 
 class Uuid4IdGenerator:
     """Concrete ``IdGenerator``.
@@ -808,9 +808,7 @@ class SyncScope:
         )
         self.session.flush()
 
-    def add_shop_gateway(
-        self, reseller_id: uuid.UUID, *, provider: str, merchant_id: str
-    ) -> None:
+    def add_shop_gateway(self, reseller_id: uuid.UUID, *, provider: str, merchant_id: str) -> None:
         existing = (
             self.session.execute(
                 select(GatewayAccountModel).where(
@@ -860,14 +858,10 @@ class SyncScope:
         else:
             self._retire(GatewayAccountModel, reseller_id, method_id, active)
 
-    def _retire(
-        self, model: Any, reseller_id: uuid.UUID, method_id: str, active: bool
-    ) -> None:
-        row = (
+    def _retire(self, model: Any, reseller_id: uuid.UUID, method_id: str, active: bool) -> None:
+        row: Any = (
             self.session.execute(
-                select(model).where(
-                    model.id == method_id, model.reseller_id == reseller_id
-                )
+                select(model).where(model.id == method_id, model.reseller_id == reseller_id)
             )
             .scalars()
             .first()
@@ -1235,9 +1229,7 @@ class SyncScope:
             )
             return result.skipped is None
 
-        return TrialFollowUp(
-            candidates=candidates, send=send, clock=self.container.clock
-        ).run(
+        return TrialFollowUp(candidates=candidates, send=send, clock=self.container.clock).run(
             after_hours=settings.get(TRIAL_FOLLOWUP_AFTER_HOURS),
             message_fa=settings.get(TRIAL_FOLLOWUP_MESSAGE_FA),
         )

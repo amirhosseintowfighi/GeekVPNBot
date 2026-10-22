@@ -78,4 +78,3 @@ async def on_error(event: ErrorEvent) -> bool:
 def _is_persian(text: str) -> bool:
     """Whether this message was written for a customer or for a log reader."""
     return any("؀" <= character <= "ۿ" for character in text)
-

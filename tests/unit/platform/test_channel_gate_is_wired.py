@@ -88,8 +88,16 @@ def test_the_scope_hands_the_repository_its_shop():
 
 @pytest.mark.parametrize(
     "method",
-    ["channels", "addChannel", "setChannelActive", "removeChannel",
-     "myChannels", "addMyChannel", "setMyChannelActive", "removeMyChannel"],
+    [
+        "channels",
+        "addChannel",
+        "setChannelActive",
+        "removeChannel",
+        "myChannels",
+        "addMyChannel",
+        "setMyChannelActive",
+        "removeMyChannel",
+    ],
 )
 def test_the_panel_can_reach_every_operation(method: str):
     assert f"{method}:" in CLIENT.read_text(encoding="utf-8")
@@ -114,7 +122,7 @@ def test_one_component_serves_both():
     """The platform's list and a reseller's are the same screen; two copies
     would be two places for the confirm and the validation to drift."""
     assert COMPONENT.exists()
-    assert 'scope: \'platform\' | \'mine\'' in COMPONENT.read_text(encoding="utf-8")
+    assert "scope: 'platform' | 'mine'" in COMPONENT.read_text(encoding="utf-8")
 
 
 def test_removing_a_channel_asks_first():

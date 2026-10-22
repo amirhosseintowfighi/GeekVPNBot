@@ -253,9 +253,9 @@ async def unknown_message(
     if user is not None:
         body, markup = await render_home(
             user=user,
-        services=services,
-        is_admin=await is_admin(scope, user),
-        scope=scope,
+            services=services,
+            is_admin=await is_admin(scope, user),
+            scope=scope,
         )
         await answer(message, body, reply_markup=markup)
 

@@ -89,7 +89,9 @@ class OrderModel(TimestampMixin, Base):
     reseller_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
     )
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True, server_default=text("'pending'")
+    )
 
     plan_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False, index=True)
     product_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False, index=True)
@@ -98,10 +100,14 @@ class OrderModel(TimestampMixin, Base):
     plan_name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False)
     traffic_mib: Mapped[int | None] = mapped_column(BigInteger)
-    device_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    device_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
 
     list_price: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    discount: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    discount: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
     total: Mapped[int] = mapped_column(BigInteger, nullable=False)
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), index=True)
     coupon_code: Mapped[str | None] = mapped_column(String(64), index=True)
@@ -109,7 +115,9 @@ class OrderModel(TimestampMixin, Base):
     invoice_id: Mapped[str | None] = mapped_column(String(64), index=True)
     #: True when this order renews an existing subscription. Renewal rate and
     #: churn are both computed from this column.
-    is_renewal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    is_renewal: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, index=True, server_default=text("false")
+    )
     renews_subscription_id: Mapped[str | None] = mapped_column(String(64), index=True)
 
     placed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -118,7 +126,9 @@ class OrderModel(TimestampMixin, Base):
     failure_reason: Mapped[str | None] = mapped_column(String(512))
     #: Where the customer came from: 'bot', 'miniapp', 'admin'. Conversion
     #: analysis is meaningless without it.
-    source: Mapped[str] = mapped_column(String(16), nullable=False, default="bot", index=True)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="bot", index=True, server_default=text("'bot'")
+    )
 
     __table_args__ = (
         CheckConstraint(f"state IN ({_quoted(ORDER_STATES)})", name="orders_state"),
@@ -126,6 +136,10 @@ class OrderModel(TimestampMixin, Base):
         CheckConstraint("duration_days > 0", name="orders_duration_positive"),
         Index("ix_orders_paid_at_state", "paid_at", "state"),
         Index("ix_orders_user_placed", "user_id", "placed_at"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_orders_shop", "reseller_id", "user_id"),
+        Index("ix_orders_user_time", "user_id", text("placed_at DESC")),
     )
 
 
@@ -146,7 +160,9 @@ class SubscriptionModel(TimestampMixin, Base):
     )
     #: Null for the same reason: a claimed account matches no package of ours.
     plan_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), index=True)
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default="active", index=True)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="active", index=True, server_default=text("'active'")
+    )
 
     node_id: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("nodes.id", ondelete="SET NULL"), index=True
@@ -158,7 +174,7 @@ class SubscriptionModel(TimestampMixin, Base):
     #: SET NULL rather than CASCADE on purpose: closing a reseller account must
     #: not delete the services their customers paid for.
     reseller_id: Mapped[uuid.UUID | None] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL"), index=True
+        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
     )
     #: Identity on the remote panel. ``remote_id`` is authoritative; the
     #: username is a convenience for operators reading panel logs.
@@ -173,8 +189,12 @@ class SubscriptionModel(TimestampMixin, Base):
     #: Null means unlimited. Zero would mean "no traffic at all", which is a
     #: different and much angrier customer.
     traffic_limit_mib: Mapped[int | None] = mapped_column(BigInteger)
-    traffic_used_mib: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    device_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    traffic_used_mib: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    device_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
 
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -184,9 +204,11 @@ class SubscriptionModel(TimestampMixin, Base):
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     #: Which reminder thresholds have already fired, e.g. ``[7, 3]`` and
     #: ``[80]``. Kept on the row so a restarted job does not re-notify.
-    notified_expiry_days: Mapped[list[int]] = mapped_column(JSONB, nullable=False, default=list)
+    notified_expiry_days: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     notified_traffic_percents: Mapped[list[int]] = mapped_column(
-        JSONB, nullable=False, default=list
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoke_reason_fa: Mapped[str | None] = mapped_column(String(512))
@@ -223,6 +245,15 @@ class SubscriptionModel(TimestampMixin, Base):
         # Expiry reminders, churn, and the "expiring soon" audience.
         Index("ix_subscriptions_state_expires", "state", "expires_at"),
         Index("ix_subscriptions_user_state", "user_id", "state"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_subscriptions_reseller", "reseller_id"),
+        Index("ix_subscriptions_last_connected", "last_connected_at"),
+        Index(
+            "ix_subscriptions_expiry_sweep",
+            "expires_at",
+            postgresql_where=text("state = 'active'"),
+        ),
     )
 
 
@@ -241,31 +272,51 @@ class NodeModel(TimestampMixin, Base):
     #: they are the same, which is the ordinary case.
     subscription_base_url: Mapped[str | None] = mapped_column(String(256))
     country_code: Mapped[str | None] = mapped_column(String(2), index=True)
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default="online", index=True)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="online", index=True, server_default=text("'online'")
+    )
 
     #: Panel credentials. The username stays readable so an operator can find
     #: the account in the panel's own UI without decrypting anything; the
     #: password is encrypted with its own AEAD context so a ciphertext from
     #: another table cannot be pasted here and decrypted.
-    username: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    username: Mapped[str] = mapped_column(
+        String(128), nullable=False, default="", server_default=text("''")
+    )
     password_encrypted: Mapped[str | None] = mapped_column(EncryptedString("node.password"))
-    verify_tls: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    verify_tls: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
     #: Per-adapter extras: Marzban inbounds, Marzneshin service ids, PasarGuard
     #: groups. Opaque on purpose - a column per panel would mean adding a panel
     #: edits shipped code, which is what the plugin architecture exists to avoid.
-    config_json: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
-    timeout_seconds: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=15.0)
+    config_json: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    timeout_seconds: Mapped[float] = mapped_column(
+        Numeric(5, 2), nullable=False, default=15.0, server_default=text("15.00")
+    )
 
-    capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    account_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    traffic_used_mib: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    capacity: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    account_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    traffic_used_mib: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     #: True while the node still accepts new customers. A full node stays
     #: online for existing subscribers but stops being a provisioning target.
-    accepting_new: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    accepting_new: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, index=True, server_default=text("true")
+    )
     last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(512))
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
 
     __table_args__ = (
         CheckConstraint(f"state IN ({_quoted(NODE_STATES)})", name="nodes_state"),
@@ -273,6 +324,14 @@ class NodeModel(TimestampMixin, Base):
         CheckConstraint(
             "state <> 'online' OR accepting_new IS FALSE OR password_encrypted IS NOT NULL",
             name="nodes_online_requires_credentials",
+        ),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index(
+            "ix_nodes_sellable",
+            "sort_order",
+            "id",
+            postgresql_where=text("state = 'online' AND accepting_new IS TRUE"),
         ),
     )
 
@@ -284,7 +343,7 @@ class ReferralModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     referrer_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    invitee_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    invitee_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
 
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -294,10 +353,16 @@ class ReferralModel(TimestampMixin, Base):
     first_order_id: Mapped[str | None] = mapped_column(String(64))
 
     #: What the programme actually cost us on this edge.
-    reward_paid: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    invitee_bonus_paid: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    reward_paid: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    invitee_bonus_paid: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
     #: What the invitee has spent, so return on spend is one query.
-    revenue_generated: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    revenue_generated: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     __table_args__ = (
         CheckConstraint("referrer_id <> invitee_id", name="referrals_no_self_referral"),
@@ -333,13 +398,20 @@ class FunnelEventModel(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
-    source: Mapped[str] = mapped_column(String(16), nullable=False, default="bot")
-    context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="bot", server_default=text("'bot'")
+    )
+    context: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     __table_args__ = (
         # Distinct users per stage in a date range: the funnel query, exactly.
         Index("ix_funnel_stage_occurred", "stage", "occurred_at"),
         Index("ix_funnel_user_stage", "user_id", "stage"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_funnel_events_shop", "reseller_id", "user_id"),
     )
 
 

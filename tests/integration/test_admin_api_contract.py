@@ -274,9 +274,7 @@ def test_a_node_can_be_corrected_after_it_is_created() -> None:
     `api.updatePanel` existed with no caller, so the only remedy was to live
     with the broken node.
     """
-    source = (ADMIN_SRC / "components" / "feature" / "node-dialog.tsx").read_text(
-        encoding="utf-8"
-    )
+    source = (ADMIN_SRC / "components" / "feature" / "node-dialog.tsx").read_text(encoding="utf-8")
 
     assert "api.updatePanel(" in source, "nothing edits a node"
     assert "api.savePanel(" in source, "nothing creates a node"

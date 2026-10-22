@@ -45,9 +45,7 @@ class SqlAlchemyReferralRepository:
         if referrer_telegram_id == invitee_telegram_id:
             return False
         existing = await self._session.execute(
-            select(ReferralModel.id).where(
-                ReferralModel.invitee_id == invitee_telegram_id
-            )
+            select(ReferralModel.id).where(ReferralModel.invitee_id == invitee_telegram_id)
         )
         if existing.scalar_one_or_none() is not None:
             return False

@@ -51,9 +51,7 @@ OPEN_STATES = (
 class SyncTicketRepository:
     """``application.support.ports.TicketRepository``."""
 
-    def __init__(
-        self, session: Session, *, reseller_id: uuid.UUID | None = None
-    ) -> None:
+    def __init__(self, session: Session, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
         self._reseller_id = reseller_id
 
@@ -64,10 +62,7 @@ class SyncTicketRepository:
         the ones with no reseller, and matching everything would put a
         reseller's customers back in front of our own bot.
         """
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
-
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     def _messages(self, ticket_id: str) -> list[TicketMessageModel]:
         stmt = (
@@ -267,9 +262,7 @@ class SyncTicketRepository:
             select(TicketModel.id).where(TicketModel.reference.like(pattern)).with_for_update()
         )
         stmt = (
-            select(func.count())
-            .select_from(TicketModel)
-            .where(TicketModel.reference.like(pattern))
+            select(func.count()).select_from(TicketModel).where(TicketModel.reference.like(pattern))
         )
         return int(self._session.execute(stmt).scalar_one()) + 1
 

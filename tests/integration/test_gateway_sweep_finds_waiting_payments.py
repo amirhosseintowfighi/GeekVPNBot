@@ -60,7 +60,9 @@ def _payment(pid: str, *, state: str, age: timedelta) -> list[Any]:
         state=state,
         amount=250_000,
         gateway_key="atlaspay",
-        gateway_reference="66",
+        # One reference per payment: the gateway-lookup index is unique, and a
+        # shared one is exactly the double credit that index exists to stop.
+        gateway_reference=f"ref-{pid}",
         created_at=created,
         updated_at=created,
     )

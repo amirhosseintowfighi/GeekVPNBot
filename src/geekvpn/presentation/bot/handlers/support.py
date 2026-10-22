@@ -65,20 +65,22 @@ def _topic_keyboard() -> InlineKeyboardMarkup:
 
 
 @router.message(Command("support"))
-async def on_support_command(
-    message: Message, state: FSMContext, scope: Any = None
-) -> None:
+async def on_support_command(message: Message, state: FSMContext, scope: Any = None) -> None:
     await state.clear()
-    await answer(message, f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, "SUPPORT_INTRO")}", reply_markup=_menu_keyboard())
+    await answer(
+        message,
+        f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, 'SUPPORT_INTRO')}",
+        reply_markup=_menu_keyboard(),
+    )
 
 
 @router.callback_query(NavCB.filter(F.to == "support"))
-async def on_support(
-    query: CallbackQuery, state: FSMContext, scope: Any = None
-) -> None:
+async def on_support(query: CallbackQuery, state: FSMContext, scope: Any = None) -> None:
     await state.clear()
     await toast(query)
-    await safe_edit(query, f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, "SUPPORT_INTRO")}", markup=_menu_keyboard())
+    await safe_edit(
+        query, f"{T.SUPPORT_TITLE}\n\n{C.resolve(scope, 'SUPPORT_INTRO')}", markup=_menu_keyboard()
+    )
 
 
 @router.callback_query(TicketCB.filter(F.action == "new"))
@@ -165,7 +167,12 @@ async def on_ticket_list(query: CallbackQuery, services: BotServices, user: Any 
         logger.exception("bot.ticket_list_failed")
         tickets = []
     rows = [
-        [K.btn(f"{ticket.topic_fa} - {ticket.reference}", TicketCB(action="view", ref=ticket.reference))]
+        [
+            K.btn(
+                f"{ticket.topic_fa} - {ticket.reference}",
+                TicketCB(action="view", ref=ticket.reference),
+            )
+        ]
         for ticket in tickets
     ]
     rows.append([K.btn(T.BTN_BACK, NavCB(to="support"))])
@@ -209,9 +216,7 @@ async def on_ticket_view(
 
 
 @router.callback_query(TicketCB.filter(F.action == "reply"))
-async def on_ticket_reply(
-    query: CallbackQuery, callback_data: TicketCB, state: FSMContext
-) -> None:
+async def on_ticket_reply(query: CallbackQuery, callback_data: TicketCB, state: FSMContext) -> None:
     await toast(query)
     await state.update_data(reply_reference=callback_data.ref)
     await state.set_state(Support.replying)

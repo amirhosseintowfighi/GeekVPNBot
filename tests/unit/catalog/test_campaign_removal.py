@@ -38,9 +38,7 @@ def _function(path: pathlib.Path, name: str, *, inside: str | None = None) -> as
     scopes: list[ast.AST] = [tree]
     if inside is not None:
         scopes = [
-            node
-            for node in tree.body
-            if isinstance(node, ast.ClassDef) and node.name == inside
+            node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == inside
         ]
         assert scopes, f"{inside} is gone from {path}"
     for scope in scopes:
@@ -65,9 +63,7 @@ def test_removing_archives_rather_than_deletes():
 
 def test_an_archived_campaign_leaves_the_list():
     """Otherwise the operator presses delete and the row stays put."""
-    source = ast.unparse(
-        _function(REPO, "list_all", inside="SqlAlchemyCampaignRepository")
-    )
+    source = ast.unparse(_function(REPO, "list_all", inside="SqlAlchemyCampaignRepository"))
 
     assert "include_archived" in source
     assert "archived" in source

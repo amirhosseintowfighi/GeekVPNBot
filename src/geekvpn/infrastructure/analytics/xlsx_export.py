@@ -75,7 +75,9 @@ def _utc(value: datetime | None) -> datetime | None:
     return value.astimezone(UTC).replace(tzinfo=None) if value else None
 
 
-def _sheet(book: Workbook, title: str, header: Sequence[str], rows: Iterable[Sequence[Any]]) -> None:
+def _sheet(
+    book: Workbook, title: str, header: Sequence[str], rows: Iterable[Sequence[Any]]
+) -> None:
     sheet: Worksheet = book.create_sheet(title)
     sheet.sheet_view.rightToLeft = True
     sheet.append(list(header))
@@ -146,9 +148,7 @@ def customer_rows(session: Session, *, now: datetime) -> list[tuple[Any, ...]]:
             func.coalesce(spent.c.total, 0),
             func.coalesce(live.c.live, 0),
         )
-        .outerjoin(
-            balance, (balance.c.user_id == UserModel.telegram_id) & same_shop_balance
-        )
+        .outerjoin(balance, (balance.c.user_id == UserModel.telegram_id) & same_shop_balance)
         .outerjoin(spent, (spent.c.user_id == UserModel.telegram_id) & same_shop_orders)
         .outerjoin(live, live.c.user_id == UserModel.telegram_id)
         .order_by(UserModel.created_at)

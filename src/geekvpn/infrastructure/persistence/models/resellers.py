@@ -28,7 +28,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     func,
     text,
 )
@@ -52,17 +51,27 @@ class ResellerModel(TimestampMixin, Base):
     #: Their login. One admin account, one reseller - the account is how they
     #: authenticate and this row is what they are allowed to do once they have.
     admin_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="CASCADE"), nullable=False,
+        PgUUID(as_uuid=True),
+        ForeignKey("admins.id", ondelete="CASCADE"),
+        nullable=False,
         unique=True,
     )
     name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=ResellerStatus.ACTIVE.value, index=True
+        String(16),
+        nullable=False,
+        default=ResellerStatus.ACTIVE.value,
+        index=True,
+        server_default=text("'active'"),
     )
-    discount_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    discount_percent: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     #: Toman, never negative. Debt is a policy decision with a limit and a
     #: settlement process behind it, and this platform has neither yet.
-    balance: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    balance: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     #: Their own Telegram bot. Encrypted with its own AEAD context, like panel
     #: passwords: a token is a full credential, and one leaked from a database
@@ -136,9 +145,7 @@ class ResellerPlanPriceModel(Base):
     __table_args__ = (
         # Zero is allowed here and only here: a giveaway a human typed on
         # purpose, for one package, for one reseller.
-        CheckConstraint(
-            "price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"
-        ),
+        CheckConstraint("price IS NULL OR price >= 0", name="reseller_plan_prices_non_negative"),
         CheckConstraint(
             "retail_price IS NULL OR retail_price >= 0",
             name="reseller_plan_prices_retail_non_negative",
@@ -174,7 +181,9 @@ class ResellerLedgerModel(Base):
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     balance_after: Mapped[int] = mapped_column(BigInteger, nullable=False)
     kind: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
-    description_fa: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    description_fa: Mapped[str] = mapped_column(
+        String(256), nullable=False, default="", server_default=text("''")
+    )
     #: The subscription, order or payment this entry is about, when there is
     #: one. A string because the ids on the synchronous side are hex, not UUID.
     reference: Mapped[str | None] = mapped_column(String(64), index=True)
@@ -183,10 +192,7 @@ class ResellerLedgerModel(Base):
     actor_id: Mapped[int | None] = mapped_column(BigInteger)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("id", name="reseller_ledger_id_unique"),
-        Index("ix_reseller_ledger_reseller_time", "reseller_id", "occurred_at"),
-    )
+    __table_args__ = (Index("ix_reseller_ledger_reseller_time", "reseller_id", "occurred_at"),)
 
 
 class ResellerApplicationModel(TimestampMixin, Base):
@@ -205,7 +211,9 @@ class ResellerApplicationModel(TimestampMixin, Base):
     name_fa: Mapped[str] = mapped_column(String(128), nullable=False)
     contact_fa: Mapped[str | None] = mapped_column(String(256))
     note_fa: Mapped[str | None] = mapped_column(String(512))
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True, server_default=text("'pending'")
+    )
     reason_fa: Mapped[str | None] = mapped_column(String(512))
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -241,13 +249,17 @@ class ResellerTopupModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
     reseller_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        PgUUID(as_uuid=True),
+        ForeignKey("resellers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     note_fa: Mapped[str | None] = mapped_column(String(256))
     receipt_file_id: Mapped[str | None] = mapped_column(String(256))
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True, server_default=text("'pending'")
+    )
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reason_fa: Mapped[str | None] = mapped_column(String(512))
@@ -313,8 +325,10 @@ class RequiredChannelModel(TimestampMixin, Base):
     #: Needed for a private channel, whose `@name` cannot be opened. A public
     #: one is reachable from `chat_ref` alone.
     invite_url: Mapped[str | None] = mapped_column(String(512))
-    active: Mapped[bool] = mapped_column(nullable=False, default=True)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text("true"))
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     #: Whose bot this gates. NULL is the platform's own.
     reseller_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE")

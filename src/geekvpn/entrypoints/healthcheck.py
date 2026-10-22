@@ -22,7 +22,8 @@ def main(argv: list[str]) -> int:
     if not url.startswith(("http://localhost", "http://127.0.0.1")):
         return 2  # only ever probe ourselves
     try:
-        with urllib.request.urlopen(url, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
+        # Only http://localhost or 127.0.0.1 reaches here (checked above).
+        with urllib.request.urlopen(url, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310  # nosec B310
             return 0 if 200 <= response.status < 300 else 1
     except (urllib.error.URLError, OSError):
         return 1

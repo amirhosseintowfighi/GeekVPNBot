@@ -198,9 +198,7 @@ async def message_customer(
     )
 
     def work(sync: SyncScope) -> dict[str, Any]:
-        result = sync.engine.dispatch(
-            user_id=telegram_id, message=message, source="admin.direct"
-        )
+        result = sync.engine.dispatch(user_id=telegram_id, message=message, source="admin.direct")
         return {
             "notificationId": result.notification_id,
             "delivered": result.delivered,

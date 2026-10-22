@@ -115,8 +115,7 @@ class ProvisioningService:
         #: the bot, an operator's retry, or the worker draining a stuck
         #: order. Wiring it at each of those three instead would be three
         #: chances to forget.
-        on_activated: Callable[[SubscriptionActivated, str | None], Awaitable[None]]
-        | None = None,
+        on_activated: Callable[[SubscriptionActivated, str | None], Awaitable[None]] | None = None,
         #: This shop's own link hosts, node id to host. Passed in rather than
         #: looked up because the scope already knows which shop the request
         #: belongs to, and a service that fetched it again could fetch a
@@ -285,9 +284,7 @@ class ProvisioningService:
 
         # The link goes with it rather than being looked up: nothing has
         # committed yet, so a second connection would find no such row.
-        await self._announce(
-            self._publish(order, subscription), subscription.subscription_url
-        )
+        await self._announce(self._publish(order, subscription), subscription.subscription_url)
         return subscription
 
     # -- renewal -----------------------------------------------------------

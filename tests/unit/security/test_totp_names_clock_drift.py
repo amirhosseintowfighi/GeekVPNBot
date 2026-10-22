@@ -94,7 +94,7 @@ def test_a_refusal_caused_by_drift_is_named(totp: Rfc6238TotpService, recorder: 
 
 
 def test_the_log_says_which_way_and_how_far(totp: Rfc6238TotpService, recorder: Recorder):
-    """"Something is wrong with the clock" still leaves somebody guessing at
+    """ "Something is wrong with the clock" still leaves somebody guessing at
     whether the server is ahead or behind."""
     code = totp.code_at(secret=SECRET, timestamp=NOW + 300)
 

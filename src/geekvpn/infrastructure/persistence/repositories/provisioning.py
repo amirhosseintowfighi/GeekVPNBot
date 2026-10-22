@@ -55,9 +55,7 @@ _RETRYABLE = (
 
 
 class SqlAlchemyOrderRepository:
-    def __init__(
-        self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None
-    ) -> None:
+    def __init__(self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
         self._reseller_id = reseller_id
 
@@ -68,10 +66,7 @@ class SqlAlchemyOrderRepository:
         the ones with no reseller, and matching everything would put a
         reseller's customers back in front of our own bot.
         """
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
-
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     async def get(self, order_id: str) -> Order | None:
         row = await self._session.get(OrderModel, order_id)
@@ -176,9 +171,7 @@ class SqlAlchemyOrderRepository:
                 OrderModel.placed_at >= since,
                 OrderModel.is_renewal.is_(False),
                 OrderModel.source != OrderSource.TRIAL.value,
-                OrderModel.state.not_in(
-                    (OrderState.CANCELLED.value, OrderState.FAILED.value)
-                ),
+                OrderModel.state.not_in((OrderState.CANCELLED.value, OrderState.FAILED.value)),
             )
         )
         return int((await self._session.execute(stmt)).scalar_one())
@@ -274,9 +267,7 @@ class SqlAlchemyOrderRepository:
 
 
 class SqlAlchemySubscriptionRepository:
-    def __init__(
-        self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None
-    ) -> None:
+    def __init__(self, session: AsyncSession, *, reseller_id: uuid.UUID | None = None) -> None:
         self._session = session
         self._reseller_id = reseller_id
 
@@ -287,10 +278,7 @@ class SqlAlchemySubscriptionRepository:
         the ones with no reseller, and matching everything would put a
         reseller's customers back in front of our own bot.
         """
-        return (
-            column.is_(None) if self._reseller_id is None else column == self._reseller_id
-        )
-
+        return column.is_(None) if self._reseller_id is None else column == self._reseller_id
 
     async def get(self, subscription_id: str) -> Subscription | None:
         row = await self._session.get(SubscriptionModel, subscription_id)
@@ -332,9 +320,7 @@ class SqlAlchemySubscriptionRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 
-    async def list_for_reseller(
-        self, reseller_id: uuid.UUID
-    ) -> Sequence[Subscription]:
+    async def list_for_reseller(self, reseller_id: uuid.UUID) -> Sequence[Subscription]:
         """Everything one reseller has sold.
 
         Read whole rather than filtered by state: arrears enforcement needs
@@ -430,7 +416,9 @@ class SqlAlchemySubscriptionRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [subscription_to_domain(row) for row in rows]
 
-    async def list_lapsed_before(self, *, cutoff: datetime, limit: int = 200) -> Sequence[Subscription]:
+    async def list_lapsed_before(
+        self, *, cutoff: datetime, limit: int = 200
+    ) -> Sequence[Subscription]:
         """Expired or used-up services whose date passed before `cutoff`.
 
         For the clean-up job. Suspended services are left alone: suspension is

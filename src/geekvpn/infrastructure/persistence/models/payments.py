@@ -36,6 +36,7 @@ from sqlalchemy import (
     Sequence,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -74,15 +75,27 @@ class InvoiceModel(TimestampMixin, Base):
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="SET NULL")
     )
     state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=InvoiceState.OPEN.value, index=True
+        String(16),
+        nullable=False,
+        default=InvoiceState.OPEN.value,
+        index=True,
+        server_default=text("'open'"),
     )
 
     #: Denormalised line items. Lines are immutable once issued and are only
     #: ever read as a whole document, so a child table would buy nothing.
-    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
-    subtotal: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    discount_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    subtotal: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    discount_total: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    total: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     plan_id: Mapped[str | None] = mapped_column(String(64), index=True)
     plan_name: Mapped[str | None] = mapped_column(String(128))
@@ -97,7 +110,9 @@ class InvoiceModel(TimestampMixin, Base):
     #: What the customer is being billed for, in Persian. The aggregate treats
     #: this as required, so it is NOT NULL here rather than a nullable column
     #: that would fail to load back into the domain.
-    subject_fa: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    subject_fa: Mapped[str] = mapped_column(
+        String(256), nullable=False, default="", server_default=text("''")
+    )
     #: Free-form string map carried by the aggregate. Named ``meta`` because
     #: ``metadata`` is reserved by SQLAlchemy's declarative base.
     meta: Mapped[dict[str, str]] = mapped_column(
@@ -110,6 +125,9 @@ class InvoiceModel(TimestampMixin, Base):
         Index("ix_billing_invoices_user_state", "user_id", "state"),
         # Revenue reporting always slices by settlement time, never by row age.
         Index("ix_billing_invoices_paid_at_state", "paid_at", "state"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_billing_invoices_shop", "reseller_id", "user_id"),
     )
 
 
@@ -136,12 +154,20 @@ class PaymentModel(TimestampMixin, Base):
     )
     method: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     state: Mapped[str] = mapped_column(
-        String(24), nullable=False, default=PaymentState.DRAFT.value, index=True
+        String(24),
+        nullable=False,
+        default=PaymentState.DRAFT.value,
+        index=True,
+        server_default=text("'draft'"),
     )
 
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    captured: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    refunded_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    captured: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
+    refunded_total: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("'0'::bigint")
+    )
 
     gateway_key: Mapped[str | None] = mapped_column(String(32))
     gateway_reference: Mapped[str | None] = mapped_column(String(128))
@@ -178,6 +204,31 @@ class PaymentModel(TimestampMixin, Base):
         # The review queue: pending payments oldest first.
         Index("ix_billing_payments_state_created", "state", "created_at"),
         Index("ix_billing_payments_user_state", "user_id", "state"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_billing_payments_shop", "reseller_id", "user_id"),
+        Index(
+            "ix_billing_payments_review_queue",
+            "state",
+            "submitted_at",
+            postgresql_where=text(
+                "state IN ('pending_review', 'awaiting_proof', 'pending_gateway')"
+            ),
+        ),
+        Index(
+            "ix_billing_payments_gateway_lookup",
+            "gateway_key",
+            "gateway_reference",
+            unique=True,
+            postgresql_where=text("gateway_reference IS NOT NULL"),
+        ),
+        Index(
+            "ix_billing_payments_expiry_sweep",
+            "expires_at",
+            postgresql_where=text(
+                "state IN ('pending_review', 'awaiting_proof', 'pending_gateway')"
+            ),
+        ),
     )
 
 
@@ -205,7 +256,9 @@ class RefundModel(TimestampMixin, Base):
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reason: Mapped[str] = mapped_column(String(24), nullable=False)
     destination: Mapped[str] = mapped_column(String(16), nullable=False)
-    note_fa: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    note_fa: Mapped[str] = mapped_column(
+        String(512), nullable=False, default="", server_default=text("''")
+    )
     refunded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
@@ -218,6 +271,9 @@ class RefundModel(TimestampMixin, Base):
             name="billing_refunds_destination",
         ),
         CheckConstraint("amount > 0", name="billing_refunds_amount_positive"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_billing_refunds_shop", "reseller_id", "user_id"),
     )
 
 
@@ -246,7 +302,9 @@ class WalletEntryModel(TimestampMixin, Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
-    description_fa: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    description_fa: Mapped[str] = mapped_column(
+        String(256), nullable=False, default="", server_default=text("''")
+    )
     #: Idempotency handle: the payment id, invoice id or referral id that caused
     #: this entry. Unique per user so a retried credit cannot double-pay.
     reference: Mapped[str | None] = mapped_column(String(128))
@@ -258,6 +316,10 @@ class WalletEntryModel(TimestampMixin, Base):
         CheckConstraint("amount <> 0", name="billing_wallet_amount_non_zero"),
         UniqueConstraint("user_id", "kind", "reference", name="uq_wallet_user_kind_reference"),
         Index("ix_billing_wallet_user_occurred", "user_id", "occurred_at"),
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_billing_wallet_entries_shop", "reseller_id", "user_id"),
+        Index("ix_billing_wallet_entries_user_time", "user_id", text("occurred_at DESC")),
     )
 
 
@@ -283,6 +345,12 @@ class ReceiptDigestModel(TimestampMixin, Base):
     method: Mapped[str] = mapped_column(String(16), nullable=False)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+    __table_args__ = (
+        # Created by the migrations for the sweeps and admin screens; declared
+        # here so the models describe the schema autogenerate compares against.
+        Index("ix_billing_receipt_digests_shop", "reseller_id", "user_id"),
+    )
+
 
 class CardAccountModel(TimestampMixin, Base):
     """Destination cards for the manual card-to-card flow."""
@@ -294,10 +362,14 @@ class CardAccountModel(TimestampMixin, Base):
     bank_fa: Mapped[str] = mapped_column(String(64), nullable=False)
     card_number: Mapped[str] = mapped_column(String(19), nullable=False, unique=True)
     sheba: Mapped[str | None] = mapped_column(String(26))
-    active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
+    active: Mapped[bool] = mapped_column(
+        nullable=False, default=True, index=True, server_default=text("true")
+    )
     #: Rotation order. The bot shows the lowest sort order that is active, so a
     #: card can be retired without editing code.
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     #: Whose card this is. NULL is the platform's own, which is every row that
     #: predates resellers.
     #:
@@ -326,17 +398,21 @@ class CryptoAccountModel(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     address: Mapped[str] = mapped_column(String(128), nullable=False)
     network: Mapped[str] = mapped_column(String(32), nullable=False)
-    asset: Mapped[str] = mapped_column(String(16), nullable=False, default="USDT")
-    active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    asset: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="USDT", server_default=text("'USDT'")
+    )
+    active: Mapped[bool] = mapped_column(
+        nullable=False, default=True, index=True, server_default=text("true")
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     #: Whose address. NULL is the platform's own.
     reseller_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("resellers.id", ondelete="CASCADE"), index=True
     )
 
-    __table_args__ = (
-        UniqueConstraint("address", "network", name="uq_crypto_address_network"),
-    )
+    __table_args__ = (UniqueConstraint("address", "network", name="uq_crypto_address_network"),)
 
 
 #: iSunnyMoney's order ids: an integer sequence from 100001, as the operator
@@ -371,8 +447,12 @@ class GatewayAccountModel(TimestampMixin, Base):
     merchant_id_encrypted: Mapped[str] = mapped_column(
         EncryptedString("gateway.merchant_id"), nullable=False
     )
-    active: Mapped[bool] = mapped_column(nullable=False, default=True, index=True)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(
+        nullable=False, default=True, index=True, server_default=text("true")
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     #: What the button says, when the operator has chosen. NULL is the
     #: adapter's own name - which is what every shop has until it does not.
     label_fa: Mapped[str | None] = mapped_column(String(64))
