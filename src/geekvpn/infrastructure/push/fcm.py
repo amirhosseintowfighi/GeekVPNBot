@@ -25,6 +25,8 @@ import httpx
 import jwt
 import structlog
 
+from geekvpn.infrastructure.outbound_proxy import proxy_for
+
 logger = structlog.stdlib.get_logger(__name__)
 
 _SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
@@ -107,6 +109,7 @@ class FcmClient:
                 json=body,
                 headers={"Authorization": f"Bearer {access}"},
                 timeout=self._timeout,
+                proxy=proxy_for(url),
             )
         except (httpx.HTTPError, jwt.PyJWTError, ValueError) as exc:
             logger.warning("push.fcm_error", error=type(exc).__name__)
@@ -141,6 +144,7 @@ class FcmClient:
                     "assertion": assertion,
                 },
                 timeout=self._timeout,
+                proxy=proxy_for(_TOKEN_URL),
             )
             response.raise_for_status()
             payload = response.json()

@@ -30,6 +30,7 @@ from geekvpn.domain.panels.errors import (
     PanelRateLimited,
     PanelUnreachable,
 )
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 #: Backoff base; attempt N waits a random value in [0, BASE * 2**N).
 BACKOFF_BASE_SECONDS = 0.25
@@ -58,6 +59,7 @@ class PanelHttpClient:
             transport=transport,
             follow_redirects=True,
             headers={"Accept": "application/json", "User-Agent": "GeekVPN/0.3"},
+            proxy=proxy_for(base_url),
         )
 
     async def close(self) -> None:

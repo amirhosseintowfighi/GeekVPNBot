@@ -10,6 +10,7 @@ update is parsed.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -21,7 +22,7 @@ from aiogram.types import MenuButtonWebApp, Update, WebAppInfo
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
 from geekvpn import __version__
-from geekvpn.application.resellers.tenant_bots import tenant_secret
+from geekvpn.application.resellers.tenant_bots import tenant_path, tenant_secret
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.health.probes import run_probes
@@ -34,6 +35,7 @@ from geekvpn.presentation.api.schemas import (
     ReadinessResponse,
 )
 from geekvpn.presentation.bot.factory import create_bot, create_dispatcher
+from geekvpn.presentation.bot.polling import UpdatePoller
 from geekvpn.presentation.bot.tenants import TenantBots
 from geekvpn.presentation.bot.ui import text
 
@@ -112,6 +114,41 @@ async def register_webhook(
     return True
 
 
+async def register_tenant_webhooks(
+    tenants: TenantBots, settings: Settings, *, allowed_updates: list[str]
+) -> int:
+    """Point every active reseller's bot back at this deployment.
+
+    A reseller's webhook is otherwise set once, when the token is attached.
+    Polling mode deletes it - Telegram refuses `getUpdates` to a bot with one -
+    so without this a switch back to webhooks would bring our bot back and
+    leave every reseller's bot silent. Idempotent, and never drops what queued.
+    """
+    platform_secret = settings.telegram.webhook_secret.get_secret_value()
+    base = settings.telegram.webhook_base_url.rstrip("/")
+    try:
+        bots = await tenants.active()
+    except Exception:
+        logger.exception("bot.tenant_webhooks.unavailable")
+        return 0
+    registered = 0
+    for reseller_id, bot in bots.items():
+        try:
+            await bot.set_webhook(
+                url=base + tenant_path(settings.telegram.webhook_path, reseller_id),
+                secret_token=tenant_secret(platform_secret, reseller_id),
+                drop_pending_updates=False,
+                allowed_updates=allowed_updates,
+            )
+            registered += 1
+        except Exception as exc:
+            logger.warning(
+                "bot.tenant_webhook.registration_failed", reseller=reseller_id.hex, error=str(exc)
+            )
+    logger.info("bot.tenant_webhooks.registered", count=registered, of=len(bots))
+    return registered
+
+
 class SupportsSetMenuButton(Protocol):
     async def set_chat_menu_button(self, *, menu_button: MenuButtonWebApp) -> bool: ...
 
@@ -184,18 +221,33 @@ def create_bot_app(
         # sessions at start-up for bots that may see no traffic all day.
         app.state.tenants = TenantBots(app.state.container, parse_mode=settings.telegram.parse_mode)
 
-        if settings.telegram.set_webhook_on_startup:
-            await register_webhook(
-                app.state.bot,
-                settings,
-                allowed_updates=app.state.dispatcher.resolve_used_update_types(),
+        allowed_updates = app.state.dispatcher.resolve_used_update_types()
+        app.state.polling = None
+        if settings.telegram.mode == "polling":
+            # No webhook is set or needed: the poller deletes each bot's and
+            # fetches the updates itself. See `polling.py`.
+            poller = UpdatePoller(
+                app.state.dispatcher,
+                main_bot=app.state.bot,
+                tenants=app.state.tenants.active,
+                allowed_updates=allowed_updates,
             )
+            app.state.polling = asyncio.create_task(poller.run())
+        elif settings.telegram.set_webhook_on_startup:
+            await register_webhook(app.state.bot, settings, allowed_updates=allowed_updates)
+            await register_tenant_webhooks(
+                app.state.tenants, settings, allowed_updates=allowed_updates
+            )
+        if settings.telegram.set_webhook_on_startup:
             await register_menu_button(app.state.bot, settings)
 
-        logger.info("bot.startup", env=settings.app.env.value)
+        logger.info("bot.startup", env=settings.app.env.value, mode=settings.telegram.mode)
         try:
             yield
         finally:
+            if app.state.polling is not None:
+                app.state.polling.cancel()
+                await asyncio.gather(app.state.polling, return_exceptions=True)
             await app.state.tenants.close()
             await app.state.bot.session.close()
             if not externally_owned_container:

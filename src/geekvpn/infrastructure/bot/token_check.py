@@ -16,6 +16,7 @@ import httpx
 
 from geekvpn.application.resellers.tenant_bots import BotIdentity, InvalidBotToken
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import TELEGRAM_API, proxy_for
 
 logger = get_logger(__name__)
 
@@ -34,7 +35,9 @@ class HttpTokenChecker:
             raise InvalidBotToken("That does not look like a bot token.")
 
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(
+                timeout=TIMEOUT_SECONDS, proxy=proxy_for(TELEGRAM_API)
+            ) as client:
                 response = await client.get(f"https://api.telegram.org/bot{token}/getMe")
         except httpx.HTTPError as failure:
             # Not "the token is bad" - we do not know that. Telegram was
@@ -70,7 +73,9 @@ class HttpTokenChecker:
 
     async def _call(self, token: str, method: str, payload: dict[str, object]) -> None:
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(
+                timeout=TIMEOUT_SECONDS, proxy=proxy_for(TELEGRAM_API)
+            ) as client:
                 response = await client.post(
                     f"https://api.telegram.org/bot{token.strip()}/{method}", json=payload
                 )

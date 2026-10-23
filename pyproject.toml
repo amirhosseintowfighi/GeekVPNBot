@@ -21,6 +21,9 @@ dependencies = [
   # unbounded-memory request path and a Secure-cookie bypass (fixed in 3.14.4),
   # and the dependency audit fails the build on either.
   "aiohttp>=3.14.4",
+  # SOCKS5 for aiogram's own session (`PROXY__URL`): from a server inside Iran,
+  # Telegram is only reachable through the proxy.
+  "aiohttp-socks>=0.10",
   "structlog>=24.4.0",
   "orjson>=3.10.0",
   # Phase 2 - authentication.
@@ -34,7 +37,7 @@ dependencies = [
   # container at all - the API, the bot, the worker and create_admin each
   # died on ModuleNotFoundError. It was invisible locally: the dev extra
   # installs httpx for the test client.
-  "httpx>=0.28.0",
+  "httpx[socks]>=0.28.0",
   # Orders and customers as an .xlsx, sent from the bot's admin menu.
   "openpyxl>=3.1.5",
 ]

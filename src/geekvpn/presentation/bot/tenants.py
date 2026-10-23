@@ -19,6 +19,7 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.presentation.bot.session import telegram_session
 
 logger = get_logger(__name__)
 
@@ -52,7 +53,11 @@ class TenantBots:
             self._missing[reseller_id] = now
             return None
 
-        bot = Bot(token=token, default=DefaultBotProperties(parse_mode=self._parse_mode))
+        bot = Bot(
+            token=token,
+            session=telegram_session(),
+            default=DefaultBotProperties(parse_mode=self._parse_mode),
+        )
         self._bots[reseller_id] = bot
         self._missing.pop(reseller_id, None)
         logger.info("bot.tenant_loaded", reseller=reseller_id.hex)
@@ -68,6 +73,34 @@ class TenantBots:
         self._missing.pop(reseller_id, None)
         if bot is not None:
             await bot.session.close()
+
+    async def active(self) -> dict[uuid.UUID, Bot]:
+        """Every active reseller's bot, built and cached.
+
+        For the paths that cannot wait for an update to arrive before knowing
+        a bot exists: polling has to ask each one for its updates, and webhook
+        start-up re-points each one at us. A bot dropped from the answer -
+        suspended reseller, removed token - is closed here too.
+        """
+        async with self._container.session_factory() as session:
+            from geekvpn.infrastructure.di.scope import RequestScope
+
+            scope = RequestScope(container=self._container, session=session)
+            rows = await scope.resellers.with_bots()
+
+        wanted = {reseller_id: token for reseller_id, token, _ in rows if token}
+        for reseller_id in list(self._bots):
+            if reseller_id not in wanted:
+                await self.forget(reseller_id)
+        for reseller_id, token in wanted.items():
+            if reseller_id not in self._bots:
+                self._bots[reseller_id] = Bot(
+                    token=token,
+                    session=telegram_session(),
+                    default=DefaultBotProperties(parse_mode=self._parse_mode),
+                )
+                self._missing.pop(reseller_id, None)
+        return dict(self._bots)
 
     async def close(self) -> None:
         for bot in self._bots.values():

@@ -44,6 +44,7 @@ from geekvpn.domain.base.errors import ConflictError, NotFoundError
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.payments.enums import PaymentState, RefundDestination, RefundReason
 from geekvpn.infrastructure.di.sync_scope import SyncScope
+from geekvpn.infrastructure.outbound_proxy import TELEGRAM_API, proxy_for
 from geekvpn.infrastructure.persistence.models.payments import (
     CardAccountModel,
     CryptoAccountModel,
@@ -847,7 +848,9 @@ async def payment_receipt(
     if not token:
         raise NotFoundError("توکن ربات تنظیم نشده، پس رسید رو نمی‌شه گرفت.")
 
-    async with httpx.AsyncClient(timeout=TELEGRAM_TIMEOUT_SECONDS) as client:
+    async with httpx.AsyncClient(
+        timeout=TELEGRAM_TIMEOUT_SECONDS, proxy=proxy_for(TELEGRAM_API)
+    ) as client:
         described = await client.get(
             f"https://api.telegram.org/bot{token}/getFile", params={"file_id": file_id}
         )

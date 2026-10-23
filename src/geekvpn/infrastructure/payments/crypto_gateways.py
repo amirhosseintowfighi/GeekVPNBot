@@ -46,6 +46,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -136,7 +137,13 @@ def _request(
 ) -> dict[str, Any]:
     try:
         response = httpx.request(
-            method, url, params=params, json=json, headers=headers, timeout=TIMEOUT_SECONDS
+            method,
+            url,
+            params=params,
+            json=json,
+            headers=headers,
+            timeout=TIMEOUT_SECONDS,
+            proxy=proxy_for(url),
         )
     except httpx.HTTPError as failure:
         raise CryptoGatewayError(str(failure)) from failure

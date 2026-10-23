@@ -36,6 +36,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 from geekvpn.infrastructure.payments.atlaspay import AtlasPayGateway
 from geekvpn.infrastructure.payments.crypto_gateways import (
     ExchangeRates,
@@ -79,7 +80,7 @@ class GatewayCallFailed(RuntimeError):
 
 def _post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
     try:
-        response = httpx.post(url, json=payload, timeout=TIMEOUT_SECONDS)
+        response = httpx.post(url, json=payload, timeout=TIMEOUT_SECONDS, proxy=proxy_for(url))
     except httpx.HTTPError as failure:
         raise GatewayCallFailed(str(failure)) from failure
     try:

@@ -41,6 +41,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -175,7 +176,10 @@ class StarsGateway:
             raise StarsError("This shop has no bot to take stars with.")
         try:
             response = httpx.post(
-                f"{self.api_url}/bot{token}/{method}", json=payload, timeout=TIMEOUT_SECONDS
+                f"{self.api_url}/bot{token}/{method}",
+                json=payload,
+                timeout=TIMEOUT_SECONDS,
+                proxy=proxy_for(self.api_url),
             )
             body = response.json()
         except (httpx.HTTPError, ValueError) as failure:
