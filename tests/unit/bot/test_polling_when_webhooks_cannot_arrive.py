@@ -174,3 +174,70 @@ def test_the_mode_and_proxy_come_from_the_env_file_keys(
     assert settings.telegram.mode == mode
     assert settings.proxy.url.get_secret_value() == "socks5://u:p@10.0.0.9:1080"
     assert settings.proxy.extra_hosts == "github.com"
+
+
+class FloodedOnceBot(FakeBot):
+    """Telegram's per-bot limit on `setWebhook`: a second call within a second
+    is answered "retry after 1", which a restart can easily land inside."""
+
+    def __init__(self) -> None:
+        super().__init__([])
+        self.flooded = False
+
+    async def set_webhook(self, **kwargs: Any) -> bool:
+        from aiogram.exceptions import TelegramRetryAfter
+        from aiogram.methods import SetWebhook
+
+        if not self.flooded:
+            self.flooded = True
+            raise TelegramRetryAfter(SetWebhook(url="x"), "Too Many Requests", retry_after=1)
+        return await super().set_webhook(**kwargs)
+
+
+async def test_a_resellers_webhook_waits_out_telegrams_flood_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Seen in production: the reseller's registration was refused with
+    "retry after 1" and abandoned, leaving that reseller's bot deaf."""
+    from geekvpn.infrastructure.config.settings import Settings, TelegramSettings
+    from geekvpn.presentation.bot import app as bot_app
+
+    waited: list[float] = []
+
+    async def no_sleep(seconds: float) -> None:
+        waited.append(seconds)
+
+    monkeypatch.setattr(bot_app, "_sleep", no_sleep)
+    tenant = FloodedOnceBot()
+
+    class Tenants:
+        async def active(self) -> dict[uuid.UUID, Any]:
+            return {RESELLER: tenant}
+
+    settings = Settings(
+        telegram=TelegramSettings(webhook_base_url="https://shop.example", webhook_secret="s")  # type: ignore[arg-type]
+    )
+    count = await bot_app.register_tenant_webhooks(Tenants(), settings, allowed_updates=[])  # type: ignore[arg-type]
+
+    assert count == 1
+    assert len(tenant.webhooks) == 1
+    assert waited and waited[0] >= 1
+
+
+async def test_the_main_webhook_waits_out_telegrams_flood_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from geekvpn.infrastructure.config.settings import Settings, TelegramSettings
+    from geekvpn.presentation.bot import app as bot_app
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(bot_app, "_sleep", no_sleep)
+    bot = FloodedOnceBot()
+    settings = Settings(
+        telegram=TelegramSettings(webhook_base_url="https://shop.example", webhook_secret="s")  # type: ignore[arg-type]
+    )
+
+    assert await bot_app.register_webhook(bot, settings, allowed_updates=[]) is True  # type: ignore[arg-type]
+    assert len(bot.webhooks) == 1

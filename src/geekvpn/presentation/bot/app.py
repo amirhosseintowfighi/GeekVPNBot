@@ -14,10 +14,12 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from functools import partial
 from secrets import compare_digest
 from typing import Protocol
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import MenuButtonWebApp, Update, WebAppInfo
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
@@ -40,6 +42,25 @@ from geekvpn.presentation.bot.tenants import TenantBots
 from geekvpn.presentation.bot.ui import text
 
 logger = get_logger(__name__)
+
+#: Telegram allows about one `setWebhook` per second per bot, and answers a
+#: second one with "retry after N" - which a restart, or our bot and a
+#: reseller's registered back to back, easily lands inside. Asked to wait, we
+#: wait; giving up instead left a reseller's bot without a webhook.
+FLOOD_RETRIES = 3
+_sleep = asyncio.sleep
+
+
+async def _patiently(call: Callable[[], Awaitable[object]]) -> None:
+    for attempt in range(FLOOD_RETRIES):
+        try:
+            await call()
+            return
+        except TelegramRetryAfter as wait:
+            if attempt == FLOOD_RETRIES - 1:
+                raise
+            await _sleep(wait.retry_after + 0.5)
+
 
 SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"  # noqa: S105 - a constant name, not a credential
 
@@ -88,11 +109,13 @@ async def register_webhook(
     minutes later, and left no bot running to receive the webhook once it did.
     """
     try:
-        await bot.set_webhook(
-            url=settings.telegram.webhook_url,
-            secret_token=settings.telegram.webhook_secret.get_secret_value(),
-            drop_pending_updates=False,
-            allowed_updates=allowed_updates,
+        await _patiently(
+            lambda: bot.set_webhook(
+                url=settings.telegram.webhook_url,
+                secret_token=settings.telegram.webhook_secret.get_secret_value(),
+                drop_pending_updates=False,
+                allowed_updates=allowed_updates,
+            )
         )
     except Exception as exc:
         # Broad on purpose: aiogram raises its own error for a rejection and the
@@ -134,11 +157,14 @@ async def register_tenant_webhooks(
     registered = 0
     for reseller_id, bot in bots.items():
         try:
-            await bot.set_webhook(
-                url=base + tenant_path(settings.telegram.webhook_path, reseller_id),
-                secret_token=tenant_secret(platform_secret, reseller_id),
-                drop_pending_updates=False,
-                allowed_updates=allowed_updates,
+            await _patiently(
+                partial(
+                    bot.set_webhook,
+                    url=base + tenant_path(settings.telegram.webhook_path, reseller_id),
+                    secret_token=tenant_secret(platform_secret, reseller_id),
+                    drop_pending_updates=False,
+                    allowed_updates=allowed_updates,
+                )
             )
             registered += 1
         except Exception as exc:
