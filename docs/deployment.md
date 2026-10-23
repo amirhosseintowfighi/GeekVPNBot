@@ -311,6 +311,15 @@ is reached as `socks5://host.docker.internal:<port>`.
 | `webhook` (default) | Normal days, with the domain behind Cloudflare (proxied) | Telegram -> Cloudflare -> this server |
 | `polling` | International outage: nothing outside can reach the server | The bot asks Telegram itself, through the proxy |
 
+**Cloudflare settings.** Proxied (orange cloud) A record; SSL/TLS mode **Full
+(strict)** - the origin already has a Let's Encrypt certificate. Leave **Always
+Use HTTPS** off: certbot renews over plain HTTP at
+`/.well-known/acme-challenge/`, which nginx serves on port 80 and only there,
+and nginx already redirects everything else to HTTPS itself. nginx reads the
+visitor's address from `CF-Connecting-IP`, trusted from Cloudflare's ranges
+only (`snippets/cloudflare-real-ip.conf`), so rate limits and
+`ADMIN_ALLOW_CIDRS` see visitors rather than Cloudflare.
+
 Switching is a `.env` edit and `docker compose ... up -d --force-recreate bot`.
 Polling deletes each bot's webhook without dropping queued updates; webhook
 mode re-registers ours and every reseller's on start-up, so switching back
