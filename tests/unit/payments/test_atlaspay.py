@@ -56,6 +56,9 @@ def _gateway(handler) -> AtlasPayGateway:
 
     def patched(method, url, **kwargs):
         with httpx.Client(transport=transport) as client:
+            # `proxy` belongs to the module-level function this stands in for,
+            # not to `Client.request`.
+            kwargs.pop("proxy", None)
             return client.request(method, url, **kwargs)
 
     httpx.request = patched  # type: ignore[assignment]

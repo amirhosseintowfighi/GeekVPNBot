@@ -292,7 +292,42 @@ being served the API, so scanners hitting the bare IP learn nothing.
 
 ---
 
-## 8. Known gaps
+## 8. Running on a server inside Iran
+
+Two things differ from a server abroad, and both are configuration, not code.
+
+**Outbound.** Telegram is unreachable from an Iranian address, and NowPayments,
+Plisio, TON and Google push refuse one. Set `PROXY__URL` to a SOCKS5 proxy and
+those hosts go through it (`infrastructure/outbound_proxy.py` holds the list;
+`PROXY__EXTRA_HOSTS` adds to it). The Iranian bank gateways and the VPN panels
+always connect directly: the gateways refuse foreign addresses, so sending them
+through the proxy would break them. A proxy client running on the same server
+is reached as `socks5://host.docker.internal:<port>`.
+
+**Inbound.** Telegram cannot reach an Iranian server directly. Two modes:
+
+| `TELEGRAM__MODE` | When | How updates arrive |
+|---|---|---|
+| `webhook` (default) | Normal days, with the domain behind Cloudflare (proxied) | Telegram -> Cloudflare -> this server |
+| `polling` | International outage: nothing outside can reach the server | The bot asks Telegram itself, through the proxy |
+
+**Cloudflare settings.** Proxied (orange cloud) A record; SSL/TLS mode **Full
+(strict)** - the origin already has a Let's Encrypt certificate. Leave **Always
+Use HTTPS** off: certbot renews over plain HTTP at
+`/.well-known/acme-challenge/`, which nginx serves on port 80 and only there,
+and nginx already redirects everything else to HTTPS itself. nginx reads the
+visitor's address from `CF-Connecting-IP`, trusted from Cloudflare's ranges
+only (`snippets/cloudflare-real-ip.conf`), so rate limits and
+`ADMIN_ALLOW_CIDRS` see visitors rather than Cloudflare.
+
+Switching is a `.env` edit and `docker compose ... up -d --force-recreate bot`.
+Polling deletes each bot's webhook without dropping queued updates; webhook
+mode re-registers ours and every reseller's on start-up, so switching back
+needs nothing else. During an outage the Mini App, the admin panel and bank
+callbacks only work for visitors who can reach the server domestically -
+which, behind Cloudflare, they cannot; the bot itself keeps working.
+
+## 9. Known gaps
 
 Honest list; none of these are hidden elsewhere.
 

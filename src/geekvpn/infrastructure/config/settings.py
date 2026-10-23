@@ -13,7 +13,7 @@ from __future__ import annotations
 import enum
 from datetime import timedelta
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -149,6 +149,13 @@ class TelegramSettings(Section):
     webhook_path: str = "/telegram/webhook"
     webhook_secret: SecretStr = SecretStr("")
     set_webhook_on_startup: bool = False
+    #: How updates reach the bot. `webhook` is the normal case: Telegram calls
+    #: us. `polling` is for when nothing outside can reach this server - an
+    #: Iranian server during an international outage - and the bot fetches its
+    #: own updates instead, through the proxy if one is configured. Switching
+    #: is a `.env` change and a restart of the bot container, in either
+    #: direction: each mode puts the webhooks where it needs them on start-up.
+    mode: Literal["webhook", "polling"] = "webhook"
     parse_mode: str = "HTML"
     #: How old signed Telegram auth data may be before it is rejected.
     auth_max_age_seconds: int = 86_400
@@ -345,6 +352,18 @@ class PushSettings(Section):
     fcm_service_account: SecretStr = SecretStr("")
 
 
+class ProxySettings(Section):
+    """A SOCKS5 proxy for the hosts an Iranian server cannot reach directly.
+
+    `socks5://user:pass@host:port`. Empty, every call goes direct. Which hosts
+    use it is decided in `infrastructure/outbound_proxy.py`; `extra_hosts` adds
+    to that list, comma-separated.
+    """
+
+    url: SecretStr = SecretStr("")
+    extra_hosts: str = ""
+
+
 class Settings(BaseSettings):
     """Root settings object. Inject it; never read ``os.environ`` elsewhere."""
 
@@ -365,6 +384,7 @@ class Settings(BaseSettings):
     auth: AuthSettings = Field(default_factory=AuthSettings)
     app_release: AppReleaseSettings = Field(default_factory=AppReleaseSettings)
     push: PushSettings = Field(default_factory=PushSettings)
+    proxy: ProxySettings = Field(default_factory=ProxySettings)
 
     @property
     def jwt_secret(self) -> str:

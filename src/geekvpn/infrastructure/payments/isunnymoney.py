@@ -48,6 +48,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -249,6 +250,7 @@ class IsunnyMoneyGateway:
                 json=payload,
                 headers={"Accept": "application/json", "User-Agent": USER_AGENT},
                 timeout=TIMEOUT_SECONDS,
+                proxy=proxy_for(self.base_url),
             )
         except httpx.HTTPError as failure:
             raise IsunnyMoneyError(str(failure) or type(failure).__name__) from failure

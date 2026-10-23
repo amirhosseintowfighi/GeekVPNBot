@@ -20,6 +20,7 @@ from typing import Any, Protocol
 import httpx
 
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -131,7 +132,9 @@ class GithubReleaseSource:
 
         try:
             async with httpx.AsyncClient(
-                timeout=TIMEOUT_SECONDS, transport=self._transport
+                timeout=TIMEOUT_SECONDS,
+                transport=self._transport,
+                proxy=proxy_for("https://api.github.com"),
             ) as client:
                 response = await client.get(
                     f"https://api.github.com/repos/{self._repo}/releases/latest",

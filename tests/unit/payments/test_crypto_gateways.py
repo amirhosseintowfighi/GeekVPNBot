@@ -52,6 +52,9 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> Callable[[Handler], list[httpx.
 
         def patched(method: str, url: str, **kwargs: Any) -> httpx.Response:
             with httpx.Client(transport=transport) as client:
+                # `proxy` belongs to the module-level function this stands in for,
+                # not to `Client.request`.
+                kwargs.pop("proxy", None)
                 return client.request(method, url, **kwargs)
 
         monkeypatch.setattr(httpx, "request", patched)

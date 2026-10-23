@@ -27,6 +27,7 @@ import httpx
 
 from geekvpn.infrastructure.app_release import StringCache
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -159,7 +160,10 @@ class DesktopReleaseSource:
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "geekvpn-api"}
         try:
             async with httpx.AsyncClient(
-                timeout=TIMEOUT_SECONDS, transport=self._transport, follow_redirects=True
+                timeout=TIMEOUT_SECONDS,
+                transport=self._transport,
+                follow_redirects=True,
+                proxy=proxy_for("https://api.github.com"),
             ) as client:
                 response = await client.get(
                     f"https://api.github.com/repos/{self._repo}/releases/latest", headers=headers

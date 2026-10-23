@@ -58,6 +58,7 @@ from geekvpn.presentation.bot.middlewares import (
     CorrelationIdMiddleware,
     LoggingMiddleware,
 )
+from geekvpn.presentation.bot.session import telegram_session
 from geekvpn.presentation.bot.throttle import ThrottlingMiddleware
 from geekvpn.presentation.bot.ui.stickers import StickerBook
 
@@ -104,6 +105,7 @@ ROUTERS = (
 def create_bot(settings: Settings) -> Bot:
     return Bot(
         token=settings.telegram.bot_token.get_secret_value(),
+        session=telegram_session(),
         default=DefaultBotProperties(parse_mode=ParseMode(settings.telegram.parse_mode)),
     )
 

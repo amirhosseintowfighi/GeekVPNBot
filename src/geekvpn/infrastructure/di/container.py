@@ -32,6 +32,7 @@ from geekvpn.infrastructure.clock import SystemClock
 from geekvpn.infrastructure.config.settings import Settings
 from geekvpn.infrastructure.health.probes import DatabaseProbe, RedisProbe
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import ProxyPolicy, install_proxy
 from geekvpn.infrastructure.persistence.engine import (
     create_engine,
     create_reporting_engine,
@@ -190,6 +191,14 @@ def build_container(settings: Settings) -> Container:
     # only once a node had credentials. Installing it here makes the failure a
     # boot failure instead.
     install_keyring(lambda: container.keyring)
+    # Before anything can make an outbound call: the worker's first sweep and
+    # the bot's webhook registration both reach hosts that, from an Iranian
+    # server, only answer through the proxy.
+    install_proxy(
+        ProxyPolicy.build(
+            settings.proxy.url.get_secret_value(), extra_hosts=settings.proxy.extra_hosts
+        )
+    )
 
     logger.info(
         "container.built",

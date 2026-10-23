@@ -56,6 +56,7 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.infrastructure.outbound_proxy import proxy_for
 
 logger = get_logger(__name__)
 
@@ -263,6 +264,7 @@ class AtlasPayGateway:
                 json=payload,
                 headers={"X-API-Key": self.merchant_id},
                 timeout=TIMEOUT_SECONDS,
+                proxy=proxy_for(self.base_url),
             )
         except httpx.HTTPError as failure:
             raise AtlasPayError(str(failure)) from failure

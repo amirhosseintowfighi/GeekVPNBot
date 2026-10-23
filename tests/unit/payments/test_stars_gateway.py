@@ -31,6 +31,9 @@ def telegram(monkeypatch: pytest.MonkeyPatch) -> Any:
 
         def patched(url: str, **kwargs: Any) -> httpx.Response:
             with httpx.Client(transport=transport) as client:
+                # `proxy` belongs to the module-level function this stands in for,
+                # not to `Client.request`.
+                kwargs.pop("proxy", None)
                 return client.post(url, **kwargs)
 
         monkeypatch.setattr(httpx, "post", patched)
