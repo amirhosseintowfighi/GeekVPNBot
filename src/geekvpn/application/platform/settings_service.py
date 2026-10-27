@@ -78,6 +78,11 @@ class SettingDefinition[T: bool | int | float | str | list[Any] | dict[str, Any]
             return "map"
         if self.type_ is int and self.key.endswith("_toman"):
             return "toman"
+        if self.type_ is int and self.key.endswith("chat_id"):
+            # Group and channel ids are negative. The panel's number box strips
+            # the minus sign, so these could only be saved as 0 - a backup
+            # channel of 0 sends the backup to whoever pressed the button.
+            return "chat_id"
         if self.type_ in (int, float):
             return "number"
         return "text"
