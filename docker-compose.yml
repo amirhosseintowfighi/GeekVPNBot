@@ -77,9 +77,15 @@ services:
 
   bot:
     <<: [*backend-build, *backend-env, *restart]
+    # `--workers 1` on purpose, and on the command line because that beats the
+    # environment: uvicorn reads `UVICORN_*` variables as options, and the
+    # shared .env sets UVICORN_WORKERS for the API. The bot silently ran four
+    # workers, each registering every webhook at start-up (Telegram's flood
+    # limit), and in polling mode each would fetch - and answer - the same
+    # updates. One process is what the bot is built for.
     command:
       ["uvicorn", "geekvpn.entrypoints.bot:app", "--host", "0.0.0.0", "--port", "8081",
-       "--proxy-headers", "--forwarded-allow-ips", "*"]
+       "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
     depends_on:
       postgres:
         condition: service_healthy
