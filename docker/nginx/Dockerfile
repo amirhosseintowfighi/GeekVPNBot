@@ -11,7 +11,10 @@ FROM nginx:${NGINX_VERSION}-alpine
 #
 # `apk upgrade` because a base tag is only as fresh as its last rebuild; this
 # picks up security fixes published since then.
-RUN apk upgrade --no-cache && apk add --no-cache openssl gettext
+#
+# curl is removed: nothing here uses it (healthchecks use busybox wget), and
+# the base image's copy is a standing source of HIGH CVEs that fail the scan.
+RUN apk upgrade --no-cache && apk add --no-cache openssl gettext && apk del --no-cache curl
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY snippets/ /etc/nginx/snippets/
