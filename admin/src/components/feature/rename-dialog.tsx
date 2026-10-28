@@ -3,7 +3,7 @@
 import * as React from 'react'
 
 import { ApiError } from '@/lib/api'
-import { normalizeInput } from '@/lib/fa'
+import { normalizeName } from '@/lib/fa'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -52,7 +52,9 @@ export function RenameDialog({
     }
   }, [open, currentName])
 
-  const cleaned = normalizeInput(name).trim()
+  // Not `normalizeInput`: that one is for numbers, deletes every space, and
+  // saved "اروپا غربی" as "اروپاغربی".
+  const cleaned = normalizeName(name)
 
   const save = async () => {
     setBusy(true)

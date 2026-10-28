@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { Search } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDateTime, normalizeInput, toman, truncate } from '@/lib/fa'
+import { faDateTime, normalizeSearch, toman, truncate } from '@/lib/fa'
 import { ORDER_STATE } from '@/lib/labels'
 import type { OrderRow, OrderState, Paged } from '@/lib/types'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -65,7 +65,7 @@ export default function OrdersPage() {
   const [debounced, setDebounced] = React.useState('')
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      setDebounced(normalizeInput(search))
+      setDebounced(normalizeSearch(search))
       setPage(1)
     }, 300)
     return () => clearTimeout(timer)

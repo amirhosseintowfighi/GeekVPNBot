@@ -5,7 +5,8 @@ import useSWR from "swr";
 import { Plus, Wand2 } from "lucide-react";
 
 import { api, ApiError } from "@/lib/api";
-import { faNumber, gib, normalizeInput, percent, toman } from "@/lib/fa";
+import { faNumber, gib, normalizeInput, normalizeName, percent, toman } from "@/lib/fa";
+import { editSlug, slugToSave } from "@/lib/slug";
 import { PLAN_TYPE, PUBLICATION_STATE } from "@/lib/labels";
 import {
   PLAN_TYPE_HINT_FA,
@@ -21,6 +22,13 @@ import type {
   ProductRow,
 } from "@/lib/types";
 import { RenameDialog } from "@/components/feature/rename-dialog";
+
+/** The slug field is optional: a space types a hyphen, empty is filled on save. */
+const SLUG_HINT =
+  "\u0627\u062e\u062a\u06cc\u0627\u0631\u06cc. \u0627\u06af\u0631 \u062e\u0627\u0644\u06cc \u0628\u0645\u0627\u0646\u062f \u062e\u0648\u062f\u06a9\u0627\u0631 \u0633\u0627\u062e\u062a\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0641\u0627\u0635\u0644\u0647 \u0628\u0647 \u062e\u0637 \u062a\u06cc\u0631\u0647 \u062a\u0628\u062f\u06cc\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.";
+
+/** Leaves room for the ladder's `-365d` on every package slug. */
+const PRODUCT_SLUG_MAX = 56;
 import { useSession } from "@/components/shell/session";
 import { PageHeader, Toolbar } from "@/components/shell/page-header";
 import {
@@ -827,7 +835,7 @@ function CategoryDialog({
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState<string | null>(null);
 
-  const complete = slug.trim().length >= 2 && nameFa.trim() !== "";
+  const complete = normalizeName(nameFa) !== "";
 
   const submit = async () => {
     setBusy(true);
@@ -839,8 +847,8 @@ function CategoryDialog({
       // prerequisite to check first: it carries no price and no panel
       // binding, and an empty published category is invisible anyway.
       const created = await api.saveCategory({
-        slug: slug.trim(),
-        nameFa: nameFa.trim(),
+        slug: slugToSave(slug, nameFa, "cat"),
+        nameFa: normalizeName(nameFa),
       });
       await api.setCategoryState(created.id, "published");
       onCreated();
@@ -879,14 +887,12 @@ function CategoryDialog({
 
           <Field
             label={"\u0634\u0646\u0627\u0633\u0647"}
-            hint={
-              "\u062d\u0631\u0648\u0641 \u06a9\u0648\u0686\u06a9 \u0627\u0646\u06af\u0644\u06cc\u0633\u06cc\u060c \u062d\u062f\u0627\u0642\u0644 \u06f2 \u0646\u0648\u06cc\u0633\u0647"
-            }
+            hint={SLUG_HINT}
           >
             <Input
               ltr
               value={slug}
-              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              onChange={(event) => setSlug(editSlug(event.target.value))}
               placeholder="europe"
             />
           </Field>
@@ -947,8 +953,7 @@ function ProductDialog({
     if (categoryId === "" && first) setCategoryId(first.id);
   }, [categories, categoryId]);
 
-  const complete =
-    categoryId !== "" && slug.trim().length >= 2 && nameFa.trim() !== "";
+  const complete = categoryId !== "" && normalizeName(nameFa) !== "";
 
   const submit = async () => {
     setBusy(true);
@@ -956,9 +961,11 @@ function ProductDialog({
     try {
       await api.saveProduct({
         categoryId,
-        slug: slug.trim(),
+        // Shorter than the column: the price ladder names each package
+        // `<product slug>-<term>`, and that has to fit in 64 too.
+        slug: slugToSave(slug, nameFa, "prod", PRODUCT_SLUG_MAX),
         tier,
-        nameFa: nameFa.trim(),
+        nameFa: normalizeName(nameFa),
         taglineFa: taglineFa.trim() || null,
       });
       onCreated();
@@ -1013,14 +1020,12 @@ function ProductDialog({
 
           <Field
             label={"\u0634\u0646\u0627\u0633\u0647"}
-            hint={
-              "\u062d\u0631\u0648\u0641 \u06a9\u0648\u0686\u06a9 \u0627\u0646\u06af\u0644\u06cc\u0633\u06cc\u060c \u062d\u062f\u0627\u0642\u0644 \u06f2 \u0646\u0648\u06cc\u0633\u0647"
-            }
+            hint={SLUG_HINT}
           >
             <Input
               ltr
               value={slug}
-              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              onChange={(event) => setSlug(editSlug(event.target.value))}
               placeholder="germany-direct"
             />
           </Field>

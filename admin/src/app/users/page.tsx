@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { Search } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { faDate, faNumber, normalizeInput, truncate } from '@/lib/fa'
+import { faDate, faNumber, normalizeSearch, truncate } from '@/lib/fa'
 import { USER_STATE } from '@/lib/labels'
 import type { Paged, UserRow, UserState } from '@/lib/types'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -38,7 +38,7 @@ const STATE_OPTIONS = (Object.keys(USER_STATE) as UserState[]).map((key) => ({
  * Users.
  *
  * Search accepts a Telegram id, a username or a display name, and every
- * query is pushed through `normalizeInput` first: operators paste ids out of
+ * query is pushed through `normalizeSearch` first: operators paste ids out of
  * the bot, which renders them in Persian digits, and ۱۲۳ must find 123.
  */
 export default function UsersPage() {
@@ -52,7 +52,7 @@ export default function UsersPage() {
   const [debounced, setDebounced] = React.useState('')
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      setDebounced(normalizeInput(search))
+      setDebounced(normalizeSearch(search))
       setPage(1)
     }, 300)
     return () => clearTimeout(timer)

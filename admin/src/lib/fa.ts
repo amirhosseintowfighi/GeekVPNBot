@@ -61,6 +61,22 @@ export function normalizeInput(value: string): string {
     .trim()
 }
 
+/**
+ * A name as typed: outer spaces trimmed and runs of them collapsed.
+ *
+ * Not `normalizeInput`, which is for numbers and deletes every space - names
+ * went through it, so "اروپا غربی" was saved "اروپاغربی". Digits are left as
+ * typed, because "۲۰ گیگ" is a name, not an amount.
+ */
+export function normalizeName(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+/** A search box: Latin digits, so a phone or an id matches, and words kept apart. */
+export function normalizeSearch(value: string): string {
+  return enDigits(value).replace(/\s+/g, ' ').trim()
+}
+
 /** Isolate a run so the surrounding RTL text cannot reorder it. */
 export function isolate(value: string | number): string {
   return FSI + String(value) + PDI
