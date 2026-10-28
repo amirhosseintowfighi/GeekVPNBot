@@ -78,7 +78,14 @@ export type PanelKind =
   | 'wgdashboard'
 export type UserState = 'active' | 'suspended' | 'banned'
 /** domain/provisioning/enums.py OrderState. */
-export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'
+export type OrderState =
+  | 'pending'
+  | 'paid'
+  | 'provisioning'
+  | 'active'
+  | 'failed'
+  | 'cancelled'
+  | 'refunded'
 export type NodeState = ServerHealth
 
 /** GET /api/v1/admin/auth/me - AdminResponse. `role` drives every guard. */
@@ -893,6 +900,17 @@ export interface ResellerSelf {
 }
 
 /** GET /api/v1/reseller/summary - four sums off their own ledger. */
+/** GET /api/v1/reseller/analytics - one reseller's own trade over time. */
+export interface ResellerAnalytics {
+  sales: TimeSeries
+  cost: TimeSeries
+  revenue: TimeSeries
+  topPlans: BreakdownSlice[]
+  newCustomers: number
+  customers: number
+  activeServices: number
+}
+
 export interface ResellerSummary {
   sales: number
   spent: number

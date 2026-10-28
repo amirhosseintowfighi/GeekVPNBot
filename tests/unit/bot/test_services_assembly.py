@@ -62,6 +62,7 @@ class FakeScope:
     order_service = object()
     catalog_plans = object()
     catalog_products = object()
+    catalog_categories = object()
     catalog_coupons = object()
     provisioning = object()
     free_trial = object()

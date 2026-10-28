@@ -1513,22 +1513,40 @@ async def on_sub_reason(
 
 
 @router.callback_query(AdminCB.filter(F.action == "orders"))
-async def on_orders(query: CallbackQuery, scope: Any = None, user: Any = None) -> None:
+async def on_orders(
+    query: CallbackQuery, callback_data: AdminCB, scope: Any = None, user: Any = None
+) -> None:
+    """The latest orders, narrowed by the state in `ref` when there is one."""
     if await _guard(scope, user) is None:
         await toast(query, A.NOT_AN_ADMIN, alert=True)
         return
 
-    orders, _ = await scope.orders.search(limit=QUEUE_LIMIT)
-    if not orders:
-        await safe_edit(query, A.ORDERS_EMPTY, markup=_back())
-        return
+    try:
+        state = OrderState(callback_data.ref) if callback_data.ref else None
+    except ValueError:
+        state = None
+    orders, _ = await scope.orders.search(state=state, limit=QUEUE_LIMIT)
 
-    rows = [
-        [K.btn(f"{order.number} - {order.state.value}", AdminCB(action="order", ref=order.id))]
+    filters = [
+        K.btn(
+            f"• {label}" if value == (state.value if state else "") else label,
+            AdminCB(action="orders", ref=value),
+        )
+        for label, value in A.ORDER_FILTERS
+    ]
+    rows = [filters[:2], filters[2:]]
+    rows += [
+        [
+            K.btn(
+                f"{order.number} - {A.ORDER_STATE_FA.get(order.state.value, order.state.value)}",
+                AdminCB(action="order", ref=order.id),
+            )
+        ]
         for order in orders
     ]
     rows.append([K.btn(A.BTN_BACK, AdminCB(action="menu"))])
-    await safe_edit(query, A.ORDERS_TITLE, markup=K.stack(rows))
+    title = A.ORDERS_TITLE if orders else A.ORDERS_EMPTY
+    await safe_edit(query, title, markup=K.stack(rows))
 
 
 @router.callback_query(AdminCB.filter(F.action == "order"))
@@ -1548,7 +1566,7 @@ async def on_order(
         number=order.number,
         plan=order.plan_name_fa,
         total=toman(order.total.amount),
-        state=order.state.value,
+        state=A.ORDER_STATE_FA.get(order.state.value, order.state.value),
         user_id=fa_digits(str(order.user_id)),
         placed=fa_digits(order.placed_at.strftime("%Y-%m-%d %H:%M")),
     )

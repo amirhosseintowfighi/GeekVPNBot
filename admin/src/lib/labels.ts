@@ -57,7 +57,17 @@ export const ORDER_STATE: Record<OrderState, LabelMeta> = {
   provisioning: { fa: 'در حال تحویل', tone: 'info' },
   active: { fa: 'تحویل شده', tone: 'success' },
   failed: { fa: 'ناموفق', tone: 'destructive' },
+  cancelled: { fa: 'لغو شده', tone: 'muted' },
   refunded: { fa: 'مسترد شده', tone: 'info' },
+}
+
+/**
+ * An order state's label, or the raw value in a neutral badge. The rows read
+ * `ORDER_STATE[state].tone` directly, and one state missing from the map -
+ * `cancelled` was - threw and took the whole orders page down.
+ */
+export function orderStateMeta(state: string): LabelMeta {
+  return ORDER_STATE[state as OrderState] ?? { fa: state, tone: 'muted' }
 }
 
 export const PAYMENT_METHOD: Record<PaymentMethod, LabelMeta> = {

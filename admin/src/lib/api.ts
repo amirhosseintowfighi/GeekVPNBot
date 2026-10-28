@@ -44,6 +44,7 @@ import type {
   ResellerPriceRow,
   ResellerRow,
   ResellerSelf,
+  ResellerAnalytics,
   ResellerSummary,
   ResellerTextRow,
   ResellerTopupRow,
@@ -330,16 +331,18 @@ export const api = {
     mutate<AdminSubscriptionRow>('POST', `${ROOT}/subscriptions/${id}/reset-traffic`),
 
   // -------------------------------------------------------------- orders
-  // state, number, limit, offset. The method/from/to filters it used to send
-  // do not exist on the endpoint and were silently ignored.
-  orders: (params: { page: number; pageSize?: number; state?: string; number?: string }) => {
+  // state, q, limit, offset. The method/from/to filters it used to send do
+  // not exist on the endpoint and were silently ignored. `q` matches part of
+  // an order number or a customer's Telegram id; it used to be `number`,
+  // which only an exact order number could satisfy.
+  orders: (params: { page: number; pageSize?: number; state?: string; q?: string }) => {
     const limit = params.pageSize ?? 25
     return fetcher<Paged<OrderRow>>(
       `${ROOT}/orders${qs({
         limit,
         offset: (params.page - 1) * limit,
         state: params.state,
-        number: params.number,
+        q: params.q,
       })}`,
     )
   },
@@ -610,6 +613,9 @@ export const api = {
     mutate<ResellerPriceRow[]>('PUT', '/api/v1/reseller/plans/retail', { prices }),
   myLedger: () => fetcher<ResellerLedgerRow[]>('/api/v1/reseller/ledger'),
   mySummary: () => fetcher<ResellerSummary>('/api/v1/reseller/summary'),
+  /** Their own sales, costs and customers' payments over the last `days`. */
+  myAnalytics: (days: number) =>
+    fetcher<ResellerAnalytics>(`/api/v1/reseller/analytics${qs({ days })}`),
   myCustomers: () => fetcher<ResellerCustomers>('/api/v1/reseller/customers'),
   // Goes out through their own bot. From ours it would be refused outright -
   // Telegram will not let a bot open a conversation nobody started.

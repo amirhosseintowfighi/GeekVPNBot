@@ -23,7 +23,29 @@ NOW = datetime(2026, 9, 27, 12, 0, tzinfo=UTC)
 def test_auto_renewal_and_backups_are_scheduled() -> None:
     worker = Worker(SimpleNamespace())  # type: ignore[arg-type]
 
-    assert {name for name, _, _ in worker._periodic} >= {"auto_renew", "backup"}
+    assert {name for name, _, _ in worker._periodic} >= {"auto_renew", "backup", "daily_report"}
+
+
+class _Cache:
+    def __init__(self, stamp: str | None) -> None:
+        self.stamp = stamp
+
+    async def get(self, key: str) -> str | None:
+        return self.stamp
+
+    async def set(self, key: str, value: str) -> None:
+        self.stamp = value
+
+
+async def test_the_daily_orders_report_is_not_sent_twice_for_one_day() -> None:
+    """Already sent for yesterday: the job returns before touching the
+    database - the bare container here has no session factory to touch."""
+    container = SimpleNamespace(cache=_Cache("2026-09-26"), clock=SimpleNamespace(now=lambda: NOW))
+    worker = Worker(container)  # type: ignore[arg-type]
+
+    await worker._daily_report()
+
+    assert container.cache.stamp == "2026-09-26"
 
 
 async def test_one_failing_job_does_not_stop_the_next() -> None:

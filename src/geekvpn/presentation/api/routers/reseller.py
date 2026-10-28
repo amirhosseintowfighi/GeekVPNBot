@@ -16,10 +16,11 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ConfigDict, Field
 
 from geekvpn.application.resellers.tenant_bots import InvalidBotToken
+from geekvpn.domain.analytics.timeframe import DateRange
 from geekvpn.domain.identity.permissions import Permission
 from geekvpn.domain.notifications.enums import AudienceKind
 from geekvpn.domain.resellers.errors import (
@@ -518,8 +519,33 @@ async def summary(scope: ScopeDep, admin: CurrentAdmin) -> SummaryResponse:
     for a screen that needs four sums.
     """
     reseller = await _me(scope, admin)
-    numbers = await scope.reseller_service.summary(reseller.id)
-    return SummaryResponse(**numbers)
+    totals = await scope.reseller_trade.totals(reseller.id)
+    return SummaryResponse(
+        sales=totals.sales,
+        spent=totals.spent,
+        topped_up=totals.topped_up,
+        average_sale=totals.average_sale,
+    )
+
+
+@router.get(
+    "/analytics",
+    dependencies=[Depends(requires(Permission.RESELLER_PORTAL))],
+)
+async def analytics(
+    scope: ScopeDep,
+    admin: CurrentAdmin,
+    days: Annotated[int, Query(ge=7, le=365)] = 30,
+) -> dict[str, Any]:
+    """Their sales, costs and customers' payments over time, and what sells.
+
+    Charts of their own rows only: the reader takes their id and nothing
+    wider, for the same reason `summary` does not use the platform analytics.
+    """
+    reseller = await _me(scope, admin)
+    period = DateRange.calendar_days(days, now=scope.container.clock.now())
+    trade = await scope.reseller_trade.trade(reseller.id, period)
+    return trade.as_dict()
 
 
 @router.post(

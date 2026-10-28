@@ -122,10 +122,15 @@ class SqlAlchemyOrderRepository:
         state: OrderState | None = None,
         user_id: int | None = None,
         number: str | None = None,
+        query: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[Sequence[Order], int]:
         """Platform-wide order list for the admin panel, with the total.
+
+        ``query`` is the panel's one search box: part of an order number, or a
+        customer's Telegram id. The box promised both and only ever sent an
+        exact number, so a partial number or an id found nothing.
 
         Returns the count alongside the page because the operator screen needs
         to paginate, and running the filter twice from the router would let the
@@ -138,6 +143,12 @@ class SqlAlchemyOrderRepository:
             filters.append(OrderModel.user_id == user_id)
         if number is not None:
             filters.append(OrderModel.number == number)
+        text = (query or "").strip()
+        if text:
+            matches = [OrderModel.number.contains(text, autoescape=True)]
+            if text.isdigit():
+                matches.append(OrderModel.user_id == int(text))
+            filters.append(or_(*matches))
 
         total = int(
             (

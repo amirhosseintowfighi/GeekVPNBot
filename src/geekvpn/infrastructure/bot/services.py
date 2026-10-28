@@ -68,6 +68,7 @@ def build_bot_services(
             orders=scope.orders,
             plans=scope.catalog_plans,
             products=scope.catalog_products,
+            categories=scope.catalog_categories,
             rotate=scope.subscription_admin.rotate_access,
             commit=scope.session.commit,
         ),

@@ -72,6 +72,7 @@ from geekvpn.domain.provisioning.events import SubscriptionActivated
 from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.domain.resellers.reseller import Reseller
+from geekvpn.infrastructure.analytics.reseller_trade import SqlResellerTradeReader
 from geekvpn.infrastructure.audit.recorder import AuditLogRecorder
 from geekvpn.infrastructure.bot.token_check import HttpTokenChecker
 from geekvpn.infrastructure.di.container import Container
@@ -502,6 +503,11 @@ class RequestScope:
     @cached_property
     def plan_prices(self) -> SqlAlchemyPlanPrices:
         return SqlAlchemyPlanPrices(self.session)
+
+    @cached_property
+    def reseller_trade(self) -> SqlResellerTradeReader:
+        """One reseller's charts. Called with their own id, never wider."""
+        return SqlResellerTradeReader(self.session)
 
     @cached_property
     def reseller_service(self) -> ResellerService:

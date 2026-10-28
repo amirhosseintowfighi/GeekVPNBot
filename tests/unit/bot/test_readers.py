@@ -208,8 +208,17 @@ class FakeProducts:
     async def get(self, product_id: uuid.UUID):
         class _Product:
             tier = self.tier
+            category_id = uuid.uuid4()
 
         return _Product()
+
+
+class FakeCategories:
+    async def get(self, category_id: uuid.UUID):
+        class _Category:
+            name_fa = "اروپا"
+
+        return _Category()
 
 
 async def test_the_card_carries_the_tier_of_the_product_it_was_sold_under() -> None:
@@ -230,6 +239,26 @@ async def test_the_card_carries_the_tier_of_the_product_it_was_sold_under() -> N
     assert [card.tier for card in cards] == [ProductTier.DIRECT, ProductTier.DIRECT]
     # One lookup per plan, not per service.
     assert plans.lookups == 1
+
+
+async def test_the_card_names_the_category_the_bot_sells_it_under() -> None:
+    """The apps labelled a service "مستقیم" - the tier, a model name - where
+    the shop had sold it as "اروپا". The category is the customer's word."""
+    reader = SqlSubscriptionCardReader(
+        users=FakeUsers(make_user()),  # type: ignore[arg-type]
+        subscriptions=FakeSubscriptions(  # type: ignore[arg-type]
+            [make_subscription(quota_mib=1024, used_mib=0)]
+        ),
+        orders=FakeOrders(),  # type: ignore[arg-type]
+        plans=FakePlans(product_id=uuid.uuid4()),  # type: ignore[arg-type]
+        products=FakeProducts(ProductTier.DIRECT),  # type: ignore[arg-type]
+        categories=FakeCategories(),  # type: ignore[arg-type]
+    )
+
+    [card] = await reader.list_for_user(USER_ID)
+
+    assert card.category_name_fa == "اروپا"
+    assert card.tier is ProductTier.DIRECT
 
 
 async def test_a_service_whose_plan_is_gone_has_no_tier_rather_than_no_card() -> None:

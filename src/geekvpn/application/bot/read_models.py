@@ -93,6 +93,10 @@ class SubscriptionCard:
     #: the part a customer can change. None for a service adopted from a link,
     #: which has no plan to ask.
     tier: ProductTier | None = None
+    #: The category the plan's product is sold under - "اروپا", "گیمینگ" -
+    #: as the bot's shop names it. The apps label a service with this rather
+    #: than the tier, which is a model name the customer never chose.
+    category_name_fa: str | None = None
     #: The customer's own choice to renew from the wallet before it ends.
     auto_renew: bool = False
     #: A name the customer gave it. Shown in place of the plan name.
