@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { api, ApiError, fetcher } from '@/lib/api'
 import { faDuration, gib, normalizeInput, plainText, toman } from '@/lib/fa'
+import { volumeNote } from '@/lib/plans'
 import { haptic, openLink } from '@/lib/telegram'
 import type {
   GatewayScreen,
@@ -241,8 +242,13 @@ export default function CheckoutPage() {
                 plan.planType === 'duration' && plan.dailyQuotaGib !== null
                   ? `\u0631\u0648\u0632\u0627\u0646\u0647 \u062a\u0627 ${gib(plan.dailyQuotaGib)}`
                   : `\u062d\u062c\u0645 ${gib(plan.quotaGib)}`,
-              ].join(' \u00b7 ')}
+              ].join('\u060c ')}
             </p>
+            {/* Repeated at the point of paying: the whole term's allowance,
+                not the product's monthly figure. */}
+            {volumeNote(plan) ? (
+              <p className="nums text-[13px] font-bold">{volumeNote(plan)}</p>
+            ) : null}
           </Card>
         ) : (
           <SkeletonCard />
@@ -316,7 +322,7 @@ export default function CheckoutPage() {
             title={'\u06a9\u06cc\u0641 \u067e\u0648\u0644'}
             note={
               walletCovers
-                ? `\u0645\u0648\u062c\u0648\u062f\u06cc: ${toman(balance)} \u00b7 \u0641\u0648\u0631\u06cc`
+                ? `\u0645\u0648\u062c\u0648\u062f\u06cc: ${toman(balance)}\u060c \u0641\u0648\u0631\u06cc`
                 : `\u0645\u0648\u062c\u0648\u062f\u06cc \u06a9\u0627\u0641\u06cc \u0646\u06cc\u0633\u062a (${toman(balance)})`
             }
           />

@@ -1,12 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 
 import { PageHeader } from '@/components/shell/page-header'
-import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
-import { PlanCard } from '@/components/feature/plan-card'
+import { EmptyState, ErrorState } from '@/components/shell/states'
+import { VolumeCard } from '@/components/feature/volume-card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { ApiError, fetcher } from '@/lib/api'
 import type { Storefront } from '@/lib/types'
@@ -21,13 +21,13 @@ import type { Storefront } from '@/lib/types'
  * page read a storefront out of it, so the screen was permanently empty; and
  * that endpoint refused an adopted subscription outright.
  *
+ * A volume first, then its terms on the next screen - the shop's two steps.
  * Selecting a plan hands off to the ordinary checkout route, carrying the
  * subscription being renewed. There is no separate renewal checkout, so
  * coupons, cashback disclosure and the payment methods stay in one place.
  */
 export default function RenewPage() {
   const params = useParams<{ subscriptionId: string }>()
-  const router = useRouter()
   const subscriptionId = params.subscriptionId
 
   const { data, error, mutate } = useSWR<Storefront>('/api/miniapp/storefront', fetcher)
@@ -56,29 +56,16 @@ export default function RenewPage() {
           description={'\u0628\u0627 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u062f\u0631 \u062a\u0645\u0627\u0633 \u0628\u0627\u0634\u06cc\u062f \u062a\u0627 \u06af\u0632\u06cc\u0646\u0647\u200c\u06cc \u0645\u0646\u0627\u0633\u0628 \u0631\u0627 \u067e\u06cc\u062f\u0627 \u06a9\u0646\u06cc\u0645.'}
         />
       ) : (
-        <div className="space-y-6 pb-4">
-          {products.map((product) =>
-            product.plans.length === 0 ? null : (
-              <section key={product.productId} className="space-y-3">
-                <h2 className="flex items-center gap-2 px-1 text-lg font-extrabold">
-                  {product.icon ? <span aria-hidden>{product.icon}</span> : null}
-                  {product.nameFa}
-                </h2>
-                <StaggerList className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {product.plans.map((plan) => (
-                    <StaggerItem key={plan.planId}>
-                      <PlanCard
-                        plan={plan}
-                        onSelect={() =>
-                          router.push(`/shop/${plan.planId}?renewOf=${subscriptionId}`)
-                        }
-                      />
-                    </StaggerItem>
-                  ))}
-                </StaggerList>
-              </section>
-            ),
-          )}
+        <div className="space-y-3 pb-4">
+          {products
+            .filter((product) => product.plans.length > 0)
+            .map((product) => (
+              <VolumeCard
+                key={product.productId}
+                product={product}
+                href={`/services/${subscriptionId}/renew/${product.productId}`}
+              />
+            ))}
         </div>
       )}
     </>
