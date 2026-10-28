@@ -38,10 +38,16 @@ def test_every_setting_has_a_label_an_operator_can_read():
 
 
 def test_every_setting_declares_how_to_render_it():
-    known = {"boolean", "text", "number", "toman", "bps", "count", "map"}
+    known = {"boolean", "text", "number", "toman", "bps", "count", "map", "chat_id"}
     wrong = {key: d.kind for key, d in SETTING_REGISTRY.items() if d.kind not in known}
 
     assert not wrong, wrong
+
+
+def test_the_screen_renders_a_chat_id_with_its_minus_sign():
+    """A kind the backend sends but the screen does not branch on falls through
+    to the numeric box - which strips the minus sign every group id needs."""
+    assert "setting.kind === 'chat_id'" in SCREEN.read_text(encoding="utf-8")
 
 
 def test_a_text_setting_is_not_rendered_as_a_number():

@@ -4,6 +4,7 @@ import * as React from 'react'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
+import { chatIdToSave, editChatId } from '@/lib/chat-id'
 import { faNumber, normalizeInput, percent, toman } from '@/lib/fa'
 import type { PolicySetting } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
@@ -104,7 +105,17 @@ export default function SettingsPage() {
     setBusy(true)
     setFailure(null)
     try {
-      await api.saveSettings(draft)
+      // A chat id is edited as text so its minus sign survives typing; it is
+      // stored as the number the backend declared.
+      const kinds = new Map((data ?? []).map((setting) => [setting.key, setting.kind]))
+      const payload = Object.fromEntries(
+        Object.entries(draft).map(([key, value]) =>
+          kinds.get(key) === 'chat_id' && typeof value !== 'boolean'
+            ? [key, chatIdToSave(value)]
+            : [key, value],
+        ),
+      )
+      await api.saveSettings(payload)
       setDraft({})
       setSaved(true)
       await mutate()
@@ -243,6 +254,19 @@ export default function SettingsPage() {
                           <span className="text-2xs text-muted-foreground">
                             {'از منوی مدیریت داخل ربات ویرایش می‌شود'}
                           </span>
+                        ) : setting.kind === 'chat_id' ? (
+                          // A Telegram group or channel id, which is negative.
+                          // The numeric box below strips the minus sign, so
+                          // these could never be set to anything but 0.
+                          <Input
+                            ltr
+                            inputMode="text"
+                            placeholder="-100…"
+                            disabled={!editable}
+                            value={String(value)}
+                            onChange={(event) => stage(setting.key, editChatId(event.target.value))}
+                            className="h-8 w-48 text-2xs"
+                          />
                         ) : setting.kind === 'text' ? (
                           // Text, not digits. Every non-boolean used to go
                           // through a numeric filter, so typing in a message

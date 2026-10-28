@@ -643,7 +643,7 @@ export interface PolicySetting {
   key: string
   labelFa: string
   descriptionFa: string
-  kind: 'toman' | 'bps' | 'number' | 'count' | 'boolean' | 'text' | 'map'
+  kind: 'toman' | 'bps' | 'number' | 'count' | 'boolean' | 'text' | 'map' | 'chat_id'
   value: number | boolean | string
   min: number | null
   max: number | null
