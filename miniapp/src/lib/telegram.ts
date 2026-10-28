@@ -96,10 +96,10 @@ export function initTelegram(): void {
 
   app.ready()
   app.expand()
-  // Match the page background, or the Telegram header sits as a lighter band
-  // above a near-black app.
-  app.setHeaderColor?.('#0A0A0F')
-  app.setBackgroundColor?.('#0A0A0F')
+  // Match the page blue, or Telegram's own header sits as a band of another
+  // colour above the app.
+  app.setHeaderColor?.('#0870D4')
+  app.setBackgroundColor?.('#0870D4')
 }
 
 /**

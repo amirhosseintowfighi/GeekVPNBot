@@ -40,17 +40,27 @@ const TABS = [
 export function BottomNav() {
   const pathname = usePathname()
 
+  // Shown on the five tab roots only. A screen below them - checkout, a
+  // payment, a ticket - has a back button and usually its own sticky action,
+  // and a tab bar there both crowds that action and invites leaving a payment
+  // half-done, which is what the Android and desktop clients avoid too.
+  if (!TABS.some((tab) => tab.href === pathname)) return null
+
   return (
+    <>
+    {/* Holds the bottom of the page clear of the floating bar. */}
+    <div aria-hidden className="h-[124px] shrink-0" />
     <nav
       className={cn(
         'safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-2xl',
-        // The blur keeps the bar legible over whatever scrolls beneath it
-        // without needing an opaque slab that would eat vertical space.
-        'border-t border-border/70 bg-background/85 backdrop-blur-xl',
+        // Floating tiles rather than a bar. The fade underneath is what keeps
+        // the labels legible when a white card scrolls behind them - they are
+        // white text, and white on milky glass would vanish.
+        'bg-gradient-to-t from-background from-55% via-background/90 to-transparent pt-6',
       )}
       aria-label="\u0646\u0648\u0627\u0631 \u067e\u06cc\u0645\u0627\u06cc\u0634 \u0627\u0635\u0644\u06cc"
     >
-      <ul className="flex items-stretch justify-around px-1 pt-1">
+      <ul className="flex items-end justify-between gap-1.5 px-3 pb-1">
         {TABS.map((tab) => {
           // Every route except home matches by prefix, so a nested page such
           // as /shop/<plan> keeps its parent tab lit.
@@ -67,35 +77,47 @@ export function BottomNav() {
                 onClick={haptic.select}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex h-14 flex-col items-center justify-center gap-1 rounded-md',
-                  'text-[11px] font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  active ? 'text-foreground' : 'text-muted-foreground',
+                  'group flex flex-col items-center gap-1 rounded-2xl pb-1 text-white',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                 )}
               >
-                <Icon
-                  className={cn('size-5 transition-transform', active && 'scale-110')}
-                  aria-hidden
-                />
-                <span>{tab.label}</span>
+                <span className="relative flex h-[52px] w-full max-w-[60px] items-center justify-center">
+                  {/*
+                    The milky tile slides between tabs instead of fading in
+                    and out on each; layoutId is what makes it one movement.
+                  */}
+                  {active ? (
+                    <motion.span
+                      layoutId="tab-indicator"
+                      className="glass absolute inset-0 rounded-[18px]"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  ) : (
+                    <span className="glass-clear absolute inset-1 rounded-2xl transition-transform group-active:scale-95" />
+                  )}
+                  <Icon
+                    className={cn(
+                      'relative size-[22px]',
+                      active ? 'text-navy' : 'text-white',
+                    )}
+                    strokeWidth={active ? 2.3 : 2}
+                    aria-hidden
+                  />
+                </span>
+                <span
+                  className={cn(
+                    'max-w-full truncate text-[11px] leading-4',
+                    active ? 'font-extrabold' : 'font-medium',
+                  )}
+                >
+                  {tab.label}
+                </span>
               </Link>
-
-              {/*
-                A single shared indicator that slides between tabs, rather than
-                one that fades in and out per tab. layoutId is what makes the
-                movement continuous.
-              */}
-              {active ? (
-                <motion.span
-                  layoutId="tab-indicator"
-                  className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-gradient"
-                  transition={{ type: 'spring', stiffness: 400, damping: 34 }}
-                />
-              ) : null}
             </li>
           )
         })}
       </ul>
     </nav>
+    </>
   )
 }

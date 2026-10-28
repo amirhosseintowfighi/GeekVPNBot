@@ -27,7 +27,7 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/70 backdrop-blur-sm',
+      'fixed inset-0 z-50 bg-[rgba(3,24,56,0.5)] backdrop-blur-[2px]',
       'data-[state=open]:animate-in data-[state=closed]:animate-out',
       'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
       className,
@@ -49,8 +49,10 @@ const SheetContent = React.forwardRef<
       ref={ref}
       className={cn(
         'fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-2xl',
-        'max-h-[92dvh] overflow-y-auto rounded-t-2xl border-t border-border bg-card',
-        'px-4 pb-[calc(1.25rem+var(--tg-safe-bottom))] pt-3 shadow-2xl',
+        // Opaque white rather than glass: a sheet holds a form or a payment
+        // choice, and the blurred page behind it only competes with that.
+        'milk max-h-[92dvh] overflow-y-auto rounded-t-[30px] bg-white',
+        'px-5 pb-[calc(1.5rem+var(--tg-safe-bottom))] pt-3 shadow-[0_-20px_50px_rgba(2,24,56,0.35)]',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
         'duration-300',
@@ -60,14 +62,14 @@ const SheetContent = React.forwardRef<
     >
       <div
         aria-hidden
-        className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/40"
+        className="mx-auto mb-4 h-[5px] w-11 rounded-full bg-[#C9D9E7]"
       />
       {children}
       {hideClose ? null : (
         <DialogPrimitive.Close
           className={cn(
-            'absolute left-4 top-4 rounded-full p-1.5 text-muted-foreground',
-            'transition-colors hover:bg-secondary hover:text-foreground',
+            'absolute left-4 top-4 flex size-9 items-center justify-center rounded-xl',
+            'bg-[#EEF5FB] text-[#3F5F7E] transition-colors hover:text-[#062845]',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >
@@ -93,7 +95,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-base font-semibold', className)}
+    className={cn('text-lg font-extrabold', className)}
     {...props}
   />
 ))

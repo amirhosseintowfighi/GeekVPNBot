@@ -17,8 +17,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'rounded-lg border border-border/80 bg-card text-card-foreground',
-      glow && 'ring-gradient shadow-lg shadow-primary/10',
+      // Milky glass. `.glass` also switches every colour token inside to the
+      // card's navy-on-white set, so children need no colours of their own.
+      'glass rounded-3xl text-card-foreground',
+      // The one card a screen is about: a logo-blue edge, never a glow wash.
+      glow && 'ring-2 ring-sky/70',
       className,
     )}
     {...props}

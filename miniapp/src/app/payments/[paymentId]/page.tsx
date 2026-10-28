@@ -187,7 +187,7 @@ export default function PaymentPage() {
               <p className="text-xs text-muted-foreground">
                 {'\u0645\u0628\u0644\u063a'}
               </p>
-              <p className="nums mt-0.5 text-xl font-bold">
+              <p className="nums mt-0.5 text-2xl font-extrabold">
                 {toman(current.amount)}
               </p>
             </div>
@@ -201,20 +201,20 @@ export default function PaymentPage() {
         {/* Card-to-card */}
         {current.card ? (
           <Card className="space-y-3 p-4">
-            <p className="text-sm font-medium">
+            <p className="text-sm font-bold">
               {'\u0627\u0646\u062a\u0642\u0627\u0644 \u06a9\u0627\u0631\u062a \u0628\u0647 \u06a9\u0627\u0631\u062a'}
             </p>
 
             <button
               type="button"
               onClick={() => void copy(current.card!.cardNumber, 'card')}
-              className="flex w-full items-center justify-between gap-2 rounded-lg bg-secondary/50 px-3 py-3 transition-colors hover:bg-secondary"
+              className="flex w-full items-center justify-between gap-2 soft rounded-[14px] px-3 py-3 transition-colors hover:brightness-[0.98]"
             >
-              <span className="nums font-mono text-base tracking-widest" dir="ltr">
+              <span className="nums font-display text-lg font-bold tracking-[0.12em]" dir="ltr">
                 {current.card.cardNumber}
               </span>
               {copied === 'card' ? (
-                <Check className="size-4 shrink-0 text-success" aria-hidden />
+                <Check className="size-4 shrink-0 text-success-ink" aria-hidden />
               ) : (
                 <Copy className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               )}
@@ -246,12 +246,12 @@ export default function PaymentPage() {
               the only thing missing was telling them that before the app
               disappears.
             */}
-            <p className="rounded-lg bg-secondary/40 px-3 py-2 text-xs leading-loose text-muted-foreground">
+            <p className="soft rounded-[14px] px-3 py-2 text-xs leading-loose text-muted-foreground">
               {'\u067e\u0633 \u0627\u0632 \u0648\u0627\u0631\u06cc\u0632\u060c \u0639\u06a9\u0633 \u0631\u0633\u06cc\u062f \u0631\u0627 \u062f\u0631 \u0686\u062a \u0631\u0628\u0627\u062a \u0628\u0641\u0631\u0633\u062a\u06cc\u062f. \u062e\u0648\u062f\u06a9\u0627\u0631 \u0628\u0647 \u0647\u0645\u06cc\u0646 \u067e\u0631\u062f\u0627\u062e\u062a \u0648\u0635\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
             </p>
 
             <Button
-              variant="outline"
+              variant="secondary"
               full
               loading={busy}
               onClick={() => void openBotForReceipt()}
@@ -265,7 +265,7 @@ export default function PaymentPage() {
         {/* Crypto */}
         {current.crypto ? (
           <Card className="space-y-3 p-4">
-            <p className="text-sm font-medium">
+            <p className="text-sm font-bold">
               {'\u067e\u0631\u062f\u0627\u062e\u062a \u0628\u0627 \u0631\u0645\u0632\u0627\u0631\u0632'}
             </p>
 
@@ -282,22 +282,22 @@ export default function PaymentPage() {
             <button
               type="button"
               onClick={() => void copy(current.crypto!.address, 'addr')}
-              className="flex w-full items-center justify-between gap-2 rounded-lg bg-secondary/50 px-3 py-3 transition-colors hover:bg-secondary"
+              className="flex w-full items-center justify-between gap-2 soft rounded-[14px] px-3 py-3 transition-colors hover:brightness-[0.98]"
             >
               <span
-                className="break-all text-start font-mono text-xs leading-relaxed"
+                className="break-all text-start font-display text-xs leading-relaxed"
                 dir="ltr"
               >
                 {current.crypto.address}
               </span>
               {copied === 'addr' ? (
-                <Check className="size-4 shrink-0 text-success" aria-hidden />
+                <Check className="size-4 shrink-0 text-success-ink" aria-hidden />
               ) : (
                 <Copy className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               )}
             </button>
 
-            <p className="rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-xs leading-loose text-warning">
+            <p className="rounded-2xl bg-warning-soft px-4 py-3 text-[13px] leading-loose text-warning-ink">
               {'\u0641\u0642\u0637 \u0627\u0632 \u0647\u0645\u06cc\u0646 \u0634\u0628\u06a9\u0647 \u0627\u0633\u062a\u0641\u0627\u062f\u0647 \u06a9\u0646\u06cc\u062f. \u0627\u0631\u0633\u0627\u0644 \u0627\u0632 \u0634\u0628\u06a9\u0647\u200c\u06cc \u062f\u06cc\u06af\u0631 \u0642\u0627\u0628\u0644 \u0628\u0627\u0632\u06af\u0631\u062f\u0627\u0646\u062f\u0646 \u0646\u06cc\u0633\u062a.'}
             </p>
 
@@ -328,7 +328,7 @@ export default function PaymentPage() {
         ) : null}
 
         {formError ? (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+          <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
             {formError}
           </p>
         ) : null}

@@ -60,7 +60,7 @@ export default function RenewPage() {
           {products.map((product) =>
             product.plans.length === 0 ? null : (
               <section key={product.productId} className="space-y-3">
-                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <h2 className="flex items-center gap-2 px-1 text-lg font-extrabold">
                   {product.icon ? <span aria-hidden>{product.icon}</span> : null}
                   {product.nameFa}
                 </h2>

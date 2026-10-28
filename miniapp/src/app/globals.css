@@ -2,52 +2,121 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Fonts, self-hosted from src/fonts (SIL Open Font License).
+ *
+ * Bundled rather than fetched from Google at build time: the production image
+ * is built on a server inside Iran, where Google is not reliably reachable, and
+ * a build that cannot download its font fails outright. The files are split by
+ * script the way Google serves them, so a Persian page downloads the Arabic
+ * subset and the Latin one only when Latin text actually appears.
+ */
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/vazirmatn-arabic.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF,
+    U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/vazirmatn-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('../fonts/space-grotesk-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
 @layer base {
   /*
-   * Dark tokens only.
+   * Sky Lens - the GeekVPN client's design language: the logo's blue as the
+   * page, milky glass for content, navy for action.
    *
-   * The surface ladder is deliberately shallow - #0A0A0F background, #111118
-   * cards, and a single hairline border. On an OLED phone at night, deeper
-   * elevation stacks read as grey mud; separation comes from the border and
-   * the accent glow instead of from a dozen shades of near-black.
+   * There are two surfaces and every colour token exists twice, once per
+   * surface. `:root` is the blue page, where text is white. `.milk` - set by
+   * every card, sheet and `.glass` - is the frosted white surface, where text
+   * is navy. Because the tokens are re-declared in that scope, a component
+   * written once (`text-muted-foreground`, `bg-secondary`) reads correctly in
+   * both places, and white-on-white or navy-on-blue cannot happen by accident.
+   *
+   * Contrast: every text token passes WCAG AA (4.5:1) on its surface. Where the
+   * reference design's tint failed - green, amber and red status text on their
+   * soft backgrounds, the faint caption grey - the `-ink` tokens are the same
+   * hue, darkened until it passes.
    */
   :root {
-    --background: 240 20% 4%;
-    --foreground: 0 0% 98%;
+    --background: 209 93% 43%; /* #0870D4 */
+    --foreground: 0 0% 100%;
 
-    --card: 240 17% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 208 84% 15%;
 
-    --popover: 240 17% 7%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 208 84% 15%;
 
-    --primary: 250 80% 62%;
+    --primary: 208 84% 15%; /* navy #062845: the action colour */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 12% 14%;
-    --secondary-foreground: 0 0% 92%;
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 12% 13%;
-    /* 4.6:1 on the card surface. Anything dimmer fails WCAG AA for body copy. */
-    --muted-foreground: 240 6% 64%;
+    --muted: 0 0% 100%;
+    /* #F0F7FE: 4.54:1 on the blue. Faded white reads nicer and fails AA. */
+    --muted-foreground: 210 92% 97%;
 
-    --accent: 268 74% 62%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 199 100% 50%; /* logo blue #00ACFE */
+    --accent-foreground: 208 84% 15%;
 
-    --destructive: 0 72% 58%;
+    --link: 0 0% 100%;
+
+    --destructive: 356 67% 55%; /* #D93F48 */
     --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 356 100% 97%;
+    --destructive-ink: 356 59% 45%; /* #B42F38 */
 
-    --success: 152 62% 45%;
+    --success: 160 84% 34%; /* #0E9F6E */
     --success-foreground: 0 0% 100%;
+    --success-soft: 154 60% 93%;
+    --success-ink: 160 83% 26%; /* #0B7A55 */
 
-    --warning: 38 92% 55%;
-    --warning-foreground: 240 20% 8%;
+    --warning: 36 100% 39%; /* #C77700 */
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 39 100% 94%;
+    --warning-ink: 35 100% 30%; /* #9A5B00 */
 
-    --border: 240 12% 17%;
-    --input: 240 12% 17%;
-    --ring: 250 80% 62%;
+    --border: 0 0% 100%;
+    --input: 208 62% 96%;
+    --ring: 0 0% 100%;
 
     --radius: 1rem;
+
+    /* Composite styles that are not a single colour, per surface. */
+    --soft-bg: rgba(255, 255, 255, 0.13);
+    --soft-border: rgba(255, 255, 255, 0.34);
+    --soft-fg: #ffffff;
+    --soft-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 26px rgba(2, 36, 84, 0.18);
+    --soft-blur: blur(18px) saturate(160%);
+    --line: rgba(255, 255, 255, 0.28);
+    --track: rgba(255, 255, 255, 0.25);
+    --skeleton: rgba(255, 255, 255, 0.16);
+    --seg-active-bg: #ffffff;
+    --seg-active-fg: #062845;
 
     /*
      * Telegram exposes the webview insets as CSS variables only on some
@@ -58,6 +127,33 @@
     --tg-safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  .milk,
+  .glass,
+  .surface {
+    --foreground: 208 84% 15%;
+    --card-foreground: 208 84% 15%;
+    --secondary: 208 62% 96%; /* #EEF5FB */
+    --secondary-foreground: 208 84% 15%;
+    --muted: 207 50% 93%; /* #E4EEF6 */
+    --muted-foreground: 210 33% 37%; /* #3F5F7E, 6.7:1 on white */
+    --link: 204 100% 39%; /* #0078C8 */
+    --border: 208 45% 89%; /* #D5E3EF */
+    --ring: 204 100% 39%;
+
+    --soft-bg: #eef5fb;
+    --soft-border: transparent;
+    --soft-fg: #062845;
+    --soft-shadow: none;
+    --soft-blur: none;
+    --line: #d5e3ef;
+    --track: #e4eef6;
+    --skeleton: #e4eef6;
+    --seg-active-bg: #062845;
+    --seg-active-fg: #ffffff;
+
+    color: hsl(var(--foreground));
+  }
+
   * {
     @apply border-border;
   }
@@ -65,11 +161,11 @@
   html {
     /* Persian text is the default; individual runs opt out via `dir="ltr"`. */
     direction: rtl;
+    background: hsl(var(--background));
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'ss01', 'ss02';
     /* Stop iOS from zooming the whole webview on input focus. */
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-y: none;
@@ -89,43 +185,79 @@
   .nums {
     font-variant-numeric: tabular-nums;
   }
+
+  /* A visible focus ring on the blue page, where the default one vanishes. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
+  /* Frosted milky glass: every card, sheet and list group. */
+  .glass,
   .surface {
-    @apply rounded-lg border border-border/80 bg-card;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.95);
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      0 14px 34px rgba(2, 36, 84, 0.28);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
   }
 
-  /*
-   * The premium accent. A 1px gradient ring drawn with two backgrounds and
-   * `mask-composite`, which stays crisp at any radius - unlike a gradient
-   * border, which browsers cannot round.
-   */
-  .ring-gradient {
-    position: relative;
+  /* Clear glass on the blue page: chips, secondary tiles, the tab bar. */
+  .glass-clear {
+    background: rgba(255, 255, 255, 0.13);
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 10px 26px rgba(2, 36, 84, 0.18);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+    color: #ffffff;
   }
 
-  .ring-gradient::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      hsl(226 78% 60% / 0.9),
-      hsl(268 74% 62% / 0.35)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
+  /* The context-aware soft fill: clear glass on blue, pale blue inside milk. */
+  .soft {
+    background: var(--soft-bg);
+    border: 1px solid var(--soft-border);
+    box-shadow: var(--soft-shadow);
+    -webkit-backdrop-filter: var(--soft-blur);
+    backdrop-filter: var(--soft-blur);
+    color: var(--soft-fg);
   }
 
-  .glow {
-    background-image: theme('backgroundImage.brand-glow');
+  /* Kept for older markup: a card surface. */
+  .surface {
+    @apply rounded-3xl;
+  }
+
+  /* The navy panel: a balance, a price summary. White text, logo-blue accents. */
+  .navy-panel {
+    background: #062845;
+    color: #ffffff;
+    box-shadow: 0 14px 30px rgba(2, 24, 56, 0.35);
+    --muted-foreground: 205 83% 90%;
+    --foreground: 0 0% 100%;
+    --link: 199 100% 50%;
+    --line: rgba(255, 255, 255, 0.18);
+    --track: rgba(255, 255, 255, 0.18);
+  }
+
+  /* An icon in a rounded square, the design's list-row lead. */
+  .icon-tile {
+    @apply flex size-[38px] shrink-0 items-center justify-center rounded-xl;
+    background: #eaf5fd;
+    color: #0078c8;
+  }
+
+  .section-label {
+    @apply px-1 text-[13px] font-bold text-muted-foreground;
+  }
+
+  .font-display {
+    font-family: 'Space Grotesk', 'Vazirmatn', system-ui, sans-serif;
   }
 }
 

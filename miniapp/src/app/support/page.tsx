@@ -121,11 +121,12 @@ export default function SupportPage() {
                           haptic.select()
                           setTopic(item.key)
                         }}
+                        aria-pressed={topic === item.key}
                         className={[
-                          'rounded-full border px-3 py-1.5 text-xs transition-colors',
+                          'h-10 rounded-xl px-3.5 text-[13px] font-bold transition-colors',
                           topic === item.key
-                            ? 'border-primary/60 bg-primary/15 text-foreground'
-                            : 'border-border/70 text-muted-foreground hover:bg-secondary/50',
+                            ? 'bg-navy text-white'
+                            : 'bg-[#EEF5FB] text-[#3F5F7E] hover:text-[#062845]',
                         ].join(' ')}
                       >
                         {item.labelFa}
@@ -162,7 +163,7 @@ export default function SupportPage() {
                     minimum exists because one-line tickets cost a round trip
                     of questions before support can do anything.
                   */}
-                  <p className="nums text-[11px] text-muted-foreground">
+                  <p className="nums text-xs text-muted-foreground">
                     {messageLength < MIN_MESSAGE
                       ? '\u062f\u0633\u062a\u200c\u06a9\u0645 ' +
                         faNumber(MIN_MESSAGE) +
@@ -172,7 +173,7 @@ export default function SupportPage() {
                 </div>
 
                 {formError ? (
-                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+                  <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
                     {formError}
                   </p>
                 ) : null}
@@ -207,9 +208,9 @@ export default function SupportPage() {
             return (
               <li key={ticket.ticketId}>
                 <Link href={`/support/${ticket.ticketId}`}>
-                  <Card className="space-y-2 p-3 transition-colors hover:border-border">
+                  <Card className="space-y-2 p-4 active:scale-[0.99]">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                      <p className="min-w-0 flex-1 truncate text-sm font-bold">
                         {ticket.topicFa}
                       </p>
                       <div className="flex shrink-0 items-center gap-1.5">
@@ -222,7 +223,7 @@ export default function SupportPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span className="nums truncate">{ticket.reference}</span>
                       <span className="shrink-0">
                         {faRelative(ticket.lastReplyAt ?? ticket.createdAt)}

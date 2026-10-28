@@ -14,9 +14,9 @@ function Skeleton({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-md bg-muted/70',
+        'relative overflow-hidden rounded-lg bg-[var(--skeleton)]',
         'after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer',
-        'after:bg-gradient-to-l after:from-transparent after:via-white/5 after:to-transparent',
+        'after:bg-gradient-to-l after:from-transparent after:via-white/40 after:to-transparent',
         className,
       )}
       aria-hidden

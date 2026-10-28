@@ -54,7 +54,7 @@ export default function FaqPage() {
         <div className="space-y-4 pb-4">
           {data.map((section) => (
             <Card key={section.key} className="px-4 py-2">
-              <h2 className="flex items-center gap-2 py-2 text-sm font-semibold">
+              <h2 className="flex items-center gap-2 py-2 text-sm font-extrabold">
                 {section.icon ? <span aria-hidden>{section.icon}</span> : null}
                 {section.titleFa}
               </h2>

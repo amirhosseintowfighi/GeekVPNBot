@@ -8,7 +8,6 @@ import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
 import { PlanCard } from '@/components/feature/plan-card'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError, fetcher } from '@/lib/api'
@@ -102,10 +101,12 @@ export default function ShopPage() {
           >
             {category.products.map((product) => (
               <section key={product.productId} className="space-y-3">
-                <Card className="space-y-2 p-4">
+                {/* The product heads its plans directly on the page, so the
+                    plan cards are the only white blocks and read as choices. */}
+                <div className="space-y-2 px-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="flex items-center gap-2 text-sm font-semibold">
+                      <h2 className="flex items-center gap-2 text-lg font-extrabold">
                         {product.icon ? (
                           <span aria-hidden>{product.icon}</span>
                         ) : null}
@@ -128,14 +129,14 @@ export default function ShopPage() {
                     <ul className="flex flex-wrap gap-1.5 pt-1">
                       {product.featuresFa.map((feature) => (
                         <li key={feature}>
-                          <Badge variant="muted" className="font-normal">
+                          <span className="glass-clear inline-flex h-7 items-center rounded-[10px] px-2.5 text-xs font-bold">
                             {feature}
-                          </Badge>
+                          </span>
                         </li>
                       ))}
                     </ul>
                   ) : null}
-                </Card>
+                </div>
 
                 {/*
                   Two columns from the small breakpoint up. On a phone a single

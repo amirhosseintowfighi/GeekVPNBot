@@ -14,8 +14,9 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-11 w-full items-center justify-center gap-1 rounded-lg',
-      'border border-border/70 bg-secondary/40 p-1 text-muted-foreground',
+      // Segmented control. `.soft` and the `--seg-active-*` pair make it clear
+      // glass with a white segment on the page, pale with a navy one in a card.
+      'soft inline-flex h-12 w-full items-center justify-center gap-1 rounded-2xl p-1',
       className,
     )}
     {...props}
@@ -31,10 +32,11 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap',
-      'rounded-md px-3 py-1.5 text-sm font-medium transition-all',
+      'h-full rounded-xl px-3 text-[13px] font-bold transition-all',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       'disabled:pointer-events-none disabled:opacity-50',
-      'data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow',
+      'data-[state=active]:bg-[var(--seg-active-bg)] data-[state=active]:text-[color:var(--seg-active-fg)]',
+      'data-[state=active]:shadow-[0_4px_12px_rgba(2,36,84,0.18)]',
       className,
     )}
     {...props}
