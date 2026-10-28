@@ -4,7 +4,7 @@ import * as React from 'react'
 import useSWR from 'swr'
 
 import { api, ApiError } from '@/lib/api'
-import { faDateTime, normalizeInput, truncate } from '@/lib/fa'
+import { faDateTime, normalizeSearch, truncate } from '@/lib/fa'
 import type { AuditLogRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
@@ -43,7 +43,7 @@ export default function LogsPage() {
   const [debounced, setDebounced] = React.useState('')
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      setDebounced(normalizeInput(search))
+      setDebounced(normalizeSearch(search))
       setPage(1)
     }, 300)
     return () => clearTimeout(timer)

@@ -5,7 +5,8 @@ import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
-import { basisPoints, faDate, faNumber } from '@/lib/fa'
+import { basisPoints, faDate, faNumber, normalizeName } from '@/lib/fa'
+import { editSlug, slugToSave } from '@/lib/slug'
 import type { CampaignRow } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
@@ -235,16 +236,16 @@ function CampaignDialog({
 
   const parsedValue = Number(value.replace(/\D/g, '')) || 0
   const percentageValid = discountKind !== 'percentage' || (parsedValue > 0 && parsedValue <= 100)
-  const complete = slug.trim().length >= 2 && nameFa.trim() !== '' && parsedValue > 0 && percentageValid
+  const complete = normalizeName(nameFa) !== '' && parsedValue > 0 && percentageValid
 
   const submit = async () => {
     setBusy(true)
     setFailure(null)
     try {
       await api.saveCampaign({
-        slug: slug.trim(),
+        slug: slugToSave(slug, nameFa, 'campaign'),
         kind,
-        nameFa: nameFa.trim(),
+        nameFa: normalizeName(nameFa),
         discountKind,
         // Basis points for a percentage, Toman for a fixed amount.
         discountValue: discountKind === 'percentage' ? basisPoints(parsedValue) : parsedValue,
@@ -275,11 +276,14 @@ function CampaignDialog({
             <Input value={nameFa} onChange={(event) => setNameFa(event.target.value)} autoFocus />
           </Field>
 
-          <Field label={'شناسه'} hint={'حروف کوچک انگلیسی، حداقل ۲ نویسه'}>
+          <Field
+            label={'شناسه'}
+            hint={'اختیاری. اگر خالی بماند خودکار ساخته می‌شود. فاصله به خط تیره تبدیل می‌شود.'}
+          >
             <Input
               ltr
               value={slug}
-              onChange={(event) => setSlug(event.target.value.toLowerCase())}
+              onChange={(event) => setSlug(editSlug(event.target.value))}
               placeholder="nowruz-1405"
             />
           </Field>
