@@ -101,11 +101,12 @@ async def list_orders(
     state: OrderState | None = None,
     user_id: int | None = None,
     number: str | None = None,
+    q: Annotated[str | None, Query(max_length=64)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> OrderPage:
     orders, total = await scope.orders.search(
-        state=state, user_id=user_id, number=number, limit=limit, offset=offset
+        state=state, user_id=user_id, number=number, query=q, limit=limit, offset=offset
     )
     # One lookup for the page. Per row it is an extra round trip each, on a
     # list an operator scans rather than reads.

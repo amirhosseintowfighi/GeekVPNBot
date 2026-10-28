@@ -39,6 +39,7 @@ from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.persistence.models.provisioning import ReferralModel
 from geekvpn.infrastructure.persistence.repositories.catalog import (
+    SqlAlchemyCategoryRepository,
     SqlAlchemyPlanRepository,
     SqlAlchemyProductRepository,
 )
@@ -84,6 +85,7 @@ class SqlSubscriptionCardReader:
         orders: SqlAlchemyOrderRepository,
         plans: SqlAlchemyPlanRepository | None = None,
         products: SqlAlchemyProductRepository | None = None,
+        categories: SqlAlchemyCategoryRepository | None = None,
         rotate: Callable[[str], Awaitable[Subscription]] | None = None,
         commit: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
@@ -92,6 +94,7 @@ class SqlSubscriptionCardReader:
         self._orders = orders
         self._plans = plans
         self._products = products
+        self._categories = categories
         #: `SubscriptionAdminService.rotate_access`, and the commit after it:
         #: the panel has already issued the new link, so the record must not
         #: wait for a later write that may never come.
@@ -104,31 +107,39 @@ class SqlSubscriptionCardReader:
             return []
 
         cards: list[SubscriptionCard] = []
-        tiers: dict[str, ProductTier | None] = {}
+        kinds: dict[str, tuple[ProductTier | None, str | None]] = {}
         for subscription in await self._subscriptions.list_for_user(telegram_id):
             # A claimed account has no order behind it, and asking the
             # order repository for `None` is not a lookup worth making.
             order = await self._orders.get(subscription.order_id) if subscription.order_id else None
             plan_id = subscription.plan_id or ""
-            if plan_id not in tiers:
-                tiers[plan_id] = await self._tier_of(plan_id)
-            cards.append(to_card(subscription, order, tier=tiers[plan_id]))
+            if plan_id not in kinds:
+                kinds[plan_id] = await self._kind_of(plan_id)
+            tier, category = kinds[plan_id]
+            cards.append(to_card(subscription, order, tier=tier, category_name_fa=category))
         return cards
 
-    async def _tier_of(self, plan_id: str) -> ProductTier | None:
-        """The product tier behind a plan, or None when there is no answer.
+    async def _kind_of(self, plan_id: str) -> tuple[ProductTier | None, str | None]:
+        """The product tier and the category name behind a plan.
 
         Best effort: an archived plan or a product that has since been deleted
         leaves the card without a tier rather than failing the whole list.
         """
         if not plan_id or self._plans is None or self._products is None:
-            return None
+            return None, None
         try:
             plan = await self._plans.get(uuid.UUID(plan_id))
             product = await self._products.get(plan.product_id) if plan else None
         except ValueError:
-            return None
-        return product.tier if product else None
+            return None, None
+        if product is None:
+            return None, None
+        category = (
+            await self._categories.get(product.category_id)
+            if self._categories is not None
+            else None
+        )
+        return product.tier, (category.name_fa if category else None)
 
     async def rotate_link(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> SubscriptionCard:
         """A new link from the panel; the old one stops working.
@@ -275,7 +286,11 @@ def _load_percent(load_ratio: float, capacity: int) -> int | None:
 
 
 def to_card(
-    subscription: Subscription, order: Order | None, *, tier: ProductTier | None = None
+    subscription: Subscription,
+    order: Order | None,
+    *,
+    tier: ProductTier | None = None,
+    category_name_fa: str | None = None,
 ) -> SubscriptionCard:
     quota_mib = subscription.traffic_limit_mib
     return SubscriptionCard(
@@ -292,6 +307,7 @@ def to_card(
         created_at=subscription.started_at,
         remote_username=subscription.remote_username,
         tier=tier,
+        category_name_fa=category_name_fa,
         auto_renew=subscription.auto_renew,
         display_name=subscription.display_name,
         last_connected_at=subscription.last_connected_at,

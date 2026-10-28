@@ -39,18 +39,20 @@ import signal
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import FrameType
 from typing import Any
 
 from sqlalchemy import select
 
+from geekvpn.application.analytics.daily_report import bounds, day_to_report
 from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.application.platform.settings_service import DELETE_EXPIRED_AFTER_HOURS
 from geekvpn.application.provisioning.expired_cleanup import ExpiredCleanup
 from geekvpn.domain.notifications.enums import JobKind
+from geekvpn.infrastructure.analytics.daily_orders import SqlDayOrdersReader
 from geekvpn.infrastructure.backup.service import LAST_RUN_KEY as LAST_BACKUP_KEY
 from geekvpn.infrastructure.backup.service import backup_settings, is_due, send_backup
 from geekvpn.infrastructure.bot.auto_renew import build_auto_renewal
@@ -61,6 +63,7 @@ from geekvpn.infrastructure.di.sync_scope import build_sync_scope
 from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
 from geekvpn.infrastructure.payments.gateway_verification import sweep_gateways
 from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
+from geekvpn.presentation.bot.ui.daily_report import render_daily_report
 
 #: How many scheduled broadcasts one tick will start.
 #:
@@ -124,6 +127,12 @@ CLEANUP_INTERVAL_SECONDS = 3600
 NEWCOMER_GIFT_INTERVAL_SECONDS = 3600
 #: Likewise for the follow-up after a free trial.
 TRIAL_FOLLOWUP_INTERVAL_SECONDS = 3600
+#: How often the worker asks whether yesterday's orders report has gone out.
+#: It is sent once per day; this only decides how soon after midnight.
+DAILY_REPORT_CHECK_INTERVAL_SECONDS = 600
+#: The last day the orders report covered, in the shared cache so a restarted
+#: worker neither repeats it nor skips it.
+LAST_DAILY_REPORT_KEY = "reports:daily_orders:last_day"
 #: Payments waiting at a gateway. AtlasPay's own guidance is every 15 to 30
 #: seconds; the tick is 30, so this asks on every tick.
 GATEWAY_VERIFY_INTERVAL_SECONDS = 30
@@ -147,6 +156,7 @@ class Worker:
             # Before anything else could miss it: a customer who has paid is
             # waiting on this, and nothing else confirms AtlasPay at all.
             ("gateway_verify", GATEWAY_VERIFY_INTERVAL_SECONDS, self._verify_gateways),
+            ("daily_report", DAILY_REPORT_CHECK_INTERVAL_SECONDS, self._daily_report),
         ]
         self._next_run: dict[str, float] = {
             # Not at once on start: usage should be read before "almost out
@@ -340,6 +350,26 @@ class Worker:
         # interval, not every ten minutes against a channel that refuses it.
         await cache.set(LAST_BACKUP_KEY, now.isoformat())
         await asyncio.to_thread(send_backup, self._container, settings.chat_id)
+
+    async def _daily_report(self) -> None:
+        """Send yesterday's orders report to the operators, once.
+
+        Stamped before sending, as the backup is: a report that fails is not
+        retried every ten minutes into a chat that refuses it.
+        """
+        cache = self._container.cache
+        stamp = await cache.get(LAST_DAILY_REPORT_KEY)
+        day = day_to_report(
+            self._container.clock.now(), date.fromisoformat(stamp) if stamp else None
+        )
+        if day is None:
+            return
+        await cache.set(LAST_DAILY_REPORT_KEY, day.isoformat())
+        start, end = bounds(day)
+        async with self._container.session_factory() as session:
+            figures = await SqlDayOrdersReader(session).day(day, start=start, end=end)
+        await self._report(AlertKind.REPORT, render_daily_report(figures))
+        logger.info("worker.daily_report_sent", day=day.isoformat(), placed=figures.placed)
 
     async def _delete_lapsed(self) -> None:
         """Delete panel accounts of services that ended past the grace period."""

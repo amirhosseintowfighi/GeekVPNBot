@@ -8,7 +8,7 @@ import { RefreshCw } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
 import { faDateTime, faNumber, toman } from '@/lib/fa'
-import { ORDER_STATE } from '@/lib/labels'
+import { orderStateMeta } from '@/lib/labels'
 import type { OrderDetail } from '@/lib/types'
 import { useSession } from '@/components/shell/session'
 import { PageHeader } from '@/components/shell/page-header'
@@ -75,7 +75,7 @@ export default function OrderDetailPage() {
 
   if (isLoading || !data) return <SkeletonCards count={3} />
 
-  const stateMeta = ORDER_STATE[data.state]
+  const stateMeta = orderStateMeta(data.state)
   // Only a failed provision can be retried. Retrying a live one would hand the
   // customer a second account against a single payment. Gated on
   // orders.approve: retrying is the same authority as releasing the service.

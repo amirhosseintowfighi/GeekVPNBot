@@ -78,7 +78,14 @@ export type PanelKind =
   | 'wgdashboard'
 export type UserState = 'active' | 'suspended' | 'banned'
 /** domain/provisioning/enums.py OrderState. */
-export type OrderState = 'pending' | 'paid' | 'provisioning' | 'active' | 'failed' | 'refunded'
+export type OrderState =
+  | 'pending'
+  | 'paid'
+  | 'provisioning'
+  | 'active'
+  | 'failed'
+  | 'cancelled'
+  | 'refunded'
 export type NodeState = ServerHealth
 
 /** GET /api/v1/admin/auth/me - AdminResponse. `role` drives every guard. */

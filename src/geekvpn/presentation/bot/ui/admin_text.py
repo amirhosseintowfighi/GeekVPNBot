@@ -183,6 +183,24 @@ ORDER_CARD: Final = (
     "کاربر: <code>{user_id}</code>\n"
     "ثبت: {placed}"
 )
+#: Each order state as the operator reads it. The list printed the enum value
+#: ("active") instead.
+ORDER_STATE_FA: Final = {
+    "pending": "⏳ پرداخت‌نشده",
+    "paid": "💳 پرداخت‌شده، تحویل‌نشده",
+    "provisioning": "⚙️ در حال تحویل",
+    "active": "✅ تحویل‌شده",
+    "failed": "❌ ناموفق",
+    "cancelled": "🚫 لغوشده",
+    "refunded": "↩️ مسترد",
+}
+#: The filter row above the list: (label, state; "" is every state).
+ORDER_FILTERS: Final = (
+    ("همه", ""),
+    ("در انتظار تحویل", "paid"),
+    ("ناموفق", "failed"),
+    ("تحویل‌شده", "active"),
+)
 BTN_RETRY_PROVISION: Final = "🔄 تلاش دوباره برای تحویل"
 RETRY_OK: Final = "✅ سرویس تحویل داده شد."
 RETRY_FAILED: Final = (

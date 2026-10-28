@@ -7,7 +7,7 @@ import { Search } from 'lucide-react'
 
 import { api, ApiError } from '@/lib/api'
 import { faDateTime, normalizeSearch, toman, truncate } from '@/lib/fa'
-import { ORDER_STATE } from '@/lib/labels'
+import { ORDER_STATE, orderStateMeta } from '@/lib/labels'
 import type { OrderRow, OrderState, Paged } from '@/lib/types'
 import { PageHeader, Toolbar } from '@/components/shell/page-header'
 import { EmptyState, ErrorState } from '@/components/shell/states'
@@ -71,9 +71,9 @@ export default function OrdersPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // state, number, limit and offset - the whole of what GET /orders accepts.
+  // state, q, limit and offset - the whole of what GET /orders accepts.
   // No method filter and no sorting: neither exists on the endpoint.
-  const params = { page, pageSize: PAGE_SIZE, state, number: debounced }
+  const params = { page, pageSize: PAGE_SIZE, state, q: debounced }
 
   const { data, error, isLoading } = useSWR<Paged<OrderRow>>(
     ['orders', params],
@@ -146,7 +146,7 @@ export default function OrdersPage() {
 
               <TableBody>
                 {data.items.map((order) => {
-                  const stateMeta = ORDER_STATE[order.state]
+                  const stateMeta = orderStateMeta(order.state)
 
                   return (
                     <TableRow key={order.id}>
