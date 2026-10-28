@@ -22,13 +22,13 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-[#EAF5FD] text-[#0067AC]',
+        default: 'bg-[color:var(--tint-soft)] text-[color:var(--tint-ink)]',
         brand: 'bg-navy text-white',
         outline: 'border-[color:var(--line)] text-foreground',
         success: 'bg-success-soft text-success-ink',
         warning: 'bg-warning-soft text-warning-ink',
         destructive: 'bg-destructive-soft text-destructive-ink',
-        muted: 'bg-[#EEF5FB] text-[#3F5F7E]',
+        muted: 'bg-[color:var(--field)] text-[color:var(--field-muted)]',
       },
     },
     defaultVariants: { variant: 'default' },

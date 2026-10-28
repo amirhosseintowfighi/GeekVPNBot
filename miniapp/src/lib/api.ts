@@ -12,6 +12,7 @@
  * has the bot token.
  */
 
+import { shopId } from '@/lib/shop'
 import { getInitData } from './telegram'
 import type {
   CardPaymentDetails,
@@ -75,6 +76,9 @@ async function request<T>(
         'Content-Type': 'application/json',
         // `tma` is the scheme Telegram documents for Mini App init data.
         Authorization: `tma ${getInitData()}`,
+        // A reseller's shop: the server verifies the initData with that
+        // shop's bot and serves that shop's prices. Absent in our own app.
+        ...(shopId() ? { 'X-Shop': shopId() as string } : {}),
         ...(init.headers ?? {}),
       },
       cache: 'no-store',

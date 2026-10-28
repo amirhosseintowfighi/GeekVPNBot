@@ -40,13 +40,13 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-navy text-white shadow-[0_10px_24px_rgba(2,24,56,0.35)] hover:brightness-125',
-        accent: 'bg-sky text-navy hover:brightness-105',
+        accent: 'bg-sky text-[color:var(--on-sky)] hover:brightness-105',
         secondary: 'soft hover:brightness-105',
         outline:
           'border border-[color:var(--line)] bg-transparent text-foreground hover:bg-[color:var(--soft-bg)]',
         ghost: 'text-foreground hover:bg-[color:var(--soft-bg)]',
         destructive:
-          'border border-[#F7C9CD] bg-destructive-soft text-destructive-ink hover:brightness-[0.98]',
+          'border border-[color:var(--danger-line)] bg-destructive-soft text-destructive-ink hover:brightness-[0.98]',
         success: 'bg-success-ink text-white hover:brightness-110',
         link: 'h-auto px-1 text-link underline-offset-4 hover:underline',
       },

@@ -68,6 +68,13 @@ class HttpTokenChecker:
             {"url": url, "secret_token": secret, "drop_pending_updates": True},
         )
 
+    async def set_menu_button(self, *, token: str, url: str, text: str) -> None:
+        await self._call(
+            token,
+            "setChatMenuButton",
+            {"menu_button": {"type": "web_app", "text": text, "web_app": {"url": url}}},
+        )
+
     async def clear_webhook(self, *, token: str) -> None:
         await self._call(token, "deleteWebhook", {"drop_pending_updates": True})
 

@@ -3,6 +3,7 @@ import Script from 'next/script'
 
 import { SkyBackdrop } from '@/components/brand/sky-backdrop'
 import { BottomNav } from '@/components/shell/bottom-nav'
+import { THEME_BOOTSTRAP } from '@/lib/shop'
 import { Providers } from './providers'
 import './globals.css'
 
@@ -38,7 +39,14 @@ export default function RootLayout({
     // Fonts are self-hosted @font-face rules in globals.css (Vazirmatn, with
     // Space Grotesk for Latin figures), not next/font/google: the image is
     // built on a server in Iran, where fetching from Google at build time fails.
-    <html lang="fa" dir="rtl">
+    // suppressHydrationWarning: the head script sets `data-theme` on <html>
+    // before React hydrates, which React would otherwise report as a mismatch.
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
+      <head>
+        {/* A reseller's shop draws the classic theme, decided before the first
+            paint so their customer never sees our blue flash by. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
       <body className="min-h-dvh bg-background font-sans">
         {/* Telegram does not inject its SDK - the page has to ask for it. Without
             this tag `window.Telegram` is undefined even inside a real Telegram

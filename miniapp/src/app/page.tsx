@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import {
@@ -17,12 +18,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Logo } from '@/components/brand/logo'
+import { shopId } from '@/lib/shop'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
 import { SubscriptionCardView } from '@/components/feature/subscription-card'
 import { api, ApiError, fetcher } from '@/lib/api'
 import { toman } from '@/lib/fa'
-import type { PendingPayment, SubscriptionCard, WalletSnapshot } from '@/lib/types'
+import type { PendingPayment, ShopInfo, SubscriptionCard, WalletSnapshot } from '@/lib/types'
 
 const TIER_LABEL: Record<string, string> = {
   bronze: '\u0628\u0631\u0646\u0632\u06cc',
@@ -47,6 +49,9 @@ const TIER_EMOJI: Record<string, string> = {
  * below all three.
  */
 export default function HomePage() {
+  const [inShop, setInShop] = React.useState(false)
+  React.useEffect(() => setInShop(shopId() !== null), [])
+  const shop = useSWR<ShopInfo>(inShop ? '/api/miniapp/shop' : null, fetcher)
   const wallet = useSWR<WalletSnapshot>('/api/miniapp/wallet', fetcher)
   const subs = useSWR<SubscriptionCard[]>('/api/miniapp/subscriptions', fetcher)
   const pending = useSWR<PendingPayment[]>(
@@ -74,12 +79,23 @@ export default function HomePage() {
       {/* Brand bar. The home tab has no PageHeader, so the logo stands in for
           the title, as it does on the desktop and Android clients. */}
       <header className="flex items-center gap-3 pt-2">
-        <Logo className="size-10 text-white" />
-        <p className="min-w-0 flex-1">
-          <span className="font-display text-xl font-bold leading-none" dir="ltr">
-            GeekVPN
-          </span>
-        </p>
+        {/* A reseller's shop shows their name and no logo: our brand is not
+            theirs to wear. Decided from the URL, not the API, so neither
+            flashes by while the answer loads. */}
+        {inShop ? (
+          <p className="min-w-0 flex-1 truncate text-xl font-extrabold leading-none">
+            {shop.data?.brandFa ?? ''}
+          </p>
+        ) : (
+          <>
+            <Logo className="size-10 text-white" />
+            <p className="min-w-0 flex-1">
+              <span className="font-display text-xl font-bold leading-none" dir="ltr">
+                GeekVPN
+              </span>
+            </p>
+          </>
+        )}
         <Link
           href="/profile"
           aria-label={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'}

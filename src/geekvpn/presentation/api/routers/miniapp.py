@@ -366,7 +366,13 @@ async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> StorefrontRes
     from these names, and the shape is then something a schema can be checked
     against instead of a dictionary nobody validates.
     """
-    view = await scope.storefront.load(user_id=user.id)
+    # A reseller's customer sees that reseller's prices, as their bot shows
+    # them. The quote reads them off the scope already; the list did not, so
+    # the shop showed one price and checkout charged another.
+    view = await scope.storefront.load(
+        user_id=user.id,
+        retail_prices=(scope.reseller.retail_overrides if scope.reseller is not None else None),
+    )
     first_purchase = not await scope.orders.has_completed_order(user.telegram_id)
 
     return StorefrontResponse(
@@ -1068,6 +1074,26 @@ async def forget_push_token(
         forget_token(scope.session, token=token, telegram_id=telegram_id)
 
     await mutate_scope(container, work)
+
+
+class ShopResponse(ApiModel):
+    #: The reseller's brand, or None in the platform's own app.
+    brand_fa: str | None
+    is_reseller: bool
+
+
+@router.get("/shop", response_model=ShopResponse, summary="Whose shop this is")
+async def shop(user: CurrentMiniAppUser, scope: ScopeDep) -> ShopResponse:
+    """Which shop the Mini App is open in.
+
+    A reseller's customers must not see our name or logo: the reseller is
+    selling their own service. The app draws its unbranded look, with this
+    name, when the answer is a reseller.
+    """
+    reseller = scope.reseller
+    if reseller is None:
+        return ShopResponse(brand_fa=None, is_reseller=False)
+    return ShopResponse(brand_fa=reseller.brand_fa or reseller.name_fa, is_reseller=True)
 
 
 @router.get("/profile", summary="Profile summary")

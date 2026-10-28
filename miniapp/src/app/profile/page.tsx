@@ -190,7 +190,7 @@ export default function ProfilePage() {
           </Card>
 
           {/* The rest of the bot's menu lives here. */}
-          <Card className="divide-y divide-[#E4EEF6] overflow-hidden p-0">
+          <Card className="divide-y divide-[color:var(--track)] overflow-hidden p-0">
             <MenuRow href="/settings" icon={SettingsIcon} label={'\u062a\u0646\u0638\u06cc\u0645\u0627\u062a'} />
             <MenuRow href="/support" icon={HeadphonesIcon} label={'\u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc'} />
             <MenuRow href="/referral" icon={Users} label={'\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646'} />
@@ -252,7 +252,7 @@ function MenuRow({
     <Link
       href={href}
       onClick={haptic.select}
-      className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[#F5FAFE] active:bg-[#EEF5FB]"
+      className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[color:var(--hover)] active:bg-[color:var(--field)]"
     >
       <span className="icon-tile">
         <Icon className="size-5" aria-hidden />

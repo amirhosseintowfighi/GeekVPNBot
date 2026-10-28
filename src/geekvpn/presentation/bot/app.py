@@ -11,6 +11,7 @@ update is parsed.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -24,7 +25,7 @@ from aiogram.types import MenuButtonWebApp, Update, WebAppInfo
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
 from geekvpn import __version__
-from geekvpn.application.resellers.tenant_bots import tenant_path, tenant_secret
+from geekvpn.application.resellers.tenant_bots import shop_mini_app_url, tenant_path, tenant_secret
 from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.health.probes import run_probes
@@ -171,6 +172,20 @@ async def register_tenant_webhooks(
             logger.warning(
                 "bot.tenant_webhook.registration_failed", reseller=reseller_id.hex, error=str(exc)
             )
+            continue
+        # Their bot's own button into the Mini App, marked with their shop.
+        # Every start, like the webhook, so a shop attached before the button
+        # existed - or before the Mini App had an address - gets it too.
+        if settings.telegram.mini_app_url:
+            with contextlib.suppress(Exception):
+                await bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text=text.MENU_BUTTON_MINI_APP,
+                        web_app=WebAppInfo(
+                            url=shop_mini_app_url(settings.telegram.mini_app_url, reseller_id)
+                        ),
+                    )
+                )
     logger.info("bot.tenant_webhooks.registered", count=registered, of=len(bots))
     return registered
 

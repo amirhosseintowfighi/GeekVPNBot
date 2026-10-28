@@ -31,6 +31,10 @@ class BotTokens(Protocol):
 
     async def clear_webhook(self, *, token: str) -> None: ...
 
+    async def set_menu_button(self, *, token: str, url: str, text: str) -> None:
+        """Give the bot the button that opens the Mini App at `url`."""
+        ...
+
 
 class LedgerEntry(Protocol):
     """One movement of credit, as the panel and the bot render it."""
