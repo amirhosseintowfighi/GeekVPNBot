@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { faDuration, faNumber, gib, toman } from '@/lib/fa'
+import { volumeNote } from '@/lib/plans'
 import { haptic } from '@/lib/telegram'
 import type { PlanCard as PlanCardModel } from '@/lib/types'
 
@@ -35,6 +36,8 @@ export function PlanCard({
         ((plan.compareAtPrice! - plan.price) / plan.compareAtPrice!) * 100,
       )
     : 0
+
+  const note = volumeNote(plan)
 
   const handleClick = () => {
     haptic.impact('light')
@@ -66,10 +69,10 @@ export function PlanCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-extrabold">{plan.nameFa}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {faDuration(plan.durationDays)}
-          </p>
+          {/* The term leads: by the time this card is on screen the volume
+              has already been chosen, and the term is what is left to pick. */}
+          <p className="truncate text-[17px] font-extrabold">{faDuration(plan.durationDays)}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{plan.nameFa}</p>
         </div>
 
         {plan.badgeFa ? (
@@ -86,10 +89,10 @@ export function PlanCard({
           ) : (
             <Check className="size-3.5 shrink-0 text-link" aria-hidden />
           )}
-          <span>
+          <span className={note ? 'font-bold text-foreground' : undefined}>
             {plan.planType === 'duration' && plan.dailyQuotaGib !== null
               ? `\u0645\u0635\u0631\u0641 \u0631\u0648\u0632\u0627\u0646\u0647 \u062a\u0627 ${gib(plan.dailyQuotaGib)}`
-              : `\u062d\u062c\u0645 ${gib(plan.quotaGib)}`}
+              : note ?? `\u062d\u062c\u0645 ${gib(plan.quotaGib)}`}
           </span>
         </li>
         <li className="flex items-center gap-2">

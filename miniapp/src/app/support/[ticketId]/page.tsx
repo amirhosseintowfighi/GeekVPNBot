@@ -124,7 +124,7 @@ export default function TicketPage() {
                 {(message.fromSupport
                   ? 'پشتیبانی'
                   : 'تو') +
-                  ' · ' +
+                  '\u060c ' +
                   faDateTime(message.createdAt)}
               </p>
             </div>

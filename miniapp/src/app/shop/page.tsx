@@ -1,13 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 
 import { PageHeader } from '@/components/shell/page-header'
-import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
-import { PlanCard } from '@/components/feature/plan-card'
-import { Badge } from '@/components/ui/badge'
+import { EmptyState, ErrorState } from '@/components/shell/states'
+import { VolumeCard } from '@/components/feature/volume-card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError, fetcher } from '@/lib/api'
@@ -17,15 +15,15 @@ import type { Storefront } from '@/lib/types'
 /**
  * The shop.
  *
- * Categories are tabs, products are sections, plans are cards. That is the
- * same three-level shape the bot uses, and keeping it identical means the
- * support team can describe a path once and have it work in both places.
+ * Categories are tabs, products - the volumes - are cards, and a product's
+ * packages - its terms - are the next screen. That is the bot's own order
+ * (volume, then months), and keeping it identical means the support team can
+ * describe a path once and have it work in both places.
  *
- * A plan tap routes to the review screen rather than opening a sheet, because
- * checkout has several steps and each one deserves a back button.
+ * Each step is a route rather than a sheet, so Telegram's back button walks
+ * back through them.
  */
 export default function ShopPage() {
-  const router = useRouter()
   const { data, error, mutate } = useSWR<Storefront>(
     '/api/miniapp/storefront',
     fetcher,
@@ -71,7 +69,7 @@ export default function ShopPage() {
     <>
       <PageHeader
         title={'\u0641\u0631\u0648\u0634\u06af\u0627\u0647'}
-        subtitle={'\u0628\u0633\u062a\u0647\u200c\u0627\u06cc \u0631\u0627 \u06a9\u0647 \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u06cc\u062f \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f'}
+        subtitle={'\u0627\u0648\u0644 \u062d\u062c\u0645\u060c \u0628\u0639\u062f \u0645\u062f\u062a \u0632\u0645\u0627\u0646'}
         back={false}
       />
 
@@ -97,64 +95,17 @@ export default function ShopPage() {
           <TabsContent
             key={category.categoryId}
             value={category.categoryId}
-            className="space-y-6"
+            className="space-y-3"
           >
-            {category.products.map((product) => (
-              <section key={product.productId} className="space-y-3">
-                {/* The product heads its plans directly on the page, so the
-                    plan cards are the only white blocks and read as choices. */}
-                <div className="space-y-2 px-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="flex items-center gap-2 text-lg font-extrabold">
-                        {product.icon ? (
-                          <span aria-hidden>{product.icon}</span>
-                        ) : null}
-                        <span className="truncate">{product.nameFa}</span>
-                      </h2>
-                      {product.taglineFa ? (
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {product.taglineFa}
-                        </p>
-                      ) : null}
-                    </div>
-                    {product.badgeFa ? (
-                      <Badge variant="brand" className="shrink-0">
-                        {product.badgeFa}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  {product.featuresFa.length > 0 ? (
-                    <ul className="flex flex-wrap gap-1.5 pt-1">
-                      {product.featuresFa.map((feature) => (
-                        <li key={feature}>
-                          <span className="glass-clear inline-flex h-7 items-center rounded-[10px] px-2.5 text-xs font-bold">
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-
-                {/*
-                  Two columns from the small breakpoint up. On a phone a single
-                  column keeps the price readable at a glance; cramming two
-                  cards side by side is where the toman figure starts wrapping.
-                */}
-                <StaggerList className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {product.plans.map((plan) => (
-                    <StaggerItem key={plan.planId}>
-                      <PlanCard
-                        plan={plan}
-                        onSelect={() => router.push(`/shop/${plan.planId}`)}
-                      />
-                    </StaggerItem>
-                  ))}
-                </StaggerList>
-              </section>
-            ))}
+            {category.products
+              .filter((product) => product.plans.length > 0)
+              .map((product) => (
+                <VolumeCard
+                  key={product.productId}
+                  product={product}
+                  href={`/shop/p/${product.productId}`}
+                />
+              ))}
           </TabsContent>
         ))}
       </Tabs>

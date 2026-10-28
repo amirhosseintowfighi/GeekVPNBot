@@ -42,7 +42,7 @@ from geekvpn.application.provisioning.ports import (
     PanelProvider,
     SubscriptionRepository,
 )
-from geekvpn.domain.panels.enums import Capability
+from geekvpn.domain.panels.enums import AccountState, Capability
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.panels.values import AccountSpec, PanelAccountRef, TrafficQuota
 from geekvpn.domain.provisioning.enums import OrderState
@@ -324,7 +324,7 @@ class ProvisioningService:
         try:
             adapter = await self._panels.for_node(node)
             ref = _ref_for(subscription, node)
-            await adapter.renew(
+            account = await adapter.renew(
                 ref,
                 extend_by=timedelta(days=order.duration_days),
                 new_quota=_quota_for(order.traffic_mib),
@@ -335,7 +335,14 @@ class ProvisioningService:
             # counting, and the sync will carry their figure across - which is
             # wrong but visible, rather than wrong and silent.
             if order.traffic_mib is not None and Capability.RESET_TRAFFIC in adapter.capabilities:
-                await adapter.reset_traffic(ref, idempotency_key=f"{order.id}:reset")
+                account = await adapter.reset_traffic(ref, idempotency_key=f"{order.id}:reset")
+            # A panel takes a service that ran out of days or traffic out of
+            # service itself, and a new date and cap do not always put it
+            # back: 3x-ui leaves the client's `enable` flag cleared, Marzban
+            # keeps `limited` when the counter was not reset. The customer has
+            # paid, and the link was serving "service disabled".
+            if account.state is not AccountState.ACTIVE:
+                await adapter.resume(ref, idempotency_key=f"{order.id}:resume")
         except PanelError as error:
             await self._fail(order, reason=error.code)
             raise ProvisioningFailed(error.code, retryable=error.retryable) from error
