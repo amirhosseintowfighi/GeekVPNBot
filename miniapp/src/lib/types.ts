@@ -287,3 +287,10 @@ export interface FaqSection {
   icon: string | null
   entries: FaqEntry[]
 }
+
+/** GET /api/miniapp/shop: whose shop the app is open in. */
+export interface ShopInfo {
+  /** The reseller's brand; null in our own app. */
+  brandFa: string | null
+  isReseller: boolean
+}

@@ -11,7 +11,7 @@ import { Logo } from '@/components/brand/logo'
 export function SkyBackdrop() {
   const rings = [120, 200, 280, 360, 440, 520]
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
+    <div aria-hidden className="sky-backdrop pointer-events-none fixed inset-0 overflow-hidden">
       <svg
         className="absolute inset-0 size-full"
         viewBox="0 0 390 844"

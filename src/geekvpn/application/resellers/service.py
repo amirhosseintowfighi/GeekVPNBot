@@ -8,6 +8,7 @@ every movement writes a ledger row on the way past.
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 import uuid
 from collections.abc import Mapping, Sequence
@@ -22,7 +23,12 @@ from geekvpn.application.resellers.ports import (
     PlanPrices,
     ResellerRepository,
 )
-from geekvpn.application.resellers.tenant_bots import tenant_path, tenant_secret
+from geekvpn.application.resellers.tenant_bots import (
+    InvalidBotToken,
+    shop_mini_app_url,
+    tenant_path,
+    tenant_secret,
+)
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.identity.permissions import AdminRole
 from geekvpn.domain.resellers.enums import ResellerStatus
@@ -307,8 +313,14 @@ class ResellerService:
         webhook_base_url: str,
         webhook_path: str,
         platform_secret: str,
+        mini_app_url: str = "",
+        menu_button_text: str = "",
     ) -> str:
         """Store a reseller's bot token and point Telegram at us.
+
+        With a Mini App address, the bot also gets the button that opens it,
+        marked with their shop. Best effort: a bot without the button still
+        sells through its chat, and is not worth refusing a token over.
 
         Both halves, in that order, and the order is the point. Storing without
         registering leaves a reseller with a bot that answers nothing;
@@ -330,6 +342,13 @@ class ResellerService:
             url=webhook_base_url.rstrip("/") + tenant_path(webhook_path, reseller.id),
             secret=tenant_secret(platform_secret, reseller.id),
         )
+        if mini_app_url:
+            with contextlib.suppress(InvalidBotToken):
+                await self._tokens.set_menu_button(
+                    token=token.strip(),
+                    url=shop_mini_app_url(mini_app_url, reseller.id),
+                    text=menu_button_text,
+                )
         return identity.username
 
     async def detach_bot(self, reseller_id: uuid.UUID) -> None:

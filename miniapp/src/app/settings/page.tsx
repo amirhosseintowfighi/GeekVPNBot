@@ -109,7 +109,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <ul className="mt-2 divide-y divide-[#E4EEF6]">
+            <ul className="mt-2 divide-y divide-[color:var(--track)]">
               {TOGGLES.map((item) => (
                 <li
                   key={item.key}

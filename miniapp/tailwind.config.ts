@@ -68,8 +68,10 @@ const config: Config = {
           ink: 'hsl(var(--warning-ink))',
         },
         link: 'hsl(var(--link))',
-        navy: '#062845',
-        sky: '#00ACFE',
+        // Variables, not hex: a reseller's shop redraws them in its own
+        // (classic) palette - see `[data-theme='classic']` in globals.css.
+        navy: 'hsl(var(--navy) / <alpha-value>)',
+        sky: 'hsl(var(--sky) / <alpha-value>)',
       },
       borderRadius: {
         lg: 'var(--radius)',

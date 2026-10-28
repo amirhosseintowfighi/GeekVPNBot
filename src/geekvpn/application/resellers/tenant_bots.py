@@ -26,6 +26,7 @@ import hmac
 import uuid
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 #: Telegram allows 1-256 characters of `A-Za-z0-9_-` in a webhook secret.
 #: Hex is a safe subset and 32 characters is far more than the guessing
@@ -61,6 +62,19 @@ def tenant_secret(platform_secret: str, reseller_id: uuid.UUID) -> str:
     return digest[:_SECRET_LENGTH]
 
 
+def shop_mini_app_url(mini_app_url: str, reseller_id: uuid.UUID) -> str:
+    """The Mini App's address as one reseller's bot opens it.
+
+    The same app, told which shop it is in by `?shop=`: it sends that back on
+    every call, and the API checks the initData against that shop's own bot
+    token before believing it.
+    """
+    parts = urlsplit(mini_app_url)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k != "shop"]
+    query.append(("shop", reseller_id.hex))
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
 @dataclass(frozen=True, slots=True)
 class BotIdentity:
     """Who a token belongs to, as Telegram answers it."""
@@ -92,6 +106,7 @@ __all__ = [
     "BotIdentity",
     "InvalidBotToken",
     "TokenChecker",
+    "shop_mini_app_url",
     "tenant_path",
     "tenant_secret",
 ]

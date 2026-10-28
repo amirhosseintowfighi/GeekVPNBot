@@ -24,7 +24,7 @@ const Switch = React.forwardRef<
       'transition-colors',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
       'disabled:cursor-not-allowed disabled:opacity-50',
-      'data-[state=checked]:bg-navy data-[state=unchecked]:bg-[#C5D6E5]',
+      'data-[state=checked]:bg-navy data-[state=unchecked]:bg-[color:var(--switch-off)]',
       className,
     )}
     {...props}
@@ -34,7 +34,7 @@ const Switch = React.forwardRef<
         'pointer-events-none block size-6 rounded-[7px] shadow-md ring-0',
         'transition-[transform,background-color]',
         'data-[state=checked]:-translate-x-5 data-[state=checked]:bg-sky',
-        'data-[state=unchecked]:translate-x-0 data-[state=unchecked]:bg-white',
+        'data-[state=unchecked]:translate-x-0 data-[state=unchecked]:bg-[color:var(--sheet)]',
       )}
     />
   </SwitchPrimitives.Root>

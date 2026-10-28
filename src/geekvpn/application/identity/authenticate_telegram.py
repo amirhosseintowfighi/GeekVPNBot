@@ -15,6 +15,7 @@ invisible. Per-request verification proves the identity and stops there.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import datetime
 
 import structlog
@@ -73,8 +74,21 @@ class AuthenticateTelegramUser:
     ) -> AuthenticationResult:
         return await self._authenticate(self._verifier.verify_mini_app(init_data), context)
 
-    async def verify_mini_app_request(self, init_data: str) -> UserProfile:
+    async def verify_mini_app_request(
+        self,
+        init_data: str,
+        *,
+        verifier: TelegramAuthVerifier | None = None,
+        reseller_id: str | None = None,
+    ) -> UserProfile:
         """Prove who is behind a single Mini App call. No tokens, no login row.
+
+        Opened from a reseller's bot, the initData is signed with *that* bot's
+        token, so it is checked with a `verifier` built from it, and the
+        customer resolved is that shop's - a Telegram account is a separate
+        customer, with its own wallet, in each shop. Both come together: a
+        signature from the platform's bot never stands for a shop's customer,
+        nor one from a shop's bot for ours.
 
         The freshness window is deliberately much shorter than the one a login
         accepts: a credential presented on every request is one a replayer gets
@@ -82,9 +96,11 @@ class AuthenticateTelegramUser:
         an open Mini App, so a long window turns one captured header into a
         day-long session.
         """
-        identity = self._verifier.verify_mini_app(
+        identity = (verifier or self._verifier).verify_mini_app(
             init_data, max_age_seconds=self._request_max_age_seconds
         )
+        if reseller_id is not None:
+            identity = replace(identity, reseller_id=reseller_id)
         user, _ = await self._resolve(identity, now=self._clock.now())
         return to_profile(user)
 

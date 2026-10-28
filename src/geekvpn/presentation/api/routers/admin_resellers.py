@@ -36,6 +36,7 @@ from geekvpn.domain.resellers.reseller import (
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
 from geekvpn.presentation.bot.ui import copy as C
+from geekvpn.presentation.bot.ui.text import MENU_BUTTON_MINI_APP
 
 router = APIRouter(prefix="/admin/resellers", tags=["administration"])
 
@@ -436,6 +437,8 @@ async def attach_bot(reseller_id: uuid.UUID, payload: BotRequest, scope: ScopeDe
             webhook_base_url=telegram.webhook_base_url,
             webhook_path=telegram.webhook_path,
             platform_secret=telegram.webhook_secret.get_secret_value(),
+            mini_app_url=telegram.mini_app_url or "",
+            menu_button_text=MENU_BUTTON_MINI_APP,
         )
     except ResellerNotFound as failure:
         raise _not_found() from failure

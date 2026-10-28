@@ -405,8 +405,8 @@ function MethodOption({
       className={[
         'flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-start transition-colors',
         selected
-          ? 'border-navy bg-[#EAF5FD]'
-          : 'border-[#D5E3EF] bg-white hover:bg-[#F5FAFE]',
+          ? 'border-navy bg-[color:var(--tint-soft)]'
+          : 'border-[color:var(--line)] bg-[color:var(--sheet)] hover:bg-[color:var(--hover)]',
         disabled ? 'cursor-not-allowed opacity-50' : '',
       ].join(' ')}
     >
@@ -425,7 +425,7 @@ function MethodOption({
           'size-5 shrink-0 rounded-full border-2 transition-colors',
           selected
             ? 'border-navy bg-navy shadow-[inset_0_0_0_3px_#fff]'
-            : 'border-[#9FB6CB]',
+            : 'border-[color:var(--radio)]',
         ].join(' ')}
       />
     </button>

@@ -38,6 +38,7 @@ from geekvpn.presentation.api.routers.admin_channels import (
     reject_unreachable,
 )
 from geekvpn.presentation.api.security import CurrentAdmin, ScopeDep, requires
+from geekvpn.presentation.bot.ui.text import MENU_BUTTON_MINI_APP
 
 #: Digits only, 16 to 19 of them - the same shape the operator endpoint
 #: enforces. Written once so the two cannot disagree about what a card is.
@@ -420,6 +421,8 @@ async def attach_bot(payload: BotRequest, scope: ScopeDep, admin: CurrentAdmin) 
             webhook_base_url=telegram.webhook_base_url,
             webhook_path=telegram.webhook_path,
             platform_secret=telegram.webhook_secret.get_secret_value(),
+            mini_app_url=telegram.mini_app_url or "",
+            menu_button_text=MENU_BUTTON_MINI_APP,
         )
     except InvalidBotToken as failure:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(failure)) from failure

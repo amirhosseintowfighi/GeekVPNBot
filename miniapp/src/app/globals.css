@@ -125,6 +125,26 @@
      */
     --tg-safe-top: env(safe-area-inset-top, 0px);
     --tg-safe-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* The fixed colours of the design, named, so the classic theme can redraw
+       them: a reseller's shop is not ours and must not look like it. */
+    --navy: 208 84% 15%; /* #062845 */
+    --sky: 199 100% 50%; /* #00ACFE */
+    --field: #eef5fb;
+    --field-ink: #062845;
+    --field-muted: #3f5f7e;
+    --placeholder: #5b7894;
+    --tint: #0078c8;
+    --tint-ink: #0067ac;
+    --tint-soft: #eaf5fd;
+    --tint-ring: rgba(0, 120, 200, 0.15);
+    --hover: #f5fafe;
+    --sheet: #ffffff;
+    --handle: #c9d9e7;
+    --switch-off: #c5d6e5;
+    --radio: #9fb6cb;
+    --danger-line: #f7c9cd;
+    --on-sky: #062845;
   }
 
   .milk,
@@ -191,6 +211,87 @@
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
+}
+
+
+/*
+ * Classic: the Mini App as a reseller's shop draws it.
+ *
+ * Sky Lens is GeekVPN's own look - our blue, our logo - and a reseller's
+ * customers must not see either: the reseller is selling their own service,
+ * and we are the supplier behind it. So their shop keeps the app's earlier,
+ * unbranded dark design. Set on <html> before first paint by the script in
+ * layout.tsx, from the `shop` the reseller's bot opens the app with.
+ *
+ * Only tokens and the few surface classes change; components are the same.
+ */
+html[data-theme='classic'],
+html[data-theme='classic'] .milk,
+html[data-theme='classic'] .glass,
+html[data-theme='classic'] .surface,
+html[data-theme='classic'] .navy-panel {
+  --background: 240 20% 4%;
+  --foreground: 0 0% 98%;
+  --card: 240 17% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 17% 7%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 250 80% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 12% 14%;
+  --secondary-foreground: 0 0% 92%;
+  --muted: 240 12% 13%;
+  --muted-foreground: 240 6% 64%;
+  --accent: 268 74% 62%;
+  --accent-foreground: 0 0% 100%;
+  --link: 250 80% 72%;
+  --border: 240 12% 17%;
+  --input: 240 12% 14%;
+  --ring: 250 80% 62%;
+  --destructive-soft: 0 60% 16%;
+  --destructive-ink: 0 80% 72%;
+  --success-soft: 152 45% 14%;
+  --success-ink: 152 55% 58%;
+  --warning-soft: 38 60% 14%;
+  --warning-ink: 38 90% 62%;
+
+  --soft-bg: hsl(240 12% 14%);
+  --soft-border: hsl(240 12% 17%);
+  --soft-fg: hsl(0 0% 92%);
+  --soft-shadow: none;
+  --soft-blur: none;
+  --line: hsl(240 12% 17%);
+  --track: hsl(240 12% 16%);
+  --skeleton: hsl(240 12% 13%);
+  --seg-active-bg: hsl(250 80% 62%);
+  --seg-active-fg: #ffffff;
+
+  --navy: 250 80% 62%;
+  --sky: 268 74% 62%;
+  --field: hsl(240 12% 14%);
+  --field-ink: hsl(0 0% 96%);
+  --field-muted: hsl(240 6% 64%);
+  --placeholder: hsl(240 6% 52%);
+  --tint: hsl(250 80% 72%);
+  --tint-ink: hsl(250 80% 80%);
+  --tint-soft: hsl(250 40% 18%);
+  --tint-ring: hsl(250 80% 62% / 0.25);
+  --hover: hsl(240 12% 12%);
+  --sheet: hsl(240 17% 8%);
+  --handle: hsl(240 8% 30%);
+  --switch-off: hsl(240 10% 24%);
+  --radio: hsl(240 8% 40%);
+  --danger-line: hsl(0 50% 30%);
+  --on-sky: #ffffff;
+}
+
+html[data-theme='classic'] body {
+  background: hsl(var(--background));
+}
+
+/* Our blue circles and watermark logo stay out of a reseller's shop. */
+html[data-theme='classic'] .sky-backdrop {
+  display: none;
 }
 
 @layer components {
@@ -293,4 +394,43 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Classic surfaces: flat cards with a hairline, no frosted glass. */
+html[data-theme='classic'] .glass,
+html[data-theme='classic'] .surface {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-theme='classic'] .glass-clear {
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: hsl(var(--foreground));
+}
+
+/* The balance panel: a card with the accent ring, as the old dashboard had. */
+html[data-theme='classic'] .navy-panel {
+  background:
+    linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+    linear-gradient(135deg, hsl(226 78% 60% / 0.9), hsl(268 74% 62% / 0.35)) border-box;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: hsl(var(--foreground));
+}
+
+html[data-theme='classic'] .icon-tile {
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--link));
+}
+
+/* The usage bar's fill, in the classic accent rather than our blue. */
+html[data-theme='classic'] .bg-brand-gradient {
+  background-image: linear-gradient(135deg, hsl(226 78% 60%), hsl(268 74% 62%));
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { shopId } from '@/lib/shop'
+
 /**
  * The bridge to Telegram's WebApp SDK.
  *
@@ -98,8 +100,10 @@ export function initTelegram(): void {
   app.expand()
   // Match the page blue, or Telegram's own header sits as a band of another
   // colour above the app.
-  app.setHeaderColor?.('#0870D4')
-  app.setBackgroundColor?.('#0870D4')
+  // A reseller's shop is drawn in the classic dark theme instead.
+  const page = shopId() ? '#0A0A0F' : '#0870D4'
+  app.setHeaderColor?.(page)
+  app.setBackgroundColor?.(page)
 }
 
 /**

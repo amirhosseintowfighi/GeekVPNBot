@@ -51,7 +51,7 @@ const SheetContent = React.forwardRef<
         'fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-2xl',
         // Opaque white rather than glass: a sheet holds a form or a payment
         // choice, and the blurred page behind it only competes with that.
-        'milk max-h-[92dvh] overflow-y-auto rounded-t-[30px] bg-white',
+        'milk max-h-[92dvh] overflow-y-auto rounded-t-[30px] bg-[color:var(--sheet)]',
         'px-5 pb-[calc(1.5rem+var(--tg-safe-bottom))] pt-3 shadow-[0_-20px_50px_rgba(2,24,56,0.35)]',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
@@ -62,14 +62,14 @@ const SheetContent = React.forwardRef<
     >
       <div
         aria-hidden
-        className="mx-auto mb-4 h-[5px] w-11 rounded-full bg-[#C9D9E7]"
+        className="mx-auto mb-4 h-[5px] w-11 rounded-full bg-[color:var(--handle)]"
       />
       {children}
       {hideClose ? null : (
         <DialogPrimitive.Close
           className={cn(
             'absolute left-4 top-4 flex size-9 items-center justify-center rounded-xl',
-            'bg-[#EEF5FB] text-[#3F5F7E] transition-colors hover:text-[#062845]',
+            'bg-[color:var(--field)] text-[color:var(--field-muted)] transition-colors hover:text-[color:var(--field-ink)]',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >

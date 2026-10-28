@@ -126,7 +126,7 @@ export default function SupportPage() {
                           'h-10 rounded-xl px-3.5 text-[13px] font-bold transition-colors',
                           topic === item.key
                             ? 'bg-navy text-white'
-                            : 'bg-[#EEF5FB] text-[#3F5F7E] hover:text-[#062845]',
+                            : 'bg-[color:var(--field)] text-[color:var(--field-muted)] hover:text-[color:var(--field-ink)]',
                         ].join(' ')}
                       >
                         {item.labelFa}
