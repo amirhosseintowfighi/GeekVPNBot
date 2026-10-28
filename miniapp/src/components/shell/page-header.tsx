@@ -44,7 +44,10 @@ export function PageHeader({
       onBack()
       return
     }
-    router.back()
+    // Opened straight from a bot button, the screen is the first entry in
+    // the webview's history, and back() there does nothing at all.
+    if (window.history.length > 1) router.back()
+    else router.replace('/')
   }, [onBack, router])
 
   // null, not undefined: the hook spells "no handler, hide the button" as null.
@@ -53,33 +56,36 @@ export function PageHeader({
   return (
     <header
       className={cn(
+        // Sticky over the blue page. The tint is the page colour itself, so
+        // the header disappears into the page at rest and only shows as a
+        // frosted strip once content scrolls under it.
         'safe-top sticky top-0 z-30 -mx-4 mb-4 px-4 pb-3 pt-3',
-        'border-b border-border/60 bg-background/85 backdrop-blur-xl',
+        'bg-background/80 backdrop-blur-xl',
         className,
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {back ? (
           <button
             type="button"
             onClick={handleBack}
             aria-label="\u0628\u0627\u0632\u06af\u0634\u062a"
             className={cn(
-              '-me-1 shrink-0 rounded-full p-2 text-muted-foreground',
-              'transition-colors hover:bg-secondary hover:text-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'glass-clear flex size-11 shrink-0 items-center justify-center rounded-[15px]',
+              'transition-transform active:scale-95',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
             )}
           >
-            <ChevronRight className="size-5" aria-hidden />
+            <ChevronRight className="size-[22px]" aria-hidden />
           </button>
         ) : null}
 
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold leading-tight">
+          <h1 className="truncate text-[22px] font-extrabold leading-tight">
             {title}
           </h1>
           {subtitle ? (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
               {subtitle}
             </p>
           ) : null}

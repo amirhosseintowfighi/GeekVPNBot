@@ -8,7 +8,7 @@ import useSWR from 'swr'
 import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState } from '@/components/shell/states'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/input'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { api, ApiError, fetcher } from '@/lib/api'
 import { faDateTime } from '@/lib/fa'
@@ -109,42 +109,43 @@ export default function TicketPage() {
           <EmptyState title={'هنوز پیامی نیست'} />
         ) : (
           data.map((message) => (
-            <Card
+            <div
               key={message.messageId}
               className={cn(
-                'space-y-1.5 p-3',
+                'space-y-1.5 rounded-3xl p-4',
                 // The customer's own messages sit inset on the leading side,
-                // which is how every chat in Telegram already reads.
-                message.fromSupport ? 'me-6' : 'ms-6 border-primary/30 bg-primary/5',
+                // which is how every chat in Telegram already reads; navy for
+                // "you", milky glass for support.
+                message.fromSupport ? 'glass me-8 rounded-tr-[6px]' : 'navy-panel ms-8 rounded-tl-[6px]',
               )}
             >
-              <p className="text-xs leading-loose">{message.bodyFa}</p>
-              <p className="nums text-[10px] text-muted-foreground">
+              <p className="whitespace-pre-wrap text-sm leading-loose">{message.bodyFa}</p>
+              <p className="nums text-xs text-muted-foreground">
                 {(message.fromSupport
                   ? 'پشتیبانی'
                   : 'تو') +
                   ' · ' +
                   faDateTime(message.createdAt)}
               </p>
-            </Card>
+            </div>
           ))
         )}
 
         {closed ? (
-          <p className="rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+          <p className="soft rounded-[14px] px-3 py-2 text-xs text-muted-foreground">
             {'این تیکت بسته شده. برای موضوع تازه، یه تیکت جدید بزن.'}
           </p>
         ) : (
           <div className="space-y-2">
-            <textarea
+            <Textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={3}
               placeholder={'جوابت...'}
-              className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs leading-loose outline-none focus:border-primary"
+              aria-label={'جوابت'}
             />
             {formError ? (
-              <p className="text-xs text-destructive">{formError}</p>
+              <p role="alert" className="rounded-2xl bg-destructive-soft px-4 py-2.5 text-[13px] text-destructive-ink">{formError}</p>
             ) : null}
             <Button full loading={busy} onClick={() => void send()}>
               <Send className="size-4" aria-hidden />

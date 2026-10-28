@@ -1,22 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Vazirmatn } from 'next/font/google'
 import Script from 'next/script'
 
+import { SkyBackdrop } from '@/components/brand/sky-backdrop'
 import { BottomNav } from '@/components/shell/bottom-nav'
 import { Providers } from './providers'
 import './globals.css'
-
-/**
- * Vazirmatn is the de-facto standard Persian UI face and the same family the
- * bot's brand uses. Self-hosting through next/font avoids a render-blocking
- * request to Google on a mobile connection, and `display: swap` means text is
- * readable immediately rather than invisible while the font loads.
- */
-const vazirmatn = Vazirmatn({
-  subsets: ['arabic'],
-  display: 'swap',
-  variable: '--font-vazirmatn',
-})
 
 export const metadata: Metadata = {
   title: 'GeekVPN',
@@ -27,7 +15,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0A0A0F',
+  // The page blue, so the browser chrome above the app is the same colour.
+  themeColor: '#0870D4',
   width: 'device-width',
   initialScale: 1,
   // Pinch-zoom inside a webview usually means the layout broke, and a
@@ -46,7 +35,10 @@ export default function RootLayout({
     // `dir="rtl"` on the root is what makes every Tailwind logical property -
     // ps/pe, ms/me, start/end - resolve correctly, which is why the codebase
     // can avoid mirrored stylesheets entirely.
-    <html lang="fa" dir="rtl" className={`dark ${vazirmatn.variable}`}>
+    // Fonts are self-hosted @font-face rules in globals.css (Vazirmatn, with
+    // Space Grotesk for Latin figures), not next/font/google: the image is
+    // built on a server in Iran, where fetching from Google at build time fails.
+    <html lang="fa" dir="rtl">
       <body className="min-h-dvh bg-background font-sans">
         {/* Telegram does not inject its SDK - the page has to ask for it. Without
             this tag `window.Telegram` is undefined even inside a real Telegram
@@ -56,17 +48,12 @@ export default function RootLayout({
             effect that fires before the SDK exists silently does nothing. */}
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <Providers>
-          {/* The ambient glow behind the header. Fixed and non-interactive so
-              it never intercepts a tap or scrolls out of place. */}
-          <div
-            className="pointer-events-none fixed inset-x-0 top-0 h-64 glow"
-            aria-hidden
-          />
+          <SkyBackdrop />
 
           <div className="relative mx-auto flex min-h-dvh w-full max-w-2xl flex-col">
-            {/* pb-24 reserves room for the fixed tab bar, so the last card in
-                a list is never trapped underneath it. */}
-            <main className="safe-top flex-1 px-4 pb-24 pt-2">{children}</main>
+            {/* The room under the last card for the floating tab bar is
+                reserved by BottomNav itself, which knows when it is shown. */}
+            <main className="safe-top flex-1 px-4 pb-6 pt-2">{children}</main>
             <BottomNav />
           </div>
         </Providers>

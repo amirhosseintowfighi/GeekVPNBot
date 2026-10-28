@@ -1,13 +1,13 @@
 import type { Config } from 'tailwindcss'
 
 /**
- * Dark-only by design.
+ * Sky Lens, the GeekVPN client's design language: the logo's blue as the page,
+ * milky glass for content, navy for action. The same language as the Android
+ * and Windows apps, so moving between them feels like one product.
  *
- * The brand is a near-black surface with a blue-to-purple accent, and a VPN
- * app is overwhelmingly opened at night on a phone. Shipping a light theme
- * would mean maintaining two sets of contrast decisions for an audience that
- * would rarely see the second one, so dark is pinned via the root class in
- * layout.tsx rather than following the system preference.
+ * Colours are CSS variables re-declared per surface - see globals.css - so a
+ * class like `text-muted-foreground` is right on the blue page and inside a
+ * white card alike.
  */
 const config: Config = {
   darkMode: 'class',
@@ -36,6 +36,8 @@ const config: Config = {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
+          soft: 'hsl(var(--destructive-soft))',
+          ink: 'hsl(var(--destructive-ink))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -56,11 +58,18 @@ const config: Config = {
         success: {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
+          soft: 'hsl(var(--success-soft))',
+          ink: 'hsl(var(--success-ink))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
+          soft: 'hsl(var(--warning-soft))',
+          ink: 'hsl(var(--warning-ink))',
         },
+        link: 'hsl(var(--link))',
+        navy: '#062845',
+        sky: '#00ACFE',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -68,13 +77,12 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-vazirmatn)', 'system-ui', 'sans-serif'],
+        sans: ['Vazirmatn', 'Tahoma', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk"', 'Vazirmatn', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'brand-gradient':
-          'linear-gradient(135deg, hsl(226 78% 60%) 0%, hsl(268 74% 62%) 100%)',
-        'brand-glow':
-          'radial-gradient(60% 60% at 50% 0%, hsl(250 80% 60% / 0.22) 0%, transparent 100%)',
+        // The logo blue, for the few places that still want a fill with depth.
+        'brand-gradient': 'linear-gradient(135deg, #00ACFE 0%, #0078C8 100%)',
       },
       keyframes: {
         'accordion-down': {

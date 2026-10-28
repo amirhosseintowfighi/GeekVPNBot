@@ -82,16 +82,16 @@ export default function ReferralPage() {
         <SkeletonCard />
       ) : (
         <div className="space-y-4 pb-4">
-          <Card glow className="space-y-4 p-5 text-center">
-            <div className="mx-auto w-fit rounded-2xl bg-primary/15 p-3">
-              <Users className="size-6 text-primary" />
+          <Card className="space-y-4 p-5 text-center">
+            <div className="icon-tile mx-auto size-14 rounded-[18px]">
+              <Users className="size-7" />
             </div>
 
             <div>
               <p className="text-xs text-muted-foreground">
                 {'\u06a9\u062f \u0645\u0639\u0631\u0641\u06cc \u0634\u0645\u0627'}
               </p>
-              <p dir="ltr" className="mt-1 font-mono text-2xl font-bold tracking-widest">
+              <p dir="ltr" className="font-display mt-1 text-[26px] font-bold tracking-[0.2em]">
                 {data.code}
               </p>
             </div>
@@ -101,7 +101,7 @@ export default function ReferralPage() {
                 <Send className="size-4" aria-hidden />
                 {'\u0627\u0634\u062a\u0631\u0627\u06a9\u200c\u06af\u0630\u0627\u0631\u06cc'}
               </Button>
-              <Button variant="outline" className="flex-1" onClick={() => void copy()}>
+              <Button variant="secondary" className="flex-1" onClick={() => void copy()}>
                 {copied ? (
                   <Check className="size-4" aria-hidden />
                 ) : (
@@ -132,7 +132,7 @@ export default function ReferralPage() {
           </div>
 
           <Card className="space-y-2 p-4">
-            <p className="text-sm font-medium">
+            <p className="text-sm font-bold">
               {'\u0686\u06af\u0648\u0646\u0647 \u06a9\u0627\u0631 \u0645\u06cc\u200c\u06a9\u0646\u062f\u061f'}
             </p>
             <ol className="space-y-1.5 text-xs leading-loose text-muted-foreground">
@@ -162,8 +162,8 @@ export default function ReferralPage() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Card className="p-3">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="nums mt-1 text-sm font-semibold">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="nums mt-1 text-sm font-extrabold">{value}</p>
     </Card>
   )
 }

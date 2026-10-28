@@ -71,7 +71,7 @@ export default function StatusPage() {
               <li key={row.nameFa}>
                 <Card className="space-y-2.5 p-3.5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm font-medium">
+                    <p className="min-w-0 truncate text-sm font-bold">
                       {row.nameFa}
                     </p>
                     <Badge variant={meta.variant} className="shrink-0">
@@ -82,7 +82,7 @@ export default function StatusPage() {
                   {fraction !== null ? (
                     <div className="space-y-1">
                       <Progress value={fraction * 100} tone={usageTone(fraction)} />
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{'\u0628\u0627\u0631 \u0633\u0631\u0648\u0631'}</span>
                         <span className="nums">{percent(row.loadPercent!)}</span>
                       </div>

@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress, usageTone } from '@/components/ui/progress'
 import {
-  countdown,
   faDate,
   faNumber,
+  faRelative,
   gib,
   usageFraction,
 } from '@/lib/fa'
@@ -71,7 +71,7 @@ export function SubscriptionCardView({
     <Card className="space-y-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{sub.productNameFa}</p>
+          <p className="truncate text-[15px] font-extrabold">{sub.productNameFa}</p>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {sub.planNameFa}
           </p>
@@ -100,27 +100,30 @@ export function SubscriptionCardView({
       )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-lg bg-secondary/40 px-3 py-2">
+        <div className="soft rounded-2xl px-3 py-2.5">
           <p className="text-muted-foreground">{'\u0627\u0646\u0642\u0636\u0627'}</p>
-          <p className="nums mt-0.5 font-medium">
-            {sub.expiresAt
-              ? `${faDate(sub.expiresAt)} \u00b7 ${countdown(sub.expiresAt)}`
-              : '\u2014'}
+          <p className="nums mt-0.5 font-bold">
+            {sub.expiresAt ? faDate(sub.expiresAt) : '\u2014'}
           </p>
+          {/* Days, not an hh:mm:ss clock: three weeks out, "455:59:58"
+              tells nobody anything. */}
+          {sub.expiresAt ? (
+            <p className="nums mt-0.5 text-muted-foreground">{faRelative(sub.expiresAt)}</p>
+          ) : null}
         </div>
-        <div className="rounded-lg bg-secondary/40 px-3 py-2">
+        <div className="soft rounded-2xl px-3 py-2.5">
           <p className="flex items-center gap-1 text-muted-foreground">
             <Smartphone className="size-3" aria-hidden />
             {'\u062f\u0633\u062a\u06af\u0627\u0647'}
           </p>
-          <p className="nums mt-0.5 font-medium">{faNumber(sub.deviceLimit)}</p>
+          <p className="nums mt-0.5 font-bold">{faNumber(sub.deviceLimit)}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {sub.subscriptionUrl ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={handleCopy}
             className="flex-1"

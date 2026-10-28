@@ -104,20 +104,20 @@ export default function SettingsPage() {
         <div className="space-y-4 pb-4">
           <Card className="p-0">
             <div className="px-4 pt-4">
-              <p className="text-sm font-medium">
+              <p className="text-sm font-bold">
                 {'\u0627\u0637\u0644\u0627\u0639\u200c\u0631\u0633\u0627\u0646\u06cc'}
               </p>
             </div>
 
-            <ul className="mt-2 divide-y divide-border/70">
+            <ul className="mt-2 divide-y divide-[#E4EEF6]">
               {TOGGLES.map((item) => (
                 <li
                   key={item.key}
                   className="flex items-start justify-between gap-4 px-4 py-3.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm">{item.labelFa}</p>
-                    <p className="mt-0.5 text-[11px] leading-loose text-muted-foreground">
+                    <p className="text-sm font-bold">{item.labelFa}</p>
+                    <p className="mt-0.5 text-xs leading-loose text-muted-foreground">
                       {item.descriptionFa}
                     </p>
                   </div>
@@ -135,11 +135,11 @@ export default function SettingsPage() {
 
             <div className="flex items-start justify-between gap-4 px-4 py-3.5">
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm">
-                  <Moon className="size-3.5 text-primary" aria-hidden />
+                <p className="flex items-center gap-1.5 text-sm font-bold">
+                  <Moon className="size-3.5 text-link" aria-hidden />
                   {'\u0633\u0627\u0639\u0627\u062a \u0633\u06a9\u0648\u062a'}
                 </p>
-                <p className="mt-0.5 text-[11px] leading-loose text-muted-foreground">
+                <p className="mt-0.5 text-xs leading-loose text-muted-foreground">
                   {'\u0628\u06cc\u0646 \u06f2\u06f3 \u062a\u0627 \u06f8 \u0628\u0627\u0645\u062f\u0627\u062f \u067e\u06cc\u0627\u0645\u06cc \u0627\u0631\u0633\u0627\u0644 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f. \u0647\u0634\u062f\u0627\u0631\u0647\u0627\u06cc \u0628\u062d\u0631\u0627\u0646\u06cc \u0627\u0633\u062a\u062b\u0646\u0627 \u0647\u0633\u062a\u0646\u062f.'}
                 </p>
               </div>
@@ -153,12 +153,12 @@ export default function SettingsPage() {
           </Card>
 
           {saveError ? (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+            <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
               {saveError}
             </p>
           ) : null}
 
-          <p className="px-1 text-[11px] leading-loose text-muted-foreground">
+          <p className="px-1 text-xs leading-loose text-muted-foreground">
             {'\u0627\u06cc\u0646 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a \u0628\u0627 \u0631\u0628\u0627\u062a \u06cc\u06a9\u0633\u0627\u0646 \u0627\u0633\u062a\u061b \u062a\u063a\u06cc\u06cc\u0631 \u062f\u0631 \u0647\u0631 \u06a9\u062f\u0627\u0645\u060c \u062f\u0631 \u062f\u06cc\u06af\u0631\u06cc \u0647\u0645 \u0627\u0639\u0645\u0627\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
           </p>
         </div>

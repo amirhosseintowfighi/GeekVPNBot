@@ -5,6 +5,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import {
   ChevronLeft,
+  HeadphonesIcon,
   HelpCircle,
   Pencil,
   Server,
@@ -127,12 +128,12 @@ export default function ProfilePage() {
         <div className="space-y-4 pb-4">
           <Card className="space-y-4 p-5">
             <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-lg font-bold text-primary-foreground">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-[18px] bg-navy text-xl font-extrabold text-white">
                 {(data.displayName ?? '\u06a9').slice(0, 1)}
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">
+                <p className="truncate text-base font-extrabold">
                   {data.displayName ||
                     '\u06a9\u0627\u0631\u0628\u0631 \u06af\u06cc\u06a9 \u0648\u06cc\u200c\u067e\u06cc\u200c\u0627\u0646'}
                 </p>
@@ -143,7 +144,7 @@ export default function ProfilePage() {
                 ) : null}
               </div>
 
-              <Button variant="ghost" size="icon" onClick={openEditor} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0646\u0627\u0645'}>
+              <Button variant="secondary" size="icon" onClick={openEditor} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0646\u0627\u0645'}>
                 <Pencil className="size-4" aria-hidden />
               </Button>
             </div>
@@ -157,14 +158,14 @@ export default function ProfilePage() {
                   {'\u0633\u0637\u062d ' + current!.labelFa}
                 </Badge>
                 {next ? (
-                  <span className="nums text-[11px] text-muted-foreground">
+                  <span className="nums text-xs text-muted-foreground">
                     {'\u062a\u0627 ' +
                       next.labelFa +
                       ': ' +
                       toman(Math.max(0, next.threshold - data.lifetimeSpend))}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {'\u0628\u0627\u0644\u0627\u062a\u0631\u06cc\u0646 \u0633\u0637\u062d'}
                   </span>
                 )}
@@ -173,24 +174,25 @@ export default function ProfilePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg bg-secondary/40 px-3 py-2">
+              <div className="soft rounded-[14px] px-3 py-2">
                 <p className="text-muted-foreground">
                   {'\u062a\u0639\u062f\u0627\u062f \u0633\u0641\u0627\u0631\u0634'}
                 </p>
-                <p className="nums mt-0.5 font-medium">{faNumber(data.orderCount)}</p>
+                <p className="nums mt-0.5 font-bold">{faNumber(data.orderCount)}</p>
               </div>
-              <div className="rounded-lg bg-secondary/40 px-3 py-2">
+              <div className="soft rounded-[14px] px-3 py-2">
                 <p className="text-muted-foreground">
                   {'\u0639\u0636\u0648\u06cc\u062a \u0627\u0632'}
                 </p>
-                <p className="nums mt-0.5 font-medium">{faDate(data.joinedAt)}</p>
+                <p className="nums mt-0.5 font-bold">{faDate(data.joinedAt)}</p>
               </div>
             </div>
           </Card>
 
           {/* The rest of the bot's menu lives here. */}
-          <Card className="divide-y divide-border/70 p-0">
+          <Card className="divide-y divide-[#E4EEF6] overflow-hidden p-0">
             <MenuRow href="/settings" icon={SettingsIcon} label={'\u062a\u0646\u0638\u06cc\u0645\u0627\u062a'} />
+            <MenuRow href="/support" icon={HeadphonesIcon} label={'\u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc'} />
             <MenuRow href="/referral" icon={Users} label={'\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646'} />
             <MenuRow href="/faq" icon={HelpCircle} label={'\u0633\u0648\u0627\u0644\u0627\u062a \u0645\u062a\u062f\u0627\u0648\u0644'} />
             <MenuRow href="/status" icon={Server} label={'\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0648\u0631\u0647\u0627'} />
@@ -213,7 +215,7 @@ export default function ProfilePage() {
               maxLength={MAX_NAME}
               placeholder={'\u0646\u0627\u0645 \u0634\u0645\u0627'}
             />
-            <p className="nums text-[11px] text-muted-foreground">
+            <p className="nums text-xs text-muted-foreground">
               {'\u0628\u06cc\u0646 ' +
                 faNumber(MIN_NAME) +
                 ' \u062a\u0627 ' +
@@ -222,7 +224,7 @@ export default function ProfilePage() {
             </p>
 
             {formError ? (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+              <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
                 {formError}
               </p>
             ) : null}
@@ -250,12 +252,14 @@ function MenuRow({
     <Link
       href={href}
       onClick={haptic.select}
-      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-secondary/40"
+      className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[#F5FAFE] active:bg-[#EEF5FB]"
     >
-      <Icon className="size-4 shrink-0 text-primary" aria-hidden />
-      <span className="flex-1 text-sm">{label}</span>
+      <span className="icon-tile">
+        <Icon className="size-5" aria-hidden />
+      </span>
+      <span className="flex-1 text-sm font-bold">{label}</span>
       {/* Points to the end of the line, which is the left edge in RTL. */}
-      <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <ChevronLeft className="size-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
   )
 }

@@ -59,14 +59,14 @@ export function PlanCard({
       className={cn(
         'relative flex flex-col gap-3 p-4 transition-all',
         onSelect && 'cursor-pointer active:scale-[0.99]',
-        selected
-          ? 'border-primary/70 ring-1 ring-primary/40'
-          : 'hover:border-border',
+        // Selection is a navy edge, the action colour: the same thing a
+        // pressed button says, rather than a second accent to learn.
+        selected && 'ring-2 ring-navy',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{plan.nameFa}</p>
+          <p className="truncate text-[15px] font-extrabold">{plan.nameFa}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {faDuration(plan.durationDays)}
           </p>
@@ -82,9 +82,9 @@ export function PlanCard({
       <ul className="space-y-1.5 text-xs text-muted-foreground">
         <li className="flex items-center gap-2">
           {plan.planType === 'unlimited' ? (
-            <InfinityIcon className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <InfinityIcon className="size-3.5 shrink-0 text-link" aria-hidden />
           ) : (
-            <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <Check className="size-3.5 shrink-0 text-link" aria-hidden />
           )}
           <span>
             {plan.planType === 'duration' && plan.dailyQuotaGib !== null
@@ -93,7 +93,7 @@ export function PlanCard({
           </span>
         </li>
         <li className="flex items-center gap-2">
-          <Smartphone className="size-3.5 shrink-0 text-primary" aria-hidden />
+          <Smartphone className="size-3.5 shrink-0 text-link" aria-hidden />
           <span>
             {`${faNumber(plan.deviceLimit)} \u062f\u0633\u062a\u06af\u0627\u0647 \u0647\u0645\u0632\u0645\u0627\u0646`}
           </span>
@@ -107,19 +107,19 @@ export function PlanCard({
               <span className="nums text-xs text-muted-foreground line-through">
                 {toman(plan.compareAtPrice!, false)}
               </span>
-              <Badge variant="success" className="px-1.5 py-0 text-[10px]">
+              <Badge variant="success" className="h-5 px-1.5 text-[11px]">
                 {`${faNumber(savingPercent)}\u066a\u0640`}
               </Badge>
             </div>
           ) : null}
-          <p className="nums text-base font-bold leading-tight">
+          <p className="nums text-[17px] font-extrabold leading-tight">
             {toman(plan.price)}
           </p>
         </div>
 
         {selected ? (
-          <span className="rounded-full bg-primary p-1 text-primary-foreground">
-            <Check className="size-3.5" aria-hidden />
+          <span className="flex size-7 items-center justify-center rounded-[9px] bg-navy text-white">
+            <Check className="size-4" aria-hidden />
           </span>
         ) : null}
       </div>

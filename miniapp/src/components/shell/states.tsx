@@ -36,11 +36,11 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="rounded-2xl border border-border/70 bg-secondary/40 p-4">
-        <Icon className="size-7 text-muted-foreground" />
+      <div className="glass-clear flex size-16 items-center justify-center rounded-[22px]">
+        <Icon className="size-7" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">{title}</p>
+        <p className="text-[15px] font-bold">{title}</p>
         {description ? (
           <p className="mx-auto max-w-xs text-xs leading-loose text-muted-foreground">
             {description}
@@ -83,14 +83,14 @@ export function ErrorState({
         className,
       )}
     >
-      <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
-        <Icon className="size-7 text-destructive" />
+      <div className="flex size-16 items-center justify-center rounded-[22px] bg-destructive-soft">
+        <Icon className="size-7 text-destructive-ink" />
       </div>
       <p className="max-w-xs text-sm leading-loose text-muted-foreground">
         {messageFa || fallback}
       </p>
       {onRetry ? (
-        <Button variant="outline" size="sm" onClick={onRetry}>
+        <Button variant="secondary" size="sm" onClick={onRetry}>
           <RefreshCw className="size-4" aria-hidden />
           {/* In braces. JSX text is not a string literal, so an escape
               sequence written bare here renders as its own characters -

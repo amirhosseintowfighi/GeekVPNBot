@@ -10,22 +10,25 @@ import { cn } from '@/lib/utils'
  * same colour always means the same thing across the app: green settled,
  * amber waiting on someone, red needs action.
  */
+/**
+ * Status chips. Soft fill, darkened `-ink` text so the label passes 4.5:1 -
+ * the reference tints alone (green on mint, amber on cream) did not.
+ */
 const badgeVariants = cva(
   cn(
-    'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5',
-    'text-xs font-medium leading-5 transition-colors',
+    'inline-flex h-[26px] items-center gap-1.5 rounded-[9px] border border-transparent px-2.5',
+    'text-xs font-extrabold leading-none transition-colors [&_svg]:size-3.5',
   ),
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-secondary text-secondary-foreground',
-        brand:
-          'border-transparent bg-brand-gradient text-primary-foreground shadow shadow-primary/25',
-        outline: 'border-border text-foreground',
-        success: 'border-transparent bg-success/15 text-success',
-        warning: 'border-transparent bg-warning/15 text-warning',
-        destructive: 'border-transparent bg-destructive/15 text-destructive',
-        muted: 'border-transparent bg-muted text-muted-foreground',
+        default: 'bg-[#EAF5FD] text-[#0067AC]',
+        brand: 'bg-navy text-white',
+        outline: 'border-[color:var(--line)] text-foreground',
+        success: 'bg-success-soft text-success-ink',
+        warning: 'bg-warning-soft text-warning-ink',
+        destructive: 'bg-destructive-soft text-destructive-ink',
+        muted: 'bg-[#EEF5FB] text-[#3F5F7E]',
       },
     },
     defaultVariants: { variant: 'default' },

@@ -22,16 +22,18 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         dir={ltr ? 'ltr' : undefined}
         className={cn(
-          'flex h-11 w-full rounded-md border border-input bg-secondary/40 px-3 py-2',
+          // A filled field, not an outlined one: the design's inputs are pale
+          // wells inside a card, and an outline on milky glass reads as noise.
+          'flex h-[52px] w-full rounded-[14px] border border-transparent bg-input px-4 py-2 text-[#062845]',
           // 16px is the threshold below which iOS Safari zooms the viewport on
           // focus. In a Telegram webview that zoom cannot be undone by the
           // user, so the base size is locked at text-base on small screens.
           'text-base sm:text-sm',
-          'placeholder:text-muted-foreground',
-          'transition-colors focus-visible:border-primary/60 focus-visible:outline-none',
-          'focus-visible:ring-2 focus-visible:ring-ring/40',
+          'placeholder:text-[#5B7894]',
+          'transition-colors focus-visible:border-[#0078C8] focus-visible:bg-white focus-visible:outline-none',
+          'focus-visible:ring-4 focus-visible:ring-[#0078C8]/15',
           'disabled:cursor-not-allowed disabled:opacity-50',
-          ltr && 'text-left font-mono tracking-wide',
+          ltr && 'font-display text-left tracking-wide',
           className,
         )}
         {...props}
@@ -49,11 +51,11 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     <textarea
       ref={ref}
       className={cn(
-        'flex min-h-24 w-full rounded-md border border-input bg-secondary/40 px-3 py-2',
+        'flex min-h-28 w-full rounded-[14px] border border-transparent bg-input px-4 py-3 text-[#062845]',
         'text-base leading-relaxed sm:text-sm',
-        'placeholder:text-muted-foreground',
-        'transition-colors focus-visible:border-primary/60 focus-visible:outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring/40',
+        'placeholder:text-[#5B7894]',
+        'transition-colors focus-visible:border-[#0078C8] focus-visible:bg-white focus-visible:outline-none',
+        'focus-visible:ring-4 focus-visible:ring-[#0078C8]/15',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

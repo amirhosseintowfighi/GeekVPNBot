@@ -80,7 +80,7 @@ export default function TopupPage() {
 
       <div className="space-y-4 pb-6">
         <Card className="space-y-3 p-4">
-          <label htmlFor="amount" className="text-sm font-medium">
+          <label htmlFor="amount" className="text-sm font-bold">
             {'\u0645\u0628\u0644\u063a \u0645\u0648\u0631\u062f \u0646\u0638\u0631'}
           </label>
 
@@ -102,7 +102,8 @@ export default function TopupPage() {
               <Button
                 key={preset}
                 type="button"
-                variant={amount === preset ? 'default' : 'outline'}
+                variant={amount === preset ? 'default' : 'secondary'}
+                aria-pressed={amount === preset}
                 size="sm"
                 onClick={() => {
                   haptic.select()
@@ -115,13 +116,13 @@ export default function TopupPage() {
             ))}
           </div>
 
-          <p className="nums text-[11px] leading-loose text-muted-foreground">
+          <p className="nums text-xs leading-loose text-muted-foreground">
             {`\u062d\u062f\u0627\u0642\u0644 ${toman(MIN_TOPUP)} \u0648 \u062d\u062f\u0627\u06a9\u062b\u0631 ${toman(MAX_TOPUP)}`}
           </p>
         </Card>
 
         <Card className="space-y-2 p-4">
-          <p className="text-sm font-medium">
+          <p className="text-sm font-bold">
             {'\u0631\u0648\u0634 \u067e\u0631\u062f\u0627\u062e\u062a'}
           </p>
 
@@ -132,7 +133,11 @@ export default function TopupPage() {
               return (
                 <Button
                   key={option.key}
-                  variant={method === option.key ? 'default' : 'outline'}
+                  variant={method === option.key ? 'default' : 'secondary'}
+                  aria-pressed={method === option.key}
+                  // A provider's name can be long; let it wrap rather than
+                  // spill out of a half-width button.
+                  className="h-auto min-h-[52px] whitespace-normal py-2 text-center leading-snug"
                   onClick={() => {
                     haptic.select()
                     setMethod(option.key)
@@ -160,7 +165,7 @@ export default function TopupPage() {
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+          <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
             {error}
           </p>
         ) : null}

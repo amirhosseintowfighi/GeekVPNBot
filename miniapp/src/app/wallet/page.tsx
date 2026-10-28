@@ -83,34 +83,34 @@ export default function WalletPage() {
         ) : !wallet.data ? (
           <SkeletonCard />
         ) : (
-          <Card glow className="space-y-4 p-5">
+          <section className="navy-panel space-y-5 rounded-3xl p-5">
             <div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {'\u0645\u0648\u062c\u0648\u062f\u06cc \u0642\u0627\u0628\u0644 \u0627\u0633\u062a\u0641\u0627\u062f\u0647'}
               </p>
-              <p className="nums mt-1 text-3xl font-bold">
+              <p className="nums mt-1.5 text-[30px] font-extrabold leading-none">
                 {toman(wallet.data.balance)}
               </p>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-[color:var(--line)] pt-3 text-[13px] text-muted-foreground">
               <span>
                 {'\u0645\u062c\u0645\u0648\u0639 \u062e\u0631\u06cc\u062f'}
               </span>
               <span className="nums">{toman(wallet.data.lifetimeSpend)}</span>
             </div>
 
-            <Button full asChild>
+            <Button full variant="accent" asChild>
               <Link href="/wallet/topup">
-                <Plus className="size-4" aria-hidden />
+                <Plus aria-hidden />
                 {'\u0627\u0641\u0632\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f\u06cc'}
               </Link>
             </Button>
-          </Card>
+          </section>
         )}
 
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold">
+          <h2 className="section-label">
             {'\u062a\u0627\u0631\u06cc\u062e\u0686\u0647\u200c\u06cc \u062a\u0631\u0627\u06a9\u0646\u0634\u200c\u0647\u0627'}
           </h2>
 
@@ -132,17 +132,15 @@ export default function WalletPage() {
                     <Card className="flex items-center gap-3 p-3">
                       <span
                         className={[
-                          'shrink-0 rounded-lg p-2',
-                          credit
-                            ? 'bg-success/15 text-success'
-                            : 'bg-secondary text-muted-foreground',
+                          'icon-tile',
+                          credit ? 'bg-success-soft text-success-ink' : '',
                         ].join(' ')}
                       >
-                        <Icon className="size-4" />
+                        <Icon className="size-5" />
                       </span>
 
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
+                        <p className="truncate text-sm font-bold">
                           {tx.descriptionFa || meta.labelFa}
                         </p>
                         <p className="nums mt-0.5 truncate text-xs text-muted-foreground">
@@ -158,8 +156,8 @@ export default function WalletPage() {
                       <span
                         dir="ltr"
                         className={[
-                          'nums shrink-0 text-sm font-semibold',
-                          credit ? 'text-success' : 'text-foreground',
+                          'nums shrink-0 text-sm font-extrabold',
+                          credit ? 'text-success-ink' : 'text-foreground',
                         ].join(' ')}
                       >
                         {credit ? '+' : '\u2212'}
@@ -175,7 +173,7 @@ export default function WalletPage() {
           {pageCount > 1 ? (
             <div className="flex items-center justify-between gap-2 pt-1">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -186,7 +184,7 @@ export default function WalletPage() {
                 {`\u0635\u0641\u062d\u0647\u200c\u06cc ${faNumber(page)} \u0627\u0632 ${faNumber(pageCount)}`}
               </Badge>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={page >= pageCount}
                 onClick={() => setPage((p) => Math.min(pageCount, p + 1))}

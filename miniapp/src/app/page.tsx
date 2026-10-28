@@ -3,18 +3,20 @@
 import Link from 'next/link'
 import useSWR from 'swr'
 import {
-  ArrowLeft,
+  ChevronLeft,
   Clock,
   Gift,
   HeadphonesIcon,
   Server,
   ShoppingBag,
+  User,
   Wallet as WalletIcon,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Logo } from '@/components/brand/logo'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
 import { SubscriptionCardView } from '@/components/feature/subscription-card'
@@ -68,18 +70,36 @@ export default function HomePage() {
   }
 
   return (
-    <div className="space-y-5 pb-4">
-      {/* Wallet + tier. One glow on the page, and it belongs here. */}
+    <div className="space-y-6 pb-4">
+      {/* Brand bar. The home tab has no PageHeader, so the logo stands in for
+          the title, as it does on the desktop and Android clients. */}
+      <header className="flex items-center gap-3 pt-2">
+        <Logo className="size-10 text-white" />
+        <p className="min-w-0 flex-1">
+          <span className="font-display text-xl font-bold leading-none" dir="ltr">
+            GeekVPN
+          </span>
+        </p>
+        <Link
+          href="/profile"
+          aria-label={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'}
+          className="glass-clear flex size-11 items-center justify-center rounded-[15px] active:scale-95"
+        >
+          <User className="size-5" aria-hidden />
+        </Link>
+      </header>
+
+      {/* Wallet + tier: the navy panel, the one dark block on the screen. */}
       {loading ? (
         <SkeletonCard />
       ) : (
-        <Card glow className="space-y-4 p-5">
+        <section className="navy-panel space-y-5 rounded-3xl p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {'\u0645\u0648\u062c\u0648\u062f\u06cc \u06a9\u06cc\u0641 \u067e\u0648\u0644'}
               </p>
-              <p className="nums mt-1 text-2xl font-bold">
+              <p className="nums mt-1.5 text-[28px] font-extrabold leading-none">
                 {toman(wallet.data?.balance ?? 0)}
               </p>
             </div>
@@ -90,36 +110,38 @@ export default function HomePage() {
           </div>
 
           <div className="flex gap-2">
-            <Button size="sm" asChild className="flex-1">
+            <Button variant="accent" asChild className="flex-1">
               <Link href="/wallet/topup">
-                <WalletIcon className="size-4" aria-hidden />
+                <WalletIcon aria-hidden />
                 {'\u0627\u0641\u0632\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f\u06cc'}
               </Link>
             </Button>
-            <Button size="sm" variant="outline" asChild className="flex-1">
+            <Button variant="secondary" asChild className="flex-1">
               <Link href="/shop">
-                <ShoppingBag className="size-4" aria-hidden />
+                <ShoppingBag aria-hidden />
                 {'\u062e\u0631\u06cc\u062f \u0628\u0633\u062a\u0647'}
               </Link>
             </Button>
           </div>
-        </Card>
+        </section>
       )}
 
       {/* Pending payments. Placed above services because "did my transfer go
           through?" is the question that otherwise becomes a support ticket. */}
       {(pending.data ?? []).length > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold">
+          <h2 className="section-label">
             {'\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc'}
           </h2>
           {pending.data!.map((payment) => (
             <Link key={payment.paymentId} href={`/payments/${payment.paymentId}`}>
-              <Card className="flex items-center justify-between gap-3 p-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Clock className="size-4 shrink-0 text-warning" aria-hidden />
+              <Card className="flex items-center justify-between gap-3 p-3.5 active:scale-[0.99]">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="icon-tile bg-warning-soft text-warning-ink">
+                    <Clock className="size-5" aria-hidden />
+                  </span>
                   <div className="min-w-0">
-                    <p className="nums truncate text-sm font-medium">
+                    <p className="nums truncate text-sm font-bold">
                       {toman(payment.amount)}
                     </p>
                     <p className="nums truncate text-xs text-muted-foreground">
@@ -127,7 +149,7 @@ export default function HomePage() {
                     </p>
                   </div>
                 </div>
-                <ArrowLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <ChevronLeft className="size-5 shrink-0 text-muted-foreground" aria-hidden />
               </Card>
             </Link>
           ))}
@@ -137,13 +159,13 @@ export default function HomePage() {
       {/* Active services */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
+          <h2 className="section-label">
             {'\u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0641\u0639\u0627\u0644'}
           </h2>
           {activeSubs.length > 0 ? (
             <Link
               href="/services"
-              className="text-xs text-primary hover:underline"
+              className="px-1 py-2 text-[13px] font-bold text-white underline-offset-4 hover:underline"
             >
               {'\u0645\u0634\u0627\u0647\u062f\u0647 \u0647\u0645\u0647'}
             </Link>
@@ -197,10 +219,12 @@ function QuickLink({
   label: string
 }) {
   return (
-    <Link href={href}>
-      <Card className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center transition-colors hover:border-border">
-        <Icon className="size-5 text-primary" />
-        <span className="text-[11px] leading-tight text-muted-foreground">
+    <Link href={href} className="rounded-3xl active:scale-[0.98]">
+      <Card className="flex h-full flex-col items-center justify-center gap-2.5 rounded-[22px] px-2 py-4 text-center">
+        <span className="icon-tile">
+          <Icon className="size-5" />
+        </span>
+        <span className="text-xs font-bold leading-tight">
           {label}
         </span>
       </Card>

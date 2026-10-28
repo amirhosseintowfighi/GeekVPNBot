@@ -221,7 +221,7 @@ export default function CheckoutPage() {
         {/* Which of the two purchases this is. Without it the renewal screen
             and the shop end on identical words. */}
         {renewOf ? (
-          <Card className="p-4 text-xs leading-loose text-muted-foreground">
+          <Card className="p-4 text-[13px] leading-loose text-muted-foreground">
             {'این یه تمدیده — همین سرویس فعلیت تمدید می‌شه و لینک و کانفیگت عوض نمی‌شه.'}
           </Card>
         ) : null}
@@ -230,7 +230,7 @@ export default function CheckoutPage() {
         {plan ? (
           <Card className="space-y-2 p-4">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold">{plan.nameFa}</p>
+              <p className="text-[15px] font-extrabold">{plan.nameFa}</p>
               {plan.badgeFa ? (
                 <Badge variant="brand">{plan.badgeFa}</Badge>
               ) : null}
@@ -250,21 +250,21 @@ export default function CheckoutPage() {
 
         {/* Coupon */}
         <Card className="space-y-3 p-4">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <Tag className="size-4 text-primary" aria-hidden />
+          <p className="flex items-center gap-2 text-sm font-bold">
+            <Tag className="size-4 text-link" aria-hidden />
             {'\u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'}
           </p>
 
           {appliedCoupon ? (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-success/25 bg-success/10 px-3 py-2">
-              <span className="nums text-sm text-success" dir="ltr">
+            <div className="flex items-center justify-between gap-2 rounded-[14px] bg-success-soft px-4 py-2.5">
+              <span className="nums font-display text-sm font-bold text-success-ink" dir="ltr">
                 {appliedCoupon}
               </span>
               <button
                 type="button"
                 onClick={clearCoupon}
                 aria-label={'\u062d\u0630\u0641 \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'}
-                className="rounded-full p-1 text-success hover:bg-success/20"
+                className="flex size-8 items-center justify-center rounded-2xl text-success-ink hover:bg-white/60"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
@@ -280,7 +280,7 @@ export default function CheckoutPage() {
                 autoCapitalize="characters"
               />
               <Button
-                variant="outline"
+                variant="secondary"
                 loading={couponPending}
                 onClick={() => void applyCoupon()}
                 disabled={!couponInput.trim()}
@@ -304,7 +304,7 @@ export default function CheckoutPage() {
 
         {/* Method */}
         <Card className="space-y-2 p-4">
-          <p className="text-sm font-medium">
+          <p className="text-sm font-bold">
             {'\u0631\u0648\u0634 \u067e\u0631\u062f\u0627\u062e\u062a'}
           </p>
 
@@ -347,7 +347,7 @@ export default function CheckoutPage() {
         ) : null}
 
         {submitError ? (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-loose text-destructive">
+          <p role="alert" className="rounded-2xl bg-destructive-soft px-4 py-3 text-[13px] leading-loose text-destructive-ink">
             {submitError}
           </p>
         ) : null}
@@ -355,7 +355,7 @@ export default function CheckoutPage() {
 
       {/* Sticky confirm. The amount is repeated on the button so nobody has to
           scroll back up to check what they are about to pay. */}
-      <div className="safe-bottom fixed inset-x-0 bottom-16 z-30 mx-auto w-full max-w-2xl border-t border-border/70 bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-2xl bg-gradient-to-t from-background from-60% to-transparent px-4 pt-6">
         <Button
           full
           size="lg"
@@ -395,17 +395,20 @@ function MethodOption({
         haptic.select()
         onSelect()
       }}
+      aria-pressed={selected}
       className={[
-        'flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-start transition-colors',
+        'flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-start transition-colors',
         selected
-          ? 'border-primary/60 bg-primary/10'
-          : 'border-border/70 hover:bg-secondary/40',
+          ? 'border-navy bg-[#EAF5FD]'
+          : 'border-[#D5E3EF] bg-white hover:bg-[#F5FAFE]',
         disabled ? 'cursor-not-allowed opacity-50' : '',
       ].join(' ')}
     >
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+      <span className="icon-tile">
+        <Icon className="size-5" />
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-sm font-bold">{title}</span>
         <span className="nums mt-0.5 block text-xs leading-relaxed text-muted-foreground">
           {note}
         </span>
@@ -413,8 +416,10 @@ function MethodOption({
       <span
         aria-hidden
         className={[
-          'mt-1 size-4 shrink-0 rounded-full border-2 transition-colors',
-          selected ? 'border-primary bg-primary' : 'border-muted-foreground/40',
+          'size-5 shrink-0 rounded-full border-2 transition-colors',
+          selected
+            ? 'border-navy bg-navy shadow-[inset_0_0_0_3px_#fff]'
+            : 'border-[#9FB6CB]',
         ].join(' ')}
       />
     </button>
