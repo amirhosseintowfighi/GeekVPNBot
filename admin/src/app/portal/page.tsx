@@ -16,6 +16,7 @@ import type {
   ResellerTopupRow,
 } from '@/lib/types'
 import { RequiredChannels } from '@/components/feature/required-channels'
+import { ResellerCharts } from '@/components/feature/reseller-charts'
 import { ShopPaymentMethodsCard } from '@/components/feature/shop-payment-methods'
 import { PageHeader } from '@/components/shell/page-header'
 import { ErrorState, ForbiddenState } from '@/components/shell/states'
@@ -103,6 +104,8 @@ export default function PortalPage() {
       />
 
       {summary ? <SummaryCards summary={summary} /> : null}
+
+      <ResellerCharts />
 
       <BrandCard me={me} onChanged={() => void reloadMe()} />
       <ConfigNameCard me={me} onChanged={() => void reloadMe()} />

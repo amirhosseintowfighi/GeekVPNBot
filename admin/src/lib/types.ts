@@ -900,6 +900,17 @@ export interface ResellerSelf {
 }
 
 /** GET /api/v1/reseller/summary - four sums off their own ledger. */
+/** GET /api/v1/reseller/analytics - one reseller's own trade over time. */
+export interface ResellerAnalytics {
+  sales: TimeSeries
+  cost: TimeSeries
+  revenue: TimeSeries
+  topPlans: BreakdownSlice[]
+  newCustomers: number
+  customers: number
+  activeServices: number
+}
+
 export interface ResellerSummary {
   sales: number
   spent: number

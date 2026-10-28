@@ -44,6 +44,7 @@ import type {
   ResellerPriceRow,
   ResellerRow,
   ResellerSelf,
+  ResellerAnalytics,
   ResellerSummary,
   ResellerTextRow,
   ResellerTopupRow,
@@ -612,6 +613,9 @@ export const api = {
     mutate<ResellerPriceRow[]>('PUT', '/api/v1/reseller/plans/retail', { prices }),
   myLedger: () => fetcher<ResellerLedgerRow[]>('/api/v1/reseller/ledger'),
   mySummary: () => fetcher<ResellerSummary>('/api/v1/reseller/summary'),
+  /** Their own sales, costs and customers' payments over the last `days`. */
+  myAnalytics: (days: number) =>
+    fetcher<ResellerAnalytics>(`/api/v1/reseller/analytics${qs({ days })}`),
   myCustomers: () => fetcher<ResellerCustomers>('/api/v1/reseller/customers'),
   // Goes out through their own bot. From ours it would be refused outright -
   // Telegram will not let a bot open a conversation nobody started.
