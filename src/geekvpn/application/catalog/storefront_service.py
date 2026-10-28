@@ -16,6 +16,7 @@ packages each, the naive version is 60 round trips.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Mapping
 
@@ -104,12 +105,12 @@ class StorefrontService:
             products_by_category.setdefault(product.category_id, []).append(product)
 
         category_views: list[CategoryView] = []
-        for category in sorted(categories, key=lambda c: (c.sort_order, c.name_fa)):
+        for category in sorted(categories, key=lambda c: (c.sort_order, natural_key(c.name_fa))):
             product_views = [
                 view
                 for product in sorted(
                     products_by_category.get(category.id, []),
-                    key=lambda p: (p.sort_order, p.name_fa),
+                    key=lambda p: (p.sort_order, natural_key(p.name_fa)),
                 )
                 if (
                     view := self._product_view(
@@ -206,3 +207,26 @@ class StorefrontService:
             is_featured=product.is_featured,
             plans=tuple(plan_views),
         )
+
+
+#: Persian and Arabic-Indic digits, read as the numbers they are.
+_DIGITS = str.maketrans(
+    "\u06f0\u06f1\u06f2\u06f3\u06f4\u06f5\u06f6\u06f7\u06f8\u06f9"
+    "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669",
+    "01234567890123456789",
+)
+_RUNS = re.compile(r"(\d+)")
+
+
+def natural_key(name: str) -> tuple[tuple[int, int, str], ...]:
+    """Sort key that compares the numbers inside a name as numbers.
+
+    Products are named by volume - "10GB", "20GB", "100GB" - and every one is
+    created with sort order 0, so the name decides the order. As plain text
+    "100GB" sorts before "10GB", and the shop opened on its largest package.
+
+    Each part is tagged so a number and a word are never compared directly:
+    numbers first, then text.
+    """
+    parts = _RUNS.split(name.translate(_DIGITS).casefold())
+    return tuple((0, int(part), "") if part.isdigit() else (1, 0, part) for part in parts if part)
