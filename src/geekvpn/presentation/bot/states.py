@@ -28,6 +28,8 @@ class Registration(StatesGroup):
 
 class Purchase(StatesGroup):
     browsing = State()
+    #: Typing a monthly volume, after "custom volume" in a category.
+    custom_volume = State()
     reviewing = State()
     entering_coupon = State()
     choosing_payment = State()

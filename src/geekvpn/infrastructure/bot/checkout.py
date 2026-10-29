@@ -150,6 +150,7 @@ class BotCheckoutAdapter:
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> SubscriptionCard:
         """Debit the wallet and deliver the service in one call.
 
@@ -160,7 +161,12 @@ class BotCheckoutAdapter:
         waits for is the panel rather than a reviewer.
         """
         _, order = await self._begin(
-            user_id, plan_id, coupon_code, gateway_key=WALLET, renews=renews_subscription_id
+            user_id,
+            plan_id,
+            coupon_code,
+            gateway_key=WALLET,
+            renews=renews_subscription_id,
+            custom_gib=custom_gib,
         )
 
         # The order was marked PAID by the *other* scope. This session created
@@ -233,6 +239,7 @@ class BotCheckoutAdapter:
         gateway_key: str,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> GatewayScreen:
         """Where to send the customer, and what to tell them before they go.
 
@@ -246,7 +253,12 @@ class BotCheckoutAdapter:
         the bot stays free of provider names.
         """
         result, _ = await self._begin(
-            user_id, plan_id, coupon_code, gateway_key=gateway_key, renews=renews_subscription_id
+            user_id,
+            plan_id,
+            coupon_code,
+            gateway_key=gateway_key,
+            renews=renews_subscription_id,
+            custom_gib=custom_gib,
         )
         url = result.instruction.redirect_url or ""
         body = result.instruction.instructions_fa or ""
@@ -264,9 +276,15 @@ class BotCheckoutAdapter:
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> CardPaymentDetails:
         result, _ = await self._begin(
-            user_id, plan_id, coupon_code, gateway_key=CARD, renews=renews_subscription_id
+            user_id,
+            plan_id,
+            coupon_code,
+            gateway_key=CARD,
+            renews=renews_subscription_id,
+            custom_gib=custom_gib,
         )
         return _card_details(result)
 
@@ -277,9 +295,15 @@ class BotCheckoutAdapter:
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> CryptoPaymentDetails:
         result, _ = await self._begin(
-            user_id, plan_id, coupon_code, gateway_key=CRYPTO, renews=renews_subscription_id
+            user_id,
+            plan_id,
+            coupon_code,
+            gateway_key=CRYPTO,
+            renews=renews_subscription_id,
+            custom_gib=custom_gib,
         )
         return CryptoPaymentDetails(
             network=result.instruction.network or "",
@@ -386,12 +410,18 @@ class BotCheckoutAdapter:
         *,
         gateway_key: str,
         renews: str | None = None,
+        custom_gib: int | None = None,
     ) -> tuple[CheckoutResult, Order]:
         telegram_id = await self._require_telegram_id(user_id)
         await self._refuse_card_to_newcomers(user_id, gateway_key)
-        plan = await self._plans.get(plan_id)
-        if plan is None:
-            raise LookupError(f"No plan {plan_id}.")
+        if custom_gib is None:
+            plan = await self._plans.get(plan_id)
+            if plan is None:
+                raise LookupError(f"No plan {plan_id}.")
+        else:
+            # Built, not loaded: a package for the volume the customer typed.
+            # Its terms reach the order below exactly as a stored plan's do.
+            plan, _ = await self._quoting.custom_package(plan_id=plan_id, monthly_gib=custom_gib)
         if renews is not None:
             # The id arrives from a callback or a request body, and a renewal
             # rewrites the target's quota outright. Unchecked, anyone could
@@ -410,6 +440,7 @@ class BotCheckoutAdapter:
             user_id=user_id,
             coupon_code=coupon_code,
             is_first_purchase=is_first,
+            custom_gib=custom_gib,
         )
 
         # The plan's terms are copied onto the order, not referenced, so a price

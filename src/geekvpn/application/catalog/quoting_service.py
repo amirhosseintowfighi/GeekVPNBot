@@ -22,6 +22,13 @@ from geekvpn.application.ports.catalog import (
 from geekvpn.application.ports.clock import Clock
 from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.catalog.coupon import Coupon, normalise_code
+from geekvpn.domain.catalog.custom_volume import (
+    VolumePoint,
+    custom_plan,
+    price_for_volume,
+    total_gib,
+)
+from geekvpn.domain.catalog.enums import PlanType
 from geekvpn.domain.catalog.errors import CatalogError, CatalogValidationError
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.plan import Plan
@@ -67,9 +74,24 @@ class QuotingService:
         referrer_id: uuid.UUID | None = None,
         enforce_purchasable: bool = True,
         retail_prices: Mapping[uuid.UUID, Money] | None = None,
+        custom_gib: int | None = None,
     ) -> PriceQuote:
-        """Full quote. Raises if the coupon is unusable."""
-        plan, product = await self._load(plan_id)
+        """Full quote. Raises if the coupon is unusable.
+
+        With ``custom_gib`` the customer chose their own monthly volume, and
+        ``plan_id`` names any package of the same kind and term; see
+        `custom_package`.
+        """
+        retail = dict(retail_prices if retail_prices is not None else self._default_retail)
+        if custom_gib is None:
+            plan, product = await self._load(plan_id)
+        else:
+            plan, product = await self.custom_package(
+                plan_id=plan_id, monthly_gib=custom_gib, retail_prices=retail
+            )
+            # The custom package borrows its anchor's id. Left in, the anchor's
+            # retail line would replace the custom price with the anchor's.
+            retail.pop(plan.id, None)
         now = self._clock.now()
         policy = await self._policies.load()
         running = list(await self._campaigns.list_running(now=now))
@@ -86,9 +108,7 @@ class QuotingService:
             # A reseller's price, when this quote is for their bot. It replaces
             # the base rather than discounting it: a different shop's price is
             # not a reduction of ours.
-            retail_prices=dict(
-                retail_prices if retail_prices is not None else self._default_retail
-            ),
+            retail_prices=retail,
         )
         return quote_plan(
             plan=plan,
@@ -111,6 +131,7 @@ class QuotingService:
         user_id: uuid.UUID | None = None,
         loyalty_tier: LoyaltyTier = LoyaltyTier.BRONZE,
         is_first_purchase: bool = False,
+        custom_gib: int | None = None,
     ) -> CouponPreview:
         """Try a code and report the outcome without raising.
 
@@ -129,6 +150,7 @@ class QuotingService:
             user_id=user_id,
             loyalty_tier=loyalty_tier,
             is_first_purchase=is_first_purchase,
+            custom_gib=custom_gib,
         )
 
         try:
@@ -138,6 +160,7 @@ class QuotingService:
                 coupon_code=normalised,
                 loyalty_tier=loyalty_tier,
                 is_first_purchase=is_first_purchase,
+                custom_gib=custom_gib,
             )
         except CatalogError as exc:
             return CouponPreview.rejected(code=normalised, message_fa=exc.message)
@@ -149,6 +172,63 @@ class QuotingService:
                 message_fa="این کد روی این قیمت تخفیفی نمی‌ده.",
             )
         return CouponPreview.accepted(code=normalised, discount=saving, total=discounted.total)
+
+    async def custom_package(
+        self,
+        *,
+        plan_id: uuid.UUID,
+        monthly_gib: int,
+        retail_prices: Mapping[uuid.UUID, Money] | None = None,
+    ) -> tuple[Plan, Product]:
+        """The package for a volume the customer typed, priced off its siblings.
+
+        Siblings are the published volume packages of the same category and
+        term as ``plan_id``: one kind of service, one length, many sizes. Their
+        prices are this shop's - a reseller's retail line where they set one -
+        so a reseller's customer is quoted on the reseller's own curve.
+        """
+        chosen, product = await self._load(plan_id)
+        if chosen.plan_type is not PlanType.TRAFFIC or chosen.quota_gib is None:
+            raise CatalogValidationError("این سرویس حجم دلخواه نداره.", plan_id=str(plan_id))
+        retail = retail_prices if retail_prices is not None else self._default_retail
+        kin = {
+            p.id: p
+            for p in await self._products.list_all(
+                category_id=product.category_id, published_only=True
+            )
+        }
+        siblings = [
+            p
+            for p in await self._plans.list_all(published_only=True)
+            if p.product_id in kin
+            and p.duration_days == chosen.duration_days
+            and p.plan_type is PlanType.TRAFFIC
+            and p.quota_gib
+        ]
+        if not siblings:
+            raise CatalogValidationError("این سرویس حجم دلخواه نداره.", plan_id=str(plan_id))
+
+        smallest = min(p.quota_gib or 0 for p in siblings)
+        quota = total_gib(monthly_gib, chosen.duration_days)
+        if quota < smallest:
+            # Said in the customer's unit. They typed a monthly figure, and
+            # "at least 30GB" on a three-month term reads as a different rule.
+            floor = -(-smallest * 30 // chosen.duration_days)
+            raise CatalogValidationError(
+                f"کمترین حجم قابل خرید {floor} گیگ در ماهه.",
+                monthly_gib=monthly_gib,
+                minimum=floor,
+            )
+        price = price_for_volume(
+            [VolumePoint(p.quota_gib or 0, retail.get(p.id, p.base_price)) for p in siblings],
+            quota,
+        )
+        anchor = max(
+            (p for p in siblings if (p.quota_gib or 0) <= quota),
+            key=lambda p: p.quota_gib or 0,
+        )
+        package = custom_plan(anchor, monthly_gib=monthly_gib, quota_gib=quota, price=price)
+        return package, kin[anchor.product_id]
 
     # -- internals ---------------------------------------------------------
 

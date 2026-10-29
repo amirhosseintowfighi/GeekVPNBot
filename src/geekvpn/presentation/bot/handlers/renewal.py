@@ -24,7 +24,7 @@ from geekvpn.presentation.bot.handlers.common import (
     short_ref,
     toast,
 )
-from geekvpn.presentation.bot.handlers.shop import load_storefront
+from geekvpn.presentation.bot.handlers.shop import custom_button, custom_floor, load_storefront
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
@@ -59,6 +59,11 @@ def _upgrade_keyboard(view: Any, *, same_plan_id: Any, own_product_id: Any) -> I
                 # alone ("سه ماهه") says nothing about what they are buying.
                 label = f"{product.name} · {label}"
             rows.append([K.btn(label, ShopCB(action="plan", ref=short_ref(plan.id)))])
+    # A renewal can be any volume too. `renew_of` survives the detour, so the
+    # custom package extends this service like any other renewal does.
+    sellable = [c for c in view.categories if custom_floor(c) is not None]
+    for category in sellable:
+        rows.append([custom_button(category, named=len(sellable) > 1)])
     rows.append([K.btn(T.BTN_BACK, NavCB(to="dashboard")), K.home_button()])
     return K.stack(rows)
 

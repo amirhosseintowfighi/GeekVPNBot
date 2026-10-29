@@ -35,6 +35,7 @@ from geekvpn.application.payments.receipt_intent import (
 from geekvpn.application.provisioning.usage_history import daily_usage, tehran_day
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.catalog.custom_volume import MAX_CUSTOM_GIB
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.provisioning.errors import RotationUnavailable
@@ -219,6 +220,9 @@ class PlanRequest(ApiModel):
     #: Present when this purchase extends a service the customer already has
     #: rather than adding another. Checkout refuses one that is not theirs.
     renews_subscription_id: str | None = Field(default=None, max_length=64)
+    #: A monthly volume the customer typed instead of picking a package.
+    #: `plan_id` then names any package of the same kind and term.
+    custom_gib: int | None = Field(default=None, ge=1, le=MAX_CUSTOM_GIB)
 
 
 class CouponPreviewRequest(ApiModel):
@@ -226,6 +230,7 @@ class CouponPreviewRequest(ApiModel):
 
     plan_id: uuid.UUID
     code: str = Field(min_length=1, max_length=64)
+    custom_gib: int | None = Field(default=None, ge=1, le=MAX_CUSTOM_GIB)
 
 
 class TopupRequest(ApiModel):
@@ -431,7 +436,10 @@ async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> StorefrontRes
 @router.post("/quote", summary="Price one plan for this customer")
 async def quote(payload: PlanRequest, user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
     return await scope.quoting.quote_view(
-        plan_id=payload.plan_id, user_id=user.id, coupon_code=payload.coupon_code
+        plan_id=payload.plan_id,
+        user_id=user.id,
+        coupon_code=payload.coupon_code,
+        custom_gib=payload.custom_gib,
     )
 
 
@@ -440,7 +448,10 @@ async def preview_coupon(
     payload: CouponPreviewRequest, user: CurrentMiniAppUser, scope: ScopeDep
 ) -> Any:
     return await scope.quoting.preview_coupon(
-        plan_id=payload.plan_id, code=payload.code, user_id=user.id
+        plan_id=payload.plan_id,
+        code=payload.code,
+        user_id=user.id,
+        custom_gib=payload.custom_gib,
     )
 
 
@@ -456,6 +467,7 @@ async def checkout_wallet(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return {"subscription_id": str(card.subscription_id)}
@@ -470,6 +482,7 @@ async def checkout_card(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return details
@@ -505,6 +518,7 @@ async def checkout_gateway(
         gateway_key=payload.gateway_key,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     await _remember_if_app(request, container, screen)
@@ -535,6 +549,7 @@ async def checkout_crypto(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return details

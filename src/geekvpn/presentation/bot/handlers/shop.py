@@ -20,6 +20,7 @@ from geekvpn.application.bot.services import BotServices
 from geekvpn.application.catalog.dto import CategoryView, ProductView, StorefrontView
 from geekvpn.application.platform.settings_service import SHOW_CAPACITY
 from geekvpn.application.provisioning import panel_id_for
+from geekvpn.domain.catalog.enums import PlanType
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
@@ -91,6 +92,30 @@ def _category_keyboard(view: StorefrontView) -> Any:
     return K.stack(rows)
 
 
+def custom_floor(category: CategoryView) -> int | None:
+    """The smallest monthly volume a customer may type here, or None.
+
+    None when the category sells no volume packages: unlimited time has no
+    volume to choose. The monthly term decides when there is one, because that
+    is the unit the customer is asked in; otherwise the most lenient term.
+    """
+    floors: dict[int, int] = {}
+    for product in category.products:
+        for plan in product.plans:
+            if plan.plan_type != PlanType.TRAFFIC.value or not plan.quota_gib:
+                continue
+            monthly = -(-plan.quota_gib * 30 // plan.duration_days)
+            floors[plan.duration_days] = min(floors.get(plan.duration_days, monthly), monthly)
+    if not floors:
+        return None
+    return floors.get(30, min(floors.values()))
+
+
+def custom_button(category: CategoryView, *, named: bool = False) -> Any:
+    label = f"{T.BTN_CUSTOM_VOLUME} · {category.name}" if named else T.BTN_CUSTOM_VOLUME
+    return K.btn(label, ShopCB(action="custom", ref=short_ref(category.id)))
+
+
 def _product_keyboard(category: CategoryView) -> Any:
     rows = [
         [
@@ -101,6 +126,8 @@ def _product_keyboard(category: CategoryView) -> Any:
         ]
         for product in category.products
     ]
+    if custom_floor(category) is not None:
+        rows.append([custom_button(category)])
     rows.append([K.btn(T.BTN_BACK, NavCB(to="shop")), K.home_button()])
     return K.stack(rows)
 
