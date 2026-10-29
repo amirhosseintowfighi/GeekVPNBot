@@ -51,12 +51,14 @@ from geekvpn.application.notifications.operator_alerts import AlertKind
 from geekvpn.application.notifications.scheduler import NotificationScheduler, TickReport
 from geekvpn.application.platform.settings_service import DELETE_EXPIRED_AFTER_HOURS
 from geekvpn.application.provisioning.expired_cleanup import ExpiredCleanup
-from geekvpn.domain.notifications.enums import JobKind
+from geekvpn.domain.notifications.enums import AudienceKind, JobKind, NotificationCategory
 from geekvpn.infrastructure.analytics.daily_orders import SqlDayOrdersReader
 from geekvpn.infrastructure.backup.service import LAST_RUN_KEY as LAST_BACKUP_KEY
 from geekvpn.infrastructure.backup.service import backup_settings, is_due, send_backup
 from geekvpn.infrastructure.bot.auto_renew import build_auto_renewal
+from geekvpn.infrastructure.client_downloads import ClientDownload, client_downloads
 from geekvpn.infrastructure.config.settings import Settings, get_settings
+from geekvpn.infrastructure.desktop_release import version_tuple
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.di.scope import build_scope
 from geekvpn.infrastructure.di.sync_scope import build_sync_scope
@@ -64,6 +66,7 @@ from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
 from geekvpn.infrastructure.payments.gateway_verification import sweep_gateways
 from geekvpn.infrastructure.persistence.models.resellers import ResellerModel
 from geekvpn.presentation.bot.ui.daily_report import render_daily_report
+from geekvpn.presentation.bot.ui.release_notice import render_release_notice
 
 #: How many scheduled broadcasts one tick will start.
 #:
@@ -133,9 +136,32 @@ DAILY_REPORT_CHECK_INTERVAL_SECONDS = 600
 #: The last day the orders report covered, in the shared cache so a restarted
 #: worker neither repeats it nor skips it.
 LAST_DAILY_REPORT_KEY = "reports:daily_orders:last_day"
+#: How often GitHub is asked whether a Geek app has a new release. The answer
+#: is cached by the release sources for ten minutes anyway.
+RELEASE_CHECK_INTERVAL_SECONDS = 3600
+#: The last version of each app customers were told about, per platform.
+RELEASE_SEEN_KEY = "releases:announced:{platform}"
 #: Payments waiting at a gateway. AtlasPay's own guidance is every 15 to 30
 #: seconds; the tick is 30, so this asks on every tick.
 GATEWAY_VERIFY_INTERVAL_SECONDS = 30
+
+
+def seen_key(download: ClientDownload) -> str:
+    return RELEASE_SEEN_KEY.format(platform=download.platform)
+
+
+def is_news(download: ClientDownload, seen: str | None) -> bool:
+    """Whether customers should hear about this release.
+
+    Only a version newer than the last one announced. Not the first one ever
+    seen, and not an older one - a release pulled and the previous one
+    current again is not an update anybody should be told to install.
+    """
+    current = version_tuple(download.version or "")
+    if current is None or not seen:
+        return False
+    previous = version_tuple(seen)
+    return previous is not None and current > previous
 
 
 class Worker:
@@ -157,6 +183,7 @@ class Worker:
             # waiting on this, and nothing else confirms AtlasPay at all.
             ("gateway_verify", GATEWAY_VERIFY_INTERVAL_SECONDS, self._verify_gateways),
             ("daily_report", DAILY_REPORT_CHECK_INTERVAL_SECONDS, self._daily_report),
+            ("release_notice", RELEASE_CHECK_INTERVAL_SECONDS, self._release_notice),
         ]
         self._next_run: dict[str, float] = {
             # Not at once on start: usage should be read before "almost out
@@ -370,6 +397,46 @@ class Worker:
             figures = await SqlDayOrdersReader(session).day(day, start=start, end=end)
         await self._report(AlertKind.REPORT, render_daily_report(figures))
         logger.info("worker.daily_report_sent", day=day.isoformat(), placed=figures.placed)
+
+    async def _release_notice(self) -> None:
+        """Tell every customer of our own bot when a Geek app has a new version.
+
+        Once per version, remembered in the shared cache and stamped before
+        sending, as the backup is. The first version ever seen is only
+        remembered: it is whatever was current when this job first ran, not
+        news. Resellers' bots are left out - their shops carry their own brand,
+        and an announcement for ours would contradict it.
+        """
+        cache = self._container.cache
+        for download in await client_downloads(self._container.settings.app_release, cache):
+            if download.version is None:
+                continue
+            seen = await cache.get(seen_key(download))
+            if not seen:
+                await cache.set(seen_key(download), download.version)
+                continue
+            if not is_news(download, seen):
+                continue
+            await cache.set(seen_key(download), download.version)
+            title, body = render_release_notice(download)
+            await asyncio.to_thread(self._announce, title, body)
+            logger.info(
+                "worker.release_announced", platform=download.platform, version=download.version
+            )
+
+    def _announce(self, title_fa: str, body_fa: str) -> None:
+        with self._container.sync_sessions() as session:
+            broadcasts = build_sync_scope(self._container, session).broadcast_service
+            broadcast = broadcasts.create(
+                title_fa=title_fa,
+                body_fa=body_fa,
+                audience=AudienceKind.ALL,
+                created_by=0,
+                category=NotificationCategory.NEWS,
+            )
+            session.commit()
+            broadcasts.send_now(broadcast.id)
+            session.commit()
 
     async def _delete_lapsed(self) -> None:
         """Delete panel accounts of services that ended past the grace period."""

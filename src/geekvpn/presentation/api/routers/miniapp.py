@@ -32,6 +32,7 @@ from geekvpn.application.payments.receipt_intent import (
     RECEIPT_REQUESTED_TEMPLATE,
     receipt_intent_key,
 )
+from geekvpn.application.platform.settings_service import TUTORIAL_DEVICES
 from geekvpn.application.provisioning.usage_history import daily_usage, tehran_day
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
@@ -1187,3 +1188,40 @@ async def faq(user: CurrentMiniAppUser) -> Any:
         }
         for section in F.FAQ
     ]
+
+
+@router.get("/apps", summary="The Geek apps to download, and connection tutorials")
+async def apps(user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
+    """The bot's "download and tutorials" screen, for the Mini App.
+
+    Links are the latest GitHub release of each app, as the bot offers them.
+    Tutorials are the operator's own, in text; one sent to the bot as a photo
+    or a video keeps its caption here and is marked so the page can point to
+    the bot for the media, which only the bot that received it can send.
+    """
+    from geekvpn.presentation.bot.handlers.tutorials import downloads, written
+    from geekvpn.presentation.bot.ui import text as T
+
+    links = await downloads(scope)
+    tutorials = await written(scope)
+    return {
+        "downloads": [
+            {
+                "platform": link.platform,
+                "label_fa": T.DOWNLOAD_APP_LABELS.get(link.platform, link.platform),
+                "version": link.version,
+                "url": link.url,
+            }
+            for link in links
+        ],
+        "tutorials": [
+            {
+                "device": device,
+                "label_fa": T.DEVICE_LABELS[device],
+                "kind": entry.get("kind", "text"),
+                "text_fa": entry.get("text", ""),
+            }
+            for device in TUTORIAL_DEVICES
+            if (entry := tutorials.get(device)) is not None
+        ],
+    }

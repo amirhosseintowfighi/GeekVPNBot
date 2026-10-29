@@ -288,7 +288,7 @@ async def on_custom_volume(
     )
 
 
-@router.message(Purchase.custom_volume, F.text)
+@router.message(Purchase.custom_volume, F.text, ~F.text.in_(K.MENU_TAPS))
 async def on_custom_volume_text(
     message: Message,
     state: FSMContext,

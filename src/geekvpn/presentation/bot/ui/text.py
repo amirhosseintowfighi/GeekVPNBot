@@ -959,8 +959,19 @@ DEVICE_LABELS: Final = {
     "mac": "💻 مک",
     "linux": "🐧 لینوکس",
 }
-BTN_GUIDE: Final = "📚 آموزش اتصال"
-GUIDE_PICK: Final = "📚 <b>آموزش اتصال</b>\n\nدستگاهت رو انتخاب کن:"
+BTN_GUIDE: Final = "📥 دانلود و آموزش"
+GUIDE_TITLE: Final = "📥 <b>دانلود و آموزش</b>"
+GUIDE_DOWNLOADS: Final = (
+    "برنامه‌های گیک رو از دکمه‌های آبی بگیر؛ همیشه آخرین نسخه‌ان. "
+    "بعد از نصب وارد حسابت شو تا سرویس‌هات خودشون بیان."
+)
+GUIDE_TUTORIALS: Final = "برای آموزش اتصال، دستگاهت رو انتخاب کن:"
+DOWNLOAD_APP_LABELS: Final = {"android": "گیک اندروید", "windows": "گیک ویندوز"}
+# Short: Telegram cuts a button at one line, and the version is what tells a
+# customer whether they already have it.
+DOWNLOAD_BUTTON: Final = "📥 {app}"
+DOWNLOAD_BUTTON_VERSION: Final = "📥 {app} · {version}"
+MENU_APPS: Final = "دانلود و آموزش"
 GUIDE_NONE: Final = "هنوز آموزشی اضافه نشده. اگه برای اتصال کمک لازم داری، به پشتیبانی پیام بده."
 CAPACITY_LEFT: Final = "🟢 ظرفیت باقی‌مانده: {count} نفر"
 CAPACITY_LOW: Final = "🟡 فقط {count} جای خالی مونده"

@@ -11,6 +11,7 @@ import pytest
 from geekvpn.application.platform.settings_service import TUTORIALS
 from geekvpn.domain.base.errors import ValidationError
 from geekvpn.domain.identity.permissions import Permission
+from geekvpn.infrastructure.client_downloads import ClientDownload
 from geekvpn.presentation.bot.handlers import admin_texts, tutorials
 from geekvpn.presentation.bot.ui.callbacks import GuideCB
 from tests.unit.bot.test_app_password_handler import _State
@@ -51,7 +52,7 @@ def test_only_known_devices_and_kinds_are_stored() -> None:
 
 
 def test_the_picker_offers_only_devices_that_have_a_tutorial() -> None:
-    markup = tutorials._picker({"ios": {"kind": "text", "text": "x"}})
+    markup = tutorials._picker({"ios": {"kind": "text", "text": "x"}}, [])
 
     data = [b.callback_data for row in markup.inline_keyboard for b in row]
     assert GuideCB(device="ios").pack() in data
@@ -116,3 +117,21 @@ async def test_the_operators_photo_is_stored_at_its_largest(
     assert scope.settings_service.value == {
         "ios": {"kind": "photo", "file_id": "large", "text": "اول برنامه رو نصب کن"}
     }
+
+
+def test_the_apps_are_offered_above_the_tutorials_as_links() -> None:
+    link = ClientDownload("android", "1.4.0", "https://dl/geek.apk")
+    markup = tutorials._picker({"ios": {"kind": "text", "text": "x"}}, [link])
+
+    first = markup.inline_keyboard[0][0]
+    assert first.url == "https://dl/geek.apk"
+    assert "1.4.0" in first.text
+
+
+async def test_unreachable_releases_cost_the_links_not_the_screen() -> None:
+    class Broken:
+        @property
+        def container(self) -> Any:
+            raise RuntimeError("github is down")
+
+    assert await tutorials.downloads(Broken()) == []

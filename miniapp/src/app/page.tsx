@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import {
   ChevronLeft,
   Clock,
+  Download,
   Gift,
   HeadphonesIcon,
   Server,
@@ -213,6 +214,22 @@ export default function HomePage() {
           </StaggerList>
         )}
       </section>
+
+      {/* The apps, full width: a customer who has just bought needs them next. */}
+      <Link href="/apps" className="block rounded-3xl active:scale-[0.99]">
+        <Card className="flex items-center gap-3 p-4">
+          <span className="icon-tile size-12 rounded-2xl" aria-hidden>
+            <Download className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-extrabold">{'دانلود و آموزش'}</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+              {'برنامهٔ گیک برای اندروید و ویندوز، و آموزش اتصال'}
+            </span>
+          </span>
+          <ChevronLeft className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        </Card>
+      </Link>
 
       {/* Secondary destinations. These mirror the bot's menu so someone who
           learned the bot first is not hunting for them. */}

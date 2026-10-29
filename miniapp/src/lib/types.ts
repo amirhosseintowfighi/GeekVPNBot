@@ -294,3 +294,25 @@ export interface ShopInfo {
   brandFa: string | null
   isReseller: boolean
 }
+
+/** `GET /api/miniapp/apps`: the Geek apps, and the operator's tutorials. */
+export interface AppDownload {
+  platform: 'android' | 'windows' | string
+  labelFa: string
+  /** Null when only the releases page is known. */
+  version: string | null
+  url: string
+}
+
+export interface Tutorial {
+  device: string
+  labelFa: string
+  /** A photo or video lives in the bot; its caption is all the page has. */
+  kind: 'text' | 'photo' | 'video'
+  textFa: string
+}
+
+export interface AppsScreen {
+  downloads: AppDownload[]
+  tutorials: Tutorial[]
+}
