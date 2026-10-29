@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { api, ApiError, fetcher } from '@/lib/api'
 import { faDuration, gib, normalizeInput, plainText, toman } from '@/lib/fa'
-import { volumeNote } from '@/lib/plans'
+import { customName, totalGib, volumeNote } from '@/lib/plans'
 import { haptic, openLink } from '@/lib/telegram'
 import type {
   GatewayScreen,
@@ -65,8 +65,15 @@ export default function CheckoutPage() {
   // page that calls it into a Suspense boundary at build time. The value is
   // only ever needed on a button press, long after mount.
   const [renewOf, setRenewOf] = React.useState<string | undefined>(undefined)
+  // A monthly volume the customer typed. With it `planId` is only the term's
+  // anchor: the price, the name and the volume are the custom package's.
+  // `null` until the query has been read, so the first quote waits for it.
+  const [customGib, setCustomGib] = React.useState<number | undefined | null>(null)
   React.useEffect(() => {
-    setRenewOf(new URLSearchParams(window.location.search).get('renewOf') ?? undefined)
+    const query = new URLSearchParams(window.location.search)
+    setRenewOf(query.get('renewOf') ?? undefined)
+    const custom = Number.parseInt(query.get('custom') ?? '', 10)
+    setCustomGib(Number.isFinite(custom) && custom > 0 ? custom : undefined)
   }, [])
 
   const storefront = useSWR<Storefront>('/api/miniapp/storefront', fetcher)
@@ -88,20 +95,29 @@ export default function CheckoutPage() {
     for (const category of storefront.data?.categories ?? []) {
       for (const product of category.products) {
         const found = product.plans.find((p) => p.planId === planId)
+        if (found && customGib) {
+          return {
+            ...found,
+            nameFa: `${category.nameFa} \u2014 ${customName(customGib, found.durationDays)}`,
+            quotaGib: totalGib(customGib, found.durationDays),
+            badgeFa: null,
+          }
+        }
         if (found) return found
       }
     }
     return null
-  }, [storefront.data, planId])
+  }, [storefront.data, planId, customGib])
 
   // Price the plan once the id is known, and again whenever a coupon is
   // applied or removed. The quote is authoritative - the card's own price is
   // a pre-discount display value and is never used to charge anyone.
   React.useEffect(() => {
+    if (customGib === null) return
     let cancelled = false
     setQuoteError(null)
     api
-      .quote(planId, appliedCoupon ?? undefined)
+      .quote(planId, appliedCoupon ?? undefined, customGib)
       .then((result) => {
         if (!cancelled) setQuote(result)
       })
@@ -116,7 +132,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true
     }
-  }, [planId, appliedCoupon])
+  }, [planId, appliedCoupon, customGib])
 
   const balance = wallet.data?.balance ?? 0
   const total = quote?.total ?? 0
@@ -137,7 +153,7 @@ export default function CheckoutPage() {
     try {
       // previewCoupon never throws for a bad code - it answers. A rejected
       // coupon is an ordinary outcome and must not clear the screen.
-      const preview = await api.previewCoupon(planId, code)
+      const preview = await api.previewCoupon(planId, code, customGib ?? undefined)
       setCouponMessage(preview.messageFa)
       if (preview.accepted) {
         haptic.notify('success')
@@ -168,8 +184,9 @@ export default function CheckoutPage() {
     setSubmitError(null)
     try {
       const coupon = appliedCoupon ?? undefined
+      const custom = customGib ?? undefined
       if (method === 'wallet') {
-        await api.payFromWallet(planId, coupon, renewOf)
+        await api.payFromWallet(planId, coupon, renewOf, custom)
         haptic.notify('success')
         router.replace('/services?purchased=1')
         return
@@ -177,7 +194,7 @@ export default function CheckoutPage() {
       if (method !== 'card' && method !== 'crypto') {
         // An online provider. It draws its own screen: a link, instructions,
         // or both - and no payment row for the customer to go and look at.
-        const screen = await api.beginGatewayPayment(planId, method, coupon, renewOf)
+        const screen = await api.beginGatewayPayment(planId, method, coupon, renewOf, custom)
         haptic.impact('medium')
         setGateway(screen)
         if (screen.url) openLink(screen.url)
@@ -185,8 +202,8 @@ export default function CheckoutPage() {
       }
       const details =
         method === 'card'
-          ? await api.beginCardPayment(planId, coupon, renewOf)
-          : await api.beginCryptoPayment(planId, coupon, renewOf)
+          ? await api.beginCardPayment(planId, coupon, renewOf, custom)
+          : await api.beginCryptoPayment(planId, coupon, renewOf, custom)
       if (!details.payment) throw new Error('checkout returned no payment')
       haptic.impact('medium')
       router.push(`/payments/${details.payment.paymentId}`)

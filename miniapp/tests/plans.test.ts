@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { byTerm, monthsIn, termsOf, volumeNote } from '@/lib/plans'
+import {
+  anchorsByTerm,
+  byTerm,
+  customFloor,
+  monthsIn,
+  termsOf,
+  totalGib,
+  volumeNote,
+} from '@/lib/plans'
 import type { PlanCard } from '@/lib/types'
 
 const plan = (over: Partial<PlanCard>): PlanCard => ({
@@ -67,5 +75,33 @@ describe('termsOf', () => {
       plans: [plan({ durationDays: 90 }), plan({ durationDays: 30 })],
     } as Parameters<typeof termsOf>[0]
     expect(termsOf(product)).toBe('۱ ماهه، ۳ ماهه')
+  })
+})
+
+/** A volume the customer types: the floor, and the terms it can be bought in. */
+describe('custom volume', () => {
+  const category = {
+    products: [
+      { plans: [plan({ quotaGib: 20 }), plan({ planId: 'q', durationDays: 90, quotaGib: 60 })] },
+      { plans: [plan({ planId: 'r', quotaGib: 10 })] },
+      { plans: [plan({ planId: 'u', planType: 'unlimited', quotaGib: null })] },
+    ],
+  }
+
+  it('starts at the smallest monthly package', () => {
+    expect(customFloor(category)).toBe(10)
+  })
+
+  it('is not offered where nothing is sold by volume', () => {
+    expect(customFloor({ products: [{ plans: [plan({ planType: 'unlimited', quotaGib: null })] }] })).toBeNull()
+  })
+
+  it('asks about each term once, shortest first', () => {
+    expect(anchorsByTerm(category).map((p) => p.durationDays)).toEqual([30, 90])
+  })
+
+  it('carries the monthly volume into every month of the term', () => {
+    expect(totalGib(35, 90)).toBe(105)
+    expect(totalGib(20, 365)).toBe(243)
   })
 })
