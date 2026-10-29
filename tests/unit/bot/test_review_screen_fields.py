@@ -72,4 +72,4 @@ def test_the_lookup_is_typed_so_the_checker_can_see_the_next_one() -> None:
     """An `Any` here is what let the mistake reach a customer."""
     source = HANDLER.read_text(encoding="utf-8")
 
-    assert "tuple[PlanView | None, ProductView | None]" in source
+    assert "tuple[PlanView | None, ProductView | None, CategoryView | None]" in source

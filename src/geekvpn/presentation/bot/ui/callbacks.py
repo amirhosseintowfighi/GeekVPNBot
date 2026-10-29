@@ -31,7 +31,7 @@ class ShopCB(CallbackData, prefix="shop"):
     note above.
     """
 
-    action: str  # category | product | plan | back
+    action: str  # cat | prod | plan | custom (type a volume) | cplan (its term) | back
     ref: str = ""
 
 

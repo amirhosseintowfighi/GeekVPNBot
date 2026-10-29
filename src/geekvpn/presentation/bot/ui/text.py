@@ -959,8 +959,19 @@ DEVICE_LABELS: Final = {
     "mac": "💻 مک",
     "linux": "🐧 لینوکس",
 }
-BTN_GUIDE: Final = "📚 آموزش اتصال"
-GUIDE_PICK: Final = "📚 <b>آموزش اتصال</b>\n\nدستگاهت رو انتخاب کن:"
+BTN_GUIDE: Final = "📥 دانلود و آموزش"
+GUIDE_TITLE: Final = "📥 <b>دانلود و آموزش</b>"
+GUIDE_DOWNLOADS: Final = (
+    "برنامه‌های گیک رو از دکمه‌های آبی بگیر؛ همیشه آخرین نسخه‌ان. "
+    "بعد از نصب وارد حسابت شو تا سرویس‌هات خودشون بیان."
+)
+GUIDE_TUTORIALS: Final = "برای آموزش اتصال، دستگاهت رو انتخاب کن:"
+DOWNLOAD_APP_LABELS: Final = {"android": "گیک اندروید", "windows": "گیک ویندوز"}
+# Short: Telegram cuts a button at one line, and the version is what tells a
+# customer whether they already have it.
+DOWNLOAD_BUTTON: Final = "📥 {app}"
+DOWNLOAD_BUTTON_VERSION: Final = "📥 {app} · {version}"
+MENU_APPS: Final = "دانلود و آموزش"
 GUIDE_NONE: Final = "هنوز آموزشی اضافه نشده. اگه برای اتصال کمک لازم داری، به پشتیبانی پیام بده."
 CAPACITY_LEFT: Final = "🟢 ظرفیت باقی‌مانده: {count} نفر"
 CAPACITY_LOW: Final = "🟡 فقط {count} جای خالی مونده"
@@ -983,3 +994,13 @@ PAYCHECK_REVIEW: Final = "🔎 پرداختت به بررسی ادمین رفت.
 PAYCHECK_PENDING: Final = "⏳ هنوز تأیید نشده. اگه پرداخت کردی، چند لحظهٔ دیگه دوباره بزن."
 PAYCHECK_WAIT: Final = "چند ثانیه صبر کن و دوباره بزن."
 PAYCHECK_NOT_FOUND: Final = "این پرداخت پیدا نشد."
+
+
+# -- custom volume ------------------------------------------------------------
+
+BTN_CUSTOM_VOLUME: Final = "\u270f\ufe0f \u062d\u062c\u0645 \u062f\u0644\u062e\u0648\u0627\u0647"
+CUSTOM_ASK: Final = "\u270f\ufe0f <b>\u062d\u062c\u0645 \u062f\u0644\u062e\u0648\u0627\u0647 \u2014 {category}</b>\n\n\u0686\u0646\u062f \u06af\u06cc\u06af \u062f\u0631 \u0645\u0627\u0647 \u0644\u0627\u0632\u0645 \u062f\u0627\u0631\u06cc\u061f \u0641\u0642\u0637 \u0639\u062f\u062f\u0634 \u0631\u0648 \u0628\u0641\u0631\u0633\u062a.\n\u06a9\u0645\u062a\u0631\u06cc\u0646 \u062d\u062c\u0645: <b>{minimum} \u06af\u06cc\u06af</b> \u062f\u0631 \u0645\u0627\u0647.\n\n\u0642\u06cc\u0645\u062a\u0634 \u0627\u0632 \u0631\u0648\u06cc \u0628\u0633\u062a\u0647\u200c\u0647\u0627\u06cc \u0647\u0645\u06cc\u0646 \u0633\u0631\u0648\u06cc\u0633 \u062d\u0633\u0627\u0628 \u0645\u06cc\u200c\u0634\u0647."
+CUSTOM_NOT_A_NUMBER: Final = "\u06cc\u0647 \u0639\u062f\u062f \u0628\u0641\u0631\u0633\u062a\u060c \u0645\u062b\u0644\u0627\u064b \u06f3\u06f5."
+CUSTOM_TOO_SMALL: Final = "\u06a9\u0645\u062a\u0631\u06cc\u0646 \u062d\u062c\u0645 \u0627\u06cc\u0646 \u0633\u0631\u0648\u06cc\u0633 {minimum} \u06af\u06cc\u06af \u062f\u0631 \u0645\u0627\u0647\u0647."
+CUSTOM_TERMS: Final = "\u270f\ufe0f <b>{gib} \u06af\u06cc\u06af \u062f\u0631 \u0645\u0627\u0647</b>\n\n\u0645\u062f\u062a\u0634 \u0631\u0648 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646. \u0631\u0648\u06cc \u0645\u062f\u062a\u200c\u0647\u0627\u06cc \u0628\u0644\u0646\u062f\u062a\u0631\u060c \u0647\u0645\u06cc\u0646 \u062d\u062c\u0645 \u0628\u0631\u0627\u06cc \u0647\u0631 \u0645\u0627\u0647 \u062d\u0633\u0627\u0628 \u0645\u06cc\u200c\u0634\u0647."
+CUSTOM_NO_TERMS: Final = "\u0628\u0631\u0627\u06cc \u0627\u06cc\u0646 \u062d\u062c\u0645 \u0642\u06cc\u0645\u062a\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f. \u06cc\u0647 \u0639\u062f\u062f \u062f\u06cc\u06af\u0647 \u0627\u0645\u062a\u062d\u0627\u0646 \u06a9\u0646."

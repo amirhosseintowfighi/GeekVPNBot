@@ -5,10 +5,12 @@ import useSWR from 'swr'
 
 import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState } from '@/components/shell/states'
+import { CustomVolumeCard } from '@/components/feature/custom-volume-card'
 import { VolumeCard } from '@/components/feature/volume-card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError, fetcher } from '@/lib/api'
+import { customFloor } from '@/lib/plans'
 import { haptic } from '@/lib/telegram'
 import type { Storefront } from '@/lib/types'
 
@@ -106,6 +108,12 @@ export default function ShopPage() {
                   href={`/shop/p/${product.productId}`}
                 />
               ))}
+            {customFloor(category) !== null ? (
+              <CustomVolumeCard
+                floor={customFloor(category)!}
+                href={`/shop/custom/${category.categoryId}`}
+              />
+            ) : null}
           </TabsContent>
         ))}
       </Tabs>

@@ -19,6 +19,7 @@ flash sale and still pay the sale price.
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from typing import Any
 
@@ -31,25 +32,37 @@ from geekvpn.application.bot.read_models import (
     CryptoPaymentDetails,
 )
 from geekvpn.application.bot.services import BotServices
-from geekvpn.application.catalog.dto import PlanView, ProductView
+from geekvpn.application.catalog.dto import CategoryView, PlanView, ProductView
 from geekvpn.application.payments.adapters import CARD_STATED_WINDOW
+from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.catalog.custom_volume import MAX_CUSTOM_GIB, custom_plan_name, total_gib
+from geekvpn.domain.catalog.enums import PlanType
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import (
     answer,
     customer_message,
     match_ref,
     safe_edit,
+    short_ref,
     tier_of,
     toast,
 )
-from geekvpn.presentation.bot.handlers.shop import load_storefront
+from geekvpn.presentation.bot.handlers.shop import custom_floor, load_storefront
 from geekvpn.presentation.bot.states import Purchase
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import stickers as S
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, PayCB, ShopCB
-from geekvpn.presentation.bot.ui.fa import fa_relative, normalize_input, rial, toman
+from geekvpn.presentation.bot.ui.fa import (
+    fa_digits,
+    fa_duration,
+    fa_relative,
+    gib,
+    normalize_input,
+    rial,
+    toman,
+)
 
 logger = get_logger("bot.purchase")
 
@@ -94,7 +107,7 @@ def _method_keyboard(*, wallet_ok: bool, methods: list[tuple[str, str]]) -> Inli
 
 async def _find_plan(
     *, plan_id: uuid.UUID, user: Any, scope: Any, services: Any
-) -> tuple[PlanView | None, ProductView | None]:
+) -> tuple[PlanView | None, ProductView | None, CategoryView | None]:
     """The selected package and the product it belongs to.
 
     Typed, unlike almost everything else that crosses this file. `Any` here
@@ -108,8 +121,33 @@ async def _find_plan(
         for product in category.products:
             for plan in product.plans:
                 if plan.id == plan_id:
-                    return plan, product
-    return None, None
+                    return plan, product, category
+    return None, None, None
+
+
+def _as_custom(plan: PlanView, monthly_gib: int) -> PlanView:
+    """The package a typed volume buys, drawn the way a stored one is.
+
+    `plan` is the term's anchor; only its term and devices carry over. Its
+    badge and description are about a package the customer did not choose.
+    """
+    return dataclasses.replace(
+        plan,
+        name=custom_plan_name(monthly_gib, plan.duration_days),
+        quota_gib=total_gib(monthly_gib, plan.duration_days),
+        badge=None,
+        description=None,
+        is_featured=False,
+    )
+
+
+def _package_name(
+    plan: PlanView, product: ProductView, category: CategoryView | None, custom: int | None
+) -> str:
+    # A custom package is named after its kind of service, not after the
+    # anchor product: "20GB — 35 گیگ" would contradict itself.
+    owner = category.name if custom and category is not None else product.name
+    return f"{owner} \u2014 {plan.name}"
 
 
 async def _render_review(
@@ -128,7 +166,8 @@ async def _render_review(
         await safe_edit(query, T.ERR_SESSION_EXPIRED, markup=K.single(K.home_button()))
         return
 
-    plan, product = await _find_plan(
+    custom = data.get("custom_gib") or None
+    plan, product, category = await _find_plan(
         plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
     )
     if plan is None or product is None:
@@ -142,6 +181,7 @@ async def _render_review(
             user_id=user.id,
             coupon_code=coupon,
             loyalty_tier=tier_of(snapshot.lifetime_spend),
+            custom_gib=custom,
         )
     except Exception:
         # A coupon that validated a moment ago can expire mid-flow. Drop it
@@ -156,10 +196,13 @@ async def _render_review(
             plan_id=plan.id,
             user_id=user.id,
             loyalty_tier=tier_of(snapshot.lifetime_spend),
+            custom_gib=custom,
         )
         coupon = None
 
-    name = f"{product.name} \u2014 {plan.name}"
+    if custom:
+        plan = _as_custom(plan, custom)
+    name = _package_name(plan, product, category, custom)
     await state.update_data(total=quote.total, plan_name=name)
     await state.set_state(Purchase.reviewing)
     await safe_edit(
@@ -171,7 +214,7 @@ async def _render_review(
         # disappeared the moment a package was picked.
         R.plan_detail(
             plan,
-            product_name=product.name,
+            product_name=category.name if custom and category else product.name,
             quote=quote,
             features=product.features,
         )
@@ -208,8 +251,156 @@ async def on_select_plan(
     if found is None:
         await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
         return
+    # A package picked from the list is that package, whatever was typed before.
+    await state.update_data(plan_id=str(found.id), coupon=None, custom_gib=None)
+    await _render_review(query=query, state=state, user=user, scope=scope, services=services)
+
+
+# -- a volume the customer types --------------------------------------------
+
+
+@router.callback_query(ShopCB.filter(F.action == "custom"))
+async def on_custom_volume(
+    query: CallbackQuery,
+    callback_data: ShopCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    await toast(query)
+    if user is None or scope is None:
+        return
+    view = await load_storefront(user=user, scope=scope, services=services)
+    category = match_ref(list(view.categories), callback_data.ref, "id")
+    floor = custom_floor(category) if category is not None else None
+    if category is None or floor is None:
+        await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
+        return
+    # `renew_of` is left alone on purpose: reached from the renewal screen,
+    # the volume typed next renews that service.
+    await state.update_data(custom_category=str(category.id), custom_gib=None)
+    await state.set_state(Purchase.custom_volume)
+    await safe_edit(
+        query,
+        T.CUSTOM_ASK.format(category=category.name, minimum=fa_digits(floor)),
+        markup=K.single(K.btn(T.BTN_CANCEL, NavCB(to="shop"), style=K.NO)),
+    )
+
+
+@router.message(Purchase.custom_volume, F.text, ~F.text.in_(K.MENU_TAPS))
+async def on_custom_volume_text(
+    message: Message,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    if user is None or scope is None:
+        await answer(message, T.ERR_GENERIC)
+        return
+    monthly = _typed_gib(message.text or "")
+    if monthly is None:
+        await answer(message, T.CUSTOM_NOT_A_NUMBER)
+        return
+
+    data = await state.get_data()
+    view = await load_storefront(user=user, scope=scope, services=services)
+    category = next((c for c in view.categories if str(c.id) == data.get("custom_category")), None)
+    floor = custom_floor(category) if category is not None else None
+    if category is None or floor is None:
+        await state.clear()
+        await answer(message, T.ERR_SESSION_EXPIRED)
+        return
+    if monthly < floor:
+        await answer(message, T.CUSTOM_TOO_SMALL.format(minimum=fa_digits(floor)))
+        return
+
+    snapshot = await services.wallet.snapshot(user.id)
+    rows: list[list[Any]] = []
+    for anchor in _one_package_per_term(category):
+        try:
+            quote = await scope.quoting.quote_view(
+                plan_id=anchor.id,
+                user_id=user.id,
+                loyalty_tier=tier_of(snapshot.lifetime_spend),
+                custom_gib=monthly,
+            )
+        except DomainError:
+            # Under this term's own smallest package. The term is left off
+            # rather than the whole answer refused: the others still fit.
+            logger.warning("bot.custom_term_skipped", days=anchor.duration_days, gib=monthly)
+            continue
+        quota = gib(total_gib(monthly, anchor.duration_days), compact=True)
+        label = f"{toman(quote.total)} \u00b7 {quota} \u00b7 {fa_duration(anchor.duration_days)}"
+        rows.append([K.btn(label, ShopCB(action="cplan", ref=short_ref(anchor.id)))])
+    if not rows:
+        await answer(message, T.CUSTOM_NO_TERMS)
+        return
+
+    await state.update_data(custom_gib=monthly)
+    await state.set_state(Purchase.browsing)
+    rows.append([K.btn(T.BTN_BACK, NavCB(to="shop")), K.home_button()])
+    await answer(message, T.CUSTOM_TERMS.format(gib=fa_digits(monthly)), reply_markup=K.stack(rows))
+
+
+@router.callback_query(ShopCB.filter(F.action == "cplan"))
+async def on_select_custom_term(
+    query: CallbackQuery,
+    callback_data: ShopCB,
+    state: FSMContext,
+    services: BotServices,
+    user: Any = None,
+    scope: Any = None,
+) -> None:
+    await toast(query)
+    if user is None or scope is None:
+        return
+    data = await state.get_data()
+    if not data.get("custom_gib"):
+        await safe_edit(query, T.ERR_SESSION_EXPIRED, markup=K.single(K.home_button()))
+        return
+    view = await load_storefront(user=user, scope=scope, services=services)
+    found = next(
+        (
+            plan
+            for category in view.categories
+            for product in category.products
+            if (plan := match_ref(list(product.plans), callback_data.ref, "id")) is not None
+        ),
+        None,
+    )
+    if found is None:
+        await safe_edit(query, T.ERR_STALE_BUTTON, markup=K.single(K.home_button()))
+        return
     await state.update_data(plan_id=str(found.id), coupon=None)
     await _render_review(query=query, state=state, user=user, scope=scope, services=services)
+
+
+def _typed_gib(text: str) -> int | None:
+    """35, ۳۵, "35GB" and "۳۵ گیگ" all mean 35."""
+    raw = normalize_input(text).lower()
+    for unit in ("gb", "gig", "\u06af\u06cc\u06af"):
+        raw = raw.replace(unit, "")
+    raw = raw.strip()
+    if not raw.isdigit():
+        return None
+    value = int(raw)
+    return value if 0 < value <= MAX_CUSTOM_GIB else None
+
+
+def _one_package_per_term(category: CategoryView) -> list[PlanView]:
+    """A volume package for each term the category sells, shortest first.
+
+    Any one serves: the quote prices off every package of that term, and this
+    one only says which term and kind of service is meant.
+    """
+    anchors: dict[int, PlanView] = {}
+    for product in category.products:
+        for plan in product.plans:
+            if plan.plan_type == PlanType.TRAFFIC.value and plan.quota_gib:
+                anchors.setdefault(plan.duration_days, plan)
+    return [anchors[days] for days in sorted(anchors)]
 
 
 @router.callback_query(PayCB.filter(F.action == "coupon"))
@@ -272,6 +463,7 @@ async def on_coupon_text(
         await state.clear()
         return
 
+    custom = data.get("custom_gib") or None
     code = normalize_input(message.text or "").upper()
     snapshot = await services.wallet.snapshot(user.id)
     preview = await scope.quoting.preview_coupon(
@@ -279,6 +471,7 @@ async def on_coupon_text(
         code=code,
         user_id=user.id,
         loyalty_tier=tier_of(snapshot.lifetime_spend),
+        custom_gib=custom,
     )
 
     if not preview.is_valid:
@@ -292,7 +485,7 @@ async def on_coupon_text(
         T.COUPON_APPLIED.format(code=preview.code, amount=toman(preview.discount)),
     )
 
-    plan, product = await _find_plan(
+    plan, product, category = await _find_plan(
         plan_id=uuid.UUID(str(plan_id)), user=user, scope=scope, services=services
     )
     if plan is None or product is None:
@@ -302,8 +495,11 @@ async def on_coupon_text(
         user_id=user.id,
         coupon_code=preview.code,
         loyalty_tier=tier_of(snapshot.lifetime_spend),
+        custom_gib=custom,
     )
-    name = f"{product.name} \u2014 {plan.name}"
+    if custom:
+        plan = _as_custom(plan, custom)
+    name = _package_name(plan, product, category, custom)
     await state.update_data(total=quote.total, plan_name=name)
     await answer(
         message,
@@ -370,6 +566,7 @@ async def on_pay(
     # customer already installed instead of issuing a second one; absent, this
     # is an ordinary purchase and reads exactly as it did before.
     renews = data.get("renew_of") or None
+    custom = data.get("custom_gib") or None
 
     try:
         if method == "wallet":
@@ -378,6 +575,7 @@ async def on_pay(
                 plan_id=plan_uuid,
                 coupon_code=coupon,
                 renews_subscription_id=renews,
+                custom_gib=custom,
             )
             await state.clear()
             cashback = data.get("cashback") or 0
@@ -412,6 +610,7 @@ async def on_pay(
                 plan_id=plan_uuid,
                 coupon_code=coupon,
                 renews_subscription_id=renews,
+                custom_gib=custom,
             )
             if details.payment is None:
                 await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
@@ -431,6 +630,7 @@ async def on_pay(
                 plan_id=plan_uuid,
                 coupon_code=coupon,
                 renews_subscription_id=renews,
+                custom_gib=custom,
             )
             if crypto.payment is None:
                 await safe_edit(query, T.ERR_GENERIC, markup=K.single(K.home_button()))
@@ -452,6 +652,7 @@ async def on_pay(
             gateway_key=method,
             coupon_code=coupon,
             renews_subscription_id=renews,
+            custom_gib=custom,
         )
         await state.clear()
         # The provider decides which of the two screens this is. A redirect

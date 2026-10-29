@@ -27,6 +27,7 @@ from geekvpn.presentation.bot.handlers import (
     settings,
     shop,
     support,
+    tutorials,
     wallet,
 )
 from geekvpn.presentation.bot.handlers.admin import is_admin
@@ -118,6 +119,12 @@ async def tap_profile(
 ) -> None:
     await _decorate(message, bot, stickers, "profile")
     await profile.on_profile_command(message, state, services, user)
+
+
+@router.message(F.text == K.TAP_APPS)
+async def tap_apps(message: Message, state: FSMContext, scope: Any = None) -> None:
+    await state.clear()
+    await tutorials.show_guide(message, scope)
 
 
 @router.message(F.text == K.TAP_FAQ)

@@ -119,28 +119,36 @@ export const api = {
 
   storefront: () => request<Storefront>('/api/miniapp/storefront'),
 
-  quote: (planId: string, couponCode?: string) =>
-    post<Quote>('/api/miniapp/quote', { plan_id: planId, coupon_code: couponCode }),
+  // `customGib` is a monthly volume the customer typed; `planId` then names
+  // any package of that kind and term, and the backend prices off all of them.
+  quote: (planId: string, couponCode?: string, customGib?: number) =>
+    post<Quote>('/api/miniapp/quote', {
+      plan_id: planId,
+      coupon_code: couponCode,
+      custom_gib: customGib,
+    }),
 
   /**
    * Validates a coupon without committing to anything. Mirrors the bot's
    * `preview_coupon`, which never raises - a bad code is an answer, not an
    * error, and must not blow up the checkout screen.
    */
-  previewCoupon: (planId: string, code: string) =>
+  previewCoupon: (planId: string, code: string, customGib?: number) =>
     post<CouponPreview>('/api/miniapp/coupon/preview', {
       plan_id: planId,
       code,
+      custom_gib: customGib,
     }),
 
   // `renewsSubscriptionId` is what separates extending the service somebody
   // already installed from handing them a second one to install. The backend
   // refuses an id that is not theirs.
-  payFromWallet: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
+  payFromWallet: (planId: string, couponCode?: string, renewsSubscriptionId?: string, customGib?: number) =>
     post<{ subscription_id: string }>('/api/miniapp/checkout/wallet', {
       plan_id: planId,
       coupon_code: couponCode,
       renews_subscription_id: renewsSubscriptionId,
+      custom_gib: customGib,
     }),
 
   // `CardPaymentDetails`, not `PendingPayment`. These endpoints answer with
@@ -148,11 +156,12 @@ export const api = {
   // `paymentId` off the top level produced undefined - and the caller pushed
   // the customer to /payments/undefined, a route that renders a skeleton and
   // never resolves.
-  beginCardPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
+  beginCardPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string, customGib?: number) =>
     post<CardPaymentDetails>('/api/miniapp/checkout/card', {
       plan_id: planId,
       coupon_code: couponCode,
       renews_subscription_id: renewsSubscriptionId,
+      custom_gib: customGib,
     }),
 
   /** Card and crypto used to be constants here. They are not. */
@@ -163,19 +172,22 @@ export const api = {
     gatewayKey: string,
     couponCode?: string,
     renewsSubscriptionId?: string,
+    customGib?: number,
   ) =>
     post<GatewayScreen>('/api/miniapp/checkout/gateway', {
       plan_id: planId,
       gateway_key: gatewayKey,
       coupon_code: couponCode,
       renews_subscription_id: renewsSubscriptionId,
+      custom_gib: customGib,
     }),
 
-  beginCryptoPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string) =>
+  beginCryptoPayment: (planId: string, couponCode?: string, renewsSubscriptionId?: string, customGib?: number) =>
     post<CryptoPaymentDetails>('/api/miniapp/checkout/crypto', {
       plan_id: planId,
       coupon_code: couponCode,
       renews_subscription_id: renewsSubscriptionId,
+      custom_gib: customGib,
     }),
 
   /** Card-to-card receipt. Goes to a human reviewer, not an auto-approver. */

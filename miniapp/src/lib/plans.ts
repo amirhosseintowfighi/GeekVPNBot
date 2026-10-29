@@ -63,3 +63,50 @@ export function findProduct(storefront: Storefront | undefined, productId: strin
   }
   return null
 }
+
+// -- a volume the customer types ---------------------------------------------
+//
+// The backend prices it: linear between the two nearest packages of the same
+// term, the largest package's rate above them. These helpers only decide what
+// to ask for and which terms to ask about; the number shown is always a quote.
+
+type VolumePlan = Pick<PlanCard, 'planId' | 'planType' | 'quotaGib' | 'durationDays'>
+
+/** The term's allowance for a monthly volume - the duration ladder's rule. */
+export function totalGib(monthlyGib: number, days: number): number {
+  return Math.floor((monthlyGib * days) / 30)
+}
+
+function volumePlans(category: { products: { plans: VolumePlan[] }[] }): VolumePlan[] {
+  return category.products
+    .flatMap((product) => product.plans)
+    .filter((plan) => plan.planType === 'traffic' && plan.quotaGib !== null && plan.quotaGib > 0)
+}
+
+/**
+ * The smallest monthly volume a customer may type, or null where nothing is
+ * sold by volume. The monthly term decides, as in the bot.
+ */
+export function customFloor(category: { products: { plans: VolumePlan[] }[] }): number | null {
+  const floors = new Map<number, number>()
+  for (const plan of volumePlans(category)) {
+    const monthly = Math.ceil(((plan.quotaGib ?? 0) * 30) / plan.durationDays)
+    floors.set(plan.durationDays, Math.min(floors.get(plan.durationDays) ?? monthly, monthly))
+  }
+  if (floors.size === 0) return null
+  return floors.get(30) ?? Math.min(...floors.values())
+}
+
+/** One package per term, shortest first: which term, and which kind, is meant. */
+export function anchorsByTerm<P extends VolumePlan>(category: { products: { plans: P[] }[] }): P[] {
+  const anchors = new Map<number, P>()
+  for (const plan of volumePlans(category) as P[]) {
+    if (!anchors.has(plan.durationDays)) anchors.set(plan.durationDays, plan)
+  }
+  return [...anchors.keys()].sort((a, b) => a - b).map((days) => anchors.get(days)!)
+}
+
+/** "۳۵ گیگ ۱ ماهه (دلخواه)": what the order is called, near enough to recognise. */
+export function customName(monthlyGib: number, days: number): string {
+  return `${faDigits(monthlyGib)} گیگ ${faDuration(days)} (دلخواه)`
+}

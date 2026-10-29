@@ -1,4 +1,10 @@
-"""Connection tutorials, one per device, written by the operator.
+"""The Geek apps to download, and connection tutorials, one per device.
+
+Downloads come first: they are links to the latest release of each Geek app,
+read from the same GitHub releases the apps update from, so this screen never
+offers a version the app would call outdated.
+
+Tutorials are written by the operator.
 
 A text, or a photo or video with its caption - whatever the operator sent,
 sent back as it was. Telegram file ids are stored rather than the files: the
@@ -17,10 +23,14 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from geekvpn.application.platform.settings_service import TUTORIAL_DEVICES, TUTORIALS
+from geekvpn.infrastructure.client_downloads import ClientDownload, client_downloads
+from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import GuideCB, NavCB
+
+logger = get_logger("bot.tutorials")
 
 router = Router(name="tutorials")
 
@@ -34,34 +44,71 @@ async def written(scope: Any) -> dict[str, dict[str, str]]:
         return {}
 
 
-def _picker(tutorials: dict[str, Any]) -> Any:
+async def downloads(scope: Any) -> list[ClientDownload]:
+    """The apps' download links. A GitHub that cannot be reached costs the links,
+    not the screen: the tutorials under them still work."""
+    if scope is None:
+        return []
+    try:
+        container = scope.container
+        return await client_downloads(container.settings.app_release, container.cache)
+    except Exception:
+        logger.warning("bot.downloads_unavailable", exc_info=True)
+        return []
+
+
+def _picker(tutorials: dict[str, Any], links: list[ClientDownload]) -> Any:
+    rows: list[list[Any]] = [
+        [K.url_btn(_download_label(link), link.url, style=K.GO)] for link in links
+    ]
     buttons = [
         K.btn(T.DEVICE_LABELS[device], GuideCB(device=device))
         for device in TUTORIAL_DEVICES
         if device in tutorials
     ]
-    markup = K.grid(buttons, width=2)
-    markup.inline_keyboard.append([K.home_button()])
-    return markup
+    rows.extend(buttons[i : i + 2] for i in range(0, len(buttons), 2))
+    rows.append([K.home_button()])
+    return K.stack(rows)
+
+
+def _download_label(link: ClientDownload) -> str:
+    name = T.DOWNLOAD_APP_LABELS.get(link.platform, link.platform)
+    if link.version:
+        return T.DOWNLOAD_BUTTON_VERSION.format(app=name, version=link.version)
+    return T.DOWNLOAD_BUTTON.format(app=name)
+
+
+def _screen(tutorials: dict[str, Any], links: list[ClientDownload]) -> str:
+    parts = [T.GUIDE_TITLE]
+    if links:
+        parts.append(T.GUIDE_DOWNLOADS)
+    if tutorials:
+        parts.append(T.GUIDE_TUTORIALS)
+    return "\n\n".join(parts)
+
+
+async def show_guide(message: Message, scope: Any = None) -> None:
+    """Entry point shared with the reply keyboard and /guide."""
+    tutorials, links = await written(scope), await downloads(scope)
+    if not tutorials and not links:
+        await answer(message, T.GUIDE_NONE)
+        return
+    await answer(message, _screen(tutorials, links), reply_markup=_picker(tutorials, links))
 
 
 @router.message(Command("guide"))
 async def on_guide_command(message: Message, scope: Any = None) -> None:
-    tutorials = await written(scope)
-    if not tutorials:
-        await answer(message, T.GUIDE_NONE)
-        return
-    await answer(message, T.GUIDE_PICK, reply_markup=_picker(tutorials))
+    await show_guide(message, scope)
 
 
 @router.callback_query(NavCB.filter(F.to == "guide"))
 async def on_guide(query: CallbackQuery, scope: Any = None) -> None:
     await toast(query)
-    tutorials = await written(scope)
-    if not tutorials:
+    tutorials, links = await written(scope), await downloads(scope)
+    if not tutorials and not links:
         await safe_edit(query, T.GUIDE_NONE, markup=K.single(K.home_button()))
         return
-    await safe_edit(query, T.GUIDE_PICK, markup=_picker(tutorials))
+    await safe_edit(query, _screen(tutorials, links), markup=_picker(tutorials, links))
 
 
 @router.callback_query(GuideCB.filter())

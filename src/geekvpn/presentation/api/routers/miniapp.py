@@ -32,9 +32,11 @@ from geekvpn.application.payments.receipt_intent import (
     RECEIPT_REQUESTED_TEMPLATE,
     receipt_intent_key,
 )
+from geekvpn.application.platform.settings_service import TUTORIAL_DEVICES
 from geekvpn.application.provisioning.usage_history import daily_usage, tehran_day
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
 from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.catalog.custom_volume import MAX_CUSTOM_GIB
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
 from geekvpn.domain.provisioning.errors import RotationUnavailable
@@ -219,6 +221,9 @@ class PlanRequest(ApiModel):
     #: Present when this purchase extends a service the customer already has
     #: rather than adding another. Checkout refuses one that is not theirs.
     renews_subscription_id: str | None = Field(default=None, max_length=64)
+    #: A monthly volume the customer typed instead of picking a package.
+    #: `plan_id` then names any package of the same kind and term.
+    custom_gib: int | None = Field(default=None, ge=1, le=MAX_CUSTOM_GIB)
 
 
 class CouponPreviewRequest(ApiModel):
@@ -226,6 +231,7 @@ class CouponPreviewRequest(ApiModel):
 
     plan_id: uuid.UUID
     code: str = Field(min_length=1, max_length=64)
+    custom_gib: int | None = Field(default=None, ge=1, le=MAX_CUSTOM_GIB)
 
 
 class TopupRequest(ApiModel):
@@ -431,7 +437,10 @@ async def storefront(user: CurrentMiniAppUser, scope: ScopeDep) -> StorefrontRes
 @router.post("/quote", summary="Price one plan for this customer")
 async def quote(payload: PlanRequest, user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
     return await scope.quoting.quote_view(
-        plan_id=payload.plan_id, user_id=user.id, coupon_code=payload.coupon_code
+        plan_id=payload.plan_id,
+        user_id=user.id,
+        coupon_code=payload.coupon_code,
+        custom_gib=payload.custom_gib,
     )
 
 
@@ -440,7 +449,10 @@ async def preview_coupon(
     payload: CouponPreviewRequest, user: CurrentMiniAppUser, scope: ScopeDep
 ) -> Any:
     return await scope.quoting.preview_coupon(
-        plan_id=payload.plan_id, code=payload.code, user_id=user.id
+        plan_id=payload.plan_id,
+        code=payload.code,
+        user_id=user.id,
+        custom_gib=payload.custom_gib,
     )
 
 
@@ -456,6 +468,7 @@ async def checkout_wallet(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return {"subscription_id": str(card.subscription_id)}
@@ -470,6 +483,7 @@ async def checkout_card(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return details
@@ -505,6 +519,7 @@ async def checkout_gateway(
         gateway_key=payload.gateway_key,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     await _remember_if_app(request, container, screen)
@@ -535,6 +550,7 @@ async def checkout_crypto(
         plan_id=payload.plan_id,
         coupon_code=payload.coupon_code,
         renews_subscription_id=payload.renews_subscription_id,
+        custom_gib=payload.custom_gib,
     )
     await uow.commit()
     return details
@@ -1172,3 +1188,40 @@ async def faq(user: CurrentMiniAppUser) -> Any:
         }
         for section in F.FAQ
     ]
+
+
+@router.get("/apps", summary="The Geek apps to download, and connection tutorials")
+async def apps(user: CurrentMiniAppUser, scope: ScopeDep) -> Any:
+    """The bot's "download and tutorials" screen, for the Mini App.
+
+    Links are the latest GitHub release of each app, as the bot offers them.
+    Tutorials are the operator's own, in text; one sent to the bot as a photo
+    or a video keeps its caption here and is marked so the page can point to
+    the bot for the media, which only the bot that received it can send.
+    """
+    from geekvpn.presentation.bot.handlers.tutorials import downloads, written
+    from geekvpn.presentation.bot.ui import text as T
+
+    links = await downloads(scope)
+    tutorials = await written(scope)
+    return {
+        "downloads": [
+            {
+                "platform": link.platform,
+                "label_fa": T.DOWNLOAD_APP_LABELS.get(link.platform, link.platform),
+                "version": link.version,
+                "url": link.url,
+            }
+            for link in links
+        ],
+        "tutorials": [
+            {
+                "device": device,
+                "label_fa": T.DEVICE_LABELS[device],
+                "kind": entry.get("kind", "text"),
+                "text_fa": entry.get("text", ""),
+            }
+            for device in TUTORIAL_DEVICES
+            if (entry := tutorials.get(device)) is not None
+        ],
+    }

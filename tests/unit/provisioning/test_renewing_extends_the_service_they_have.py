@@ -39,6 +39,7 @@ NOW = datetime(2026, 9, 8, tzinfo=UTC)
 def _plan(*, gib: int, price: int) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
+        plan_type="traffic",
         quota_gib=gib,
         duration_days=30,
         device_limit=2,
@@ -48,7 +49,9 @@ def _plan(*, gib: int, price: int) -> SimpleNamespace:
 
 
 def _view(*products: SimpleNamespace) -> SimpleNamespace:
-    return SimpleNamespace(categories=[SimpleNamespace(products=list(products))])
+    return SimpleNamespace(
+        categories=[SimpleNamespace(id=uuid.uuid4(), name="حجمی", products=list(products))]
+    )
 
 
 def _labels(markup) -> list[str]:
@@ -190,3 +193,13 @@ def test_the_account_itself_is_untouched_by_a_renewal() -> None:
     subscription.renew(days=30, now=NOW, quota_mib=100 * 1024, plan_id="plan-100gb")
 
     assert (subscription.remote_username, subscription.node_id, subscription.id) == before
+
+
+def test_a_renewal_can_be_onto_a_volume_the_customer_types() -> None:
+    """The renewal screen offers the custom volume too; `renew_of` survives
+    the detour, so what is typed there extends this service."""
+    product = SimpleNamespace(id=uuid.uuid4(), name="گیک", plans=[_plan(gib=20, price=100_000)])
+
+    labels = _labels(_upgrade_keyboard(_view(product), same_plan_id=None, own_product_id=None))
+
+    assert T.BTN_CUSTOM_VOLUME in labels

@@ -155,6 +155,25 @@ TAP_PROFILE: Final = f"{E.PROFILE} {T.MENU_PROFILE}"
 TAP_FAQ: Final = f"{E.FAQ} {T.MENU_FAQ}"
 TAP_SETTINGS: Final = f"{E.SETTINGS} {T.MENU_SETTINGS}"
 TAP_RESELLER: Final = f"🤝 {T.MENU_RESELLER}"
+TAP_APPS: Final = f"📥 {T.MENU_APPS}"
+#: Every reply-keyboard tap. A flow waiting for typed input lets these through,
+#: so pressing a menu button mid-question opens that menu instead of being
+#: read as the answer.
+MENU_TAPS: Final = frozenset(
+    {
+        TAP_SHOP,
+        TAP_DASHBOARD,
+        TAP_WALLET,
+        TAP_REFERRAL,
+        TAP_SUPPORT,
+        TAP_STATUS,
+        TAP_PROFILE,
+        TAP_FAQ,
+        TAP_SETTINGS,
+        TAP_RESELLER,
+        TAP_APPS,
+    }
+)
 
 
 def main_menu() -> ReplyKeyboardMarkup:
@@ -203,6 +222,9 @@ def main_menu() -> ReplyKeyboardMarkup:
     # it up. Below the two rows above rather than beside them, so it competes
     # with nothing a paying customer opens daily.
     builder.row(KeyboardButton(text=TAP_RESELLER, style=ButtonStyle.SUCCESS))
+    # The apps and how to connect: blue, full width, because a customer who
+    # has just paid needs it next and should not have to hunt for it.
+    builder.row(KeyboardButton(text=TAP_APPS, style=ButtonStyle.PRIMARY))
     # Help, offers and status. Plain: findable, not competing.
     builder.row(
         KeyboardButton(text=TAP_STATUS),

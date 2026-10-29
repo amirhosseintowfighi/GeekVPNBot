@@ -6,9 +6,11 @@ import useSWR from 'swr'
 
 import { PageHeader } from '@/components/shell/page-header'
 import { EmptyState, ErrorState } from '@/components/shell/states'
+import { CustomVolumeCard } from '@/components/feature/custom-volume-card'
 import { VolumeCard } from '@/components/feature/volume-card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { ApiError, fetcher } from '@/lib/api'
+import { customFloor } from '@/lib/plans'
 import type { Storefront } from '@/lib/types'
 
 /**
@@ -66,6 +68,17 @@ export default function RenewPage() {
                 href={`/services/${subscriptionId}/renew/${product.productId}`}
               />
             ))}
+          {/* A renewal can be any volume too; `renewOf` rides through to checkout. */}
+          {(data.categories ?? []).map((category) => {
+            const floor = customFloor(category)
+            return floor === null ? null : (
+              <CustomVolumeCard
+                key={category.categoryId}
+                floor={floor}
+                href={`/shop/custom/${category.categoryId}?renewOf=${encodeURIComponent(subscriptionId)}`}
+              />
+            )
+          })}
         </div>
       )}
     </>

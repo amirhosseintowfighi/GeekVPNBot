@@ -124,6 +124,9 @@ class CheckoutService(Protocol):
     #: so `ProvisioningService._renew` - which extends the panel account the
     #: customer already installed - was unreachable code, and pressing "renew"
     #: created a new account with new config every time.
+    #:
+    #: `custom_gib`, when set, is a monthly volume the customer typed; `plan_id`
+    #: then names any package of that kind and term to price it against.
 
     async def pay_from_wallet(
         self,
@@ -132,6 +135,7 @@ class CheckoutService(Protocol):
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> SubscriptionCard: ...
 
     async def methods(self, user_id: uuid.UUID | None = None) -> list[tuple[str, str]]:
@@ -151,6 +155,7 @@ class CheckoutService(Protocol):
         gateway_key: str,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> GatewayScreen:
         """Start an online payment and say what the customer should see."""
         ...
@@ -162,6 +167,7 @@ class CheckoutService(Protocol):
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> CardPaymentDetails: ...
 
     async def begin_crypto(
@@ -171,6 +177,7 @@ class CheckoutService(Protocol):
         plan_id: uuid.UUID,
         coupon_code: str | None = None,
         renews_subscription_id: str | None = None,
+        custom_gib: int | None = None,
     ) -> CryptoPaymentDetails: ...
 
     async def begin_topup(
