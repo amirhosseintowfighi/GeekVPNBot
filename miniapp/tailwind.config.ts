@@ -82,8 +82,8 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Vazirmatn', 'Tahoma', 'system-ui', 'sans-serif'],
-        display: ['"Space Grotesk"', 'Vazirmatn', 'system-ui', 'sans-serif'],
+        sans: ['"Yekan Bakh"', 'Tahoma', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk"', '"Yekan Bakh"', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
         // A usage bar's fill: white, warming to the light's pale blue.

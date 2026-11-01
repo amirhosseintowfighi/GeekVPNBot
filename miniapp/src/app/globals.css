@@ -3,33 +3,65 @@
 @tailwind utilities;
 
 /*
- * Fonts, self-hosted from src/fonts (SIL Open Font License).
+ * Fonts, self-hosted from src/fonts.
  *
- * Bundled rather than fetched from Google at build time: the production image
- * is built on a server inside Iran, where Google is not reliably reachable, and
- * a build that cannot download its font fails outright. The files are split by
- * script the way Google serves them, so a Persian page downloads the Arabic
- * subset and the Latin one only when Latin text actually appears.
+ * Bundled rather than fetched at build time: the production image is built on
+ * a server inside Iran, where Google is not reliably reachable, and a build
+ * that cannot download its font fails outright.
+ *
+ * Yekan Bakh, the Dark Swiss design's typeface, in its FaNum cut: digits are
+ * drawn Persian wherever Persian copy is set. One static file per weight the
+ * app uses, so a screen downloads only the weights it shows; a weight without
+ * a file (600) is drawn from the nearest one. Latin figures that must stay
+ * Latin - card numbers, versions, codes - are set in Space Grotesk instead
+ * (`font-display`), which is listed first wherever it is used.
  */
 @font-face {
-  font-family: 'Vazirmatn';
+  font-family: 'Yekan Bakh';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 300;
   font-display: swap;
-  src: url('../fonts/vazirmatn-arabic.woff2') format('woff2');
-  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF,
-    U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+  src: url('../fonts/yekan-bakh-300.woff') format('woff');
 }
 
 @font-face {
-  font-family: 'Vazirmatn';
+  font-family: 'Yekan Bakh';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 400;
   font-display: swap;
-  src: url('../fonts/vazirmatn-latin.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
-    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
-    U+FEFF, U+FFFD;
+  src: url('../fonts/yekan-bakh-400.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Yekan Bakh';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/yekan-bakh-500.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Yekan Bakh';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/yekan-bakh-700.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Yekan Bakh';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/yekan-bakh-800.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Yekan Bakh';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../fonts/yekan-bakh-900.woff') format('woff');
 }
 
 @font-face {
@@ -349,7 +381,7 @@ html[data-theme='classic'] .sky-backdrop {
 
   /* The small Latin caption above a title: Space Grotesk, wide-tracked caps. */
   .eyebrow {
-    font-family: 'Space Grotesk', 'Vazirmatn', system-ui, sans-serif;
+    font-family: 'Space Grotesk', 'Yekan Bakh', system-ui, sans-serif;
     font-size: 10px;
     font-weight: 500;
     letter-spacing: 0.24em;
@@ -367,7 +399,7 @@ html[data-theme='classic'] .sky-backdrop {
   }
 
   .font-display {
-    font-family: 'Space Grotesk', 'Vazirmatn', system-ui, sans-serif;
+    font-family: 'Space Grotesk', 'Yekan Bakh', system-ui, sans-serif;
   }
 }
 
