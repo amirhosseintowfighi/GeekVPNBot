@@ -36,7 +36,7 @@ export default function RootLayout({
     // `dir="rtl"` on the root is what makes every Tailwind logical property -
     // ps/pe, ms/me, start/end - resolve correctly, which is why the codebase
     // can avoid mirrored stylesheets entirely.
-    // Fonts are self-hosted @font-face rules in globals.css (Vazirmatn, with
+    // Fonts are self-hosted @font-face rules in globals.css (Yekan Bakh, with
     // Space Grotesk for Latin figures), not next/font/google: the image is
     // built on a server in Iran, where fetching from Google at build time fails.
     // suppressHydrationWarning: the head script sets `data-theme` on <html>
