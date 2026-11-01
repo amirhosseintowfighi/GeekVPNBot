@@ -95,7 +95,7 @@ export default function CustomVolumePage() {
 
   return (
     <>
-      <PageHeader title={'حجم دلخواه'} subtitle={category?.nameFa} />
+      <PageHeader eyebrow="Custom volume" title={'حجم دلخواه'} subtitle={category?.nameFa} />
 
       {error instanceof ApiError && !data ? (
         <ErrorState messageFa={error.messageFa} offline={error.status === 0} onRetry={() => void mutate()} />
@@ -180,7 +180,7 @@ function StepButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="flex size-[52px] shrink-0 items-center justify-center rounded-[14px] bg-input text-[color:var(--field-ink)] transition-colors hover:bg-[color:var(--hover)] disabled:opacity-40"
+      className="glass-clear flex size-[52px] shrink-0 items-center justify-center rounded-full transition-transform active:scale-95 disabled:opacity-40"
     >
       {children}
     </button>

@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  // The page blue, so the browser chrome above the app is the same colour.
-  themeColor: '#0870D4',
+  // The page black, so the browser chrome above the app is the same colour.
+  themeColor: '#02040E',
   width: 'device-width',
   initialScale: 1,
   // Pinch-zoom inside a webview usually means the layout broke, and a

@@ -18,14 +18,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Logo } from '@/components/brand/logo'
-import { shopId } from '@/lib/shop'
+import { BrandRow } from '@/components/shell/page-header'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { EmptyState, ErrorState, StaggerItem, StaggerList } from '@/components/shell/states'
 import { SubscriptionCardView } from '@/components/feature/subscription-card'
 import { api, ApiError, fetcher } from '@/lib/api'
 import { toman } from '@/lib/fa'
-import type { PendingPayment, ShopInfo, SubscriptionCard, WalletSnapshot } from '@/lib/types'
+import type { PendingPayment, SubscriptionCard, WalletSnapshot } from '@/lib/types'
 
 const TIER_LABEL: Record<string, string> = {
   bronze: '\u0628\u0631\u0646\u0632\u06cc',
@@ -50,9 +49,6 @@ const TIER_EMOJI: Record<string, string> = {
  * below all three.
  */
 export default function HomePage() {
-  const [inShop, setInShop] = React.useState(false)
-  React.useEffect(() => setInShop(shopId() !== null), [])
-  const shop = useSWR<ShopInfo>(inShop ? '/api/miniapp/shop' : null, fetcher)
   const wallet = useSWR<WalletSnapshot>('/api/miniapp/wallet', fetcher)
   const subs = useSWR<SubscriptionCard[]>('/api/miniapp/subscriptions', fetcher)
   const pending = useSWR<PendingPayment[]>(
@@ -77,40 +73,28 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Brand bar. The home tab has no PageHeader, so the logo stands in for
-          the title, as it does on the desktop and Android clients. */}
-      <header className="flex items-center gap-3 pt-2">
-        {/* A reseller's shop shows their name and no logo: our brand is not
-            theirs to wear. Decided from the URL, not the API, so neither
-            flashes by while the answer loads. */}
-        {inShop ? (
-          <p className="min-w-0 flex-1 truncate text-xl font-extrabold leading-none">
-            {shop.data?.brandFa ?? ''}
-          </p>
-        ) : (
-          <>
-            <Logo className="size-10 text-white" />
-            <p className="min-w-0 flex-1">
-              <span className="font-display text-xl font-bold leading-none" dir="ltr">
-                GeekVPN
-              </span>
-            </p>
-          </>
-        )}
-        <Link
-          href="/profile"
-          aria-label={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'}
-          className="glass-clear flex size-11 items-center justify-center rounded-[15px] active:scale-95"
-        >
-          <User className="size-5" aria-hidden />
-        </Link>
+      {/* Brand bar. The home tab has no PageHeader, so the glasses and the
+          name stand in for the title, as on the desktop and Android clients. */}
+      <header className="safe-top flex flex-col gap-4 pt-2">
+        <div className="flex min-h-10 items-center justify-between gap-3">
+          <BrandRow />
+          <Link
+            href="/profile"
+            aria-label={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'}
+            className="glass-clear flex size-10 items-center justify-center rounded-full active:scale-95"
+          >
+            <User className="size-[18px]" aria-hidden />
+          </Link>
+        </div>
+        <div className="hairline" />
+        <span className="eyebrow">{'Home'}</span>
       </header>
 
       {/* Wallet + tier: the navy panel, the one dark block on the screen. */}
       {loading ? (
         <SkeletonCard />
       ) : (
-        <section className="navy-panel space-y-5 rounded-3xl p-5">
+        <section className="navy-panel space-y-5 rounded-[26px] p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[13px] text-muted-foreground">
@@ -127,7 +111,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="accent" asChild className="flex-1">
+            <Button asChild className="flex-1">
               <Link href="/wallet/topup">
                 <WalletIcon aria-hidden />
                 {'\u0627\u0641\u0632\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f\u06cc'}

@@ -90,7 +90,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={'\u062a\u0646\u0638\u06cc\u0645\u0627\u062a'} />
+      <PageHeader eyebrow="Settings" title={'\u062a\u0646\u0638\u06cc\u0645\u0627\u062a'} />
 
       {error instanceof ApiError && !data ? (
         <ErrorState

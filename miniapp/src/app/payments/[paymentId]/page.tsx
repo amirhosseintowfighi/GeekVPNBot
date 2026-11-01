@@ -152,7 +152,7 @@ export default function PaymentPage() {
   if (error instanceof ApiError && !data) {
     return (
       <>
-        <PageHeader title={'\u067e\u0631\u062f\u0627\u062e\u062a'} />
+        <PageHeader eyebrow="Payment" title={'\u067e\u0631\u062f\u0627\u062e\u062a'} />
         <ErrorState
           messageFa={error.messageFa}
           offline={error.status === 0}
@@ -165,7 +165,7 @@ export default function PaymentPage() {
   if (!current) {
     return (
       <>
-        <PageHeader title={'\u067e\u0631\u062f\u0627\u062e\u062a'} />
+        <PageHeader eyebrow="Payment" title={'\u067e\u0631\u062f\u0627\u062e\u062a'} />
         <SkeletonCard />
       </>
     )
@@ -175,7 +175,7 @@ export default function PaymentPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Payment"
         title={'\u067e\u0631\u062f\u0627\u062e\u062a'}
         subtitle={`\u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc ${current.reference}`}
       />

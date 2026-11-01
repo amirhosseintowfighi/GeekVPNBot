@@ -39,9 +39,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-navy text-white shadow-[0_10px_24px_rgba(2,24,56,0.35)] hover:brightness-125',
-        accent: 'bg-sky text-[color:var(--on-sky)] hover:brightness-105',
-        secondary: 'soft hover:brightness-105',
+          'bg-action text-on-action shadow-[0_14px_30px_rgba(0,4,30,0.45)] hover:brightness-95',
+        // No second colour of button in this design: the action is white.
+        accent: 'bg-action text-on-action shadow-[0_14px_30px_rgba(0,4,30,0.45)] hover:brightness-95',
+        secondary: 'glass-clear hover:brightness-110',
         outline:
           'border border-[color:var(--line)] bg-transparent text-foreground hover:bg-[color:var(--soft-bg)]',
         ghost: 'text-foreground hover:bg-[color:var(--soft-bg)]',
@@ -51,10 +52,10 @@ const buttonVariants = cva(
         link: 'h-auto px-1 text-link underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-[52px] px-5 text-[15px]',
-        sm: 'h-11 rounded-xl px-4 text-[13px]',
-        lg: 'h-[58px] rounded-[18px] px-6 text-[15px]',
-        icon: 'size-11 rounded-[15px]',
+        default: 'h-[52px] rounded-full px-6 text-[15px]',
+        sm: 'h-11 rounded-full px-4 text-[13px]',
+        lg: 'h-14 rounded-full px-6 text-[16px]',
+        icon: 'size-11 rounded-full',
       },
       full: {
         true: 'w-full',

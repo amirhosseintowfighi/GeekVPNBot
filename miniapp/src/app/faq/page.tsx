@@ -34,7 +34,7 @@ export default function FaqPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="FAQ"
         title={'\u0633\u0648\u0627\u0644\u0627\u062a \u0645\u062a\u062f\u0627\u0648\u0644'}
       />
 

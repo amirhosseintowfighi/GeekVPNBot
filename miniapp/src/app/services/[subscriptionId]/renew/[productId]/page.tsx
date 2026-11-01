@@ -23,7 +23,7 @@ export default function RenewTermsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Renew · Duration"
         title={'تمدید سرویس'}
         subtitle={product?.nameFa}
       />
