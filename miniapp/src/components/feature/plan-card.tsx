@@ -64,7 +64,7 @@ export function PlanCard({
         onSelect && 'cursor-pointer active:scale-[0.99]',
         // Selection is a navy edge, the action colour: the same thing a
         // pressed button says, rather than a second accent to learn.
-        selected && 'ring-2 ring-navy',
+        selected && 'ring-2 ring-white',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -121,7 +121,7 @@ export function PlanCard({
         </div>
 
         {selected ? (
-          <span className="flex size-7 items-center justify-center rounded-[9px] bg-navy text-white">
+          <span className="flex size-7 items-center justify-center rounded-full bg-action text-on-action">
             <Check className="size-4" aria-hidden />
           </span>
         ) : null}

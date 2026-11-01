@@ -21,7 +21,7 @@ const Card = React.forwardRef<
       // card's navy-on-white set, so children need no colours of their own.
       'glass rounded-3xl text-card-foreground',
       // The one card a screen is about: a logo-blue edge, never a glow wash.
-      glow && 'ring-2 ring-sky/70',
+      glow && 'ring-2 ring-white/80',
       className,
     )}
     {...props}

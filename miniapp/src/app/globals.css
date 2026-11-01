@@ -45,78 +45,87 @@
 
 @layer base {
   /*
-   * Sky Lens - the GeekVPN client's design language: the logo's blue as the
-   * page, milky glass for content, navy for action.
+   * Dark Swiss - the GeekVPN client's design language: a near-black ground
+   * with grain and one field of blue light per screen, Swiss type with thin
+   * hairlines and small Latin captions, frosted glass only for the controls
+   * that matter, and solid white for the action and for whatever is selected.
    *
-   * There are two surfaces and every colour token exists twice, once per
-   * surface. `:root` is the blue page, where text is white. `.milk` - set by
-   * every card, sheet and `.glass` - is the frosted white surface, where text
-   * is navy. Because the tokens are re-declared in that scope, a component
-   * written once (`text-muted-foreground`, `bg-secondary`) reads correctly in
-   * both places, and white-on-white or navy-on-blue cannot happen by accident.
+   * One surface: cards are clear glass over the dark page, so a token means
+   * the same thing on the page and inside a card. `.milk` stays as a scope
+   * name for older markup and redeclares nothing.
    *
-   * Contrast: every text token passes WCAG AA (4.5:1) on its surface. Where the
-   * reference design's tint failed - green, amber and red status text on their
-   * soft backgrounds, the faint caption grey - the `-ink` tokens are the same
-   * hue, darkened until it passes.
+   * Contrast: every text token passes WCAG AA (4.5:1) on #02040E and on the
+   * glass over it. Status colours are light tints of their hue for the same
+   * reason - the saturated ones fail on black.
    */
   :root {
-    --background: 209 93% 43%; /* #0870D4 */
+    --background: 229 75% 3%; /* #02040E */
     --foreground: 0 0% 100%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 208 84% 15%;
+    --card: 228 45% 9%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 208 84% 15%;
+    --popover: 228 45% 9%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 208 84% 15%; /* navy #062845: the action colour */
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 100%; /* white: the action colour */
+    --primary-foreground: 229 79% 13%; /* #07123A */
 
     --secondary: 0 0% 100%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 0 0% 100%;
-    /* #F0F7FE: 4.54:1 on the blue. Faded white reads nicer and fails AA. */
-    --muted-foreground: 210 92% 97%;
+    /* White at 72%, as the design's captions: 11:1 on the ground. */
+    --muted-foreground: 225 14% 76%;
 
-    --accent: 199 100% 50%; /* logo blue #00ACFE */
-    --accent-foreground: 208 84% 15%;
+    --accent: 219 100% 65%; /* #4D8DFF, the blue for text */
+    --accent-foreground: 0 0% 100%;
 
-    --link: 0 0% 100%;
+    --link: 219 100% 72%;
 
-    --destructive: 356 67% 55%; /* #D93F48 */
+    --destructive: 356 80% 62%;
     --destructive-foreground: 0 0% 100%;
-    --destructive-soft: 356 100% 97%;
-    --destructive-ink: 356 59% 45%; /* #B42F38 */
+    --destructive-soft: 356 45% 17%;
+    --destructive-ink: 356 95% 78%;
 
-    --success: 160 84% 34%; /* #0E9F6E */
+    --success: 155 60% 45%;
     --success-foreground: 0 0% 100%;
-    --success-soft: 154 60% 93%;
-    --success-ink: 160 83% 26%; /* #0B7A55 */
+    --success-soft: 155 40% 14%;
+    --success-ink: 152 62% 66%;
 
-    --warning: 36 100% 39%; /* #C77700 */
-    --warning-foreground: 0 0% 100%;
-    --warning-soft: 39 100% 94%;
-    --warning-ink: 35 100% 30%; /* #9A5B00 */
+    --warning: 38 92% 52%;
+    --warning-foreground: 229 79% 13%;
+    --warning-soft: 38 45% 15%;
+    --warning-ink: 40 95% 68%;
 
-    --border: 0 0% 100%;
-    --input: 208 62% 96%;
+    /* The hairline: white at 22% over the ground, as a solid colour. */
+    --border: 228 10% 24%;
+    --input: 228 30% 11%;
     --ring: 0 0% 100%;
 
-    --radius: 1rem;
+    --radius: 1.375rem;
 
-    /* Composite styles that are not a single colour, per surface. */
-    --soft-bg: rgba(255, 255, 255, 0.13);
-    --soft-border: rgba(255, 255, 255, 0.34);
+    /* Composite styles that are not a single colour. */
+    --soft-bg: rgba(255, 255, 255, 0.1);
+    --soft-border: rgba(255, 255, 255, 0.32);
     --soft-fg: #ffffff;
-    --soft-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 26px rgba(2, 36, 84, 0.18);
-    --soft-blur: blur(18px) saturate(160%);
-    --line: rgba(255, 255, 255, 0.28);
-    --track: rgba(255, 255, 255, 0.25);
-    --skeleton: rgba(255, 255, 255, 0.16);
+    --soft-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 26px rgba(0, 4, 30, 0.35);
+    --soft-blur: blur(22px) saturate(160%);
+    --line: rgba(255, 255, 255, 0.22);
+    --track: rgba(255, 255, 255, 0.16);
+    --skeleton: rgba(255, 255, 255, 0.1);
     --seg-active-bg: #ffffff;
-    --seg-active-fg: #062845;
+    --seg-active-fg: #07123a;
+
+    /* The glass itself: a pale-to-blue sheen, a bright rim, a deep shadow. */
+    --glass-bg: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.2),
+      rgba(120, 160, 255, 0.09) 55%,
+      rgba(40, 80, 220, 0.15)
+    );
+    --glass-border: rgba(255, 255, 255, 0.36);
+    --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), 0 14px 34px rgba(0, 4, 30, 0.4);
 
     /*
      * Telegram exposes the webview insets as CSS variables only on some
@@ -128,50 +137,25 @@
 
     /* The fixed colours of the design, named, so the classic theme can redraw
        them: a reseller's shop is not ours and must not look like it. */
-    --navy: 208 84% 15%; /* #062845 */
-    --sky: 199 100% 50%; /* #00ACFE */
-    --field: #eef5fb;
-    --field-ink: #062845;
-    --field-muted: #3f5f7e;
-    --placeholder: #5b7894;
-    --tint: #0078c8;
-    --tint-ink: #0067ac;
-    --tint-soft: #eaf5fd;
-    --tint-ring: rgba(0, 120, 200, 0.15);
-    --hover: #f5fafe;
-    --sheet: #ffffff;
-    --handle: #c9d9e7;
-    --switch-off: #c5d6e5;
-    --radio: #9fb6cb;
-    --danger-line: #f7c9cd;
-    --on-sky: #062845;
-  }
-
-  .milk,
-  .glass,
-  .surface {
-    --foreground: 208 84% 15%;
-    --card-foreground: 208 84% 15%;
-    --secondary: 208 62% 96%; /* #EEF5FB */
-    --secondary-foreground: 208 84% 15%;
-    --muted: 207 50% 93%; /* #E4EEF6 */
-    --muted-foreground: 210 33% 37%; /* #3F5F7E, 6.7:1 on white */
-    --link: 204 100% 39%; /* #0078C8 */
-    --border: 208 45% 89%; /* #D5E3EF */
-    --ring: 204 100% 39%;
-
-    --soft-bg: #eef5fb;
-    --soft-border: transparent;
-    --soft-fg: #062845;
-    --soft-shadow: none;
-    --soft-blur: none;
-    --line: #d5e3ef;
-    --track: #e4eef6;
-    --skeleton: #e4eef6;
-    --seg-active-bg: #062845;
-    --seg-active-fg: #ffffff;
-
-    color: hsl(var(--foreground));
+    --action: 0 0% 100%; /* solid white: the button, the chosen chip */
+    --on-action: 229 79% 13%; /* #07123A */
+    --navy: 229 79% 13%; /* #07123A */
+    --sky: 234 100% 55%; /* #1A2FFF, the light */
+    --field: rgba(255, 255, 255, 0.07);
+    --field-ink: #ffffff;
+    --field-muted: rgba(255, 255, 255, 0.72);
+    --placeholder: rgba(255, 255, 255, 0.5);
+    --tint: #4d8dff;
+    --tint-ink: #8fb6ff;
+    --tint-soft: rgba(77, 141, 255, 0.16);
+    --tint-ring: rgba(77, 141, 255, 0.3);
+    --hover: rgba(255, 255, 255, 0.06);
+    --sheet: #0a0f2a;
+    --handle: rgba(255, 255, 255, 0.3);
+    --switch-off: rgba(255, 255, 255, 0.16);
+    --radio: rgba(255, 255, 255, 0.45);
+    --danger-line: rgba(255, 110, 120, 0.4);
+    --on-sky: #ffffff;
   }
 
   * {
@@ -217,7 +201,7 @@
 /*
  * Classic: the Mini App as a reseller's shop draws it.
  *
- * Sky Lens is GeekVPN's own look - our blue, our logo - and a reseller's
+ * Dark Swiss is GeekVPN's own look - our light, our logo - and a reseller's
  * customers must not see either: the reseller is selling their own service,
  * and we are the supplier behind it. So their shop keeps the app's earlier,
  * unbranded dark design. Set on <html> before first paint by the script in
@@ -283,6 +267,11 @@ html[data-theme='classic'] .navy-panel {
   --radio: hsl(240 8% 40%);
   --danger-line: hsl(0 50% 30%);
   --on-sky: #ffffff;
+  --action: 250 80% 62%;
+  --on-action: 0 0% 100%;
+  --glass-bg: hsl(240 17% 8%);
+  --glass-border: hsl(240 12% 17%);
+  --glass-shadow: none;
 }
 
 html[data-theme='classic'] body {
@@ -295,31 +284,28 @@ html[data-theme='classic'] .sky-backdrop {
 }
 
 @layer components {
-  /* Frosted milky glass: every card, sheet and list group. */
+  /* Clear glass: every card, sheet and list group. */
   .glass,
   .surface {
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    box-shadow:
-      inset 0 1px 0 #ffffff,
-      0 14px 34px rgba(2, 36, 84, 0.28);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    backdrop-filter: blur(24px) saturate(180%);
+    background: var(--glass-bg);
+    border: 1.5px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    color: hsl(var(--foreground));
   }
 
-  /* Clear glass on the blue page: chips, secondary tiles, the tab bar. */
+  /* The same glass for chips, secondary tiles and the tab bar. */
   .glass-clear {
-    background: rgba(255, 255, 255, 0.13);
-    border: 1px solid rgba(255, 255, 255, 0.34);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      0 10px 26px rgba(2, 36, 84, 0.18);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    backdrop-filter: blur(18px) saturate(160%);
+    background: var(--glass-bg);
+    border: 1.5px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
     color: #ffffff;
   }
 
-  /* The context-aware soft fill: clear glass on blue, pale blue inside milk. */
+  /* A quieter fill for things inside a card. */
   .soft {
     background: var(--soft-bg);
     border: 1px solid var(--soft-border);
@@ -334,27 +320,50 @@ html[data-theme='classic'] .sky-backdrop {
     @apply rounded-3xl;
   }
 
-  /* The navy panel: a balance, a price summary. White text, logo-blue accents. */
+  /* The light: a balance, a price summary. The blue field, held in a card. */
   .navy-panel {
-    background: #062845;
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgba(61, 123, 255, 0.55), transparent 60%),
+      linear-gradient(160deg, #1238e8 0%, #0a1a8c 55%, #07123a 100%);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
     color: #ffffff;
-    box-shadow: 0 14px 30px rgba(2, 24, 56, 0.35);
-    --muted-foreground: 205 83% 90%;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 18px 40px rgba(0, 4, 30, 0.5);
+    --muted-foreground: 220 60% 88%;
     --foreground: 0 0% 100%;
-    --link: 199 100% 50%;
-    --line: rgba(255, 255, 255, 0.18);
-    --track: rgba(255, 255, 255, 0.18);
+    --link: 0 0% 100%;
+    --line: rgba(255, 255, 255, 0.22);
+    --track: rgba(255, 255, 255, 0.2);
   }
 
-  /* An icon in a rounded square, the design's list-row lead. */
+  /* An icon in a ring, the design's list-row lead. */
   .icon-tile {
-    @apply flex size-[38px] shrink-0 items-center justify-center rounded-xl;
-    background: #eaf5fd;
-    color: #0078c8;
+    @apply flex size-10 shrink-0 items-center justify-center rounded-full;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    color: #ffffff;
   }
 
   .section-label {
     @apply px-1 text-[13px] font-bold text-muted-foreground;
+  }
+
+  /* The small Latin caption above a title: Space Grotesk, wide-tracked caps. */
+  .eyebrow {
+    font-family: 'Space Grotesk', 'Vazirmatn', system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+  }
+
+  /* The thin rule between sections. */
+  .hairline {
+    height: 1px;
+    background: var(--line);
   }
 
   .font-display {
@@ -426,7 +435,9 @@ html[data-theme='classic'] .navy-panel {
 }
 
 html[data-theme='classic'] .icon-tile {
+  @apply rounded-xl;
   background: hsl(var(--primary) / 0.15);
+  border: 0;
   color: hsl(var(--link));
 }
 

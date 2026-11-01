@@ -37,7 +37,7 @@ export default function AppsPage() {
 
   return (
     <>
-      <PageHeader title={'دانلود و آموزش'} subtitle={'برنامه‌های گیک و آموزش اتصال'} />
+      <PageHeader eyebrow="Apps" title={'دانلود و آموزش'} subtitle={'برنامه‌های گیک و آموزش اتصال'} />
 
       {error instanceof ApiError && !data ? (
         <ErrorState messageFa={error.messageFa} offline={error.status === 0} onRetry={() => void mutate()} />

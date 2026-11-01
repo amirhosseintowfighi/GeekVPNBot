@@ -20,7 +20,7 @@ export default function ProductTermsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Duration"
         title={product?.nameFa ?? 'فروشگاه'}
         subtitle={product?.taglineFa ?? undefined}
       />

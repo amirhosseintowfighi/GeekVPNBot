@@ -16,19 +16,19 @@ import { cn } from '@/lib/utils'
  */
 const badgeVariants = cva(
   cn(
-    'inline-flex h-[26px] items-center gap-1.5 rounded-[9px] border border-transparent px-2.5',
+    'inline-flex h-[26px] items-center gap-1.5 rounded-full border border-transparent px-3',
     'text-xs font-extrabold leading-none transition-colors [&_svg]:size-3.5',
   ),
   {
     variants: {
       variant: {
         default: 'bg-[color:var(--tint-soft)] text-[color:var(--tint-ink)]',
-        brand: 'bg-navy text-white',
+        brand: 'bg-action text-on-action',
         outline: 'border-[color:var(--line)] text-foreground',
         success: 'bg-success-soft text-success-ink',
         warning: 'bg-warning-soft text-warning-ink',
         destructive: 'bg-destructive-soft text-destructive-ink',
-        muted: 'bg-[color:var(--field)] text-[color:var(--field-muted)]',
+        muted: 'border-[color:var(--line)] bg-[color:var(--field)] text-[color:var(--field-muted)]',
       },
     },
     defaultVariants: { variant: 'default' },

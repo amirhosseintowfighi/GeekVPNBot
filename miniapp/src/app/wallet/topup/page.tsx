@@ -74,7 +74,7 @@ export default function TopupPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Top up"
         title={'\u0627\u0641\u0632\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f\u06cc'}
       />
 

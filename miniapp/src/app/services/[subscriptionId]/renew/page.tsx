@@ -39,7 +39,7 @@ export default function RenewPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Renew"
         title={'\u062a\u0645\u062f\u06cc\u062f \u0633\u0631\u0648\u06cc\u0633'}
         subtitle={'\u0628\u0633\u062a\u0647\u200c\u06cc \u062c\u062f\u06cc\u062f \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f'}
       />

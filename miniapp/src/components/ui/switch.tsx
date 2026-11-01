@@ -19,22 +19,22 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     ref={ref}
     className={cn(
-      // The design's squarish switch: 50x30, radius 9, navy when on.
-      'peer inline-flex h-[30px] w-[50px] shrink-0 cursor-pointer items-center rounded-[9px] p-[3px]',
+      // The design's pill: 44x26, solid white when on, dim glass when off.
+      'peer inline-flex h-[26px] w-[44px] shrink-0 cursor-pointer items-center rounded-full border border-transparent p-[2px]',
       'transition-colors',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
       'disabled:cursor-not-allowed disabled:opacity-50',
-      'data-[state=checked]:bg-navy data-[state=unchecked]:bg-[color:var(--switch-off)]',
+      'data-[state=checked]:bg-action data-[state=unchecked]:border-white/30 data-[state=unchecked]:bg-[color:var(--switch-off)]',
       className,
     )}
     {...props}
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        'pointer-events-none block size-6 rounded-[7px] shadow-md ring-0',
+        'pointer-events-none block size-5 rounded-full shadow-md ring-0',
         'transition-[transform,background-color]',
-        'data-[state=checked]:-translate-x-5 data-[state=checked]:bg-sky',
-        'data-[state=unchecked]:translate-x-0 data-[state=unchecked]:bg-[color:var(--sheet)]',
+        'data-[state=checked]:-translate-x-[18px] data-[state=checked]:bg-on-action',
+        'data-[state=unchecked]:translate-x-0 data-[state=unchecked]:bg-white',
       )}
     />
   </SwitchPrimitives.Root>

@@ -71,7 +71,7 @@ export default function WalletPage() {
 
   return (
     <>
-      <PageHeader title={'\u06a9\u06cc\u0641 \u067e\u0648\u0644'} back={false} />
+      <PageHeader eyebrow="Wallet" title={'\u06a9\u06cc\u0641 \u067e\u0648\u0644'} back={false} />
 
       <div className="space-y-4 pb-4">
         {wallet.error instanceof ApiError && !wallet.data ? (

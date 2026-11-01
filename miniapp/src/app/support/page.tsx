@@ -89,7 +89,7 @@ export default function SupportPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Support"
         title={'\u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc'}
         action={
           <Sheet open={open} onOpenChange={setOpen}>
@@ -125,7 +125,7 @@ export default function SupportPage() {
                         className={[
                           'h-10 rounded-xl px-3.5 text-[13px] font-bold transition-colors',
                           topic === item.key
-                            ? 'bg-navy text-white'
+                            ? 'bg-action text-on-action'
                             : 'bg-[color:var(--field)] text-[color:var(--field-muted)] hover:text-[color:var(--field-ink)]',
                         ].join(' ')}
                       >

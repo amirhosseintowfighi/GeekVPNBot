@@ -114,7 +114,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'} back={false} />
+      <PageHeader eyebrow="Account" title={'\u067e\u0631\u0648\u0641\u0627\u06cc\u0644'} back={false} />
 
       {error instanceof ApiError && !data ? (
         <ErrorState
@@ -128,7 +128,7 @@ export default function ProfilePage() {
         <div className="space-y-4 pb-4">
           <Card className="space-y-4 p-5">
             <div className="flex items-center gap-3">
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-[18px] bg-navy text-xl font-extrabold text-white">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-action text-xl font-extrabold text-on-action">
                 {(data.displayName ?? '\u06a9').slice(0, 1)}
               </div>
 

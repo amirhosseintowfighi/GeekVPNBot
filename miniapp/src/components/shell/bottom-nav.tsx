@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Home,
-  LayoutGrid,
+  Layers,
   ShoppingBag,
   User,
   Wallet,
@@ -23,18 +23,18 @@ import { haptic } from '@/lib/telegram'
  * down under the profile tab, which mirrors how the bot's own menu is
  * organised rather than inventing a second information architecture.
  *
- * `LayoutGrid` is "my services", the equivalent of /services in the bot.
+ * `Layers` is "my services", the equivalent of /services in the bot.
  */
 const TABS = [
-  { href: '/', label: '\u062e\u0627\u0646\u0647', icon: Home },
-  { href: '/shop', label: '\u0641\u0631\u0648\u0634\u06af\u0627\u0647', icon: ShoppingBag },
+  { href: '/', label: 'خانه', icon: Home },
+  { href: '/shop', label: 'فروشگاه', icon: ShoppingBag },
   {
     href: '/services',
-    label: '\u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0645\u0646',
-    icon: LayoutGrid,
+    label: 'سرویس‌ها',
+    icon: Layers,
   },
-  { href: '/wallet', label: '\u06a9\u06cc\u0641 \u067e\u0648\u0644', icon: Wallet },
-  { href: '/profile', label: '\u067e\u0631\u0648\u0641\u0627\u06cc\u0644', icon: User },
+  { href: '/wallet', label: 'کیف پول', icon: Wallet },
+  { href: '/profile', label: 'حساب', icon: User },
 ] as const
 
 export function BottomNav() {
@@ -48,76 +48,58 @@ export function BottomNav() {
 
   return (
     <>
-    {/* Holds the bottom of the page clear of the floating bar. */}
-    <div aria-hidden className="h-[124px] shrink-0" />
-    <nav
-      className={cn(
-        'safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-2xl',
-        // Floating tiles rather than a bar. The fade underneath is what keeps
-        // the labels legible when a white card scrolls behind them - they are
-        // white text, and white on milky glass would vanish.
-        'bg-gradient-to-t from-background from-55% via-background/90 to-transparent pt-6',
-      )}
-      aria-label="\u0646\u0648\u0627\u0631 \u067e\u06cc\u0645\u0627\u06cc\u0634 \u0627\u0635\u0644\u06cc"
-    >
-      <ul className="flex items-end justify-between gap-1.5 px-3 pb-1">
-        {TABS.map((tab) => {
-          // Every route except home matches by prefix, so a nested page such
-          // as /shop/<plan> keeps its parent tab lit.
-          const active =
-            tab.href === '/'
-              ? pathname === '/'
-              : pathname.startsWith(tab.href)
-          const Icon = tab.icon
+      {/* Holds the bottom of the page clear of the floating bar. */}
+      <div aria-hidden className="h-[104px] shrink-0" />
+      <nav
+        className="safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-2xl px-[18px] pb-4"
+        aria-label="نوار پیمایش اصلی"
+      >
+        {/* One floating pill of glass. Only the current tab carries its name,
+            on solid white; the others are icons, so five fit a narrow phone. */}
+        <ul className="glass-clear flex h-16 items-center justify-between rounded-full px-1.5">
+          {TABS.map((tab) => {
+            // Every route except home matches by prefix, so a nested page such
+            // as /shop/<plan> keeps its parent tab lit.
+            const active =
+              tab.href === '/'
+                ? pathname === '/'
+                : pathname.startsWith(tab.href)
+            const Icon = tab.icon
 
-          return (
-            <li key={tab.href} className="relative flex-1">
-              <Link
-                href={tab.href}
-                onClick={haptic.select}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'group flex flex-col items-center gap-1 rounded-2xl pb-1 text-white',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                )}
-              >
-                <span className="relative flex h-[52px] w-full max-w-[60px] items-center justify-center">
-                  {/*
-                    The milky tile slides between tabs instead of fading in
-                    and out on each; layoutId is what makes it one movement.
-                  */}
+            return (
+              <li key={tab.href} className="relative">
+                <Link
+                  href={tab.href}
+                  onClick={haptic.select}
+                  aria-current={active ? 'page' : undefined}
+                  aria-label={tab.label}
+                  className={cn(
+                    'relative flex h-[52px] items-center gap-[7px] rounded-full',
+                    active ? 'px-4 text-on-action' : 'px-3 text-white/75',
+                    'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  )}
+                >
+                  {/* The white pill slides between tabs instead of fading in
+                      and out on each; layoutId is what makes it one movement. */}
                   {active ? (
                     <motion.span
                       layoutId="tab-indicator"
-                      className="glass absolute inset-0 rounded-[18px]"
+                      className="absolute inset-0 rounded-full bg-action"
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                     />
-                  ) : (
-                    <span className="glass-clear absolute inset-1 rounded-2xl transition-transform group-active:scale-95" />
-                  )}
-                  <Icon
-                    className={cn(
-                      'relative size-[22px]',
-                      active ? 'text-navy' : 'text-white',
-                    )}
-                    strokeWidth={active ? 2.3 : 2}
-                    aria-hidden
-                  />
-                </span>
-                <span
-                  className={cn(
-                    'max-w-full truncate text-[11px] leading-4',
-                    active ? 'font-extrabold' : 'font-medium',
-                  )}
-                >
-                  {tab.label}
-                </span>
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+                  ) : null}
+                  <Icon className="relative size-5" strokeWidth={2} aria-hidden />
+                  {active ? (
+                    <span className="relative whitespace-nowrap text-[14px] font-extrabold">
+                      {tab.label}
+                    </span>
+                  ) : null}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
     </>
   )
 }

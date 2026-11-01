@@ -51,7 +51,7 @@ export default function ServicesPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="My services"
         title={'\u0633\u0631\u0648\u06cc\u0633\u200c\u0647\u0627\u06cc \u0645\u0646'}
         back={false}
       />

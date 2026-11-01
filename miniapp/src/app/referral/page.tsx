@@ -70,7 +70,7 @@ export default function ReferralPage() {
 
   return (
     <>
-      <PageHeader title={'\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646'} />
+      <PageHeader eyebrow="Referral" title={'\u0645\u0639\u0631\u0641\u06cc \u062f\u0648\u0633\u062a\u0627\u0646'} />
 
       {error instanceof ApiError && !data ? (
         <ErrorState

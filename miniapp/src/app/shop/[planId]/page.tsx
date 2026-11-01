@@ -222,7 +222,7 @@ export default function CheckoutPage() {
   if (quoteError && !quote) {
     return (
       <>
-        <PageHeader title={'\u0628\u0631\u0631\u0633\u06cc \u0633\u0641\u0627\u0631\u0634'} />
+        <PageHeader eyebrow="Checkout" title={'\u0628\u0631\u0631\u0633\u06cc \u0633\u0641\u0627\u0631\u0634'} />
         <ErrorState messageFa={quoteError} onRetry={() => setAppliedCoupon(appliedCoupon)} />
       </>
     )
@@ -230,7 +230,7 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Checkout"
         title={'\u0628\u0631\u0631\u0633\u06cc \u0633\u0641\u0627\u0631\u0634'}
         subtitle={plan?.nameFa}
       />
@@ -287,7 +287,7 @@ export default function CheckoutPage() {
                 type="button"
                 onClick={clearCoupon}
                 aria-label={'\u062d\u0630\u0641 \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'}
-                className="flex size-8 items-center justify-center rounded-2xl text-success-ink hover:bg-white/60"
+                className="flex size-8 items-center justify-center rounded-2xl text-success-ink hover:bg-white/10"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
@@ -422,7 +422,7 @@ function MethodOption({
       className={[
         'flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-start transition-colors',
         selected
-          ? 'border-navy bg-[color:var(--tint-soft)]'
+          ? 'border-white bg-white/10'
           : 'border-[color:var(--line)] bg-[color:var(--sheet)] hover:bg-[color:var(--hover)]',
         disabled ? 'cursor-not-allowed opacity-50' : '',
       ].join(' ')}
@@ -441,7 +441,7 @@ function MethodOption({
         className={[
           'size-5 shrink-0 rounded-full border-2 transition-colors',
           selected
-            ? 'border-navy bg-navy shadow-[inset_0_0_0_3px_#fff]'
+            ? 'border-white bg-white shadow-[inset_0_0_0_3px_#07123A]'
             : 'border-[color:var(--radio)]',
         ].join(' ')}
       />

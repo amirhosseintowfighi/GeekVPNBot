@@ -1,13 +1,13 @@
 import type { Config } from 'tailwindcss'
 
 /**
- * Sky Lens, the GeekVPN client's design language: the logo's blue as the page,
- * milky glass for content, navy for action. The same language as the Android
- * and Windows apps, so moving between them feels like one product.
+ * Dark Swiss, the GeekVPN client's design language: a near-black page with a
+ * field of blue light, clear glass for content, solid white for action. The
+ * same language as the Android and Windows apps, so moving between them feels
+ * like one product.
  *
- * Colours are CSS variables re-declared per surface - see globals.css - so a
- * class like `text-muted-foreground` is right on the blue page and inside a
- * white card alike.
+ * Colours are CSS variables - see globals.css - so a reseller's shop can
+ * redraw every one of them in its own (classic) palette.
  */
 const config: Config = {
   darkMode: 'class',
@@ -71,6 +71,9 @@ const config: Config = {
         // Variables, not hex: a reseller's shop redraws them in its own
         // (classic) palette - see `[data-theme='classic']` in globals.css.
         navy: 'hsl(var(--navy) / <alpha-value>)',
+        // The action: solid white here, the reseller's accent in classic.
+        action: 'hsl(var(--action) / <alpha-value>)',
+        'on-action': 'hsl(var(--on-action) / <alpha-value>)',
         sky: 'hsl(var(--sky) / <alpha-value>)',
       },
       borderRadius: {
@@ -83,8 +86,8 @@ const config: Config = {
         display: ['"Space Grotesk"', 'Vazirmatn', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        // The logo blue, for the few places that still want a fill with depth.
-        'brand-gradient': 'linear-gradient(135deg, #00ACFE 0%, #0078C8 100%)',
+        // A usage bar's fill: white, warming to the light's pale blue.
+        'brand-gradient': 'linear-gradient(270deg, #FFFFFF 0%, #CDEBFF 100%)',
       },
       keyframes: {
         'accordion-down': {

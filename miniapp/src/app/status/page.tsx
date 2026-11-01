@@ -42,7 +42,7 @@ export default function StatusPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Servers"
         title={'\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0648\u0631\u0647\u0627'}
         subtitle={'\u0647\u0631 \u06cc\u06a9 \u062f\u0642\u06cc\u0642\u0647 \u0628\u0647\u200c\u0631\u0648\u0632 \u0645\u06cc\u200c\u0634\u0648\u062f'}
       />

@@ -78,7 +78,7 @@ export default function TicketPage() {
   if (error instanceof ApiError && !data) {
     return (
       <>
-        <PageHeader title={'گفتگو'} />
+        <PageHeader eyebrow="Ticket" title={'گفتگو'} />
         <ErrorState
           messageFa={error.messageFa}
           offline={error.status === 0}
@@ -91,7 +91,7 @@ export default function TicketPage() {
   if (!data) {
     return (
       <>
-        <PageHeader title={'گفتگو'} />
+        <PageHeader eyebrow="Ticket" title={'گفتگو'} />
         <SkeletonList count={3} />
       </>
     )
@@ -99,7 +99,7 @@ export default function TicketPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Ticket"
         title={ticket?.topicFa ?? 'گفتگو'}
         subtitle={ticket?.reference}
       />
