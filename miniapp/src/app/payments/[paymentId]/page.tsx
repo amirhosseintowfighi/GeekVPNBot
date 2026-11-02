@@ -208,7 +208,7 @@ export default function PaymentPage() {
             <button
               type="button"
               onClick={() => void copy(current.card!.cardNumber, 'card')}
-              className="flex w-full items-center justify-between gap-2 soft rounded-[14px] px-3 py-3 transition-colors hover:brightness-[0.98]"
+              className="flex w-full items-center justify-between gap-2 soft rounded-[12px] px-3 py-3 transition-colors hover:brightness-[0.98]"
             >
               <span className="nums font-display text-lg font-bold tracking-[0.12em]" dir="ltr">
                 {current.card.cardNumber}
@@ -246,7 +246,7 @@ export default function PaymentPage() {
               the only thing missing was telling them that before the app
               disappears.
             */}
-            <p className="soft rounded-[14px] px-3 py-2 text-xs leading-loose text-muted-foreground">
+            <p className="soft rounded-[12px] px-3 py-2 text-xs leading-loose text-muted-foreground">
               {'\u067e\u0633 \u0627\u0632 \u0648\u0627\u0631\u06cc\u0632\u060c \u0639\u06a9\u0633 \u0631\u0633\u06cc\u062f \u0631\u0627 \u062f\u0631 \u0686\u062a \u0631\u0628\u0627\u062a \u0628\u0641\u0631\u0633\u062a\u06cc\u062f. \u062e\u0648\u062f\u06a9\u0627\u0631 \u0628\u0647 \u0647\u0645\u06cc\u0646 \u067e\u0631\u062f\u0627\u062e\u062a \u0648\u0635\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f.'}
             </p>
 
@@ -282,7 +282,7 @@ export default function PaymentPage() {
             <button
               type="button"
               onClick={() => void copy(current.crypto!.address, 'addr')}
-              className="flex w-full items-center justify-between gap-2 soft rounded-[14px] px-3 py-3 transition-colors hover:brightness-[0.98]"
+              className="flex w-full items-center justify-between gap-2 soft rounded-[12px] px-3 py-3 transition-colors hover:brightness-[0.98]"
             >
               <span
                 className="break-all text-start font-display text-xs leading-relaxed"
@@ -297,7 +297,7 @@ export default function PaymentPage() {
               )}
             </button>
 
-            <p className="rounded-2xl bg-warning-soft px-4 py-3 text-[13px] leading-loose text-warning-ink">
+            <p className="rounded-[12px] bg-warning-soft px-4 py-3 text-[13px] leading-loose text-warning-ink">
               {'\u0641\u0642\u0637 \u0627\u0632 \u0647\u0645\u06cc\u0646 \u0634\u0628\u06a9\u0647 \u0627\u0633\u062a\u0641\u0627\u062f\u0647 \u06a9\u0646\u06cc\u062f. \u0627\u0631\u0633\u0627\u0644 \u0627\u0632 \u0634\u0628\u06a9\u0647\u200c\u06cc \u062f\u06cc\u06af\u0631 \u0642\u0627\u0628\u0644 \u0628\u0627\u0632\u06af\u0631\u062f\u0627\u0646\u062f\u0646 \u0646\u06cc\u0633\u062a.'}
             </p>
 
@@ -328,7 +328,7 @@ export default function PaymentPage() {
         ) : null}
 
         {formError ? (
-          <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
+          <p className="rounded-[12px] bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
             {formError}
           </p>
         ) : null}

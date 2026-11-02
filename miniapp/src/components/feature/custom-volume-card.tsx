@@ -10,9 +10,9 @@ import { haptic } from '@/lib/telegram'
 /** The last card in a category: any volume, not only the ones on the shelf. */
 export function CustomVolumeCard({ floor, href }: { floor: number; href: string }) {
   return (
-    <Link href={href} onClick={haptic.select} className="block rounded-3xl active:scale-[0.99]">
+    <Link href={href} onClick={haptic.select} className="block rounded-[18px] active:scale-[0.99]">
       <Card className="flex items-center gap-3 border border-dashed border-[color:var(--line)] p-4">
-        <span className="icon-tile size-12 rounded-2xl" aria-hidden>
+        <span className="icon-tile size-12 rounded-[12px]" aria-hidden>
           <SlidersHorizontal className="size-5" />
         </span>
         <div className="min-w-0 flex-1 space-y-1">

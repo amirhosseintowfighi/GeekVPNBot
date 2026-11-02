@@ -279,7 +279,7 @@ export default function CheckoutPage() {
           </p>
 
           {appliedCoupon ? (
-            <div className="flex items-center justify-between gap-2 rounded-[14px] bg-success-soft px-4 py-2.5">
+            <div className="flex items-center justify-between gap-2 rounded-[12px] bg-success-soft px-4 py-2.5">
               <span className="nums font-display text-sm font-bold text-success-ink" dir="ltr">
                 {appliedCoupon}
               </span>
@@ -287,7 +287,7 @@ export default function CheckoutPage() {
                 type="button"
                 onClick={clearCoupon}
                 aria-label={'\u062d\u0630\u0641 \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641'}
-                className="flex size-8 items-center justify-center rounded-2xl text-success-ink hover:bg-white/10"
+                className="flex size-8 items-center justify-center rounded-[12px] text-success-ink hover:bg-white/10"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
@@ -370,7 +370,7 @@ export default function CheckoutPage() {
         ) : null}
 
         {submitError ? (
-          <p role="alert" className="rounded-2xl bg-destructive-soft px-4 py-3 text-[13px] leading-loose text-destructive-ink">
+          <p role="alert" className="rounded-[12px] bg-destructive-soft px-4 py-3 text-[13px] leading-loose text-destructive-ink">
             {submitError}
           </p>
         ) : null}

@@ -112,7 +112,7 @@ export default function TicketPage() {
             <div
               key={message.messageId}
               className={cn(
-                'space-y-1.5 rounded-3xl p-4',
+                'space-y-1.5 rounded-[18px] p-4',
                 // The customer's own messages sit inset on the leading side,
                 // which is how every chat in Telegram already reads; navy for
                 // "you", milky glass for support.
@@ -132,7 +132,7 @@ export default function TicketPage() {
         )}
 
         {closed ? (
-          <p className="soft rounded-[14px] px-3 py-2 text-xs text-muted-foreground">
+          <p className="soft rounded-[12px] px-3 py-2 text-xs text-muted-foreground">
             {'این تیکت بسته شده. برای موضوع تازه، یه تیکت جدید بزن.'}
           </p>
         ) : (
@@ -145,7 +145,7 @@ export default function TicketPage() {
               aria-label={'جوابت'}
             />
             {formError ? (
-              <p role="alert" className="rounded-2xl bg-destructive-soft px-4 py-2.5 text-[13px] text-destructive-ink">{formError}</p>
+              <p role="alert" className="rounded-[12px] bg-destructive-soft px-4 py-2.5 text-[13px] text-destructive-ink">{formError}</p>
             ) : null}
             <Button full loading={busy} onClick={() => void send()}>
               <Send className="size-4" aria-hidden />

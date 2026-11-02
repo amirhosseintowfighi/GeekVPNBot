@@ -67,7 +67,7 @@ export function PriceBreakdown({
       </div>
 
       {quote.cashbackAmount > 0 ? (
-        <div className="flex items-start gap-2 rounded-2xl bg-success-soft px-3.5 py-3">
+        <div className="flex items-start gap-2 rounded-[12px] bg-success-soft px-3.5 py-3">
           <Gift className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden />
           <p className="text-xs leading-loose text-success-ink">
             {`\u067e\u0633 \u0627\u0632 \u062a\u0623\u06cc\u06cc\u062f \u067e\u0631\u062f\u0627\u062e\u062a\u060c ${toman(quote.cashbackAmount)} \u0628\u0647 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0634\u0645\u0627 \u0628\u0627\u0632\u0645\u06cc\u200c\u06af\u0631\u062f\u062f. \u0627\u06cc\u0646 \u0645\u0628\u0644\u063a \u0627\u0632 \u0645\u0628\u0644\u063a \u0627\u0645\u0631\u0648\u0632 \u06a9\u0633\u0631 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f.`}

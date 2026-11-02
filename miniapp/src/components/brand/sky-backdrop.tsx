@@ -1,6 +1,8 @@
 /**
- * The page behind every screen: near-black, one field of blue light rising
- * from the top corner, a lit arc at its edge, a vignette and a film of grain.
+ * The page behind every screen: deep navy with soft fields of light - a cool
+ * blue rising on the left, violet in the upper corner, the bottom falling to
+ * black - under a vignette and a film of grain. The glass panes on top are
+ * frosted, so what they show is this light, softened.
  *
  * Fixed and drawn once, under everything, so it never scrolls or repaints with
  * the content. The class name is what the classic (reseller) theme hides: our
@@ -15,23 +17,17 @@ export function SkyBackdrop() {
         preserveAspectRatio="xMidYMin slice"
       >
         <defs>
-          <radialGradient id="sb-vignette" cx="0.5" cy="0.5" r="0.75">
-            <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.55" />
+          <linearGradient id="sb-ground" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#0B1660" />
+            <stop offset="0.5" stopColor="#060B34" />
+            <stop offset="1" stopColor="#02030C" />
+          </linearGradient>
+          <radialGradient id="sb-vignette" cx="0.5" cy="0.45" r="0.8">
+            <stop offset="0.5" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.6" />
           </radialGradient>
-          <radialGradient id="sb-arc" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor="#0A1A8C" />
-            <stop offset="0.82" stopColor="#1238E8" />
-            <stop offset="1" stopColor="#3D7BFF" />
-          </radialGradient>
-          <filter id="sb-wide" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="39" />
-          </filter>
-          <filter id="sb-mid" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="18" />
-          </filter>
-          <filter id="sb-edge" x="-10%" y="-10%" width="120%" height="120%">
-            <feGaussianBlur stdDeviation="1.8" />
+          <filter id="sb-soft" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="60" />
           </filter>
           <filter id="sb-grain" x="0" y="0" width="100%" height="100%">
             <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" stitchTiles="stitch" />
@@ -41,22 +37,17 @@ export function SkyBackdrop() {
             />
           </filter>
         </defs>
-        <rect width="390" height="844" fill="#02040E" />
-        <ellipse cx="39" cy="211" rx="273" ry="380" fill="#0B2FD0" opacity="0.55" filter="url(#sb-wide)" />
-        <circle cx="-47" cy="-42" r="316" fill="#1E5BFF" opacity="0.55" filter="url(#sb-mid)" />
-        <circle cx="-47" cy="-42" r="304" fill="url(#sb-arc)" />
-        <circle
-          cx="-47"
-          cy="-42"
-          r="304"
-          fill="none"
-          stroke="#BFD8FF"
-          strokeOpacity="0.85"
-          strokeWidth="2.4"
-          filter="url(#sb-edge)"
-        />
+        <rect width="390" height="844" fill="url(#sb-ground)" />
+        {/* A wide blue field, the body of the light. */}
+        <ellipse cx="120" cy="300" rx="260" ry="300" fill="#1D3BFF" opacity="0.55" filter="url(#sb-soft)" />
+        {/* Its bright cool edge on the left, as in the poster. */}
+        <ellipse cx="-30" cy="430" rx="120" ry="230" fill="#3FA2E8" opacity="0.55" filter="url(#sb-soft)" />
+        {/* Violet in the upper corner. */}
+        <ellipse cx="380" cy="40" rx="190" ry="160" fill="#7B3FF2" opacity="0.55" filter="url(#sb-soft)" />
+        {/* A low violet ember, so the bottom of a long page is not dead black. */}
+        <ellipse cx="300" cy="820" rx="200" ry="120" fill="#4A2BD8" opacity="0.35" filter="url(#sb-soft)" />
         <rect width="390" height="844" fill="url(#sb-vignette)" />
-        <rect width="390" height="844" filter="url(#sb-grain)" opacity="0.2" />
+        <rect width="390" height="844" filter="url(#sb-grain)" opacity="0.16" />
       </svg>
     </div>
   )

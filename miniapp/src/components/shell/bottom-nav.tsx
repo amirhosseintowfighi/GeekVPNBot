@@ -54,9 +54,10 @@ export function BottomNav() {
         className="safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-2xl px-[18px] pb-4"
         aria-label="نوار پیمایش اصلی"
       >
-        {/* One floating pill of glass. Only the current tab carries its name,
-            on solid white; the others are icons, so five fit a narrow phone. */}
-        <ul className="glass-clear flex h-16 items-center justify-between rounded-full px-1.5">
+        {/* One floating slab of glass, square-shouldered with softened corners.
+            Only the current tab carries its name, on solid white; the others
+            are icons, so five fit a narrow phone. */}
+        <ul className="glass-clear flex h-16 items-center justify-between rounded-[18px] px-1.5">
           {TABS.map((tab) => {
             // Every route except home matches by prefix, so a nested page such
             // as /shop/<plan> keeps its parent tab lit.
@@ -74,17 +75,17 @@ export function BottomNav() {
                   aria-current={active ? 'page' : undefined}
                   aria-label={tab.label}
                   className={cn(
-                    'relative flex h-[52px] items-center gap-[7px] rounded-full',
+                    'relative flex h-[52px] items-center gap-[7px] rounded-[12px]',
                     active ? 'px-4 text-on-action' : 'px-3 text-white/75',
                     'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   )}
                 >
-                  {/* The white pill slides between tabs instead of fading in
+                  {/* The white tile slides between tabs instead of fading in
                       and out on each; layoutId is what makes it one movement. */}
                   {active ? (
                     <motion.span
                       layoutId="tab-indicator"
-                      className="absolute inset-0 rounded-full bg-action"
+                      className="absolute inset-0 rounded-[12px] bg-action"
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                     />
                   ) : null}
