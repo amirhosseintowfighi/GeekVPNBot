@@ -21,13 +21,22 @@ COPY package.json package-lock.json ./
 # month apart install the same tree. It also fails loudly if package.json and
 # the lockfile have drifted, which `npm install` would quietly paper over.
 #
-# Retries and long timeouts because the production server builds from inside
-# Iran, where the registry route drops mid-download; NPM_REGISTRY (in .env)
-# points at a mirror when one is configured.
+# The production server builds from inside Iran, where the registry route
+# stalls mid-download. npm's own cache lives in a BuildKit cache mount, so a
+# tarball fetched once is never fetched again - not by the next attempt, the
+# next deploy, or the other front-end built alongside this one - and the
+# install is retried with long timeouts. NPM_REGISTRY (in .env) points at a
+# mirror when one is configured.
 ARG NPM_REGISTRY=https://registry.npmjs.org/
-RUN npm ci --no-audit --no-fund --registry="$NPM_REGISTRY" \
-    --fetch-retries=6 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 \
-    --fetch-timeout=600000
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    for attempt in 1 2 3 4; do \
+      npm ci --no-audit --no-fund --prefer-offline --registry="$NPM_REGISTRY" \
+        --fetch-retries=6 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 \
+        --fetch-timeout=600000 && exit 0; \
+      echo "npm ci: attempt $attempt failed; resuming from the download cache" >&2; \
+      sleep 10; \
+    done; \
+    exit 1
 
 # ---- build ----------------------------------------------------------------
 FROM base AS build
