@@ -202,7 +202,16 @@ log "building images"
 # `bot` shares the API image, so this line is belt and braces - but the
 # alternative is a build list that is silently wrong the moment a service
 # gets its own tag again.
-$COMPOSE build --pull "$IDLE" bot worker nginx miniapp admin || die "build failed"
+#
+# No `--pull` by default. A newer base image invalidates every layer above it,
+# so each deploy re-downloaded every Python and npm package - and from a server
+# in Iran, where the route to PyPI drops mid-download, that alone failed
+# deploys of code that had not changed its dependencies. With the cache kept,
+# packages are fetched only when pyproject.toml or a lockfile changes.
+# PULL_BASE=1 refreshes the base images (security updates) on purpose.
+PULL_FLAG=""
+[[ "${PULL_BASE:-0}" == "1" ]] && PULL_FLAG="--pull"
+$COMPOSE build $PULL_FLAG "$IDLE" bot worker nginx miniapp admin || die "build failed"
 
 log "ensuring infrastructure is up"
 $COMPOSE up -d postgres redis || die "could not start postgres/redis"
