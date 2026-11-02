@@ -23,16 +23,35 @@ RUN apt-get update \
 COPY pyproject.toml ./
 # Hatchling needs the package dir to exist to resolve the project metadata.
 RUN mkdir -p src/geekvpn && touch src/geekvpn/__init__.py
-# The production server builds from inside Iran, where the route to PyPI is
-# slow and drops mid-download. So: a long read timeout and many retries, a
-# mirror when one is configured (PIP_INDEX_URL in .env), and no pip
-# self-upgrade - one more download that buys nothing, since the runtime image
-# deletes pip anyway.
+# The production server builds from inside Iran, where the route to PyPI runs
+# at tens of KB/s and stalls mid-download. A single `pip install` there loses
+# every wheel it had fetched the moment one read times out, so the build is
+# made to finish on such a link rather than hope for a good one:
+#
+#  * the downloads live in a BuildKit cache mount, which outlives the layer, a
+#    failed attempt and a failed deploy - every attempt resumes where the last
+#    one stopped instead of starting over;
+#  * the install is retried up to six times inside the build;
+#  * `sharing=locked`: the API and the bot are built from this file in
+#    parallel, and the second waits for the first and installs from its cache
+#    rather than racing it for the same slow link;
+#  * a long read timeout, pip's own retries, a mirror when one is configured
+#    (PIP_INDEX_URL in .env), and no pip self-upgrade - the runtime image
+#    deletes pip anyway.
+#
+# The cache is the build host's, never the image's: the venv is what is copied
+# on, so the image is the same size as before.
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_DEFAULT_TIMEOUT=120 \
     PIP_RETRIES=10
-RUN pip install "."
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    for attempt in 1 2 3 4 5 6; do \
+      env -u PIP_NO_CACHE_DIR pip install --cache-dir /root/.cache/pip "." && exit 0; \
+      echo "pip install: attempt $attempt failed; resuming from the download cache" >&2; \
+      sleep 10; \
+    done; \
+    exit 1
 
 FROM deps AS deps-dev
 RUN pip install ".[dev]"
