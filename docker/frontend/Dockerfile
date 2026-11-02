@@ -20,7 +20,14 @@ COPY package.json package-lock.json ./
 # `npm ci`, so the image is built from the committed lockfile and two builds a
 # month apart install the same tree. It also fails loudly if package.json and
 # the lockfile have drifted, which `npm install` would quietly paper over.
-RUN npm ci --no-audit --no-fund
+#
+# Retries and long timeouts because the production server builds from inside
+# Iran, where the registry route drops mid-download; NPM_REGISTRY (in .env)
+# points at a mirror when one is configured.
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+RUN npm ci --no-audit --no-fund --registry="$NPM_REGISTRY" \
+    --fetch-retries=6 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 \
+    --fetch-timeout=600000
 
 # ---- build ----------------------------------------------------------------
 FROM base AS build

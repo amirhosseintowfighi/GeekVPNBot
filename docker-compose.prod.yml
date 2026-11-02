@@ -21,6 +21,8 @@ x-api-common: &api-common
     target: runtime
     args:
       PYTHON_VERSION: "3.12"
+      # A PyPI mirror reachable from the server, when the default is not.
+      PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
   image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
   env_file: [.env]
   environment:
@@ -224,6 +226,7 @@ services:
       dockerfile: ../docker/frontend/Dockerfile
       args:
         PORT: "3000"
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
     image: ${IMAGE_REPOSITORY:-geekvpn}-miniapp:${IMAGE_TAG:-latest}
     container_name: geekvpn-miniapp
     restart: unless-stopped
@@ -244,6 +247,7 @@ services:
       dockerfile: ../docker/frontend/Dockerfile
       args:
         PORT: "3001"
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
     image: ${IMAGE_REPOSITORY:-geekvpn}-admin:${IMAGE_TAG:-latest}
     container_name: geekvpn-admin
     restart: unless-stopped

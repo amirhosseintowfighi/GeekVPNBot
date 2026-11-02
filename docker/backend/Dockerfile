@@ -23,7 +23,16 @@ RUN apt-get update \
 COPY pyproject.toml ./
 # Hatchling needs the package dir to exist to resolve the project metadata.
 RUN mkdir -p src/geekvpn && touch src/geekvpn/__init__.py
-RUN pip install --upgrade pip && pip install "."
+# The production server builds from inside Iran, where the route to PyPI is
+# slow and drops mid-download. So: a long read timeout and many retries, a
+# mirror when one is configured (PIP_INDEX_URL in .env), and no pip
+# self-upgrade - one more download that buys nothing, since the runtime image
+# deletes pip anyway.
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10
+RUN pip install "."
 
 FROM deps AS deps-dev
 RUN pip install ".[dev]"
