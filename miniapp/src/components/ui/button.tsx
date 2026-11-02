@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
  */
 const buttonVariants = cva(
   cn(
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[12px]',
     'font-bold transition-[transform,filter,background-color] duration-150',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
     'disabled:pointer-events-none disabled:opacity-50',
@@ -52,9 +52,9 @@ const buttonVariants = cva(
         link: 'h-auto px-1 text-link underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-[52px] rounded-full px-6 text-[15px]',
-        sm: 'h-11 rounded-full px-4 text-[13px]',
-        lg: 'h-14 rounded-full px-6 text-[16px]',
+        default: 'h-[52px] rounded-[12px] px-6 text-[15px]',
+        sm: 'h-11 rounded-[10px] px-4 text-[13px]',
+        lg: 'h-14 rounded-[12px] px-6 text-[16px]',
         icon: 'size-11 rounded-full',
       },
       full: {

@@ -174,13 +174,13 @@ export default function ProfilePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="soft rounded-[14px] px-3 py-2">
+              <div className="soft rounded-[12px] px-3 py-2">
                 <p className="text-muted-foreground">
                   {'\u062a\u0639\u062f\u0627\u062f \u0633\u0641\u0627\u0631\u0634'}
                 </p>
                 <p className="nums mt-0.5 font-bold">{faNumber(data.orderCount)}</p>
               </div>
-              <div className="soft rounded-[14px] px-3 py-2">
+              <div className="soft rounded-[12px] px-3 py-2">
                 <p className="text-muted-foreground">
                   {'\u0639\u0636\u0648\u06cc\u062a \u0627\u0632'}
                 </p>
@@ -224,7 +224,7 @@ export default function ProfilePage() {
             </p>
 
             {formError ? (
-              <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
+              <p className="rounded-[12px] bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
                 {formError}
               </p>
             ) : null}

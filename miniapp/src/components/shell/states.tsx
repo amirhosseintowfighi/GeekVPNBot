@@ -36,7 +36,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="glass-clear flex size-16 items-center justify-center rounded-[22px]">
+      <div className="glass-clear flex size-16 items-center justify-center rounded-[18px]">
         <Icon className="size-7" />
       </div>
       <div className="space-y-1">
@@ -83,7 +83,7 @@ export function ErrorState({
         className,
       )}
     >
-      <div className="flex size-16 items-center justify-center rounded-[22px] bg-destructive-soft">
+      <div className="flex size-16 items-center justify-center rounded-[18px] bg-destructive-soft">
         <Icon className="size-7 text-destructive-ink" />
       </div>
       <p className="max-w-xs text-sm leading-loose text-muted-foreground">

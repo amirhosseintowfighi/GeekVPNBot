@@ -100,7 +100,7 @@ export function SubscriptionCardView({
       )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="soft rounded-2xl px-3 py-2.5">
+        <div className="soft rounded-[12px] px-3 py-2.5">
           <p className="text-muted-foreground">{'\u0627\u0646\u0642\u0636\u0627'}</p>
           <p className="nums mt-0.5 font-bold">
             {sub.expiresAt ? faDate(sub.expiresAt) : '\u2014'}
@@ -111,7 +111,7 @@ export function SubscriptionCardView({
             <p className="nums mt-0.5 text-muted-foreground">{faRelative(sub.expiresAt)}</p>
           ) : null}
         </div>
-        <div className="soft rounded-2xl px-3 py-2.5">
+        <div className="soft rounded-[12px] px-3 py-2.5">
           <p className="flex items-center gap-1 text-muted-foreground">
             <Smartphone className="size-3" aria-hidden />
             {'\u062f\u0633\u062a\u06af\u0627\u0647'}

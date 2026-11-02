@@ -180,7 +180,7 @@ function StepButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="glass-clear flex size-[52px] shrink-0 items-center justify-center rounded-full transition-transform active:scale-95 disabled:opacity-40"
+      className="glass-clear flex size-[52px] shrink-0 items-center justify-center rounded-[12px] transition-transform active:scale-95 disabled:opacity-40"
     >
       {children}
     </button>

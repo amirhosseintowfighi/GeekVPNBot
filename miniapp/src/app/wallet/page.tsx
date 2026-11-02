@@ -83,7 +83,7 @@ export default function WalletPage() {
         ) : !wallet.data ? (
           <SkeletonCard />
         ) : (
-          <section className="navy-panel space-y-5 rounded-3xl p-5">
+          <section className="navy-panel space-y-5 rounded-[18px] p-5">
             <div>
               <p className="text-[13px] text-muted-foreground">
                 {'\u0645\u0648\u062c\u0648\u062f\u06cc \u0642\u0627\u0628\u0644 \u0627\u0633\u062a\u0641\u0627\u062f\u0647'}

@@ -173,7 +173,7 @@ export default function SupportPage() {
                 </div>
 
                 {formError ? (
-                  <p className="rounded-2xl bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
+                  <p className="rounded-[12px] bg-destructive-soft px-3 py-2 text-xs leading-loose text-destructive-ink">
                     {formError}
                   </p>
                 ) : null}

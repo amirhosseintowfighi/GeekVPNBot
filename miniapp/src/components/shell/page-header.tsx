@@ -94,7 +94,7 @@ export function PageHeader({
 
       <div className="flex min-w-0 flex-col gap-1">
         {eyebrow && (!back || action) ? <span className="eyebrow">{eyebrow}</span> : null}
-        <h1 className="text-[32px] font-extrabold leading-tight">{title}</h1>
+        <h1 className="headline text-[32px] font-extrabold leading-tight">{title}</h1>
         {subtitle ? (
           <p className="text-[14px] font-medium leading-relaxed text-muted-foreground">
             {subtitle}

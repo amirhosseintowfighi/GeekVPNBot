@@ -97,7 +97,7 @@ function DownloadCard({ download }: { download: AppDownload }) {
   const Icon = PLATFORM_ICON[download.platform] ?? Download
   return (
     <Card className="flex items-center gap-3 p-4">
-      <span className="icon-tile size-12 rounded-2xl" aria-hidden>
+      <span className="icon-tile size-12 rounded-[12px]" aria-hidden>
         <Icon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">

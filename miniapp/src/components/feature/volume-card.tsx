@@ -21,9 +21,9 @@ export function VolumeCard({ product, href }: { product: ProductCard; href: stri
   const from = priceFrom(product)
 
   return (
-    <Link href={href} onClick={haptic.select} className="block rounded-3xl active:scale-[0.99]">
+    <Link href={href} onClick={haptic.select} className="block rounded-[18px] active:scale-[0.99]">
       <Card className="flex items-center gap-3 p-4">
-        <span className="icon-tile size-12 rounded-2xl text-xl" aria-hidden>
+        <span className="icon-tile size-12 rounded-[12px] text-xl" aria-hidden>
           {product.icon ?? '🚀'}
         </span>
 

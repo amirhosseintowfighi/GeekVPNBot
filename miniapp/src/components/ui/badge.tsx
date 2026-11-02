@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  */
 const badgeVariants = cva(
   cn(
-    'inline-flex h-[26px] items-center gap-1.5 rounded-full border border-transparent px-3',
+    'inline-flex h-[26px] items-center gap-1.5 rounded-[8px] border border-transparent px-2.5',
     'text-xs font-extrabold leading-none transition-colors [&_svg]:size-3.5',
   ),
   {

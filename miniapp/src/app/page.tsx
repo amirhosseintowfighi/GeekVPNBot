@@ -94,7 +94,7 @@ export default function HomePage() {
       {loading ? (
         <SkeletonCard />
       ) : (
-        <section className="navy-panel space-y-5 rounded-[26px] p-5">
+        <section className="navy-panel space-y-5 rounded-[18px] p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[13px] text-muted-foreground">
@@ -200,9 +200,9 @@ export default function HomePage() {
       </section>
 
       {/* The apps, full width: a customer who has just bought needs them next. */}
-      <Link href="/apps" className="block rounded-3xl active:scale-[0.99]">
+      <Link href="/apps" className="block rounded-[18px] active:scale-[0.99]">
         <Card className="flex items-center gap-3 p-4">
-          <span className="icon-tile size-12 rounded-2xl" aria-hidden>
+          <span className="icon-tile size-12 rounded-[12px]" aria-hidden>
             <Download className="size-5" />
           </span>
           <span className="min-w-0 flex-1">
@@ -236,8 +236,8 @@ function QuickLink({
   label: string
 }) {
   return (
-    <Link href={href} className="rounded-3xl active:scale-[0.98]">
-      <Card className="flex h-full flex-col items-center justify-center gap-2.5 rounded-[22px] px-2 py-4 text-center">
+    <Link href={href} className="rounded-[18px] active:scale-[0.98]">
+      <Card className="flex h-full flex-col items-center justify-center gap-2.5 rounded-[18px] px-2 py-4 text-center">
         <span className="icon-tile">
           <Icon className="size-5" />
         </span>
