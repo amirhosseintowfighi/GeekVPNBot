@@ -173,7 +173,60 @@ async def test_an_approved_request_hands_the_app_a_customer_session_once() -> No
     assert session.device.label == "Pixel 6"
 
 
-async def test_a_second_poll_after_the_tokens_were_collected_gets_nothing() -> None:
+async def test_a_poll_whose_answer_was_lost_signs_the_app_in_again() -> None:
+    """The response carrying the tokens never reached the phone.
+
+    Android pauses an app sent to the background, which is exactly what
+    opening Telegram to approve does: the poll in flight is cut, the server
+    has already handed its tokens to a connection nobody reads, and the app's
+    next poll read "expired" - seconds after the customer approved. Until the
+    request's own time is up, the app that holds the poll token is signed in
+    again, and the session it never received is revoked.
+    """
+    world = World()
+    await world.customer()
+    started = await world.start()
+    request = await world.login.claim(started.code, telegram_user_id=OWNER)
+    await world.login.decide(request.id, telegram_user_id=OWNER, approve=True)
+    lost = await world.login.poll(started.poll_token, context=CONTEXT)
+    assert lost.result is not None
+
+    world.clock.advance(timedelta(seconds=20))
+    retried = await world.login.poll(started.poll_token, context=CONTEXT)
+
+    assert retried.status is AppLoginStatus.APPROVED
+    assert retried.result is not None
+    fresh = retried.result.tokens.session_id
+    assert fresh != lost.result.tokens.session_id
+    old = await world.session_records.get(lost.result.tokens.session_id)
+    assert old is not None and old.is_revoked
+    new = await world.session_records.get(fresh)
+    assert new is not None and not new.is_revoked
+
+
+async def test_only_the_latest_collection_stays_signed_in() -> None:
+    """However often the app retries, one device has one live session."""
+    world = World()
+    await world.customer()
+    started = await world.start()
+    request = await world.login.claim(started.code, telegram_user_id=OWNER)
+    await world.login.decide(request.id, telegram_user_id=OWNER, approve=True)
+
+    ids = []
+    for _ in range(3):
+        outcome = await world.login.poll(started.poll_token, context=CONTEXT)
+        assert outcome.result is not None
+        ids.append(outcome.result.tokens.session_id)
+
+    live = [
+        session_id
+        for session_id in ids
+        if not (await world.session_records.get(session_id)).is_revoked  # type: ignore[union-attr]
+    ]
+    assert live == [ids[-1]]
+
+
+async def test_a_collected_request_is_spent_once_its_time_is_up() -> None:
     world = World()
     await world.customer()
     started = await world.start()
@@ -182,11 +235,13 @@ async def test_a_second_poll_after_the_tokens_were_collected_gets_nothing() -> N
     first = await world.login.poll(started.poll_token, context=CONTEXT)
     assert first.result is not None
 
-    second = await world.login.poll(started.poll_token, context=CONTEXT)
+    world.clock.advance(REQUEST_TTL)
+    late = await world.login.poll(started.poll_token, context=CONTEXT)
 
-    assert second.status is AppLoginStatus.EXPIRED
-    assert second.result is None
-    assert world.requests.items[request.id].status is AppLoginStatus.CONSUMED
+    assert late.status is AppLoginStatus.EXPIRED
+    assert late.result is None
+    still = await world.session_records.get(first.result.tokens.session_id)
+    assert still is not None and not still.is_revoked
 
 
 # -- refusals ------------------------------------------------------------------

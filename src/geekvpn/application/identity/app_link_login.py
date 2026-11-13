@@ -190,20 +190,43 @@ class AppLinkLogin:
         now = self._clock.now()
         status = request.status_at(now)
         if status is AppLoginStatus.CONSUMED:
-            # Tokens are handed out once. A second poll - a retry after a
-            # dropped response, or somebody else holding the poll token - gets
-            # nothing, and reads the same as a request that ran out of time.
-            return AppLinkPoll(status=AppLoginStatus.EXPIRED)
+            return await self._collect_again(request, now=now, context=context)
         if status is not AppLoginStatus.APPROVED:
             return AppLinkPoll(status=status)
 
         if not await self._requests.consume(request.id, now=now):
             # Lost the race to a concurrent poll with the same token.
             return AppLinkPoll(status=AppLoginStatus.EXPIRED)
-        return AppLinkPoll(
-            status=AppLoginStatus.APPROVED,
-            result=await self._sign_in(request, context=context),
-        )
+        return await self._issue(request, context=context)
+
+    async def _collect_again(
+        self, request: AppLoginRequest, *, now: datetime, context: RequestContext
+    ) -> AppLinkPoll:
+        """The tokens went out, and the app is asking for them again.
+
+        Almost always because the first answer never reached it: the customer
+        left the app for Telegram to approve, Android paused it, and the poll
+        in flight was cut after the server had handed over its tokens. Refusing
+        here read "expired" seconds after the approval. So while the request's
+        own time lasts, whoever holds the poll token - the same secret that
+        collected the first time - is signed in again, and the session the
+        lost answer carried is revoked: it may be in a proxy's log, and it is
+        on no phone.
+        """
+        if now >= request.expires_at:
+            return AppLinkPoll(status=AppLoginStatus.EXPIRED)
+        if not await self._requests.take_over(request.id, previous=request.session_id, now=now):
+            # A concurrent retry won; this poll's answer is not the one in use.
+            return AppLinkPoll(status=AppLoginStatus.EXPIRED)
+        if request.session_id is not None:
+            await self._sessions.revoke(request.session_id, reason=RevocationReason.LOGOUT)
+        logger.info("app_login.collected_again", request_id=str(request.id))
+        return await self._issue(request, context=context)
+
+    async def _issue(self, request: AppLoginRequest, *, context: RequestContext) -> AppLinkPoll:
+        result = await self._sign_in(request, context=context)
+        await self._requests.record_session(request.id, result.tokens.session_id)
+        return AppLinkPoll(status=AppLoginStatus.APPROVED, result=result)
 
     # -- bot side ------------------------------------------------------------
 

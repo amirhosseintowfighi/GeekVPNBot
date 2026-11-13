@@ -20,16 +20,20 @@ and reports it rather than raising.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import (
+    NodeRecord,
     NodeRepository,
     PanelProvider,
     SubscriptionRepository,
 )
 from geekvpn.application.provisioning.usage_history import UsageHistory, tehran_day
-from geekvpn.domain.panels.values import PanelAccountRef
+from geekvpn.domain.panels.enums import Capability
+from geekvpn.domain.panels.errors import PanelError
+from geekvpn.domain.panels.values import AccountUsage, PanelAccountRef
 from geekvpn.domain.provisioning.subscription import Subscription
 
 #: Panels report bytes; the subscription stores MiB.
@@ -102,15 +106,7 @@ class UsageSyncService:
         # miss; `AccountNotFound` is a `PanelError`, so a panel that genuinely
         # does not have it now says so instead of reporting success.
         account = await adapter.get_account(_ref_for(subscription))
-        usage = account.usage
-
-        subscription.record_usage(
-            used_mib=usage.used_bytes // BYTES_PER_MIB,
-            at=usage.measured_at,
-            online_at=usage.online_at,
-        )
-        await self._subscriptions.update(subscription)
-        await self._remember(subscription)
+        await self._apply(subscription, account.usage)
         return subscription
 
     async def sync_all(self, *, batch_size: int = 500) -> SyncReport:
@@ -134,45 +130,79 @@ class UsageSyncService:
         if node is None:
             return NodeSyncReport(node_id=node_id, error="Unknown node.")
 
-        subscriptions, _ = await self._subscriptions.search(
-            node_id=node_id, limit=batch_size, offset=0
-        )
-        syncable = [s for s in subscriptions if s.remote_username]
-        if not syncable:
-            return NodeSyncReport(node_id=node_id)
-
-        try:
-            adapter = await self._panels.for_node(node)
-            readings = await adapter.bulk_usage([_ref_for(s) for s in syncable])
-        except Exception as exc:
-            # Deliberately swallowed: the next node still deserves its turn.
-            #
-            # `Exception`, not `PanelError`. Building the adapter decrypts the
-            # stored password and validates the config payload, and neither of
-            # those failures is a PanelError - so a single node with a rotated
-            # key or a malformed config took down the whole sweep, silently,
-            # under a `worker.tick_failed` that names no node.
-            return NodeSyncReport(
-                node_id=node_id,
-                skipped=len(syncable),
-                error=f"{type(exc).__name__}: {exc}",
+        updated = skipped = 0
+        offset = 0
+        while True:
+            # Page by page. Only the first page was ever asked for, so on a
+            # node past `batch_size` accounts everyone after it froze.
+            page, total = await self._subscriptions.search(
+                node_id=node_id, limit=batch_size, offset=offset
             )
+            syncable = [s for s in page if s.remote_username]
+            if syncable:
+                try:
+                    readings = await self._read(node, syncable)
+                except Exception as exc:
+                    # Deliberately swallowed: the next node still deserves its
+                    # turn.
+                    #
+                    # `Exception`, not `PanelError`. Building the adapter
+                    # decrypts the stored password and validates the config
+                    # payload, and neither of those failures is a PanelError -
+                    # so a single node with a rotated key or a malformed config
+                    # took down the whole sweep, silently, under a
+                    # `worker.tick_failed` that names no node.
+                    return NodeSyncReport(
+                        node_id=node_id,
+                        updated=updated,
+                        skipped=skipped + len(syncable),
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                for subscription in syncable:
+                    usage = readings.get(subscription.remote_username or "")
+                    if usage is None:
+                        skipped += 1
+                        continue
+                    await self._apply(subscription, usage)
+                    updated += 1
+            offset += batch_size
+            if not page or offset >= total:
+                break
 
-        updated = 0
-        for subscription in syncable:
-            usage = readings.get(subscription.remote_username or "")
-            if usage is None:
+        return NodeSyncReport(node_id=node_id, updated=updated, skipped=skipped)
+
+    async def _read(
+        self, node: NodeRecord, subscriptions: list[Subscription]
+    ) -> Mapping[str, AccountUsage]:
+        """One batched call where the panel has one, else one call per account.
+
+        3x-ui and its forks have no batched usage endpoint, and asking for it
+        raised on every tick: the node was reported failed and none of its
+        customers' figures ever moved.
+        """
+        adapter = await self._panels.for_node(node)
+        refs = [_ref_for(s) for s in subscriptions]
+        if Capability.BULK_USAGE in getattr(adapter, "capabilities", {Capability.BULK_USAGE}):
+            return dict(await adapter.bulk_usage(refs))
+        readings: dict[str, AccountUsage] = {}
+        for ref in refs:
+            try:
+                readings[ref.username] = (await adapter.get_account(ref)).usage
+            except PanelError:
+                # One account the panel cannot find must not cost the rest.
                 continue
-            subscription.record_usage(
-                used_mib=usage.used_bytes // BYTES_PER_MIB,
-                at=usage.measured_at,
-                online_at=usage.online_at,
-            )
-            await self._subscriptions.update(subscription)
-            await self._remember(subscription)
-            updated += 1
+        return readings
 
-        return NodeSyncReport(node_id=node_id, updated=updated, skipped=len(syncable) - updated)
+    async def _apply(self, subscription: Subscription, usage: AccountUsage) -> None:
+        quota = usage.quota
+        subscription.apply_panel_reading(
+            used_mib=usage.used_bytes // BYTES_PER_MIB,
+            limit_mib=None if quota.is_unlimited else (quota.total_bytes or 0) // BYTES_PER_MIB,
+            at=usage.measured_at,
+            online_at=usage.online_at,
+        )
+        await self._subscriptions.update(subscription)
+        await self._remember(subscription)
 
     async def _remember(self, subscription: Subscription) -> None:
         """Today's reading for the app's daily chart (see ``usage_history``)."""

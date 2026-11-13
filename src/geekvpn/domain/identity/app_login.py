@@ -43,6 +43,10 @@ class AppLoginRequest:
     #: Set once, by the first Telegram account to open the link. Only that
     #: account may then approve or deny.
     telegram_user_id: int | None = None
+    #: The session the last collection issued. A repeat collection - the
+    #: first answer lost on the way to the phone - revokes it and issues
+    #: another, so one approval never leaves two devices signed in.
+    session_id: uuid.UUID | None = None
 
     def status_at(self, now: datetime) -> AppLoginStatus:
         """The status a reader should act on.

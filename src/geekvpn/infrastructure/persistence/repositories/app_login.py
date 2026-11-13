@@ -77,6 +77,25 @@ class SqlAlchemyAppLoginRepository:
             values={"status": AppLoginStatus.CONSUMED.value},
         )
 
+    async def take_over(
+        self, request_id: uuid.UUID, *, previous: uuid.UUID | None, now: datetime
+    ) -> bool:
+        # Cleared rather than left: the winner records its own session next,
+        # and a loser still holding `previous` now matches nothing.
+        return await self._transition(
+            request_id,
+            _Row.status == AppLoginStatus.CONSUMED.value,
+            _Row.expires_at > now,
+            _Row.session_id.is_(None) if previous is None else _Row.session_id == previous,
+            values={"session_id": None},
+        )
+
+    async def record_session(self, request_id: uuid.UUID, session_id: uuid.UUID) -> None:
+        await self._db.execute(
+            update(_Row).where(_Row.id == request_id).values(session_id=session_id)
+        )
+        await self._db.flush()
+
     async def _one(self, condition: ColumnElement[bool]) -> AppLoginRequest | None:
         row = (await self._db.execute(select(_Row).where(condition))).scalar_one_or_none()
         return row.to_domain() if row is not None else None

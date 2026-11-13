@@ -292,6 +292,37 @@ class Subscription(AggregateRoot[str]):
                 )
             )
 
+    def apply_panel_reading(
+        self,
+        *,
+        used_mib: int,
+        limit_mib: int | None,
+        at: datetime,
+        online_at: datetime | None = None,
+    ) -> None:
+        """The panel's view of the account, taken as the truth.
+
+        Unlike `record_usage`, the cap is read too, and usage may go down. The
+        panel is where the account lives and what enforces it: an operator who
+        raises a customer from 30GB to 120GB, or resets their counter, has
+        changed what the customer can actually use, and holding on to our old
+        figures told them "used up" about a service that worked. `limit_mib`
+        of None or 0 is unlimited, as the panel means it.
+        """
+        self._guard_changeable()
+        if used_mib < 0:
+            raise OrderValidationError("Reported usage cannot be negative.", used_mib=used_mib)
+        self.traffic_limit_mib = limit_mib if limit_mib else None
+        if used_mib < self.traffic_used_mib:
+            # Reset on the panel: the warnings already sent are about traffic
+            # that no longer counts, and must be able to fire again.
+            self._notified_traffic_percents.clear()
+            self.traffic_used_mib = used_mib
+            self.last_synced_at = at
+        self.record_usage(used_mib=used_mib, at=at, online_at=online_at)
+        if self._state is SubscriptionState.EXHAUSTED and not self.is_exhausted():
+            self._state = SubscriptionState.ACTIVE
+
     def reset_traffic(self, *, at: datetime) -> None:
         """Deliberate zeroing, e.g. a monthly refill or a goodwill gesture."""
         self._guard_changeable()
