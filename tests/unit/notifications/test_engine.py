@@ -122,7 +122,9 @@ def test_a_raising_channel_does_not_stop_the_other():
     w = World()
     w.telegram.set_raises(RuntimeError("telegram is on fire"))
     result = w.notify()
-    assert result.outcomes[NotificationChannel.TELEGRAM] is DeliveryState.FAILED
+    # Queued for another try, not given up on: see
+    # test_a_dropped_connection_is_retried.
+    assert result.outcomes[NotificationChannel.TELEGRAM] is DeliveryState.DEFERRED
     assert result.outcomes[NotificationChannel.MINIAPP] is DeliveryState.SENT
     assert result.delivered
 

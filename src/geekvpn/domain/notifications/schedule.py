@@ -38,7 +38,9 @@ DEFAULT_INTERVALS: dict[JobKind, int] = {
     JobKind.IDLE_NUDGE: 360,
     JobKind.BROADCAST_DISPATCH: 1,
     JobKind.CAMPAIGN_ANNOUNCE: 60,
-    JobKind.DEFERRED_FLUSH: 15,
+    # Every minute: it also carries retries, and the first comes a minute
+    # after a dropped connection. An indexed read of what is due, nothing more.
+    JobKind.DEFERRED_FLUSH: 1,
 }
 
 

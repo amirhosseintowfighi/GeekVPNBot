@@ -314,7 +314,9 @@ class NotificationEngine:
                 notification_id=notification.id,
             )
         except Exception as exc:
-            notification.mark_failed(channel, error=type(exc).__name__, now=now)
+            # Not a refusal: nothing said no. Most often the connection to
+            # Telegram dropped, which the next try usually gets through.
+            notification.retry_or_fail(channel, error=type(exc).__name__, now=now)
             return
 
         self._record(notification, channel=channel, result=result, now=now)
@@ -349,7 +351,10 @@ class NotificationEngine:
         elif result.suppressed is not None:
             notification.mark_suppressed(channel, reason=result.suppressed, now=now)
         else:
-            notification.mark_failed(channel, error=result.error or "unknown_error", now=now)
+            # A transport failure, queued again rather than given up on: one
+            # dropped connection used to cost a customer the message carrying
+            # their subscription link.
+            notification.retry_or_fail(channel, error=result.error or "unknown_error", now=now)
 
 
 __all__ = [
