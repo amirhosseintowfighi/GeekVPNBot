@@ -304,6 +304,20 @@ always connect directly: the gateways refuse foreign addresses, so sending them
 through the proxy would break them. A proxy client running on the same server
 is reached as `socks5://host.docker.internal:<port>`.
 
+**The host's own proxy.** `git pull`, the image build and apt need one too,
+and each tool keeps its own setting. Set it in one go, and see where it is set:
+
+```bash
+sudo scripts/proxy.sh show                         # every place, credentials masked
+sudo scripts/proxy.sh set socks5h://127.0.0.1:10808  # shells, git, Docker, apt and PROXY__URL
+sudo scripts/proxy.sh off                          # none on the host; PROXY__URL is kept
+```
+
+`set` replaces any other proxy it finds in those places, so a dead one cannot
+linger in a tool nobody remembers configuring. It restarts the Docker daemon
+when the daemon's setting changes, which restarts the running containers.
+Originals are kept under `/var/backups/geekvpn-proxy`.
+
 **Inbound.** Telegram cannot reach an Iranian server directly. Two modes:
 
 | `TELEGRAM__MODE` | When | How updates arrive |
