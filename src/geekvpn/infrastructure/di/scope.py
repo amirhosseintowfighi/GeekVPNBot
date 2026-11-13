@@ -751,12 +751,26 @@ class RequestScope:
         return reseller.config_prefix, reseller.config_suffix
 
     async def _announce_delivery(self, event: SubscriptionActivated, link: str | None) -> None:
+        """Hand the customer their link, from the bot they bought through.
+
+        The synchronous side picks its Telegram token from the shop it is
+        built for, and this used to build it for none: every delivery went out
+        from our bot. A reseller's customer has never started our bot, so
+        Telegram refused the message, and the service sat in "my services"
+        with nobody told it was there.
+
+        The shop is read from the order, not only from this scope. The worker
+        that delivers every card and gateway payment, and an operator's retry,
+        run in a scope with no shop of their own.
+        """
+        shop = self.reseller.id if self.reseller is not None else await self._shop_of(event)
+
         def work(sync: SyncScope) -> None:
             sync.delivery_notifications.on_subscription_activated(event, link)
 
         def _call() -> None:
             with self.container.sync_sessions() as session:
-                scope = build_sync_scope(self.container, session)
+                scope = build_sync_scope(self.container, session, reseller_id=shop)
                 try:
                     work(scope)
                     session.commit()
@@ -765,6 +779,19 @@ class RequestScope:
                     raise
 
         await run_in_threadpool(_call)
+
+    async def _shop_of(self, event: SubscriptionActivated) -> uuid.UUID | None:
+        """The shop whose order created this subscription; ``None`` is ours.
+
+        Read through this session: the subscription was written by the
+        provision that is announcing it and has not committed yet, so no other
+        connection could see it.
+        """
+        subscription = await self.subscriptions.get(event.subscription_id)
+        order_id = getattr(subscription, "order_id", None)
+        if not order_id:
+            return None
+        return await self.orders.shop_of(order_id)
 
     @cached_property
     def subscription_admin(self) -> SubscriptionAdminService:

@@ -58,6 +58,13 @@ RUN pip install ".[dev]"
 
 # ---- production runtime ---------------------------------------------------
 FROM base AS runtime
+# Debian's security fixes, applied on top of the python image: it is rebuilt
+# on Debian's point releases, not on every advisory, so a fixed zlib can sit
+# in the archive for weeks while the image still ships the vulnerable one.
+# Cached as one layer, so a deploy pays for it only when the base changes.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 1001 app \
  && useradd --system --uid 1001 --gid app --create-home app
 COPY --from=deps ${VIRTUAL_ENV} ${VIRTUAL_ENV}
