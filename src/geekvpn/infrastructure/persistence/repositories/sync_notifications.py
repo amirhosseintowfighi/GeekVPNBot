@@ -10,7 +10,7 @@ House rules: never commit, filter in SQL, re-read before write.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -20,7 +20,6 @@ from geekvpn.domain.base.errors import NotFoundError
 from geekvpn.domain.notifications.broadcast import Broadcast
 from geekvpn.domain.notifications.enums import (
     BroadcastState,
-    DeliveryState,
     NotificationCategory,
 )
 from geekvpn.domain.notifications.notification import Notification
@@ -57,6 +56,10 @@ DUE_BROADCAST_STATES = (
     BroadcastState.SCHEDULED.value,
     BroadcastState.SENDING.value,
 )
+
+
+#: How overdue a deferred delivery may be and still be sent.
+STALE_AFTER = timedelta(days=1)
 
 
 class SyncNotificationRepository:
@@ -145,13 +148,28 @@ class SyncNotificationRepository:
         return bool(self._session.execute(stmt).scalar_one())
 
     def due_deferred(self, now: datetime, *, limit: int = 100) -> list[Notification]:
-        """Quiet-hours messages whose hour has finally come."""
+        """Deferred deliveries whose time has come: quiet hours, and retries.
+
+        Found by `send_after` alone, which is set only while a channel is
+        deferred. The row's summary state is not a test: a retry of Telegram
+        sits beside an inbox copy already sent, and that row reads "sent".
+
+        Limited to this scope's shop, because the scope's engine sends with
+        this shop's bot. Unscoped, the first shop the worker visited sent every
+        shop's queue through its own bot.
+
+        Nothing more than a day overdue. The old test on the summary state
+        left quiet-hours messages beside a sent inbox copy unread for good;
+        sending a backlog of week-old reminders the day this changed would be
+        worse than the silence was.
+        """
         stmt = (
             select(NotificationModel)
             .where(
-                NotificationModel.state == DeliveryState.DEFERRED.value,
                 NotificationModel.send_after.is_not(None),
                 NotificationModel.send_after <= now,
+                NotificationModel.send_after > now - STALE_AFTER,
+                self._shop(NotificationModel.reseller_id),
             )
             .order_by(NotificationModel.send_after.asc())
             .limit(limit)

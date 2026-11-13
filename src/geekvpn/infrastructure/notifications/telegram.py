@@ -22,6 +22,7 @@ Two adapters, both small, because the hard part was never the code:
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,20 @@ logger = get_logger(__name__)
 TIMEOUT_SECONDS = 10.0
 #: For uploading a file rather than a message.
 UPLOAD_TIMEOUT_SECONDS = 300.0
+
+#: Tries for a connection that could not be opened, and the pause before each
+#: retry. Only for those: a request that never connected cannot have reached
+#: Telegram, so sending it again cannot deliver it twice. Kept short because
+#: this runs while a customer waits; what still fails goes back on the queue.
+CONNECT_TRIES = 3
+CONNECT_PAUSES_SECONDS: tuple[float, ...] = (1.0, 3.0)
+#: Raised before the request left: the proxy or Telegram's address was not
+#: reachable. A read timeout is not here, because by then Telegram may have it.
+_NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.ProxyError)
+
+
+def _pause(seconds: float) -> None:
+    time.sleep(seconds)
 
 
 class TelegramApiError(RuntimeError):
@@ -146,12 +161,7 @@ class HttpTelegramSender:
         if button is not None:
             payload["reply_markup"] = {"inline_keyboard": [[button]]}
 
-        response = httpx.post(
-            f"https://api.telegram.org/bot{self._token}/sendMessage",
-            json=payload,
-            timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
-        )
+        response = self._post_message(payload)
 
         if response.status_code == httpx.codes.OK:
             return
@@ -168,6 +178,28 @@ class HttpTelegramSender:
             description=description,
         )
         raise TelegramApiError(description or f"HTTP {response.status_code}")
+
+    def _post_message(self, payload: dict[str, Any]) -> httpx.Response:
+        """`sendMessage`, retried while the connection itself cannot be made.
+
+        From Iran this goes through a proxy whose connections time out now and
+        then. Tried once, a single drop lost a customer the message with their
+        subscription link.
+        """
+        for attempt in range(CONNECT_TRIES):
+            try:
+                return httpx.post(
+                    f"https://api.telegram.org/bot{self._token}/sendMessage",
+                    json=payload,
+                    timeout=TIMEOUT_SECONDS,
+                    proxy=proxy_for(TELEGRAM_API),
+                )
+            except _NOT_SENT as error:
+                if attempt == CONNECT_TRIES - 1:
+                    raise
+                logger.info("notify.telegram.reconnect", error=type(error).__name__)
+                _pause(CONNECT_PAUSES_SECONDS[min(attempt, len(CONNECT_PAUSES_SECONDS) - 1)])
+        raise AssertionError("unreachable")  # pragma: no cover
 
 
 #: Where each template's `action` sends the customer, and what the button says.

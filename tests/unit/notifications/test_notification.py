@@ -18,7 +18,7 @@ from geekvpn.domain.notifications.events import (
     NotificationSuppressed,
 )
 from geekvpn.domain.notifications.message import render
-from geekvpn.domain.notifications.notification import Notification
+from geekvpn.domain.notifications.notification import MAX_ATTEMPTS, Notification
 from tests.unit.notifications.fakes import EPOCH, USER_ID
 
 BOTH = (NotificationChannel.TELEGRAM, NotificationChannel.MINIAPP)
@@ -96,7 +96,7 @@ def test_failure_counts_attempts():
 
 def test_failure_stops_being_retryable_at_the_cap():
     notification = _make()
-    for _ in range(3):
+    for _ in range(MAX_ATTEMPTS):
         notification.mark_failed(NotificationChannel.TELEGRAM, error="TimeoutError", now=EPOCH)
     assert not notification.delivery_for(NotificationChannel.TELEGRAM).is_retryable()
 

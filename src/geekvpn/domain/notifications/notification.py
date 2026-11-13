@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from geekvpn.domain.base.entity import AggregateRoot
 from geekvpn.domain.notifications.enums import (
@@ -33,9 +33,21 @@ from geekvpn.domain.notifications.events import (
 )
 from geekvpn.domain.notifications.message import RenderedMessage
 
-# Telegram failures are usually permanent (blocked bot) rather than transient,
-# so the retry budget is small on purpose.
-MAX_ATTEMPTS = 3
+# A permanent refusal - a blocked bot, a deleted account - is recorded as a
+# suppression and never reaches this budget. What does is the network: from a
+# server in Iran every message crosses a proxy, and a connection through it
+# times out now and then. Five tries spread over about an hour and a half ride
+# out a proxy restart without retrying a dead address forever.
+MAX_ATTEMPTS = 5
+
+#: How long to wait after the n-th failed try before the next one. Short first,
+#: because most drops last seconds and a customer is waiting for their link.
+RETRY_DELAYS: tuple[timedelta, ...] = (
+    timedelta(minutes=1),
+    timedelta(minutes=5),
+    timedelta(minutes=20),
+    timedelta(hours=1),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,6 +297,36 @@ class Notification(AggregateRoot[str]):
                 channel=channel,
                 error=error,
                 attempts=attempts,
+            )
+        )
+
+    def retry_or_fail(self, channel: NotificationChannel, *, error: str, now: datetime) -> None:
+        """A try that broke in transit: queue another, or give up at the cap.
+
+        The attempt is counted either way, so the budget is spent by tries,
+        not by how often the worker happens to look.
+        """
+        current = self._deliveries.get(channel)
+        attempts = (current.attempts if current else 0) + 1
+        if attempts >= MAX_ATTEMPTS:
+            self.mark_failed(channel, error=error, now=now)
+            return
+        send_after = now + RETRY_DELAYS[min(attempts, len(RETRY_DELAYS)) - 1]
+        self._replace(
+            channel,
+            state=DeliveryState.DEFERRED,
+            reason=None,
+            error=error,
+            attempts=attempts,
+            send_after=send_after,
+            updated_at=now,
+        )
+        self.record(
+            NotificationDeferred(
+                notification_id=self.id,
+                user_id=self.user_id,
+                channel=channel,
+                send_after=send_after,
             )
         )
 
