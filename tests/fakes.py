@@ -420,6 +420,23 @@ class InMemoryAppLoginRepository:
         self.items[request_id] = replace(request, status=AppLoginStatus.CONSUMED)
         return True
 
+    async def take_over(
+        self, request_id: uuid.UUID, *, previous: uuid.UUID | None, now: datetime
+    ) -> bool:
+        request = self.items.get(request_id)
+        if (
+            request is None
+            or request.status is not AppLoginStatus.CONSUMED
+            or request.expires_at <= now
+            or request.session_id != previous
+        ):
+            return False
+        self.items[request_id] = replace(request, session_id=None)
+        return True
+
+    async def record_session(self, request_id: uuid.UUID, session_id: uuid.UUID) -> None:
+        self.items[request_id] = replace(self.items[request_id], session_id=session_id)
+
 
 class InMemoryAppCredentialRepository:
     """One row per customer; a username held by someone else is refused."""

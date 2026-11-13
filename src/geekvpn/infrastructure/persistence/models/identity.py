@@ -301,6 +301,8 @@ class AppLoginRequestModel(Base):
     telegram_user_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The session the latest collection issued; see `AppLoginRequest`.
+    session_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True))
 
     __table_args__ = (
         CheckConstraint(f"status IN ({_values(AppLoginStatus)})", name="app_login_requests_status"),
@@ -323,6 +325,7 @@ class AppLoginRequestModel(Base):
             created_at=self.created_at,
             expires_at=self.expires_at,
             telegram_user_id=self.telegram_user_id,
+            session_id=self.session_id,
         )
 
     @classmethod
@@ -340,6 +343,7 @@ class AppLoginRequestModel(Base):
             created_at=request.created_at,
             expires_at=request.expires_at,
             telegram_user_id=request.telegram_user_id,
+            session_id=request.session_id,
         )
 
 

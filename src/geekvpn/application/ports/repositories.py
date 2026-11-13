@@ -213,3 +213,17 @@ class AppLoginRepository(Protocol):
     async def consume(self, request_id: uuid.UUID, *, now: datetime) -> bool:
         """Move an approved, unexpired request to consumed. At most one caller wins."""
         ...
+
+    async def take_over(
+        self, request_id: uuid.UUID, *, previous: uuid.UUID | None, now: datetime
+    ) -> bool:
+        """Claim a consumed, unexpired request for another collection.
+
+        Wins only while the request still records `previous` as its session,
+        so of two polls retrying at once exactly one issues a session.
+        """
+        ...
+
+    async def record_session(self, request_id: uuid.UUID, session_id: uuid.UUID) -> None:
+        """Note which session the latest collection issued."""
+        ...
