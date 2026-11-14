@@ -132,6 +132,10 @@ class AccountUsage:
     #: customer who connected and could not reach anything - which is exactly
     #: the customer worth asking about.
     online_at: datetime | None = None
+    #: The account's end date as the panel holds it. None when the panel gave
+    #: none: an account on hold, one that never expires, or a panel whose
+    #: usage listing does not carry it. None is "no answer", never "no end".
+    expires_at: datetime | None = None
 
     @property
     def remaining_bytes(self) -> int | None:

@@ -21,7 +21,7 @@ and reports it rather than raising.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import (
@@ -33,7 +33,8 @@ from geekvpn.application.provisioning.ports import (
 from geekvpn.application.provisioning.usage_history import UsageHistory, tehran_day
 from geekvpn.domain.panels.enums import Capability
 from geekvpn.domain.panels.errors import PanelError
-from geekvpn.domain.panels.values import AccountUsage, PanelAccountRef
+from geekvpn.domain.panels.values import AccountUsage, PanelAccount, PanelAccountRef
+from geekvpn.domain.provisioning.enums import SubscriptionState
 from geekvpn.domain.provisioning.subscription import Subscription
 
 #: Panels report bytes; the subscription stores MiB.
@@ -106,7 +107,7 @@ class UsageSyncService:
         # miss; `AccountNotFound` is a `PanelError`, so a panel that genuinely
         # does not have it now says so instead of reporting success.
         account = await adapter.get_account(_ref_for(subscription))
-        await self._apply(subscription, account.usage)
+        await self._apply(subscription, _with_expiry(account))
         return subscription
 
     async def sync_all(self, *, batch_size: int = 500) -> SyncReport:
@@ -138,7 +139,11 @@ class UsageSyncService:
             page, total = await self._subscriptions.search(
                 node_id=node_id, limit=batch_size, offset=offset
             )
-            syncable = [s for s in page if s.remote_username]
+            # Not revoked ones: their record is closed, and applying a reading
+            # to one raises - which took the rest of the node's sweep with it.
+            syncable = [
+                s for s in page if s.remote_username and s.state is not SubscriptionState.REVOKED
+            ]
             if syncable:
                 try:
                     readings = await self._read(node, syncable)
@@ -187,7 +192,7 @@ class UsageSyncService:
         readings: dict[str, AccountUsage] = {}
         for ref in refs:
             try:
-                readings[ref.username] = (await adapter.get_account(ref)).usage
+                readings[ref.username] = _with_expiry(await adapter.get_account(ref))
             except PanelError:
                 # One account the panel cannot find must not cost the rest.
                 continue
@@ -200,6 +205,7 @@ class UsageSyncService:
             limit_mib=None if quota.is_unlimited else (quota.total_bytes or 0) // BYTES_PER_MIB,
             at=usage.measured_at,
             online_at=usage.online_at,
+            expires_at=usage.expires_at,
         )
         await self._subscriptions.update(subscription)
         await self._remember(subscription)
@@ -213,6 +219,13 @@ class UsageSyncService:
             tehran_day(self._clock.now()),
             subscription.traffic_used_mib,
         )
+
+
+def _with_expiry(account: PanelAccount) -> AccountUsage:
+    """The account's usage, carrying the account's date when the usage lacks one."""
+    if account.usage.expires_at is not None or account.expires_at is None:
+        return account.usage
+    return replace(account.usage, expires_at=account.expires_at)
 
 
 def _ref_for(subscription: Subscription) -> PanelAccountRef:
