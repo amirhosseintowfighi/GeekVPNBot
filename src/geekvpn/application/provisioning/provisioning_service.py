@@ -326,7 +326,8 @@ class ProvisioningService:
             ref = _ref_for(subscription, node)
             account = await adapter.renew(
                 ref,
-                extend_by=timedelta(days=order.duration_days),
+                # The date, not "add N days": see `Subscription.renewal_target`.
+                new_expires_at=subscription.renewal_target(days=order.duration_days, now=now),
                 new_quota=_quota_for(order.traffic_mib),
                 idempotency_key=order.id,
             )

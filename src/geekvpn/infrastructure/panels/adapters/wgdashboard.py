@@ -371,6 +371,10 @@ class WgDashboardAdapter(HttpPanelAdapter):
             used_bytes=int(used * GIB),
             measured_at=now_utc(),
             quota=TrafficQuota(int(_gib(limit) * GIB) or None),
+            expires_at=next(
+                (_parse(job.get("Value")) for job in _jobs(peer) if job.get("Field") == DATE_FIELD),
+                None,
+            ),
         )
 
     def _to_account(self, peer: Mapping[str, Any], *, restricted: bool) -> PanelAccount:

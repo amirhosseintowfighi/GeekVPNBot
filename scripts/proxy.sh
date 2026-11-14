@@ -239,12 +239,29 @@ write_apt() {
   fi
 }
 
+# A proxy client bound to 127.0.0.1 answers the host only. The containers
+# reach the host as host.docker.internal - the Docker bridge address - so the
+# bot would get "connection refused" through a proxy that works from a shell.
+warn_if_local_only() {
+  local port
+  port=$(printf '%s' "$1" | sed -nE 's#^[a-z0-9]+://([^@/]*@)?(127\.0\.0\.1|localhost):([0-9]+).*#\3#p')
+  [[ -n "$port" ]] && command -v ss >/dev/null || return 0
+  if ss -ltnH "sport = :$port" 2>/dev/null | awk '{print $4}' | grep -qE '^(127\.0\.0\.1|\[::1\]):'; then
+    warn "the proxy on port $port listens on 127.0.0.1 only: the bot's containers cannot reach it."
+    warn "set its listen address to 0.0.0.0 (or 172.17.0.1) in the proxy client, then deploy again."
+  fi
+}
+
 write_app() {
   local url="$1" app_url
   [[ -f "$APP_ENV" ]] || { warn "no .env at $APP_ENV; PROXY__URL not set"; return 0; }
   # Inside a container 127.0.0.1 is the container; the host is
   # host.docker.internal (mapped in docker-compose.prod.yml).
   app_url=$(printf '%s' "$url" | sed -E 's#(://([^@/]*@)?)(127\.0\.0\.1|localhost)([:/]|$)#\1host.docker.internal\4#')
+  # The bot's HTTP library knows `socks5` and not `socks5h`; for it the two
+  # mean the same thing (the proxy resolves names).
+  app_url="${app_url/#socks5h:\/\//socks5://}"
+  warn_if_local_only "$url"
   backup "$APP_ENV"
   if grep -qE '^PROXY__URL=' "$APP_ENV"; then
     python3 - "$APP_ENV" "$app_url" <<'PY'

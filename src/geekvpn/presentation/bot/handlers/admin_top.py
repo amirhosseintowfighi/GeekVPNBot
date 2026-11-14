@@ -14,6 +14,7 @@ from aiogram.types import CallbackQuery
 
 from geekvpn.infrastructure.analytics.top_customers import Ladder, Rung, top
 from geekvpn.infrastructure.di.container import Container
+from geekvpn.presentation.bot.admin_access import AdminAccess
 from geekvpn.presentation.bot.handlers.admin import _guard
 from geekvpn.presentation.bot.handlers.common import safe_edit, toast
 from geekvpn.presentation.bot.ui import admin_text as A
@@ -22,6 +23,8 @@ from geekvpn.presentation.bot.ui.callbacks import AdminCB
 from geekvpn.presentation.bot.ui.fa import fa_digits, toman
 
 router = Router(name="admin_top")
+router.callback_query.middleware(AdminAccess())
+router.message.middleware(AdminAccess())
 
 
 def _ladders() -> Any:

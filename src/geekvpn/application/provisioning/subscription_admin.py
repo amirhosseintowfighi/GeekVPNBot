@@ -18,7 +18,6 @@ which is the failure nobody notices until the customer stops paying.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import timedelta
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.ports.panel import PanelAdapter
@@ -127,14 +126,16 @@ class SubscriptionAdminService:
     async def extend(self, subscription_id: str, *, days: int) -> Subscription:
         """Add days without charging for them. Goodwill, outages, mistakes."""
         subscription = await self._load(subscription_id)
+        now = self._clock.now()
         adapter = await self._adapter_for(subscription)
         if adapter is not None:
             await adapter.renew(
                 _ref_for(subscription),
-                extend_by=timedelta(days=days),
+                # The date, not "add N days": see `Subscription.renewal_target`.
+                new_expires_at=subscription.renewal_target(days=days, now=now),
                 idempotency_key=f"{subscription.id}:ext:{days}",
             )
-        subscription.renew(days=days, now=self._clock.now())
+        subscription.renew(days=days, now=now)
         return await self._save(subscription)
 
     async def add_traffic(self, subscription_id: str, *, gib: int) -> Subscription:

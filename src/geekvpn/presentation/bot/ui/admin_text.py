@@ -30,6 +30,8 @@ BTN_TICKETS: Final = "💬 تیکت‌های باز"
 BTN_ADMINS: Final = "👤 ادمین‌ها"
 
 NOT_AN_ADMIN: Final = "\u0627\u06cc\u0646 \u0628\u062e\u0634 \u0641\u0642\u0637 \u0645\u0627\u0644 \u0645\u062f\u06cc\u0631\u0647\u0627\u0633\u062a."
+#: Staff, but this role may not do this; the panel refuses it the same way.
+NO_PERMISSION: Final = "نقش شما اجازه‌ی این کار رو نداره."
 
 # -- payments --------------------------------------------------------------
 

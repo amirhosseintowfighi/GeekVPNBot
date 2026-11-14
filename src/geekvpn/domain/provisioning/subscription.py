@@ -299,6 +299,7 @@ class Subscription(AggregateRoot[str]):
         limit_mib: int | None,
         at: datetime,
         online_at: datetime | None = None,
+        expires_at: datetime | None = None,
     ) -> None:
         """The panel's view of the account, taken as the truth.
 
@@ -322,6 +323,20 @@ class Subscription(AggregateRoot[str]):
         self.record_usage(used_mib=used_mib, at=at, online_at=online_at)
         if self._state is SubscriptionState.EXHAUSTED and not self.is_exhausted():
             self._state = SubscriptionState.ACTIVE
+        # The date too, when the panel gave one. Without it a service the
+        # operator extended on the panel went on reading "expired" here, and
+        # the next renewal counted from our older date. No date is left alone:
+        # an account on hold or without an end has none to give, and ours is
+        # the better guess. Later than the start only - a date before it is a
+        # panel's placeholder, not an end.
+        if expires_at is not None and expires_at > self.started_at:
+            self.expires_at = expires_at
+            if (
+                self._state is SubscriptionState.EXPIRED
+                and not self.is_expired_at(at)
+                and not self.is_exhausted()
+            ):
+                self._state = SubscriptionState.ACTIVE
 
     def reset_traffic(self, *, at: datetime) -> None:
         """Deliberate zeroing, e.g. a monthly refill or a goodwill gesture."""
@@ -342,6 +357,18 @@ class Subscription(AggregateRoot[str]):
             self._state = SubscriptionState.ACTIVE
 
     # ---- Lifecycle ------------------------------------------------------
+
+    def renewal_target(self, *, days: int, now: datetime) -> datetime:
+        """The expiry a renewal of `days` lands on, computed once.
+
+        From the current expiry while it is still ahead, so renewing early
+        never costs the days already paid for; from now once it has passed.
+        The panel is sent this date rather than "add `days`": each side adding
+        to its own idea of the expiry was how the two drifted apart, and a
+        date is safe to send twice where an increment is not.
+        """
+        base = self.expires_at if self.expires_at > now else now
+        return base + timedelta(days=days)
 
     def renew(
         self,
@@ -384,8 +411,7 @@ class Subscription(AggregateRoot[str]):
             self.plan_id = plan_id
         if order_id is not None:
             self.order_id = order_id
-        base = self.expires_at if self.expires_at > now else now
-        self.expires_at = base + timedelta(days=days)
+        self.expires_at = self.renewal_target(days=days, now=now)
         if quota_mib is not None:
             self.traffic_limit_mib = quota_mib
             self.traffic_used_mib = 0
