@@ -28,6 +28,7 @@ from geekvpn.application.platform.settings_service import (
     parse_hidden,
 )
 from geekvpn.domain.identity.permissions import Permission
+from geekvpn.presentation.bot.admin_access import AdminAccess
 from geekvpn.presentation.bot.handlers.admin import _guard
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.handlers.menu import HIDEABLE
@@ -38,6 +39,8 @@ from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import AdminCB
 
 router = Router(name="admin_texts")
+router.callback_query.middleware(AdminAccess())
+router.message.middleware(AdminAccess())
 
 
 class TextFlow(StatesGroup):

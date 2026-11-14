@@ -27,6 +27,7 @@ from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.admin_common import read_scope
+from geekvpn.presentation.bot.admin_access import AdminAccess
 from geekvpn.presentation.bot.handlers.admin import _guard
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.ui import admin_text as A
@@ -37,6 +38,8 @@ from geekvpn.presentation.bot.ui.fa import fa_digits
 logger = get_logger("bot.admin_pin")
 
 router = Router(name="admin_pin")
+router.callback_query.middleware(AdminAccess())
+router.message.middleware(AdminAccess())
 
 #: Telegram allows about thirty messages a second to different chats; a copy
 #: and a pin are two calls, so this keeps comfortably inside it.
