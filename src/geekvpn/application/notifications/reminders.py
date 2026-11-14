@@ -183,7 +183,9 @@ class ReminderService:
                 user_id=snapshot.user_id,
                 template_key=key,
                 fields=fields,
-                dedupe_key=expiry_dedupe_key(snapshot.subscription_id, threshold),
+                dedupe_key=expiry_dedupe_key(
+                    snapshot.subscription_id, threshold, term_ends_at=snapshot.expires_at
+                ),
                 source=str(JobKind.EXPIRATION_REMINDER),
             )
             report = report.with_queued() if result.was_queued else report.with_skipped()
@@ -205,7 +207,9 @@ class ReminderService:
             user_id=snapshot.user_id,
             template_key="expiry.expired",
             fields={"plan": snapshot.plan_name},
-            dedupe_key=expiry_dedupe_key(snapshot.subscription_id, 0),
+            dedupe_key=expiry_dedupe_key(
+                snapshot.subscription_id, 0, term_ends_at=snapshot.expires_at
+            ),
             source=str(JobKind.EXPIRATION_REMINDER),
         )
         return result.was_queued
@@ -240,7 +244,9 @@ class ReminderService:
                     template_key="traffic.exhausted",
                     fields={"plan": snapshot.plan_name},
                     dedupe_key=traffic_dedupe_key(
-                        snapshot.subscription_id, TRAFFIC_EXHAUSTED_PERCENT
+                        snapshot.subscription_id,
+                        TRAFFIC_EXHAUSTED_PERCENT,
+                        term_ends_at=snapshot.expires_at,
                     ),
                     source=str(JobKind.TRAFFIC_REMINDER),
                 )
@@ -260,7 +266,9 @@ class ReminderService:
                     "percent": threshold,
                     "remaining": fa_gib(snapshot.remaining_gib()),
                 },
-                dedupe_key=traffic_dedupe_key(snapshot.subscription_id, threshold),
+                dedupe_key=traffic_dedupe_key(
+                    snapshot.subscription_id, threshold, term_ends_at=snapshot.expires_at
+                ),
                 source=str(JobKind.TRAFFIC_REMINDER),
             )
             report = report.with_queued() if result.was_queued else report.with_skipped()
