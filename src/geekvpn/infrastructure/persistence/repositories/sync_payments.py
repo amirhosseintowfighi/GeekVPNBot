@@ -67,6 +67,24 @@ from geekvpn.infrastructure.persistence.models.payments import (
 #: other for reasons neither could see, so the wallet gets its own high bits.
 WALLET_LOCK_NAMESPACE = 947_120_002
 
+_INT4_MAX = 2_147_483_647
+
+
+def wallet_lock_keys(user_id: int) -> tuple[int, int]:
+    """The two int4 keys of one customer's wallet lock.
+
+    The two-key form takes Postgres integers, and a Telegram id is not one:
+    accounts from recent years are past 2^31. Passed whole, such an id made
+    the call `pg_advisory_xact_lock(integer, bigint)`, which does not exist,
+    and every wallet spend by those customers failed. The bits past 31 move
+    into the first key instead. An id that fits keeps exactly the keys it
+    always had, so the lock means the same thing before and after a deploy;
+    and two ids never share a pair while ids stay under 2^31 * (2^31 -
+    namespace), far past any Telegram id.
+    """
+    high, low = divmod(user_id, _INT4_MAX + 1)
+    return ((WALLET_LOCK_NAMESPACE + high) % _INT4_MAX, low)
+
 
 class SyncInvoiceRepository:
     """``application.payments.ports.InvoiceRepository``."""
@@ -405,9 +423,10 @@ class SyncWalletRepository:
         # at once serialises across both. Over-locking, never under-locking -
         # and the alternative is folding a UUID into the lock key, which trades
         # a rare wait for a rare collision between two different people.
+        first, second = wallet_lock_keys(user_id)
         self._session.execute(
-            text("SELECT pg_advisory_xact_lock(:namespace, :user_id)"),
-            {"namespace": WALLET_LOCK_NAMESPACE % 2_147_483_647, "user_id": user_id},
+            text("SELECT pg_advisory_xact_lock(CAST(:first AS integer), CAST(:second AS integer))"),
+            {"first": first, "second": second},
         )
 
 
@@ -420,4 +439,5 @@ __all__ = [
     "SyncInvoiceRepository",
     "SyncPaymentRepository",
     "SyncWalletRepository",
+    "wallet_lock_keys",
 ]

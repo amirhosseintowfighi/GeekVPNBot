@@ -414,6 +414,13 @@ class MarzneshinAdapter(HttpPanelAdapter):
             quota=TrafficQuota(
                 to_int(item.get("data_limit"), panel=self.kind.value, field="data_limit") or None
             ),
+            # In the same listing the sweep already reads, so a date the
+            # operator changed on the panel comes back with the usage.
+            expires_at=to_utc(
+                item.get("expire_date") or item.get("expire"),
+                panel=self.kind.value,
+                field="expire_date",
+            ),
         )
 
     def _to_account(self, payload: Any) -> PanelAccount:

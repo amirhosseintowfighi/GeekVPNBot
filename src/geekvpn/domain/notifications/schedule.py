@@ -12,7 +12,7 @@ on first send and checked on every subsequent pass.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from geekvpn.domain.notifications.enums import JobKind
 
@@ -44,12 +44,24 @@ DEFAULT_INTERVALS: dict[JobKind, int] = {
 }
 
 
-def expiry_dedupe_key(subscription_id: str, days_left: int) -> str:
-    return f"expiry:{subscription_id}:{days_left}"
+def _term(ends_at: datetime) -> str:
+    return ends_at.astimezone(UTC).strftime("%Y%m%d")
 
 
-def traffic_dedupe_key(subscription_id: str, threshold: int) -> str:
-    return f"traffic:{subscription_id}:{threshold}"
+def expiry_dedupe_key(subscription_id: str, days_left: int, *, term_ends_at: datetime) -> str:
+    """One reminder per mark per term.
+
+    The term's end is in the key because dedupe is permanent and a renewal
+    keeps the same subscription: keyed on the service and the mark alone,
+    every reminder after the first term was already "sent", and a customer
+    who renewed once was never warned again.
+    """
+    return f"expiry:{subscription_id}:{_term(term_ends_at)}:{days_left}"
+
+
+def traffic_dedupe_key(subscription_id: str, threshold: int, *, term_ends_at: datetime) -> str:
+    """As `expiry_dedupe_key`: a renewal's fresh allowance warns again."""
+    return f"traffic:{subscription_id}:{_term(term_ends_at)}:{threshold}"
 
 
 def idle_dedupe_key(subscription_id: str, since: str) -> str:

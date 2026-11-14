@@ -47,6 +47,7 @@ from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.routers.admin_analytics import run_report
+from geekvpn.presentation.bot.admin_access import AdminAccess, current_staff
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import keyboards as K
@@ -56,6 +57,9 @@ from geekvpn.presentation.bot.ui.fa import fa_date, fa_digits, normalize_input, 
 logger = get_logger("bot.admin")
 
 router = Router(name="admin")
+# The role check, before any handler here runs. See `admin_access`.
+router.callback_query.middleware(AdminAccess())
+router.message.middleware(AdminAccess())
 
 #: A queue longer than this is a staffing problem, not a pagination problem.
 QUEUE_LIMIT = 10
@@ -136,14 +140,7 @@ async def _guard(scope: Any, user: Any) -> Admin | None:
     this is a Telegram handler: there is no `requires(...)` in front of it, and
     this function is the entire door.
     """
-    admin = await current_admin(scope, user)
-    # `can_authenticate` rather than a plain "not disabled": a suspended or
-    # locked admin must lose the bot at the same moment they lose the panel.
-    if admin is None or not admin.status.can_authenticate:
-        return None
-    if admin.role is AdminRole.RESELLER:
-        return None
-    return admin
+    return await current_staff(scope, user)
 
 
 # -- entry point -----------------------------------------------------------

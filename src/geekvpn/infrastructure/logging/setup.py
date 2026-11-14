@@ -8,6 +8,7 @@ structlog pipeline so there is exactly one log format in the system.
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from collections.abc import Iterable, MutableMapping
 from typing import Any
@@ -18,6 +19,33 @@ from structlog.types import EventDict, Processor
 from geekvpn.infrastructure.logging.context import get_correlation_id
 
 _REDACTED = "***"
+
+#: A Telegram bot token: the bot's numeric id, a colon, then the secret. Bot
+#: API URLs carry it in the path (`/bot<id>:<secret>/method`), so any line
+#: that quotes a request URL - an HTTP client's request log, an exception
+#: message - quotes the token with it.
+_BOT_TOKEN = re.compile(r"(?<!\d)(\d{6,12}):[A-Za-z0-9_-]{30,}")
+
+
+def _mask_tokens(value: Any) -> Any:
+    if isinstance(value, str):
+        return _BOT_TOKEN.sub(lambda m: f"{m.group(1)}:{_REDACTED}", value)
+    if isinstance(value, dict):
+        return {k: _mask_tokens(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return type(value)(_mask_tokens(v) for v in value)
+    return value
+
+
+def mask_bot_tokens(_logger: Any, _method: str, event_dict: EventDict) -> EventDict:
+    """Keep a bot token out of the output, whatever logged it.
+
+    The id before the colon stays, so a line still says which bot it was
+    about - ours or which reseller's - without being able to act as it.
+    """
+    for key in list(event_dict):
+        event_dict[key] = _mask_tokens(event_dict[key])
+    return event_dict
 
 
 def _add_correlation_id(
@@ -99,6 +127,9 @@ def configure_logging(
         foreign_pre_chain=shared,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            # Last before rendering, so it also sees exception text and the
+            # message of a record some library logged.
+            mask_bot_tokens,
             renderer,
         ],
     )
@@ -117,6 +148,10 @@ def configure_logging(
         logger.propagate = True
 
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    # Their INFO line is the full request URL, and a Bot API URL is the bot's
+    # token: every notification wrote ours, and every reseller's, to stdout.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
     structlog.contextvars.bind_contextvars(service=service)
 

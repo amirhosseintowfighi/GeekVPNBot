@@ -17,6 +17,7 @@ from geekvpn.domain.identity.permissions import Permission
 from geekvpn.infrastructure.analytics.xlsx_export import build_workbook
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.logging.setup import get_logger
+from geekvpn.presentation.bot.admin_access import AdminAccess
 from geekvpn.presentation.bot.handlers.admin import _guard
 from geekvpn.presentation.bot.handlers.common import toast
 from geekvpn.presentation.bot.ui import admin_text as A
@@ -26,6 +27,8 @@ from geekvpn.presentation.bot.ui.fa import fa_date
 logger = get_logger("bot.admin_export")
 
 router = Router(name="admin_export")
+router.callback_query.middleware(AdminAccess())
+router.message.middleware(AdminAccess())
 
 
 def _build(container: Container) -> bytes:
