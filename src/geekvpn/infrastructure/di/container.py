@@ -32,7 +32,11 @@ from geekvpn.infrastructure.clock import SystemClock
 from geekvpn.infrastructure.config.settings import Settings
 from geekvpn.infrastructure.health.probes import DatabaseProbe, RedisProbe
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.infrastructure.outbound_proxy import ProxyPolicy, install_proxy
+from geekvpn.infrastructure.outbound_proxy import (
+    ProxyPolicy,
+    install_proxy,
+    install_telegram_api,
+)
 from geekvpn.infrastructure.persistence.engine import (
     create_engine,
     create_reporting_engine,
@@ -199,6 +203,7 @@ def build_container(settings: Settings) -> Container:
             settings.proxy.url.get_secret_value(), extra_hosts=settings.proxy.extra_hosts
         )
     )
+    install_telegram_api(settings.telegram.api_base_url)
 
     logger.info(
         "container.built",
