@@ -167,6 +167,16 @@ class InvoiceRepository(Protocol):
 class PaymentRepository(Protocol):
     def get(self, payment_id: str) -> Payment | None: ...
 
+    def get_for_update(self, payment_id: str) -> Payment | None:
+        """The payment, locked until this transaction ends.
+
+        For a caller about to change it. Two changes to one payment - two
+        approvals, a callback and the sweeper verifying - must run one after
+        the other; read without the lock, both saw the same state and both
+        acted on it.
+        """
+        ...
+
     def save(self, payment: Payment) -> None: ...
 
     def find_by_digest(self, digest: str) -> Payment | None:

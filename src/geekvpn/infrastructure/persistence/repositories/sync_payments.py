@@ -188,6 +188,15 @@ class SyncPaymentRepository:
         row = self._session.get(PaymentModel, payment_id)
         return self._hydrate(row) if row is not None else None
 
+    def get_for_update(self, payment_id: str) -> Payment | None:
+        # populate_existing: a row this session already holds is read again
+        # once the lock is ours, or a second caller would act on the state it
+        # saw before waiting.
+        row = self._session.get(
+            PaymentModel, payment_id, with_for_update=True, populate_existing=True
+        )
+        return self._hydrate(row) if row is not None else None
+
     def save(self, payment: Payment) -> None:
         """Upsert the payment, then append any refund it gained.
 
