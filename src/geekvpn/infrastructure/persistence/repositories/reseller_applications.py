@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geekvpn.application.resellers.applications import PENDING, ApplicationView
@@ -78,17 +78,27 @@ class SqlAlchemyApplicationRepository:
         decided_by: int | None,
         decided_at: datetime,
         reason_fa: str | None = None,
-        reseller_id: uuid.UUID | None = None,
-    ) -> None:
-        row = await self._session.get(ResellerApplicationModel, application_id)
-        if row is None:
-            return
-        row.state = state
-        row.decided_by = decided_by
-        row.decided_at = decided_at
-        row.reason_fa = reason_fa
-        row.reseller_id = reseller_id
-        await self._session.flush()
+    ) -> bool:
+        # One statement, conditional on the row still waiting: the second of
+        # two concurrent approvals blocks on the row, then matches nothing.
+        result = await self._session.execute(
+            update(ResellerApplicationModel)
+            .where(
+                ResellerApplicationModel.id == application_id,
+                ResellerApplicationModel.state == PENDING,
+            )
+            .values(state=state, decided_by=decided_by, decided_at=decided_at, reason_fa=reason_fa)
+            .execution_options(synchronize_session="fetch")
+        )
+        return bool(getattr(result, "rowcount", 0))
+
+    async def attach_reseller(self, application_id: uuid.UUID, reseller_id: uuid.UUID) -> None:
+        await self._session.execute(
+            update(ResellerApplicationModel)
+            .where(ResellerApplicationModel.id == application_id)
+            .values(reseller_id=reseller_id)
+            .execution_options(synchronize_session="fetch")
+        )
 
 
 class SqlAlchemySetupTokens:
@@ -180,15 +190,16 @@ class SqlAlchemyTopupRepository:
         decided_by: int | None,
         decided_at: datetime,
         reason_fa: str | None = None,
-    ) -> None:
-        row = await self._session.get(ResellerTopupModel, topup_id)
-        if row is None:
-            return
-        row.state = state
-        row.decided_by = decided_by
-        row.decided_at = decided_at
-        row.reason_fa = reason_fa
-        await self._session.flush()
+    ) -> bool:
+        # Conditional, like the application's: this is what keeps one transfer
+        # from being credited twice.
+        result = await self._session.execute(
+            update(ResellerTopupModel)
+            .where(ResellerTopupModel.id == topup_id, ResellerTopupModel.state == TOPUP_PENDING)
+            .values(state=state, decided_by=decided_by, decided_at=decided_at, reason_fa=reason_fa)
+            .execution_options(synchronize_session="fetch")
+        )
+        return bool(getattr(result, "rowcount", 0))
 
 
 def _topup(row: ResellerTopupModel, name_fa: str) -> TopupView:
