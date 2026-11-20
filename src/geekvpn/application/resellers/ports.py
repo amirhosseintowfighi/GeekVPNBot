@@ -58,6 +58,15 @@ class ResellerRepository(Protocol):
 
     async def get(self, reseller_id: uuid.UUID) -> Reseller | None: ...
 
+    async def get_for_update(self, reseller_id: uuid.UUID) -> Reseller | None:
+        """The reseller, held until this transaction ends.
+
+        For every change: `save` writes the balance back whole, so a change
+        that started from an unlocked read writes the balance it read and
+        erases any sale committed in between.
+        """
+        ...
+
     async def get_by_admin(self, admin_id: uuid.UUID) -> Reseller | None:
         """The reseller behind a login.
 

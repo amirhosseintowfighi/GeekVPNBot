@@ -123,6 +123,9 @@ class FakeCouponRepository(_Store):
     async def get_by_code(self, code: str) -> Coupon | None:
         return next((c for c in self.items.values() if c.code == code), None)
 
+    async def get_by_code_for_update(self, code: str) -> Coupon | None:
+        return await self.get_by_code(code)
+
     async def list_all(
         self, *, active_only: bool = False, limit: int = 50, offset: int = 0
     ) -> list[Coupon]:

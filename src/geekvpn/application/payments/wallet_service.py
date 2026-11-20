@@ -166,6 +166,9 @@ class WalletService:
         not here so that an admin script reaching the aggregate directly still
         cannot produce an unexplained entry.
         """
+        # Locked like a purchase is: a deduction that read the balance beside
+        # a purchase reading the same one would take the wallet below zero.
+        self._wallets.lock(user_id)
         wallet = self._wallets.get_or_create(user_id)
         entry = wallet.adjust(
             signed_amount,
@@ -216,6 +219,9 @@ class WalletService:
         for user_id in user_ids:
             amount = signed_amount
             if amount < 0:
+                # Before the read the cap is computed from; `adjust` takes it
+                # again, which a transaction-scoped lock allows.
+                self._wallets.lock(user_id)
                 balance = self._wallets.get_or_create(user_id).balance.amount
                 if balance <= 0:
                     skipped += 1
@@ -244,6 +250,8 @@ class WalletService:
         than decided by a person, so there is no actor to record and no reason
         to demand - the description is generated from the rule that fired.
         """
+        # The entry records the balance after it, from the wallet as read here.
+        self._wallets.lock(user_id)
         wallet = self._wallets.get_or_create(user_id)
         entry = wallet.credit(
             amount,

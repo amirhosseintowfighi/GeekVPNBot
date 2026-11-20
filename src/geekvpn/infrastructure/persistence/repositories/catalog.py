@@ -207,6 +207,18 @@ class SqlAlchemyCouponRepository:
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return coupon_to_domain(row) if row else None
 
+    async def get_by_code_for_update(self, code: str) -> Coupon | None:
+        # populate_existing: the quote already loaded this row into the
+        # session, and without it the count read here would be that copy's.
+        stmt = (
+            select(CouponModel)
+            .where(CouponModel.code == code)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        row = (await self._session.execute(stmt)).scalar_one_or_none()
+        return coupon_to_domain(row) if row else None
+
     async def list_all(
         self, *, active_only: bool = False, limit: int = 100, offset: int = 0
     ) -> Sequence[Coupon]:

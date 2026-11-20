@@ -91,6 +91,14 @@ class CouponRepository(Protocol):
 
     async def get_by_code(self, code: str) -> Coupon | None: ...
 
+    async def get_by_code_for_update(self, code: str) -> Coupon | None:
+        """The coupon, held until this transaction ends: where a use is counted.
+
+        `update` writes the count back whole, so a use counted on an unlocked
+        read writes the count it read and erases a use committed in between.
+        """
+        ...
+
     async def list_all(
         self, *, active_only: bool = False, limit: int = 100, offset: int = 0
     ) -> Sequence[Coupon]: ...

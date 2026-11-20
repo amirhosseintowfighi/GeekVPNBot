@@ -55,6 +55,9 @@ class Repository:
     async def get(self, reseller_id: uuid.UUID) -> Reseller | None:
         return self.rows.get(reseller_id)
 
+    async def get_for_update(self, reseller_id: uuid.UUID) -> Reseller | None:
+        return self.rows.get(reseller_id)
+
     async def get_by_admin(self, admin_id: uuid.UUID) -> Reseller | None:
         return next((r for r in self.rows.values() if r.admin_id == admin_id), None)
 

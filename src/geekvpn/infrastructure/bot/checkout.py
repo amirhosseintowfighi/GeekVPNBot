@@ -48,6 +48,7 @@ from geekvpn.application.payments.checkout_service import CheckoutRequest, Check
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.order_service import OrderService
 from geekvpn.application.provisioning.provisioning_service import ProvisioningService
+from geekvpn.domain.catalog.errors import CouponExhausted
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.catalog.pricing import PriceQuote
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
@@ -465,6 +466,8 @@ class BotCheckoutAdapter:
             renews_subscription_id=renews,
         )
 
+        await self._record_coupon_use(quote, user_id=user_id, order_id=order.id)
+
         # Committed before a single Rial moves.
         #
         # The order lives on this async session; the wallet debit, the invoice
@@ -476,8 +479,6 @@ class BotCheckoutAdapter:
         # exception rolled this session back, so the order they had paid for
         # ceased to exist.
         await self._session.commit()
-
-        await self._record_coupon_use(quote, user_id=user_id, order_id=order.id)
 
         year = self._jalali_year
         lines = _lines_for(plan.name_fa, quote)
@@ -554,15 +555,28 @@ class BotCheckoutAdapter:
         caller, so max_redemptions and max_per_user were decorative: a code
         capped at one use worked for everyone, forever.
 
-        Same transaction as the order. A redemption recorded outside it would
-        either be lost when the order rolls back, or survive an order that
-        never existed.
+        Same transaction as the order, and before it commits. A redemption
+        recorded outside it would either be lost when the order rolls back, or
+        survive an order that never existed.
+
+        The cap is checked again here, on the locked row. The quote checked it
+        on an unlocked read, which two buyers of a one-use code pass together;
+        the second to get the lock sees the first's committed use and is
+        refused, and the order this would have discounted is never committed.
         """
         if quote.coupon_code is None:
             return
-        coupon = await self._coupons.get_by_code(quote.coupon_code)
+        coupon = await self._coupons.get_by_code_for_update(quote.coupon_code)
         if coupon is None:
             return
+        if coupon.is_exhausted:
+            raise CouponExhausted("This code has reached its usage limit.", code=coupon.code)
+        if await self._coupons.redemption_count_for_user(coupon.id, user_id) >= coupon.max_per_user:
+            raise CouponExhausted(
+                "You have already used this code.",
+                code=coupon.code,
+                max_per_user=coupon.max_per_user,
+            )
 
         discount = quote.base_price - quote.total
         coupon.redeem(user_id=user_id, discount=discount)
