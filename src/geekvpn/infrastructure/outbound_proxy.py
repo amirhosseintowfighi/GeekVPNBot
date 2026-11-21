@@ -67,4 +67,35 @@ def proxy_for(url: str) -> str | None:
     return _policy.for_url(url)
 
 
-__all__ = ["DEFAULT_HOSTS", "TELEGRAM_API", "ProxyPolicy", "install_proxy", "proxy_for"]
+# -- where the Bot API is -------------------------------------------------------
+#
+# Normally api.telegram.org. From a server in Iran it can instead be a relay the
+# operator runs - a Cloudflare Worker on their own domain that forwards each
+# request to Telegram unchanged (`TELEGRAM__API_BASE_URL`). That replaces the
+# proxy for Telegram rather than adding to it: the relay's host is not in the
+# proxy's list, so requests to it go direct, and Cloudflare is reachable from
+# Iran when the proxies the operator could find were not.
+
+_telegram_base = TELEGRAM_API
+
+
+def install_telegram_api(base_url: str) -> None:
+    """Point every Bot API call at `base_url`; empty restores api.telegram.org."""
+    global _telegram_base
+    _telegram_base = (base_url or "").strip().rstrip("/") or TELEGRAM_API
+
+
+def telegram_api_base() -> str:
+    """The Bot API's origin, without a trailing slash: `{base}/bot<token>/<method>`."""
+    return _telegram_base
+
+
+__all__ = [
+    "DEFAULT_HOSTS",
+    "TELEGRAM_API",
+    "ProxyPolicy",
+    "install_proxy",
+    "install_telegram_api",
+    "proxy_for",
+    "telegram_api_base",
+]

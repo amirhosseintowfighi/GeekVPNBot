@@ -187,6 +187,13 @@ class ResellerService:
             raise ResellerNotFound("No such reseller.")
         return reseller
 
+    async def _for_change(self, reseller_id: uuid.UUID) -> Reseller:
+        """The reseller, locked: every change below saves the whole row."""
+        reseller = await self._resellers.get_for_update(reseller_id)
+        if reseller is None:
+            raise ResellerNotFound("No such reseller.")
+        return reseller
+
     async def for_admin(self, admin_id: uuid.UUID) -> Reseller:
         """Whose rows the caller may see. The whole of reseller scoping."""
         reseller = await self._resellers.get_by_admin(admin_id)
@@ -209,7 +216,7 @@ class ResellerService:
         config_prefix: str | None = None,
         config_suffix: str | None = None,
     ) -> Reseller:
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         if config_prefix is not None or config_suffix is not None:
             # Either alone keeps the other: a form that sends only the prefix
             # must not quietly clear the suffix. Empty clears.
@@ -236,7 +243,7 @@ class ResellerService:
 
     async def set_trial_limit(self, reseller_id: uuid.UUID, limit: int | None) -> Reseller:
         """Its own method: ``None`` here means "no limit", not "unchanged"."""
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.set_trial_limit(limit)
         await self._resellers.save(reseller)
         return reseller
@@ -252,7 +259,7 @@ class ResellerService:
         "fall back to the node's own host" rather than "serve links from
         nowhere".
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.subscription_hosts = {
             node_id: host.strip() for node_id, host in hosts.items() if host.strip()
         }
@@ -266,7 +273,7 @@ class ResellerService:
         made a decision yet has said. Refusing to provision at all would be a
         strange reading of "unset".
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.allowed_node_ids = frozenset(node_ids)
         await self._resellers.save(reseller)
         return reseller
@@ -278,7 +285,7 @@ class ResellerService:
         retail prices alone - the two are set by two different people and
         neither should be able to erase the other by omission.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.overrides = _merged(
             reseller.overrides,
             {plan_id: Money(price) for plan_id, price in costs.items()},
@@ -294,7 +301,7 @@ class ResellerService:
         them - a reseller running a loss-leader is doing business, and this
         platform is not their accountant.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.overrides = _merged(
             reseller.overrides,
             {plan_id: Money(price) for plan_id, price in prices.items()},
@@ -333,7 +340,7 @@ class ResellerService:
 
         Returns the bot's @username - the only part of this an operator sees.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         identity = await self._tokens.identify(token)
 
         await self._resellers.set_bot(reseller.id, token=token.strip(), username=identity.username)
@@ -358,7 +365,7 @@ class ResellerService:
         webhook leaves updates arriving for a tenant that no longer exists,
         which is a retry loop rather than a clean stop.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         token = await self._resellers.bot_token(reseller.id)
         if token:
             await self._tokens.clear_webhook(token=token)
@@ -382,7 +389,7 @@ class ResellerService:
         writing a negative balance the check constraint would reject later with
         a message nobody can read.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         # `settle` rather than `charge`: an operator correcting a balance is
         # not making a sale, and this is the one path allowed to go below zero.
         # A reseller in arrears has their customers suspended until it is
@@ -412,7 +419,7 @@ class ResellerService:
         reference: str | None = None,
     ) -> Reseller:
         """Draw a sale down. Raises before anything is provisioned."""
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.charge(amount)
         await self._resellers.save(reseller)
         await self._resellers.record(
@@ -442,7 +449,7 @@ class ResellerService:
         not have; that ordering means a panel that refuses the account leaves
         money debited for nothing, and this is the other half.
         """
-        reseller = await self.get(reseller_id)
+        reseller = await self._for_change(reseller_id)
         reseller.credit(amount)
         await self._resellers.save(reseller)
         await self._resellers.record(

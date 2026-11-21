@@ -19,7 +19,13 @@ from geekvpn.domain.payments.payment import Payment
 
 
 def require_payment(payments: PaymentRepository, payment_id: str) -> Payment:
-    payment = payments.get(payment_id)
+    """The payment, locked for the rest of the transaction.
+
+    Every caller is about to change it - approve, reject, verify, refund,
+    attach proof - and two of them on one payment must not run together: each
+    saw "pending review", each approved, and a top-up was credited twice.
+    """
+    payment = payments.get_for_update(payment_id)
     if payment is None:
         raise PaymentNotFound("The payment was not found.", payment_id=payment_id)
     return payment

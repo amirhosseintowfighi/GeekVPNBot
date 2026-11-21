@@ -318,6 +318,24 @@ linger in a tool nobody remembers configuring. It restarts the Docker daemon
 when the daemon's setting changes, which restarts the running containers.
 Originals are kept under `/var/backups/geekvpn-proxy`.
 
+**When no proxy gets through: a Cloudflare relay.** A Worker on your own
+domain forwards Bot API calls to Telegram unchanged, and Cloudflare is
+reachable from Iran.
+
+1. Cloudflare dashboard -> Workers & Pages -> Create -> Worker. Paste
+   `docker/cloudflare/telegram-relay.js` and deploy.
+2. The Worker's Settings -> Variables: `ALLOWED_BOT_IDS` = the number before
+   the colon in each bot token (ours and every reseller's), comma separated.
+   Without it the Worker relays for nobody.
+3. Settings -> Domains & Routes -> Custom domain, e.g. `tg.example.com` on a
+   zone you already have on Cloudflare. A `workers.dev` address may itself be
+   filtered.
+4. In `.env`: `TELEGRAM__API_BASE_URL=https://tg.example.com` and
+   `TELEGRAM__MODE=polling`, then `scripts/deploy.sh deploy`.
+
+Every Bot API call - the bots, notifications, receipts, Stars - then goes to
+the relay, directly; `PROXY__URL` still serves the foreign payment gateways.
+
 **Inbound.** Telegram cannot reach an Iranian server directly. Two modes:
 
 | `TELEGRAM__MODE` | When | How updates arrive |

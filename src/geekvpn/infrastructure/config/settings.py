@@ -157,6 +157,11 @@ class TelegramSettings(Section):
     #: direction: each mode puts the webhooks where it needs them on start-up.
     mode: Literal["webhook", "polling"] = "webhook"
     parse_mode: str = "HTML"
+    #: Where the Bot API is. Empty is api.telegram.org. Set it to a relay - a
+    #: Cloudflare Worker that forwards to Telegram, see
+    #: `docker/cloudflare/telegram-relay.js` - when the server cannot reach
+    #: Telegram itself and no proxy gets through.
+    api_base_url: str = ""
     #: How old signed Telegram auth data may be before it is rejected.
     auth_max_age_seconds: int = 86_400
     #: The same, for initData presented as a per-request Mini App credential.

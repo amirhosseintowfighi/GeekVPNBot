@@ -116,6 +116,9 @@ class FakePayments:
         except KeyError as error:
             raise PaymentNotFound(payment_id=payment_id) from error
 
+    def get_for_update(self, payment_id: str):
+        return self.get(payment_id)
+
     def save(self, payment) -> None:
         self.rows[payment.id] = payment
 

@@ -16,7 +16,7 @@ import httpx
 
 from geekvpn.application.resellers.tenant_bots import BotIdentity, InvalidBotToken
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.infrastructure.outbound_proxy import TELEGRAM_API, proxy_for
+from geekvpn.infrastructure.outbound_proxy import proxy_for, telegram_api_base
 
 logger = get_logger(__name__)
 
@@ -36,9 +36,9 @@ class HttpTokenChecker:
 
         try:
             async with httpx.AsyncClient(
-                timeout=TIMEOUT_SECONDS, proxy=proxy_for(TELEGRAM_API)
+                timeout=TIMEOUT_SECONDS, proxy=proxy_for(telegram_api_base())
             ) as client:
-                response = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+                response = await client.get(f"{telegram_api_base()}/bot{token}/getMe")
         except httpx.HTTPError as failure:
             # Not "the token is bad" - we do not know that. Telegram was
             # unreachable, and saying otherwise would have an operator
@@ -81,10 +81,10 @@ class HttpTokenChecker:
     async def _call(self, token: str, method: str, payload: dict[str, object]) -> None:
         try:
             async with httpx.AsyncClient(
-                timeout=TIMEOUT_SECONDS, proxy=proxy_for(TELEGRAM_API)
+                timeout=TIMEOUT_SECONDS, proxy=proxy_for(telegram_api_base())
             ) as client:
                 response = await client.post(
-                    f"https://api.telegram.org/bot{token.strip()}/{method}", json=payload
+                    f"{telegram_api_base()}/bot{token.strip()}/{method}", json=payload
                 )
         except httpx.HTTPError as failure:
             raise InvalidBotToken("Telegram could not be reached.") from failure

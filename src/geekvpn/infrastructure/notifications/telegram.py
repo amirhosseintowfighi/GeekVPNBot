@@ -31,7 +31,7 @@ import httpx
 
 from geekvpn.application.notifications.sticker_sections import SECTION_EMOJI
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.infrastructure.outbound_proxy import TELEGRAM_API, proxy_for
+from geekvpn.infrastructure.outbound_proxy import proxy_for, telegram_api_base
 
 logger = get_logger(__name__)
 
@@ -90,10 +90,10 @@ class HttpTelegramSender:
         if not file_id:
             return
         httpx.post(
-            f"https://api.telegram.org/bot{self._token}/sendSticker",
+            f"{telegram_api_base()}/bot{self._token}/sendSticker",
             json={"chat_id": chat_id, "sticker": file_id},
             timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
+            proxy=proxy_for(telegram_api_base()),
         )
 
     def _sticker_for(self, section: str) -> str:
@@ -118,10 +118,10 @@ class HttpTelegramSender:
 
         try:
             response = httpx.get(
-                f"https://api.telegram.org/bot{self._token}/getStickerSet",
+                f"{telegram_api_base()}/bot{self._token}/getStickerSet",
                 params={"name": self._sticker_set},
                 timeout=TIMEOUT_SECONDS,
-                proxy=proxy_for(TELEGRAM_API),
+                proxy=proxy_for(telegram_api_base()),
             )
             stickers = response.json()["result"]["stickers"]
         except Exception:
@@ -189,10 +189,10 @@ class HttpTelegramSender:
         for attempt in range(CONNECT_TRIES):
             try:
                 return httpx.post(
-                    f"https://api.telegram.org/bot{self._token}/sendMessage",
+                    f"{telegram_api_base()}/bot{self._token}/sendMessage",
                     json=payload,
                     timeout=TIMEOUT_SECONDS,
-                    proxy=proxy_for(TELEGRAM_API),
+                    proxy=proxy_for(telegram_api_base()),
                 )
             except _NOT_SENT as error:
                 if attempt == CONNECT_TRIES - 1:
@@ -299,22 +299,22 @@ class HttpOperatorSender:
         """Upload a file. Multipart, so it cannot share `_post`'s JSON body."""
         with path.open("rb") as handle:
             response = httpx.post(
-                f"https://api.telegram.org/bot{self._token}/sendDocument",
+                f"{telegram_api_base()}/bot{self._token}/sendDocument",
                 data={"chat_id": str(chat_id), "caption": caption, "parse_mode": self._parse_mode},
                 files={"document": (path.name, handle, "application/zip")},
                 # A backup is megabytes over a connection that may be slow;
                 # the JSON timeout would cut it off halfway.
                 timeout=UPLOAD_TIMEOUT_SECONDS,
-                proxy=proxy_for(TELEGRAM_API),
+                proxy=proxy_for(telegram_api_base()),
             )
         self._check(response, "sendDocument")
 
     def _post(self, method: str, payload: dict[str, Any]) -> None:
         response = httpx.post(
-            f"https://api.telegram.org/bot{self._token}/{method}",
+            f"{telegram_api_base()}/bot{self._token}/{method}",
             json=payload,
             timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
+            proxy=proxy_for(telegram_api_base()),
         )
         self._check(response, method)
 
@@ -364,11 +364,11 @@ class HttpTelegramFiles:
     def send_photo(self, *, chat_id: int, image: bytes, content_type: str, caption: str) -> str:
         """Send the photo and return the file id of its largest size."""
         response = httpx.post(
-            f"https://api.telegram.org/bot{self._token}/sendPhoto",
+            f"{telegram_api_base()}/bot{self._token}/sendPhoto",
             data={"chat_id": str(chat_id), "caption": caption},
             files={"photo": ("receipt", image, content_type)},
             timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
+            proxy=proxy_for(telegram_api_base()),
         )
         sizes = self._result(response, method="sendPhoto").get("photo") or []
         if not sizes:
@@ -377,18 +377,18 @@ class HttpTelegramFiles:
 
     def download(self, file_id: str) -> bytes:
         response = httpx.get(
-            f"https://api.telegram.org/bot{self._token}/getFile",
+            f"{telegram_api_base()}/bot{self._token}/getFile",
             params={"file_id": file_id},
             timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
+            proxy=proxy_for(telegram_api_base()),
         )
         path = str(self._result(response, method="getFile").get("file_path") or "")
         if not path:
             raise TelegramApiError("Telegram returned no file path.")
         content = httpx.get(
-            f"https://api.telegram.org/file/bot{self._token}/{path}",
+            f"{telegram_api_base()}/file/bot{self._token}/{path}",
             timeout=TIMEOUT_SECONDS,
-            proxy=proxy_for(TELEGRAM_API),
+            proxy=proxy_for(telegram_api_base()),
         )
         if content.status_code != httpx.codes.OK:
             raise TelegramApiError(f"HTTP {content.status_code}")

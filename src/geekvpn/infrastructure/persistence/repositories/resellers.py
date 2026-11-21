@@ -42,6 +42,15 @@ class SqlAlchemyResellerRepository:
         row = await self._session.get(ResellerModel, reseller_id)
         return await self._hydrate(row) if row else None
 
+    async def get_for_update(self, reseller_id: uuid.UUID) -> Reseller | None:
+        # populate_existing: a row this session read earlier is read again once
+        # the lock is ours, or the change would start from the balance it saw
+        # before another sale committed.
+        row = await self._session.get(
+            ResellerModel, reseller_id, with_for_update=True, populate_existing=True
+        )
+        return await self._hydrate(row) if row else None
+
     async def get_by_admin(self, admin_id: uuid.UUID) -> Reseller | None:
         stmt = select(ResellerModel).where(ResellerModel.admin_id == admin_id)
         row = (await self._session.execute(stmt)).scalars().first()

@@ -41,11 +41,10 @@ from geekvpn.domain.payments.gateway import (
     VerificationResult,
 )
 from geekvpn.infrastructure.logging.setup import get_logger
-from geekvpn.infrastructure.outbound_proxy import proxy_for
+from geekvpn.infrastructure.outbound_proxy import proxy_for, telegram_api_base
 
 logger = get_logger(__name__)
 
-API_URL: Final = "https://api.telegram.org"
 TIMEOUT_SECONDS: Final = 15.0
 #: Telegram pays out in seconds; the bot handler prompts sooner anyway.
 RETRY_AFTER: Final = timedelta(seconds=30)
@@ -87,7 +86,8 @@ class StarsGateway:
     """The price of one star, in Toman, as the operator typed it."""
 
     bot_token: Callable[[], str] = lambda: ""
-    api_url: str = API_URL
+    #: Empty means wherever the Bot API is configured to be (`telegram_api_base`).
+    api_url: str = ""
     key: str = "stars"
     title_fa: str = "⭐ پرداخت با استارز تلگرام"
     method: PaymentMethod = PaymentMethod.GATEWAY
@@ -176,10 +176,10 @@ class StarsGateway:
             raise StarsError("This shop has no bot to take stars with.")
         try:
             response = httpx.post(
-                f"{self.api_url}/bot{token}/{method}",
+                f"{self.api_url or telegram_api_base()}/bot{token}/{method}",
                 json=payload,
                 timeout=TIMEOUT_SECONDS,
-                proxy=proxy_for(self.api_url),
+                proxy=proxy_for(self.api_url or telegram_api_base()),
             )
             body = response.json()
         except (httpx.HTTPError, ValueError) as failure:

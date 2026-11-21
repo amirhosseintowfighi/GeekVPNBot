@@ -66,7 +66,13 @@ class TopupRepository(Protocol):
         decided_by: int | None,
         decided_at: datetime,
         reason_fa: str | None = None,
-    ) -> None: ...
+    ) -> bool:
+        """Record the decision only if the request still waits; say if it did.
+
+        A conditional write, not a read and then a write: two callers can both
+        read "pending", and only one of them may go on to move money.
+        """
+        ...
 
 
 class ResellerTopups:
@@ -110,13 +116,15 @@ class ResellerTopups:
         return await self._topups.list_for(reseller_id, limit=limit)
 
     async def approve(self, topup_id: uuid.UUID, *, decided_by: int | None = None) -> TopupView:
-        """Credit the balance, then record the decision.
+        """Claim the request, then credit the balance.
 
-        In that order. If the decision were written first and the credit then
-        failed, the request would read as settled with no money behind it - and
-        the reseller would be told to go and sell something they cannot pay for.
+        The claim comes first because it is what stops a second approval -
+        two operators, or one double tap - crediting one transfer twice. Both
+        happen in one transaction, so a credit that fails takes the claim back
+        with it and the request is still waiting, not settled with no money.
         """
         topup = await self._require_pending(topup_id)
+        await self._claim(topup_id, state=APPROVED, decided_by=decided_by)
 
         await self._resellers.adjust_credit(
             topup.reseller_id,
@@ -125,26 +133,34 @@ class ResellerTopups:
             actor_id=decided_by,
             kind=TOPUP,
         )
-        await self._topups.decide(
-            topup_id,
-            state=APPROVED,
-            decided_by=decided_by,
-            decided_at=self._clock.now(),
-        )
         return topup
 
     async def reject(
         self, topup_id: uuid.UUID, *, reason_fa: str = "", decided_by: int | None = None
     ) -> TopupView:
         topup = await self._require_pending(topup_id)
-        await self._topups.decide(
-            topup_id,
-            state=REJECTED,
-            decided_by=decided_by,
-            decided_at=self._clock.now(),
-            reason_fa=reason_fa.strip() or None,
+        await self._claim(
+            topup_id, state=REJECTED, decided_by=decided_by, reason_fa=reason_fa.strip() or None
         )
         return topup
+
+    async def _claim(
+        self,
+        topup_id: uuid.UUID,
+        *,
+        state: str,
+        decided_by: int | None,
+        reason_fa: str | None = None,
+    ) -> None:
+        claimed = await self._topups.decide(
+            topup_id,
+            state=state,
+            decided_by=decided_by,
+            decided_at=self._clock.now(),
+            reason_fa=reason_fa,
+        )
+        if not claimed:
+            raise TopupNotFound("No such request is waiting.")
 
     async def _require_pending(self, topup_id: uuid.UUID) -> TopupView:
         topup = await self._topups.get(topup_id)

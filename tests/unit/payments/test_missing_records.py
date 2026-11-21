@@ -20,6 +20,9 @@ class Empty:
     def get(self, _id: str) -> None:
         return None
 
+    def get_for_update(self, _id: str) -> None:
+        return None
+
 
 def test_an_unknown_payment_id_raises_a_domain_error() -> None:
     with pytest.raises(PaymentNotFound) as caught:
@@ -46,6 +49,9 @@ def test_a_found_record_is_returned_unchanged() -> None:
 
     class Found:
         def get(self, _id: str) -> object:
+            return marker
+
+        def get_for_update(self, _id: str) -> object:
             return marker
 
     assert require_payment(Found(), "x") is marker  # type: ignore[arg-type]

@@ -88,8 +88,13 @@ class ApplicationRepository(Protocol):
         decided_by: int | None,
         decided_at: datetime,
         reason_fa: str | None = None,
-        reseller_id: uuid.UUID | None = None,
-    ) -> None: ...
+    ) -> bool:
+        """Record the decision only if the application still waits; say if it did."""
+        ...
+
+    async def attach_reseller(self, application_id: uuid.UUID, reseller_id: uuid.UUID) -> None:
+        """Point an approved application at the reseller it became."""
+        ...
 
 
 class SetupTokens(Protocol):
@@ -159,6 +164,19 @@ class ResellerApplications:
         if application is None or application.state != PENDING:
             raise ApplicationNotFound("No such application is waiting.")
 
+        # Claimed before the reseller is made: two approvals that both read
+        # "pending" would otherwise make two reseller accounts for one person,
+        # each with its own login. One transaction, so a failure below undoes
+        # the claim and the application is still waiting.
+        claimed = await self._applications.decide(
+            application_id,
+            state=APPROVED,
+            decided_by=decided_by,
+            decided_at=self._clock.now(),
+        )
+        if not claimed:
+            raise ApplicationNotFound("No such application is waiting.")
+
         created = await self._resellers.create(
             username=_username_from(application),
             name_fa=application.name_fa,
@@ -175,14 +193,7 @@ class ResellerApplications:
             token_hash=self._hasher.hash(token),
             expires_at=self._clock.now() + SETUP_TOKEN_TTL,
         )
-
-        await self._applications.decide(
-            application_id,
-            state=APPROVED,
-            decided_by=decided_by,
-            decided_at=self._clock.now(),
-            reseller_id=created.reseller.id,
-        )
+        await self._applications.attach_reseller(application_id, created.reseller.id)
         return Approval(reseller=created.reseller, username=created.username, setup_token=token)
 
     async def reject(
@@ -195,13 +206,15 @@ class ResellerApplications:
         application = await self._applications.get(application_id)
         if application is None or application.state != PENDING:
             raise ApplicationNotFound("No such application is waiting.")
-        await self._applications.decide(
+        claimed = await self._applications.decide(
             application_id,
             state=REJECTED,
             decided_by=decided_by,
             decided_at=self._clock.now(),
             reason_fa=reason_fa.strip() or None,
         )
+        if not claimed:
+            raise ApplicationNotFound("No such application is waiting.")
         return application
 
 

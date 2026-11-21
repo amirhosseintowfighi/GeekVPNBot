@@ -103,6 +103,9 @@ class OnePayment:
     def get(self, payment_id: str):
         return Payment()
 
+    def get_for_update(self, payment_id: str):
+        return Payment()
+
     def find_by_digest(self, digest: str) -> None:
         return None
 
