@@ -20,7 +20,9 @@ from geekvpn.domain.provisioning.enums import SubscriptionState
 from geekvpn.domain.provisioning.errors import (
     IllegalSubscriptionTransition,
     OrderValidationError,
+    ServiceNameTooLong,
     SubscriptionRevoked,
+    TransferToSelf,
 )
 from geekvpn.domain.provisioning.events import (
     SubscriptionActivated,
@@ -500,9 +502,7 @@ class Subscription(AggregateRoot[str]):
         self._guard_changeable()
         cleaned = " ".join((name or "").split())
         if len(cleaned) > DISPLAY_NAME_MAX:
-            raise OrderValidationError(
-                "A service name is at most 32 characters.", length=len(cleaned)
-            )
+            raise ServiceNameTooLong(length=len(cleaned))
         self.display_name = cleaned or None
 
     def replace_access(self, *, subscription_url: str | None, remote_id: str | None) -> None:
@@ -523,7 +523,7 @@ class Subscription(AggregateRoot[str]):
         """
         self._guard_changeable()
         if user_id == self.user_id:
-            raise OrderValidationError("The service already belongs to this customer.")
+            raise TransferToSelf()
         previous = self.user_id
         self.user_id = user_id
         self.auto_renew = False

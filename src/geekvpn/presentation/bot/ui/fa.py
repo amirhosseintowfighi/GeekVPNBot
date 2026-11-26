@@ -85,6 +85,17 @@ def normalize_input(value: str) -> str:
     return " ".join(text.split())
 
 
+def telegram_id_from(value: str) -> int | None:
+    """A numeric Telegram id as a customer typed it, Persian digits and all.
+
+    None for anything else. The bot's transfer prompt and the Mini App's
+    transfer endpoint read the recipient through this one function, so a
+    value one of them accepts the other cannot refuse.
+    """
+    typed = en_digits(normalize_input(value or "")).strip()
+    return int(typed) if typed.isdigit() else None
+
+
 def isolate(value: object) -> str:
     """Wrap a run so it cannot reorder its neighbours.
 

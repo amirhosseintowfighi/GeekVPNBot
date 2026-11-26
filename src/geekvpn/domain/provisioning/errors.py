@@ -85,11 +85,53 @@ class ProvisioningFailed(ProvisioningError):
         super().__init__(f"Provisioning failed: {reason}", reason=reason, retryable=retryable)
 
 
+class ServiceNameTooLong(OrderValidationError):
+    """A customer's name for their service does not fit on a button."""
+
+    code = "service_name_too_long"
+    message = "این اسم طولانیه. حداکثر ۳۲ حرف."
+
+
+class TransferToSelf(OrderValidationError):
+    """The recipient of a transfer is the service's own owner."""
+
+    code = "transfer_to_self"
+    message = "این سرویس همین الان مال خودته 🙂"
+
+
 class RefundNotAllowed(ConflictError):
-    """A refund for an unused service was refused; the message says why."""
+    """A refund for an unused service was refused; the message says why.
+
+    Each reason has its own subclass so a client can branch on ``code``
+    without parsing the sentence. The bot only ever reads ``message``.
+    """
 
     code = "unused_refund_refused"
     message = "برگشت وجه برای این سرویس ممکن نیست."
+
+
+class RefundDisabled(RefundNotAllowed):
+    code = "refund_disabled"
+    message = "برگشت وجه در این فروشگاه فعال نیست."
+
+
+class RefundServiceNotActive(RefundNotAllowed):
+    code = "refund_service_not_active"
+    message = "فقط سرویس فعال قابل برگشت وجهه."
+
+
+class RefundWindowClosed(RefundNotAllowed):
+    code = "refund_window_closed"
+
+
+class RefundNotPurchased(RefundNotAllowed):
+    code = "refund_not_purchased"
+    message = "این سرویس خریداری نشده که وجهش برگرده."
+
+
+class RefundServiceUsed(RefundNotAllowed):
+    code = "refund_service_used"
+    message = "این سرویس استفاده شده و وجهش برنمی‌گرده."
 
 
 class DailyPurchaseLimitReached(ConflictError):
@@ -136,10 +178,17 @@ __all__ = [
     "OrderValidationError",
     "ProvisioningError",
     "ProvisioningFailed",
+    "RefundDisabled",
     "RefundNotAllowed",
+    "RefundNotPurchased",
+    "RefundServiceNotActive",
+    "RefundServiceUsed",
+    "RefundWindowClosed",
     "RotationUnavailable",
+    "ServiceNameTooLong",
     "SubscriptionNotFound",
     "SubscriptionRevoked",
+    "TransferToSelf",
 ]
 
 

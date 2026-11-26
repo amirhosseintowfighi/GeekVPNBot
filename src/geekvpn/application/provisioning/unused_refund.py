@@ -19,16 +19,36 @@ revoked service and the failure in the log.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from geekvpn.application.ports.clock import Clock
 from geekvpn.application.provisioning.ports import OrderRepository, SubscriptionRepository
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.provisioning.enums import OrderSource, SubscriptionState
-from geekvpn.domain.provisioning.errors import RefundNotAllowed
+from geekvpn.domain.provisioning.errors import (
+    RefundDisabled,
+    RefundNotAllowed,
+    RefundNotPurchased,
+    RefundServiceNotActive,
+    RefundServiceUsed,
+    RefundWindowClosed,
+)
+from geekvpn.domain.provisioning.order import Order
 from geekvpn.domain.provisioning.subscription import Subscription
 
 REFUND_REASON_FA = "برگشت وجه سرویس استفاده‌نشده"
+
+
+@dataclass(frozen=True, slots=True)
+class RefundQuote:
+    """What returning this service would give back, and until when."""
+
+    subscription: Subscription
+    order: Order
+    amount: Money
+    window_hours: int
+    deadline: datetime
 
 
 class UnusedRefund:
@@ -52,29 +72,56 @@ class UnusedRefund:
         self._window = window
         self._clock = clock
 
+    async def assess(
+        self, subscription_id: str, *, owner: int, stored_usage: bool = False
+    ) -> RefundQuote:
+        """Every check ``refund`` makes before asking the panel, and nothing else.
+
+        Read-only: it is what a client shows *before* the customer confirms.
+        With ``stored_usage`` the stored traffic counter is also checked, which
+        is what the bot's detail screen does to decide whether to offer the
+        button; ``refund`` still asks the panel for the real answer.
+
+        :raises RefundNotAllowed: a subclass per reason, with it in Persian.
+        """
+        hours = await self._window()
+        if hours <= 0:
+            raise RefundDisabled()
+        subscription = await self._subscriptions.get(subscription_id)
+        if subscription is None or subscription.user_id != owner:
+            raise RefundNotAllowed("این سرویس پیدا نشد.")
+        if subscription.state is not SubscriptionState.ACTIVE:
+            raise RefundServiceNotActive()
+        deadline = subscription.started_at + timedelta(hours=hours)
+        if self._clock.now() > deadline:
+            raise RefundWindowClosed(
+                f"مهلت برگشت وجه ({hours} ساعت بعد از خرید) تموم شده.", window_hours=hours
+            )
+        order = await self._orders.get(subscription.order_id) if subscription.order_id else None
+        if order is None or order.source is OrderSource.TRIAL or order.total.amount <= 0:
+            raise RefundNotPurchased()
+        if stored_usage and subscription.traffic_used_mib > 0:
+            raise RefundServiceUsed()
+        return RefundQuote(
+            subscription=subscription,
+            order=order,
+            amount=order.total,
+            window_hours=hours,
+            deadline=deadline,
+        )
+
     async def refund(self, subscription_id: str, *, owner: int) -> Money:
         """Revoke the service and credit its price. Returns what was credited.
 
         :raises RefundNotAllowed: with the reason in Persian, for every case
             in which the answer is no.
         """
-        hours = await self._window()
-        if hours <= 0:
-            raise RefundNotAllowed("برگشت وجه در این فروشگاه فعال نیست.")
-        subscription = await self._subscriptions.get(subscription_id)
-        if subscription is None or subscription.user_id != owner:
-            raise RefundNotAllowed("این سرویس پیدا نشد.")
-        if subscription.state is not SubscriptionState.ACTIVE:
-            raise RefundNotAllowed("فقط سرویس فعال قابل برگشت وجهه.")
-        if self._clock.now() - subscription.started_at > timedelta(hours=hours):
-            raise RefundNotAllowed(f"مهلت برگشت وجه ({hours} ساعت بعد از خرید) تموم شده.")
-        order = await self._orders.get(subscription.order_id) if subscription.order_id else None
-        if order is None or order.source is OrderSource.TRIAL or order.total.amount <= 0:
-            raise RefundNotAllowed("این سرویس خریداری نشده که وجهش برگرده.")
+        quote = await self.assess(subscription_id, owner=owner)
+        order = quote.order
 
-        fresh = await self._refresh_usage(subscription_id) or subscription
+        fresh = await self._refresh_usage(subscription_id) or quote.subscription
         if fresh.traffic_used_mib > 0:
-            raise RefundNotAllowed("این سرویس استفاده شده و وجهش برنمی‌گرده.")
+            raise RefundServiceUsed()
 
         await self._revoke(subscription_id, REFUND_REASON_FA)
         await self._credit(owner, order.total, order.number)
@@ -83,4 +130,4 @@ class UnusedRefund:
         return order.total
 
 
-__all__ = ["REFUND_REASON_FA", "UnusedRefund"]
+__all__ = ["REFUND_REASON_FA", "RefundQuote", "UnusedRefund"]

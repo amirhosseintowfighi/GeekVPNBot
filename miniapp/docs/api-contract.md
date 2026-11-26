@@ -61,6 +61,15 @@ polls this screen every 15 seconds and redirects on `approved`.
 | GET | `/subscriptions` | `SubscriptionCard[]` | `SubscriptionReader.list_for_user` |
 | POST | `/subscriptions/:id/rotate` | `{ subscriptionUrl }` | `SubscriptionReader.rotate_link` |
 | GET | `/subscriptions/:id/renewal-options` | `Storefront` | catalog filtered to the product |
+| POST | `/subscriptions/:id/name` | `SubscriptionCard` | `ServiceOwnership.rename` |
+| POST | `/subscriptions/:id/transfer` | `Transfer` | `ServiceOwnership.transfer` |
+| GET | `/subscriptions/:id/refund` | `RefundOffer` | `ServiceOwnership.refund_quote` |
+| POST | `/subscriptions/:id/refund` | `RefundDone` | `ServiceOwnership.refund_unused` |
+| GET | `/devices` | `Device[]` | `AppLinkLogin.devices` |
+| POST | `/devices/:id/revoke` | 204 | `AppLinkLogin.disconnect` |
+
+The last six are the bot's owner controls, for the Android app; fields and
+error codes are in `docs/android-app.md`.
 
 Renewal options return a full `Storefront` so the renew screen can reuse
 `PlanCard` and hand off to the ordinary checkout. Quoting stays in one place.

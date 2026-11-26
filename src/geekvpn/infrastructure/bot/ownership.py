@@ -22,9 +22,9 @@ from geekvpn.application.platform.settings_service import (
     TUTORIALS,
     SettingsService,
 )
-from geekvpn.application.provisioning.unused_refund import UnusedRefund
+from geekvpn.application.provisioning.unused_refund import RefundQuote, UnusedRefund
 from geekvpn.domain.notifications.message import render
-from geekvpn.domain.provisioning.errors import RefundNotAllowed
+from geekvpn.domain.provisioning.errors import RefundNotAllowed, TransferToSelf
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.bot.readers import to_card
 from geekvpn.infrastructure.bot.sync_readers import SyncBridge
@@ -60,8 +60,25 @@ RENAME_REPORT_FA = (
 )
 
 
+#: Appended to an operator report when the change came from somewhere other
+#: than the bot, so an operator reading the chat knows where to look.
+ORIGIN_LINE_FA = "\nاز طریق: {origin}"
+
+#: What a customer may type to clear a name: the bot asks for it, because an
+#: empty chat message cannot be sent.
+CLEAR_NAME = "-"
+
+
 class ServiceDisabled(PermissionError):
     """The shop switched this control off after the button was drawn."""
+
+
+class RecipientNotFound(LookupError):
+    """Nobody with that Telegram id has started this shop's bot.
+
+    A ``LookupError`` like the bot always caught, and its own type so a caller
+    can tell it apart from a service that is not the caller's.
+    """
 
 
 class BotServiceOwnership:
@@ -107,28 +124,45 @@ class BotServiceOwnership:
         return await self._save(subscription)
 
     async def rename(
-        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, name: str | None
+        self,
+        user_id: uuid.UUID,
+        subscription_id: uuid.UUID,
+        *,
+        name: str | None,
+        origin_fa: str | None = None,
     ) -> SubscriptionCard:
         if not await self._settings.get(RENAME_ENABLED):
             raise ServiceDisabled("Renaming is switched off.")
         subscription = await self._own(user_id, subscription_id)
-        subscription.rename(name)
+        cleaned = " ".join((name or "").split())
+        subscription.rename(None if cleaned == CLEAR_NAME else cleaned)
         card = await self._save(subscription)
         await self._report(
             RENAME_REPORT_FA.format(
                 user_id=subscription.user_id,
                 username=subscription.remote_username,
                 name=_escape(subscription.display_name or "—"),
-            )
+            ),
+            origin_fa,
         )
         return card
 
     async def transfer(
-        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, to_telegram_id: int
+        self,
+        user_id: uuid.UUID,
+        subscription_id: uuid.UUID,
+        *,
+        to_telegram_id: int,
+        origin_fa: str | None = None,
     ) -> None:
         if not await self._settings.get(TRANSFER_ENABLED):
             raise ServiceDisabled("Transfers are switched off.")
         subscription = await self._own(user_id, subscription_id)
+        # Before the recipient lookup: the owner is certainly a customer, so
+        # asking would answer "found" and the refusal would come from the
+        # aggregate as a generic validation error.
+        if to_telegram_id == subscription.user_id:
+            raise TransferToSelf()
         # A customer of this shop, not merely somebody on Telegram: a service
         # handed to a stranger who never started the bot would belong to
         # nobody who could see it, and one handed across shops would move a
@@ -137,7 +171,7 @@ class BotServiceOwnership:
             to_telegram_id, reseller_id=self._reseller_id
         )
         if recipient is None:
-            raise LookupError(f"No customer {to_telegram_id} in this shop.")
+            raise RecipientNotFound(f"No customer {to_telegram_id} in this shop.")
         previous = subscription.user_id
         subscription.transfer_to(recipient.telegram_id)
         await self._subscriptions.update(subscription)
@@ -158,10 +192,23 @@ class BotServiceOwnership:
         await self._report(
             TRANSFER_REPORT_FA.format(
                 username=subscription.remote_username, from_id=previous, to_id=to_telegram_id
-            )
+            ),
+            origin_fa,
         )
 
-    async def refund_unused(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> int:
+    async def refund_quote(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> RefundQuote:
+        if self._refunds is None:
+            raise RefundNotAllowed()
+        subscription = await self._own(user_id, subscription_id)
+        # The stored counter, as the bot's detail screen uses to offer the
+        # button. The refund itself asks the panel.
+        return await self._refunds.assess(
+            subscription.id, owner=subscription.user_id, stored_usage=True
+        )
+
+    async def refund_unused(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, origin_fa: str | None = None
+    ) -> int:
         if self._refunds is None:
             raise RefundNotAllowed()
         subscription = await self._own(user_id, subscription_id)
@@ -172,7 +219,8 @@ class BotServiceOwnership:
                 user_id=subscription.user_id,
                 username=subscription.remote_username,
                 amount=amount.amount,
-            )
+            ),
+            origin_fa,
         )
         return amount.amount
 
@@ -191,7 +239,10 @@ class BotServiceOwnership:
         order = await self._orders.get(subscription.order_id) if subscription.order_id else None
         return to_card(subscription, order)
 
-    async def _report(self, text: str) -> None:
+    async def _report(self, text: str, origin_fa: str | None = None) -> None:
+        if origin_fa:
+            text += ORIGIN_LINE_FA.format(origin=_escape(origin_fa))
+
         def work(scope: SyncScope) -> None:
             scope.operator_reports.send(AlertKind.REPORT, text)
 
@@ -212,4 +263,4 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-__all__ = ["BotServiceOwnership", "ServiceDisabled"]
+__all__ = ["CLEAR_NAME", "BotServiceOwnership", "RecipientNotFound", "ServiceDisabled"]

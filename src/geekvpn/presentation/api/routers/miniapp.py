@@ -19,14 +19,20 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.datastructures import DefaultPlaceholder
 from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from pydantic import ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from geekvpn.application.bot.read_models import GatewayScreen, NotificationPreferences
+from geekvpn.application.bot.ports import ServiceOwnership
+from geekvpn.application.bot.read_models import (
+    GatewayScreen,
+    NotificationPreferences,
+    SubscriptionCard,
+)
+from geekvpn.application.bot.services import BotServices
 from geekvpn.application.payments.receipt_intent import (
     RECEIPT_INTENT_TTL_SECONDS,
     RECEIPT_REQUESTED_TEMPLATE,
@@ -35,13 +41,18 @@ from geekvpn.application.payments.receipt_intent import (
 from geekvpn.application.platform.settings_service import TUTORIAL_DEVICES
 from geekvpn.application.provisioning.usage_history import daily_usage, tehran_day
 from geekvpn.application.support.ticket_service import MessageView, ReplyRequest
-from geekvpn.domain.base.errors import DomainError
+from geekvpn.domain.base.errors import ConflictError, DomainError, NotFoundError, ValidationError
 from geekvpn.domain.catalog.custom_volume import MAX_CUSTOM_GIB
 from geekvpn.domain.payments.enums import PaymentMethod, PaymentState
 from geekvpn.domain.payments.payment import Payment
-from geekvpn.domain.provisioning.errors import RotationUnavailable
+from geekvpn.domain.provisioning.errors import (
+    RefundNotAllowed,
+    RotationUnavailable,
+    SubscriptionNotFound,
+)
 from geekvpn.domain.provisioning.subscription import Subscription
 from geekvpn.infrastructure.bot.checkout import CARD, REVIEW_SLA_FA, payment_uuid
+from geekvpn.infrastructure.bot.ownership import RecipientNotFound
 from geekvpn.infrastructure.bot.services import build_bot_services
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.scope import RequestScope
@@ -54,9 +65,11 @@ from geekvpn.infrastructure.push.tokens import MAX_TOKEN_LENGTH, forget_token, r
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
 from geekvpn.presentation.api.base_schema import ApiModel
 from geekvpn.presentation.api.dependencies import ContainerDep, UnitOfWorkDep
-from geekvpn.presentation.api.miniapp_security import CurrentMiniAppUser, ServicesDep
+from geekvpn.presentation.api.miniapp_security import BEARER, CurrentMiniAppUser, ServicesDep
 from geekvpn.presentation.api.routers.gateway_callback import remember_app_payment
 from geekvpn.presentation.api.security import ScopeDep
+from geekvpn.presentation.bot.ui import text as T
+from geekvpn.presentation.bot.ui.fa import fa_digits, telegram_id_from, toman
 
 logger = get_logger(__name__)
 
@@ -877,6 +890,315 @@ async def usage_days(
         UsageDayView(day=entry.day.isoformat(), used_mib=entry.used_mib)
         for entry in daily_usage(readings, today=today, days=days)
     ]
+
+
+# -- what the owner may change: name, owner, refund --------------------------
+#
+# The bot's own controls (`handlers/service_owner.py`), through the same
+# `ServiceOwnership` the bot calls: the shop's switches, the ownership check,
+# the operator report and the message to a recipient all live there, so a
+# rename from the app and one from the chat cannot follow different rules.
+
+
+class FeatureDisabled(ConflictError):
+    """The shop switched this control off in its settings."""
+
+    code = "feature_disabled"
+    message = T.FEATURE_OFF
+
+
+class TransferRecipientInvalid(ValidationError):
+    code = "transfer_recipient_invalid"
+    message = T.TRANSFER_BAD_ID
+
+
+class TransferRecipientNotFound(ValidationError):
+    """Nobody with that id has started this shop's bot.
+
+    422 and not 404: on this path a 404 means the *service* is not the
+    caller's, and the app must be able to tell the two apart.
+    """
+
+    code = "transfer_recipient_not_found"
+    message = T.TRANSFER_NO_SUCH_USER
+
+
+def _origin_fa(authorization: str | None) -> str:
+    """Which front-end to name in the operators' report."""
+    scheme = (authorization or "").partition(" ")[0].lower()
+    return T.ORIGIN_APP if scheme == BEARER else T.ORIGIN_MINI_APP
+
+
+def _ownership(services: BotServices) -> ServiceOwnership:
+    if services.ownership is None:  # pragma: no cover - always built for a customer
+        raise FeatureDisabled()
+    return services.ownership
+
+
+async def _listed_card(
+    services: BotServices, user_id: uuid.UUID, subscription_id: uuid.UUID
+) -> SubscriptionCard | None:
+    """The card exactly as ``GET /subscriptions`` shows it, with its tier and category."""
+    for card in await services.subscriptions.list_for_user(user_id):
+        if card.subscription_id == subscription_id:
+            return card
+    return None
+
+
+class RenameRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: ``null``, blank or a lone ``-`` goes back to the plan's name, as in the bot.
+    name: str | None = None
+
+
+@router.post("/subscriptions/{subscription_id}/name", summary="Name a service, or clear its name")
+async def rename_subscription(
+    subscription_id: uuid.UUID,
+    payload: RenameRequest,
+    user: CurrentMiniAppUser,
+    services: ServicesDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Any:
+    """Answers the service's ``SubscriptionCard``; the name is ``displayName``."""
+    try:
+        updated = await _ownership(services).rename(
+            user.id, subscription_id, name=payload.name, origin_fa=_origin_fa(authorization)
+        )
+    except PermissionError as exc:
+        raise FeatureDisabled() from exc
+    except LookupError as exc:
+        raise SubscriptionNotFound() from exc
+    return await _listed_card(services, user.id, subscription_id) or updated
+
+
+class TransferRequest(ApiModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: The recipient's numeric Telegram id - the only thing the bot accepts.
+    #: A string is read the way the bot reads a message, Persian digits too.
+    recipient: int | str
+
+
+class TransferResponse(ApiModel):
+    subscription_id: uuid.UUID
+    recipient_telegram_id: int
+    #: Always ``done``: the bot moves the service at once, with no step on
+    #: the recipient's side. A field so a later approval step is not a break.
+    status: str = "done"
+    message_fa: str = T.TRANSFER_DONE
+
+
+@router.post(
+    "/subscriptions/{subscription_id}/transfer",
+    response_model=TransferResponse,
+    summary="Give a service to another customer of this shop",
+)
+async def transfer_subscription(
+    subscription_id: uuid.UUID,
+    payload: TransferRequest,
+    user: CurrentMiniAppUser,
+    services: ServicesDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> TransferResponse:
+    """Immediate and not undoable. The bot's confirmation screen is the app's to draw.
+
+    The service leaves the caller's list and appears in the recipient's, with
+    the same link: the panel account is untouched, so devices already using
+    it keep working. Auto-renewal is switched off.
+    """
+    to_id = telegram_id_from(str(payload.recipient))
+    if to_id is None:
+        raise TransferRecipientInvalid()
+    try:
+        await _ownership(services).transfer(
+            user.id, subscription_id, to_telegram_id=to_id, origin_fa=_origin_fa(authorization)
+        )
+    except PermissionError as exc:
+        raise FeatureDisabled() from exc
+    except RecipientNotFound as exc:
+        raise TransferRecipientNotFound() from exc
+    except LookupError as exc:
+        raise SubscriptionNotFound() from exc
+    return TransferResponse(subscription_id=subscription_id, recipient_telegram_id=to_id)
+
+
+class RefundOfferView(ApiModel):
+    eligible: bool
+    #: Toman back into the wallet. Null when not eligible.
+    amount: int | None = None
+    #: Why not, when not eligible: a stable code and the bot's own sentence.
+    reason_code: str | None = None
+    reason_fa: str | None = None
+    #: The shop's window in hours after purchase; 0 means refunds are off.
+    window_hours: int = 0
+    #: Until when this service can be returned. Null when not eligible.
+    deadline_at: datetime | None = None
+    policy_fa: str = ""
+
+
+class RefundDoneView(ApiModel):
+    subscription_id: uuid.UUID
+    amount: int
+    message_fa: str
+
+
+@router.get(
+    "/subscriptions/{subscription_id}/refund",
+    response_model=RefundOfferView,
+    summary="Whether this unused service can be returned, and for how much",
+)
+async def refund_offer(
+    subscription_id: uuid.UUID, user: CurrentMiniAppUser, services: ServicesDep
+) -> RefundOfferView:
+    """The same checks the refund makes, without asking the panel.
+
+    Usage here is the stored counter - what the bot uses to offer its button.
+    ``eligible`` can therefore be true and the refund still refused with
+    ``refund_service_used`` when the panel reports traffic the counter has not
+    caught up with yet.
+    """
+    ownership = _ownership(services)
+    hours = (await ownership.options()).refund_window_hours
+    policy = T.REFUND_POLICY.format(hours=fa_digits(hours))
+    try:
+        quote = await ownership.refund_quote(user.id, subscription_id)
+    except LookupError as exc:
+        raise SubscriptionNotFound() from exc
+    except RefundNotAllowed as refused:
+        return RefundOfferView(
+            eligible=False,
+            reason_code=refused.code,
+            reason_fa=refused.message,
+            window_hours=hours,
+            policy_fa=policy,
+        )
+    return RefundOfferView(
+        eligible=True,
+        amount=quote.amount.amount,
+        window_hours=quote.window_hours,
+        deadline_at=quote.deadline,
+        policy_fa=T.REFUND_POLICY.format(hours=fa_digits(quote.window_hours)),
+    )
+
+
+@router.post(
+    "/subscriptions/{subscription_id}/refund",
+    response_model=RefundDoneView,
+    summary="Return an unused service; its price goes back to the wallet",
+)
+async def refund_subscription(
+    subscription_id: uuid.UUID,
+    user: CurrentMiniAppUser,
+    services: ServicesDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RefundDoneView:
+    """Immediate, as in the bot: no request waits for an operator.
+
+    The panel account is deleted, the price is credited to the wallet (a
+    ``refund`` line in ``/wallet/transactions``) and the operators get the
+    bot's report with a line naming the app. Every refusal is a 409 whose
+    ``title`` says which rule and whose ``message_fa`` is the bot's sentence.
+    """
+    try:
+        amount = await _ownership(services).refund_unused(
+            user.id, subscription_id, origin_fa=_origin_fa(authorization)
+        )
+    except LookupError as exc:
+        raise SubscriptionNotFound() from exc
+    return RefundDoneView(
+        subscription_id=subscription_id,
+        amount=amount,
+        message_fa=T.REFUND_DONE.format(amount=toman(amount)),
+    )
+
+
+# -- signed-in devices ---------------------------------------------------------
+
+
+class DeviceNotFound(NotFoundError):
+    """Not one of the caller's app sign-ins, or already signed out."""
+
+    code = "device_not_found"
+    message = T.DEVICE_NOT_FOUND
+
+
+class DeviceView(ApiModel):
+    #: The app session's id. What `/revoke` takes.
+    device_id: uuid.UUID
+    name: str
+    platform: str | None = None
+    app_version: str | None = None
+    created_at: datetime
+    last_seen_at: datetime
+    #: The sign-in this request was made with. Always false from the Mini App,
+    #: which is not one of these.
+    current: bool = False
+
+
+def _session_of(container: Container, authorization: str | None) -> uuid.UUID | None:
+    """The app session behind a Bearer token; None for Mini App initData.
+
+    Already verified by `current_mini_app_user`; decoding again only reads it.
+    """
+    scheme, _, value = (authorization or "").partition(" ")
+    if scheme.lower() != BEARER:
+        return None
+    try:
+        return container.access_tokens.decode(value.strip()).session_id
+    except DomainError:  # pragma: no cover - the user dependency refused it first
+        return None
+
+
+@router.get(
+    "/devices",
+    response_model=list[DeviceView],
+    summary="The apps signed in to this account, most recently used first",
+)
+async def devices(
+    user: CurrentMiniAppUser,
+    scope: ScopeDep,
+    container: ContainerDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> list[DeviceView]:
+    """The bot's «دستگاه‌های متصل»: live sessions from the app sign-ins only."""
+    current = _session_of(container, authorization)
+    return [
+        DeviceView(
+            device_id=device.session_id,
+            name=device.name,
+            platform=device.platform,
+            app_version=device.app_version,
+            created_at=device.created_at,
+            last_seen_at=device.last_used_at,
+            current=device.session_id == current,
+        )
+        for device in await scope.app_link_login.devices(user.id)
+    ]
+
+
+@router.post(
+    "/devices/{device_id}/revoke",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Sign one app out; its next refresh is refused",
+)
+async def revoke_device(
+    device_id: str, user: CurrentMiniAppUser, scope: ScopeDep, uow: UnitOfWorkDep
+) -> None:
+    """The bot's «قطع» button. The current device may sign itself out too.
+
+    The session, its refresh tokens and its access tokens are revoked at once.
+    An id that is malformed, someone else's or already signed out is the same
+    404, so ids cannot be probed.
+    """
+    try:
+        session_id = uuid.UUID(device_id)
+    except ValueError as exc:
+        raise DeviceNotFound() from exc
+    if not await scope.app_link_login.disconnect(user.id, session_id):
+        raise DeviceNotFound()
+    await uow.commit()
+    logger.info("app_login.device_disconnected", session_id=str(session_id), via="api")
 
 
 # -- free trial ------------------------------------------------------------

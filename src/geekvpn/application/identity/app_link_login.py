@@ -18,6 +18,7 @@ session list all work for the app without a line of their own.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -111,6 +112,11 @@ class AppDevice:
     name: str
     created_at: datetime
     last_used_at: datetime
+    #: Read back from the session's user agent, which both app sign-ins write
+    #: as ``GeekVPN/<version> (<platform>)``. None when it says something else
+    #: - a session from before that format - rather than a guess.
+    platform: str | None = None
+    app_version: str | None = None
 
 
 class AppLinkLogin:
@@ -293,9 +299,12 @@ class AppLinkLogin:
                 name=session.device.label or "Android",
                 created_at=session.created_at,
                 last_used_at=session.last_used_at,
+                platform=platform,
+                app_version=version,
             )
             for session in sessions
             if session.auth_method in APP_AUTH_METHODS
+            for platform, version in [app_user_agent(session.device.user_agent)]
         ]
 
     async def disconnect(self, user_id: uuid.UUID, session_id: uuid.UUID) -> bool:
@@ -381,6 +390,17 @@ class AppLinkLogin:
             )
             if not verdict.allowed:
                 raise RateLimitedError()
+
+
+_APP_USER_AGENT = re.compile(r"^GeekVPN/(?P<version>[^ ]*) \((?P<platform>[^)]*)\)$")
+
+
+def app_user_agent(user_agent: str | None) -> tuple[str | None, str | None]:
+    """(platform, app version) from the user agent the app sign-ins record."""
+    match = _APP_USER_AGENT.match(user_agent or "")
+    if match is None:
+        return None, None
+    return match["platform"].strip().lower() or None, match["version"].strip() or None
 
 
 def _clip(value: str | None, limit: int) -> str:
