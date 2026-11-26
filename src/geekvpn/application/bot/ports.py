@@ -33,6 +33,7 @@ from geekvpn.application.bot.read_models import (
     WalletSnapshot,
     WalletTransaction,
 )
+from geekvpn.application.provisioning.unused_refund import RefundQuote
 
 
 @runtime_checkable
@@ -238,16 +239,43 @@ class ServiceOwnership(Protocol):
     ) -> SubscriptionCard: ...
 
     async def rename(
-        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, name: str | None
-    ) -> SubscriptionCard: ...
+        self,
+        user_id: uuid.UUID,
+        subscription_id: uuid.UUID,
+        *,
+        name: str | None,
+        origin_fa: str | None = None,
+    ) -> SubscriptionCard:
+        """``None``, blank or a lone ``-`` clears the name back to the plan's.
 
-    async def transfer(
-        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, to_telegram_id: int
-    ) -> None:
-        """:raises LookupError: no such recipient in this shop."""
+        ``origin_fa`` names the front-end in the operators' report when it is
+        not the bot ("اپ"); the bot passes nothing and its report is unchanged.
+        """
         ...
 
-    async def refund_unused(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> int:
+    async def transfer(
+        self,
+        user_id: uuid.UUID,
+        subscription_id: uuid.UUID,
+        *,
+        to_telegram_id: int,
+        origin_fa: str | None = None,
+    ) -> None:
+        """:raises LookupError: not this customer's service, or (as
+        ``RecipientNotFound``) no such recipient in this shop.
+        :raises TransferToSelf: the recipient already owns it."""
+        ...
+
+    async def refund_quote(self, user_id: uuid.UUID, subscription_id: uuid.UUID) -> RefundQuote:
+        """What ``refund_unused`` would give back, without doing it.
+
+        :raises RefundNotAllowed: with the reason, in Persian.
+        """
+        ...
+
+    async def refund_unused(
+        self, user_id: uuid.UUID, subscription_id: uuid.UUID, *, origin_fa: str | None = None
+    ) -> int:
         """Return a service that carried no traffic. Returns the Toman credited.
 
         :raises RefundNotAllowed: with the reason, in Persian.

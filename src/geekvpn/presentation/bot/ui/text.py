@@ -830,6 +830,9 @@ DEVICES_EMPTY: Final = (
 DEVICE_LINE: Final = "\u2022 {name} \u2014 \u0622\u062e\u0631\u06cc\u0646 \u0627\u0633\u062a\u0641\u0627\u062f\u0647 {time}"
 BTN_DEVICE_DISCONNECT: Final = "\u0642\u0637\u0639 \u00ab{name}\u00bb"
 DEVICE_DISCONNECTED: Final = "\u0642\u0637\u0639 \u0634\u062f. \u0627\u0648\u0646 \u062f\u0633\u062a\u06af\u0627\u0647 \u0628\u0627\u06cc\u062f \u062f\u0648\u0628\u0627\u0631\u0647 \u0648\u0627\u0631\u062f \u0628\u0634\u0647."
+#: The app's device list, for a device that is gone or was never this
+#: customer's. The bot never needs it: its buttons only name its own list.
+DEVICE_NOT_FOUND: Final = "این دستگاه پیدا نشد. فهرست دستگاه‌ها رو دوباره باز کن."
 
 # -- app username and password (profile) --------------------------------------
 BTN_APP_CREDS: Final = "\U0001f511 \u0648\u0631\u0648\u062f \u0628\u0647 \u0627\u067e \u0628\u0627 \u0646\u0627\u0645 \u06a9\u0627\u0631\u0628\u0631\u06cc"
@@ -949,6 +952,18 @@ REFUND_CONFIRM: Final = (
 )
 BTN_REFUND_CONFIRM: Final = "✅ بله، حذف و برگشت وجه"
 REFUND_DONE: Final = "✅ سرویس حذف شد و {amount} به کیف پولت برگشت."
+#: What the app shows before the customer confirms, in place of the bot's
+#: confirmation screen. Plain text: the app does not render HTML.
+REFUND_POLICY: Final = (
+    "سرویس حذف می‌شه و مبلغش به کیف پولت برمی‌گرده. "
+    "فقط سرویسی که هیچ مصرفی نداشته و تا {hours} ساعت بعد از خرید قابل برگشته."
+)
+
+# -- where a change came from, in the operators' report ----------------------
+
+#: The bot's reports carry no such line; these name the other front-ends.
+ORIGIN_APP: Final = "اپ"
+ORIGIN_MINI_APP: Final = "مینی‌اپ"
 
 # -- connection tutorials ----------------------------------------------------
 

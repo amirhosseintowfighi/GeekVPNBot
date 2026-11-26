@@ -26,12 +26,9 @@ from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui import render as R
 from geekvpn.presentation.bot.ui import text as T
 from geekvpn.presentation.bot.ui.callbacks import NavCB, SubCB
-from geekvpn.presentation.bot.ui.fa import en_digits, normalize_input, toman
+from geekvpn.presentation.bot.ui.fa import telegram_id_from, toman
 
 router = Router(name="service_owner")
-
-#: `-` alone clears the name, back to the plan's.
-CLEAR_NAME = "-"
 
 
 class OwnerFlow(StatesGroup):
@@ -91,8 +88,9 @@ async def on_rename_text(
     if user is None or services.ownership is None:
         await state.clear()
         return
-    raw = " ".join((message.text or "").split())
-    name = None if raw == CLEAR_NAME else raw
+    # A lone `-` clears the name; the service reads it, so the app's
+    # endpoint means the same by it.
+    name = message.text or ""
     card = await _card(services, user, ref)
     if card is None:
         await state.clear()
@@ -133,11 +131,10 @@ async def on_transfer_target(
 ) -> None:
     data = await state.get_data()
     ref = str(data.get("owner_ref", ""))
-    typed = en_digits(normalize_input(message.text or "")).strip()
-    if not typed.isdigit():
+    to_id = telegram_id_from(message.text or "")
+    if to_id is None:
         await answer(message, T.TRANSFER_BAD_ID)
         return
-    to_id = int(typed)
     if user is None:
         await state.clear()
         return

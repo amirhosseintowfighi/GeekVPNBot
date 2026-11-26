@@ -16,10 +16,10 @@ from tests.fakes import (
     RecordingAudit,
 )
 
-from geekvpn.application.identity.app_link_login import REQUEST_TTL, AppLinkLogin
+from geekvpn.application.identity.app_link_login import REQUEST_TTL, AppLinkLogin, app_user_agent
 from geekvpn.application.identity.dto import RequestContext
 from geekvpn.application.identity.session_service import SessionPolicy, SessionService
-from geekvpn.domain.base.errors import RateLimitedError, ValidationError
+from geekvpn.domain.base.errors import DomainError, RateLimitedError, ValidationError
 from geekvpn.domain.identity.app_login import AppLoginStatus
 from geekvpn.domain.identity.enums import AuthMethod, SubjectType
 from geekvpn.domain.identity.errors import (
@@ -425,3 +425,51 @@ async def test_a_blank_device_name_falls_back_to_its_platform() -> None:
     )
 
     assert world.requests.items[started.request_id].device_name == "macOS"
+
+
+async def test_a_device_says_which_platform_and_app_version_signed_in() -> None:
+    world = World()
+    user = await world.customer()
+    await _signed_in(world, telegram_id=OWNER, device_id="dev-1")
+
+    [device] = await world.login.devices(user.id)
+
+    assert (device.platform, device.app_version) == ("android", "0.1.0")
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "expected"),
+    [
+        ("GeekVPN/1.2.0 (android)", ("android", "1.2.0")),
+        ("GeekVPN/2.0 (Windows)", ("windows", "2.0")),
+        ("GeekVPN/ (android)", ("android", None)),
+        ("okhttp/5", (None, None)),
+        (None, (None, None)),
+    ],
+)
+def test_platform_and_version_are_read_back_never_guessed(
+    user_agent: str | None, expected: tuple[str | None, str | None]
+) -> None:
+    assert app_user_agent(user_agent) == expected
+
+
+async def test_a_disconnected_device_cannot_refresh_its_session() -> None:
+    """The app learns it was signed out from its next refresh being refused."""
+    world = World()
+    user = await world.customer()
+    started = await world.start()
+    request = await world.login.claim(started.code, telegram_user_id=OWNER)
+    await world.login.decide(request.id, telegram_user_id=OWNER, approve=True)
+    outcome = await world.login.poll(started.poll_token, context=CONTEXT)
+    assert outcome.result is not None
+    tokens = outcome.result.tokens
+
+    assert await world.login.disconnect(user.id, tokens.session_id) is True
+
+    async def roles(*_: object) -> tuple[None, frozenset[str]]:
+        return None, frozenset()
+
+    with pytest.raises(DomainError):
+        await world.sessions.rotate(
+            refresh_token=tokens.refresh_token, context=CONTEXT, role_resolver=roles
+        )

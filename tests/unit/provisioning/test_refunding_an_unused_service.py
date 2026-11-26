@@ -15,7 +15,14 @@ from geekvpn.application.provisioning.unused_refund import UnusedRefund
 from geekvpn.domain.catalog.money import Money
 from geekvpn.domain.provisioning import Subscription
 from geekvpn.domain.provisioning.enums import OrderSource, OrderState
-from geekvpn.domain.provisioning.errors import RefundNotAllowed
+from geekvpn.domain.provisioning.errors import (
+    RefundDisabled,
+    RefundNotAllowed,
+    RefundNotPurchased,
+    RefundServiceNotActive,
+    RefundServiceUsed,
+    RefundWindowClosed,
+)
 from geekvpn.domain.provisioning.order import Order
 from tests.unit.provisioning.fakes import FrozenClock, InMemoryOrders, InMemorySubscriptions
 
@@ -133,4 +140,77 @@ async def test_a_trial_has_nothing_to_give_back() -> None:
     service, _, _ = await world(source=OrderSource.TRIAL)
 
     with pytest.raises(RefundNotAllowed):
+        await service.refund("sub-1", owner=OWNER)
+
+
+# -- assessing before the customer confirms ---------------------------------------
+
+
+async def test_assessing_an_eligible_service_quotes_its_price_and_deadline() -> None:
+    service, calls, _ = await world(hours_ago=2, window=24)
+
+    quote = await service.assess("sub-1", owner=OWNER)
+
+    assert quote.amount == Money(300_000)
+    assert quote.window_hours == 24
+    assert quote.deadline == NOW - timedelta(hours=2) + timedelta(hours=24)
+    assert calls == []
+
+
+async def test_assessing_never_asks_the_panel_or_moves_money() -> None:
+    service, calls, order = await world()
+
+    await service.assess("sub-1", owner=OWNER, stored_usage=True)
+
+    assert calls == []
+    assert order.state is OrderState.ACTIVE
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "owner", "refusal"),
+    [
+        ({"window": 0}, OWNER, RefundDisabled),
+        ({"hours_ago": 30, "window": 24}, OWNER, RefundWindowClosed),
+        ({"source": OrderSource.TRIAL}, OWNER, RefundNotPurchased),
+        ({}, 9999, RefundNotAllowed),
+    ],
+)
+async def test_each_refusal_has_its_own_code_and_a_persian_reason(
+    kwargs: dict[str, object], owner: int, refusal: type[RefundNotAllowed]
+) -> None:
+    service, _, _ = await world(**kwargs)  # type: ignore[arg-type]
+
+    with pytest.raises(refusal) as caught:
+        await service.assess("sub-1", owner=owner)
+
+    assert any("؀" <= ch <= "ۿ" for ch in caught.value.message)
+
+
+async def test_a_service_that_is_not_active_is_refused_as_such() -> None:
+    service, _, _ = await world()
+    sub = await service._subscriptions.get("sub-1")
+    assert sub is not None
+    sub.suspend(reason_fa="تست")
+
+    with pytest.raises(RefundServiceNotActive):
+        await service.assess("sub-1", owner=OWNER)
+
+
+async def test_the_stored_counter_refuses_only_when_asked_to_read_it() -> None:
+    """The bot's detail screen reads the stored counter to offer the button;
+    the refund itself ignores it and asks the panel."""
+    service, _, _ = await world()
+    sub = await service._subscriptions.get("sub-1")
+    assert sub is not None
+    sub.record_usage(used_mib=3, at=NOW)
+
+    await service.assess("sub-1", owner=OWNER)
+    with pytest.raises(RefundServiceUsed):
+        await service.assess("sub-1", owner=OWNER, stored_usage=True)
+
+
+async def test_usage_the_panel_reports_is_refused_with_its_own_code() -> None:
+    service, _, _ = await world(used_now=5)
+
+    with pytest.raises(RefundServiceUsed):
         await service.refund("sub-1", owner=OWNER)
