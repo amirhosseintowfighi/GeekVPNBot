@@ -111,9 +111,14 @@ class BroadcastRequest(ApiModel):
 
 
 class BroadcastResult(ApiModel):
+    #: Zero when queued: the worker sends it, within a minute, after this
+    #: answer. Kept so an older portal still renders something.
     sent: int
     failed: int
+    #: Customers it will go to.
     total: int
+    #: True: handed to the worker rather than sent during the request.
+    queued: bool = False
 
 
 class TextRow(ApiModel):
@@ -565,7 +570,8 @@ async def broadcast(
     this handler: batching, cancellation between batches, a recorded recipient
     count, and a progress row somebody can look at afterwards. The first
     version of this sent five hundred messages inside one request, which is a
-    request that either times out or lies about finishing.
+    request that either times out or lies about finishing - and so did the
+    second, by calling that machinery's `send_now` from here. It is queued.
 
     Sent through *their* bot, and resolved over *their* customers. From ours it
     would be refused outright - Telegram will not let a bot open a conversation
@@ -585,14 +591,15 @@ async def broadcast(
             # never have linked an account.
             created_by=0,
         )
-        return sync.broadcast_service.send_now(created.id)
+        # Queued, not sent here: the worker's dispatcher builds this shop's
+        # scope and sends through their bot within a minute. Sending inside
+        # the request outlasted the proxy's timeout on a few hundred
+        # customers. See `BroadcastService.queue_now`.
+        queued = sync.broadcast_service.queue_now(created.id)
+        return sync.broadcast_service.audience_size(queued.id)
 
-    progress = await scope.in_shop(work)
-    return BroadcastResult(
-        sent=progress.sent,
-        failed=progress.failed + progress.suppressed,
-        total=progress.sent + progress.failed + progress.suppressed,
-    )
+    total = await scope.in_shop(work)
+    return BroadcastResult(sent=0, failed=0, total=total, queued=True)
 
 
 # -- how this shop takes money ---------------------------------------------

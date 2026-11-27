@@ -124,6 +124,35 @@ class BroadcastService:
         self._events.publish_all(broadcast.collect_events())
         return broadcast
 
+    def queue_now(self, broadcast_id: str) -> Broadcast:
+        """Due now, for the worker's next BROADCAST_DISPATCH, instead of sent here.
+
+        What a request handler calls for "send now". Sending inside the
+        request meant one Telegram call per recipient before the response,
+        which outlasts any proxy's timeout on an audience of a few hundred:
+        the operator saw a gateway error while the send carried on, pressed
+        again, and each press was a new broadcast to everybody.
+
+        An empty audience is refused here, as ``send_now`` refuses it, while
+        somebody is looking. Queued, the worker would retry it every minute.
+
+        :raises EmptyAudience: nobody would receive it.
+        """
+        broadcast = self._broadcasts.get(broadcast_id)
+        if not self._recipients(broadcast):
+            raise EmptyAudience(
+                "Broadcast audience resolved to nobody.",
+                broadcast_id=broadcast_id,
+                audience=str(broadcast.audience),
+            )
+        # One instant for both, or the aggregate reads its own send time as
+        # already a moment in the past.
+        now = self._clock.now()
+        broadcast.schedule(send_at=now, now=now)
+        self._broadcasts.save(broadcast)
+        self._events.publish_all(broadcast.collect_events())
+        return broadcast
+
     def cancel(self, broadcast_id: str, *, cancelled_by: int) -> Broadcast:
         broadcast = self._broadcasts.get(broadcast_id)
         broadcast.cancel(cancelled_by=cancelled_by, now=self._clock.now())

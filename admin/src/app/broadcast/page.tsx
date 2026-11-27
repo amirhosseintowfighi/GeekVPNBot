@@ -68,7 +68,13 @@ export default function BroadcastPage() {
   const { can } = useSession()
   const [composeOpen, setComposeOpen] = React.useState(false)
 
-  const { data, error, isLoading, mutate } = useSWR<BroadcastRow[]>('broadcasts', () => api.broadcasts())
+  // "Send" queues the broadcast and the worker sends it within a minute, so
+  // the row has to move on its own: re-read every five seconds while any
+  // broadcast is still waiting or going out, and not at all otherwise.
+  const { data, error, isLoading, mutate } = useSWR<BroadcastRow[]>('broadcasts', () => api.broadcasts(), {
+    refreshInterval: (rows) =>
+      rows?.some((row) => row.state === 'scheduled' || row.state === 'sending') ? 5000 : 0,
+  })
 
   if (!can('broadcast.read')) return <ForbiddenState permission="broadcast.read" />
 
@@ -117,7 +123,8 @@ export default function BroadcastPage() {
               <TableBody>
                 {(data ?? []).map((broadcast) => {
                   const meta = BROADCAST_STATE[broadcast.state]
-                  const sending = broadcast.state === 'sending'
+                  // A queued broadcast can be stopped before the worker reaches it.
+                  const sending = broadcast.state === 'sending' || broadcast.state === 'scheduled'
                   const progress =
                     broadcast.audienceSize > 0
                       ? (broadcast.deliveredCount / broadcast.audienceSize) * 100

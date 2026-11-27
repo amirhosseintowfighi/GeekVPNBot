@@ -547,7 +547,12 @@ function CustomersCard({ customers }: { customers: ResellerCustomers | undefined
           placeholder="متن پیام…"
         />
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {result ? (
+        {result?.queued ? (
+          <p className="text-sm text-muted-foreground">
+            پیامت در صف ارسال قرار گرفت و ظرف یکی‌دو دقیقه به {faNumber(result.total)} نفر از
+            مشتری‌هات می‌رسه. لازم نیست دوباره بفرستی.
+          </p>
+        ) : result ? (
           <p className="text-sm text-muted-foreground">
             ارسال شد به {faNumber(result.sent)} نفر
             {result.failed ? ` — ${faNumber(result.failed)} نفر دریافت نکردند` : ''}
