@@ -33,8 +33,9 @@ from __future__ import annotations
 import math
 import re
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 #: Content type Prometheus expects. Serving the wrong one makes a scrape fail
 #: with a parse error rather than a connection error, which is harder to notice.
@@ -91,6 +92,30 @@ _HEXISH = re.compile(r"^[0-9a-fA-F]{16,}$")
 
 class MetricsError(ValueError):
     """Raised for a metric that would damage the monitoring system."""
+
+
+_GAUGE_AGGREGATES = frozenset({"sum", "max"})
+
+
+def _rows(states: Iterable[Any]) -> list[Any]:
+    """Every row of several workers' states, skipping any that is not a list.
+
+    The states come from files another process wrote. A malformed one must
+    cost its own numbers and nothing else.
+    """
+    rows: list[Any] = []
+    for state in states:
+        if isinstance(state, list):
+            rows.extend(row for row in state if isinstance(row, list))
+    return rows
+
+
+def _label_key(values: Any, labelnames: tuple[str, ...]) -> tuple[str, ...] | None:
+    if not isinstance(values, list) or len(values) != len(labelnames):
+        return None
+    if not all(isinstance(value, str) for value in values):
+        return None
+    return tuple(values)
 
 
 def normalise_path(path: str) -> str:
@@ -210,6 +235,20 @@ class Counter(_Metric):
     def value(self, **labels: str) -> float:
         return self._values.get(self._key(labels), 0.0)
 
+    def state(self) -> list[Any]:
+        """``[[label values, value], ...]``: what another worker needs to add this in."""
+        with self._lock:
+            return [[list(key), value] for key, value in self._values.items()]
+
+    def merged(self, states: Iterable[Any]) -> Counter:
+        """This counter's definition, holding the sum of its own and ``states``."""
+        merged = Counter(self.name, self.documentation, self.labelnames)
+        for key, value in [*self.state(), *_rows(states)]:
+            label_key = _label_key(key, self.labelnames)
+            if label_key is not None and isinstance(value, int | float):
+                merged._values[label_key] = merged._values.get(label_key, 0.0) + value
+        return merged
+
     def render(self) -> list[str]:
         lines = [f"# HELP {self.name} {self.documentation}", f"# TYPE {self.name} counter"]
         if not self._values and not self.labelnames:
@@ -220,11 +259,26 @@ class Counter(_Metric):
 
 
 class Gauge(_Metric):
-    """A value that can move in either direction."""
+    """A value that can move in either direction.
 
-    def __init__(self, name: str, documentation: str, labelnames: Sequence[str] = ()) -> None:
+    ``aggregate`` says how several workers' values combine into one: ``sum``
+    for a quantity each worker holds a share of (requests in flight), ``max``
+    for a fact every worker states alike (``build_info`` is 1, not 4).
+    """
+
+    def __init__(
+        self,
+        name: str,
+        documentation: str,
+        labelnames: Sequence[str] = (),
+        *,
+        aggregate: str = "max",
+    ) -> None:
         _validate_name(name)
+        if aggregate not in _GAUGE_AGGREGATES:
+            raise MetricsError(f"{name}: aggregate must be one of {sorted(_GAUGE_AGGREGATES)}.")
         super().__init__(name, documentation, _validate_labels(labelnames))
+        self.aggregate = aggregate
         self._values: dict[tuple[str, ...], float] = {}
 
     def set(self, value: float, **labels: str) -> None:
@@ -242,6 +296,24 @@ class Gauge(_Metric):
 
     def value(self, **labels: str) -> float:
         return self._values.get(self._key(labels), 0.0)
+
+    def state(self) -> list[Any]:
+        with self._lock:
+            return [[list(key), value] for key, value in self._values.items()]
+
+    def merged(self, states: Iterable[Any]) -> Gauge:
+        merged = Gauge(self.name, self.documentation, self.labelnames, aggregate=self.aggregate)
+        for key, value in [*self.state(), *_rows(states)]:
+            label_key = _label_key(key, self.labelnames)
+            if label_key is None or not isinstance(value, int | float):
+                continue
+            if label_key not in merged._values:
+                merged._values[label_key] = float(value)
+            elif self.aggregate == "sum":
+                merged._values[label_key] += value
+            else:
+                merged._values[label_key] = max(merged._values[label_key], float(value))
+        return merged
 
     def render(self) -> list[str]:
         lines = [f"# HELP {self.name} {self.documentation}", f"# TYPE {self.name} gauge"]
@@ -301,6 +373,40 @@ class Histogram(_Metric):
     def total(self, **labels: str) -> float:
         return self._sums.get(self._key(labels), 0.0)
 
+    def state(self) -> list[Any]:
+        """``[[label values, bucket counts, sum, count], ...]``."""
+        with self._lock:
+            return [
+                [list(key), list(counts), self._sums[key], self._totals[key]]
+                for key, counts in self._counts.items()
+            ]
+
+    def merged(self, states: Iterable[Any]) -> Histogram:
+        merged = Histogram(self.name, self.documentation, self.labelnames, self.buckets)
+        width = len(self.buckets)
+        for row in [*self.state(), *_rows(states)]:
+            if not isinstance(row, list) or len(row) != 4:
+                continue
+            key, counts, total_sum, total = row
+            label_key = _label_key(key, self.labelnames)
+            # Different buckets mean a different build wrote the file; adding
+            # them bucket by bucket would put counts under the wrong bounds.
+            if (
+                label_key is None
+                or not isinstance(counts, list)
+                or len(counts) != width
+                or not all(isinstance(c, int) for c in counts)
+                or not isinstance(total_sum, int | float)
+                or not isinstance(total, int)
+            ):
+                continue
+            into = merged._counts.setdefault(label_key, [0] * width)
+            for index, count in enumerate(counts):
+                into[index] += count
+            merged._sums[label_key] = merged._sums.get(label_key, 0.0) + total_sum
+            merged._totals[label_key] = merged._totals.get(label_key, 0) + total
+        return merged
+
     def render(self) -> list[str]:
         lines = [f"# HELP {self.name} {self.documentation}", f"# TYPE {self.name} histogram"]
         for key in sorted(self._counts):
@@ -341,8 +447,15 @@ class MetricsRegistry:
         self.register(metric)
         return metric
 
-    def gauge(self, name: str, documentation: str, labelnames: Sequence[str] = ()) -> Gauge:
-        metric = Gauge(name, documentation, labelnames)
+    def gauge(
+        self,
+        name: str,
+        documentation: str,
+        labelnames: Sequence[str] = (),
+        *,
+        aggregate: str = "max",
+    ) -> Gauge:
+        metric = Gauge(name, documentation, labelnames, aggregate=aggregate)
         self.register(metric)
         return metric
 
@@ -363,11 +476,23 @@ class MetricsRegistry:
     def get(self, name: str) -> Counter | Gauge | Histogram | None:
         return self._metrics.get(name)
 
-    def render(self) -> str:
-        """Render the whole registry in the Prometheus text format."""
+    def snapshot(self) -> dict[str, list[Any]]:
+        """Every metric's state, as plain JSON-able data, keyed by name."""
+        return {name: metric.state() for name, metric in self._metrics.items()}
+
+    def render(self, others: Sequence[Mapping[str, Any]] = ()) -> str:
+        """Render the whole registry in the Prometheus text format.
+
+        ``others`` are other workers' snapshots to add in. Only metrics this
+        registry defines are read from them, so a file cannot introduce a
+        series - or a label - that the code did not declare.
+        """
         blocks: list[str] = []
         for name in sorted(self._metrics):
-            blocks.extend(self._metrics[name].render())
+            metric = self._metrics[name]
+            if others:
+                metric = metric.merged(other.get(name) for other in others)
+            blocks.extend(metric.render())
         # The format requires a trailing newline. Without it the last sample is
         # dropped by some parsers, which loses whichever metric sorts last and is
         # a genuinely baffling bug to chase.
@@ -415,6 +540,7 @@ class AppMetrics:
             http_in_flight=registry.gauge(
                 "geekvpn_http_requests_in_flight",
                 "Requests currently being served.",
+                aggregate="sum",
             ),
             rate_limited=registry.counter(
                 "geekvpn_rate_limited_total",

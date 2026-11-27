@@ -75,6 +75,12 @@ class AppSettings(Section):
     #: against the API's base URL would render, look right, and 404.
     admin_url: str = ""
     request_timeout_seconds: float = 30.0
+    #: A directory every API worker of one container can write to. Set when the
+    #: container runs several uvicorn workers: each writes its metrics there
+    #: and `/metrics` adds them up, because a scrape reaches only one worker
+    #: and its numbers alone read to Prometheus as a restart on every scrape.
+    #: Empty means one process, whose own registry is the whole answer.
+    metrics_dir: str = ""
 
 
 class LoggingSettings(Section):

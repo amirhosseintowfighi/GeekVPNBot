@@ -32,6 +32,16 @@ x-api-common: &api-common
     # X-Forwarded-For from the right using this count, so a forged leftmost entry
     # cannot impersonate an allowlisted address.
     SECURITY__TRUSTED_PROXY_COUNT: "1"
+    # The uvicorn workers below each count their own requests; a scrape reaches
+    # one of them. They pool their numbers here so /metrics answers for the
+    # whole container (infrastructure/observability/shared.py). Without it,
+    # Prometheus saw a different worker's counter on every scrape, read each
+    # drop as a restart, and HighErrorRate fired on errors from days before.
+    APP__METRICS_DIR: /run/geekvpn-metrics
+  # A tmpfs, so the directory starts empty with the container - which is when
+  # every counter starts again anyway - and never outlives it.
+  tmpfs:
+    - /run/geekvpn-metrics:mode=1777,size=16m
   restart: unless-stopped
   # A SOCKS5 client running on the server itself (`PROXY__URL`) listens on the
   # host, which a container cannot reach as 127.0.0.1. This name can: point

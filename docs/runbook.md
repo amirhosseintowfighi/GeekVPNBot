@@ -102,6 +102,23 @@ On the Grafana overview, the **slowest paths** panel identifies whether this is
 one endpoint or everything. One endpoint is a code bug; everything is a
 dependency.
 
+Which route, by exact status code, from the access log (`/metrics` only has
+the class):
+
+```bash
+for c in geekvpn-api-blue geekvpn-api-green; do docker logs "$c" --since 1h 2>&1; done \
+  | grep '"http.request"' | grep -E '"status_code": ?5[0-9]{2}' \
+  | grep -oE '"(method|path|status_code)": ?"?[^,"]*' | paste - - - | sort | uniq -c | sort -rn
+```
+
+**If the logs show no 5xx and the alert still fires,** check that the API
+containers have `APP__METRICS_DIR` set (`docker-compose.prod.yml` does). Without
+it each uvicorn worker reports only its own counters, every scrape reaches a
+different worker, Prometheus reads each drop as a restart, and the error rate
+becomes the workers' lifetime share of 5xx: one old burst keeps this alert on
+until the containers restart. `infrastructure/observability/shared.py` explains
+the fix.
+
 **Likely causes.** A newly deployed bug on one route; Postgres connection pool
 exhaustion (see [postgres-connections](#postgres-connections)); a panel provider
 returning errors, which surfaces as 502 through our adapters.

@@ -31,6 +31,7 @@ from geekvpn.infrastructure.observability.metrics import (
     normalise_path,
     status_class,
 )
+from geekvpn.infrastructure.observability.shared import SharedMetrics
 
 #: Label used for any request that matched no route.
 UNMATCHED = "<unmatched>"
@@ -109,7 +110,11 @@ async def metrics_endpoint(request: Request) -> Response:
         # A 503 rather than an empty 200: an empty scrape looks like a healthy
         # application with no traffic, and every alert would stay silent.
         return PlainTextResponse("metrics are not initialised\n", status_code=503)
-    return PlainTextResponse(metrics.registry.render(), media_type=CONTENT_TYPE)
+    # With several workers, every worker's numbers, not just the one that
+    # happened to take this scrape. See `observability/shared.py`.
+    shared: SharedMetrics | None = getattr(request.app.state, "shared_metrics", None)
+    body = shared.render() if shared is not None else metrics.registry.render()
+    return PlainTextResponse(body, media_type=CONTENT_TYPE)
 
 
 __all__ = ["EXCLUDED_PATHS", "UNMATCHED", "MetricsMiddleware", "metrics_endpoint"]
