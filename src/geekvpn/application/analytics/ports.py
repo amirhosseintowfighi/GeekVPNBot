@@ -105,6 +105,9 @@ class WorkQueue:
     overdue_tickets: int = 0
     failed_provisions: int = 0
     expiring_today: int = 0
+    #: Services running right now. A state, not an action, but the
+    #: dashboard's card reads it from here because it is not date-ranged.
+    active_subscriptions: int = 0
 
     def total(self) -> int:
         return self.pending_payments + self.open_tickets + self.failed_provisions

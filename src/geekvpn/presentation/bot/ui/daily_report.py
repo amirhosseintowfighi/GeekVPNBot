@@ -7,8 +7,10 @@ from typing import Final
 from geekvpn.application.analytics.daily_report import DayOrders
 from geekvpn.presentation.bot.ui.fa import fa_date, fa_digits, toman
 
+#: The nightly report's heading; the admin's «آمار امروز» passes its own.
+DAILY_REPORT_TITLE: Final = "📊 <b>گزارش روزانهٔ سفارش‌ها</b>"
 DAILY_REPORT: Final = (
-    "📊 <b>گزارش روزانهٔ سفارش‌ها</b>\n"
+    "{title}\n"
     "{day}\n\n"
     "🧾 سفارش ثبت‌شده: <b>{placed}</b>\n"
     "✅ تحویل‌شده: {delivered}\n"
@@ -30,11 +32,12 @@ WAITING_HINT: Final = (
 )
 
 
-def render_daily_report(day: DayOrders) -> str:
+def render_daily_report(day: DayOrders, *, title: str = DAILY_REPORT_TITLE) -> str:
     def rate(value: int | None) -> str:
         return NO_RATE if value is None else f"{fa_digits(value)}٪"
 
     body = DAILY_REPORT.format(
+        title=title,
         day=fa_date(day.day),
         placed=fa_digits(day.placed),
         delivered=fa_digits(day.delivered),

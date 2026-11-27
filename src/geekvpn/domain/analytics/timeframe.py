@@ -7,21 +7,41 @@ computed identically by revenue, funnels and retention or the arrows disagree.
 
 Ranges are half-open at the end (``start <= t < end``) so consecutive periods
 tile without double-counting the boundary day.
+
+Days, weeks and months are the shop's: they start at midnight in Tehran. They
+used to start at midnight UTC - 03:30 in Tehran - so a sale at one in the
+morning was counted on the day before, and the panel's "today" disagreed with
+the nightly orders report, which has always cut days in Tehran.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 
 from geekvpn.domain.analytics.calendar import (
     fa_digits,
     jalali_date_fa,
     jalali_day_label,
     jalali_month_label,
+    to_jalali,
 )
 from geekvpn.domain.analytics.enums import Granularity
 from geekvpn.domain.analytics.errors import InvalidDateRange
+
+#: The shop's clock. A fixed offset: Iran has not observed daylight saving
+#: since 2022, and the daily report and usage history read it the same way.
+TEHRAN = timezone(timedelta(hours=3, minutes=30))
+
+
+def _local(moment: datetime) -> datetime:
+    """``moment`` on the shop's clock.
+
+    A naive datetime is taken as already local: the database and the clock
+    hand out aware ones, and only hand-written test values are naive.
+    """
+    return moment if moment.tzinfo is None else moment.astimezone(TEHRAN)
+
 
 PRESET_DAYS: tuple[int, ...] = (7, 30, 90, 365)
 MAX_RANGE_DAYS = 1095
@@ -114,15 +134,17 @@ class DateRange:
 
     def label_fa(self) -> str:
         """``\u06f1\u06f4\u06f0\u06f5/\u06f0\u06f4/\u06f1\u06f3 \u062a\u0627 \u06f1\u06f4\u06f0\u06f5/\u06f0\u06f5/\u06f1\u06f2``"""
-        last_day = (self.end - timedelta(seconds=1)).date()
-        return f"{jalali_date_fa(self.start.date())} \u062a\u0627 {jalali_date_fa(last_day)}"
+        last_day = _local(self.end - timedelta(seconds=1)).date()
+        start_day = _local(self.start).date()
+        return f"{jalali_date_fa(start_day)} \u062a\u0627 {jalali_date_fa(last_day)}"
 
     def duration_fa(self) -> str:
         return f"{fa_digits(self.days)} \u0631\u0648\u0632"
 
 
 def _midnight(moment: datetime) -> datetime:
-    return moment.replace(hour=0, minute=0, second=0, microsecond=0)
+    """The start of ``moment``'s day in Tehran."""
+    return _local(moment).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _bucket_start(moment: datetime, granularity: Granularity) -> datetime:
@@ -133,7 +155,10 @@ def _bucket_start(moment: datetime, granularity: Granularity) -> datetime:
         # Saturday is the first day of the Iranian week.
         offset = (base.weekday() - 5) % 7
         return base - timedelta(days=offset)
-    return base.replace(day=1)
+    # A Jalali month, since it is labelled as one. A Gregorian month here put
+    # the bar called «آبان» over 10 Aban to 9 Azar.
+    _, _, day = to_jalali(base.date())
+    return base - timedelta(days=day - 1)
 
 
 def _advance(moment: datetime, granularity: Granularity) -> datetime:
@@ -141,16 +166,15 @@ def _advance(moment: datetime, granularity: Granularity) -> datetime:
         return moment + timedelta(days=1)
     if granularity is Granularity.WEEK:
         return moment + timedelta(days=7)
-    if moment.month == 12:
-        return moment.replace(year=moment.year + 1, month=1)
-    return moment.replace(month=moment.month + 1)
+    # No Jalali month is longer than 31 days, so this lands in the next one.
+    return _bucket_start(moment + timedelta(days=31), Granularity.MONTH)
 
 
 def bucket_label_fa(moment: datetime, granularity: Granularity) -> str:
     """The Jalali label for one bucket on a chart axis."""
     if granularity is Granularity.MONTH:
-        return jalali_month_label(moment.date())
-    return jalali_day_label(moment.date())
+        return jalali_month_label(_local(moment).date())
+    return jalali_day_label(_local(moment).date())
 
 
 def utc_now() -> datetime:
@@ -158,12 +182,14 @@ def utc_now() -> datetime:
 
 
 def as_date(moment: datetime) -> date:
-    return moment.date()
+    """The shop's calendar date of ``moment``."""
+    return _local(moment).date()
 
 
 __all__ = [
     "MAX_RANGE_DAYS",
     "PRESET_DAYS",
+    "TEHRAN",
     "DateRange",
     "as_date",
     "bucket_label_fa",
