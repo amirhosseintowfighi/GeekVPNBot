@@ -145,6 +145,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Today, for the OS upgrade layer
+        # Passed as OS_REFRESH so the images' `apk upgrade` / `apt-get upgrade`
+        # reruns daily instead of coming out of the GHA cache forever - which
+        # let a fixed libxml2 CVE fail the scan while the Dockerfile upgraded.
+        id: day
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Build runtime image
         uses: docker/build-push-action@v6
         with:
@@ -154,6 +160,7 @@ jobs:
           push: false
           load: true
           tags: geekvpn-backend:ci
+          build-args: OS_REFRESH=${{ steps.day.outputs.day }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (backend)
@@ -177,6 +184,7 @@ jobs:
           push: false
           load: true
           tags: geekvpn-nginx:ci
+          build-args: OS_REFRESH=${{ steps.day.outputs.day }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

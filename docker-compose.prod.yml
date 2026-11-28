@@ -34,6 +34,8 @@ x-api-common: &api-common
       PYTHON_VERSION: "3.12"
       # A PyPI mirror reachable from the server, when the default is not.
       PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+      # The day; reruns the OS security upgrade (see the Dockerfile).
+      OS_REFRESH: ${OS_REFRESH:-}
   image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
   env_file: [.env]
   environment:
@@ -296,6 +298,8 @@ services:
     build:
       context: ./docker/nginx
       dockerfile: Dockerfile
+      args:
+        OS_REFRESH: ${OS_REFRESH:-}
     image: ${IMAGE_REPOSITORY:-geekvpn}-nginx:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:

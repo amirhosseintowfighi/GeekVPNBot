@@ -211,6 +211,9 @@ log "building images"
 # PULL_BASE=1 refreshes the base images (security updates) on purpose.
 PULL_FLAG=""
 [[ "${PULL_BASE:-0}" == "1" ]] && PULL_FLAG="--pull"
+# Today's date, so the images' OS security upgrade runs again on the first
+# deploy of each day instead of coming out of the cache forever.
+export OS_REFRESH="${OS_REFRESH:-$(date -u +%Y-%m-%d)}"
 $COMPOSE build $PULL_FLAG "$IDLE" bot worker nginx miniapp admin || die "build failed"
 
 log "ensuring infrastructure is up"
