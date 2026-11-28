@@ -69,7 +69,7 @@ START_RATE_WINDOW_SECONDS = 600
 
 #: Sessions the apps (Android and desktop) hold, however they signed in. The bot's device list
 #: shows these and only these.
-APP_AUTH_METHODS = frozenset({AuthMethod.TELEGRAM_APP_LINK, AuthMethod.APP_PASSWORD})
+APP_AUTH_METHODS = frozenset(method for method in AuthMethod if method.is_app)
 
 _MAX_DEVICE_ID = 64
 _MAX_DEVICE_NAME = 64
