@@ -313,5 +313,13 @@ if [[ "${WITH_MONITORING:-1}" == "1" && -f docker-compose.monitoring.yml ]]; the
     postgres-exporter redis-exporter || warn "monitoring did not start; the platform is unaffected"
 fi
 
+log "removing images no container uses"
+# Every deploy rebuilds the images under the same tag, so the previous build
+# is left behind untagged - several hundred MB a deploy, kept forever, on the
+# disk Postgres writes to. Dangling images only: one that any container still
+# uses, running or stopped, is kept, so the stopped colour can still be rolled
+# back to. The build cache is not touched (see "building images" above).
+docker image prune -f >/dev/null || warn "could not prune old images"
+
 log "deployed ${IDLE} successfully."
 log "rollback if needed:  scripts/deploy.sh rollback"

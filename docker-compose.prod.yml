@@ -14,6 +14,17 @@
 
 name: geekvpn
 
+# Every container's log, capped. Docker's default json-file driver keeps a
+# container's whole log forever: a burst of tracebacks during a database outage
+# is about 20 KB a request, and the disk filling is what took Postgres down
+# (PANIC: could not write ... No space left on device). Five files of 20 MB is
+# 100 MB a container at most, and `docker logs` still reaches days back.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 x-api-common: &api-common
   build:
     context: .
@@ -80,6 +91,7 @@ x-api-common: &api-common
 
 services:
   postgres:
+    logging: *logging
     restart: unless-stopped
     # Not published. In the base file this port is internal already; stated here
     # so a future edit to the base file cannot quietly expose it.
@@ -105,6 +117,7 @@ services:
       - ./backups:/backups
 
   redis:
+    logging: *logging
     restart: unless-stopped
     ports: []
     command:
@@ -138,14 +151,17 @@ services:
       retries: 10
 
   migrate:
+    logging: *logging
     image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
     restart: "no"
 
   api_blue:
+    logging: *logging
     <<: *api-common
     container_name: geekvpn-api-blue
 
   api_green:
+    logging: *logging
     <<: *api-common
     container_name: geekvpn-api-green
 
@@ -158,6 +174,7 @@ services:
     profiles: ["never"]
 
   bot:
+    logging: *logging
     # The same image as the API colours, which is the whole point: the bot and
     # the API are one codebase, and two image tags are two chances to run
     # different halves of it.
@@ -183,6 +200,7 @@ services:
   # would be harmless but pointless; scaling belongs at the job level, not by
   # adding processes that mostly wait on a lock.
   worker:
+    logging: *logging
     image: ${IMAGE_REPOSITORY:-geekvpn-backend}:${IMAGE_TAG:-latest}
     container_name: geekvpn-worker
     restart: unless-stopped
@@ -231,6 +249,7 @@ services:
   # containers need no database, no Redis and no secrets. They sit on `backend`
   # only so nginx can reach them.
   miniapp:
+    logging: *logging
     build:
       context: ./miniapp
       dockerfile: ../docker/frontend/Dockerfile
@@ -252,6 +271,7 @@ services:
     networks: [backend]
 
   admin:
+    logging: *logging
     build:
       context: ./admin
       dockerfile: ../docker/frontend/Dockerfile
@@ -272,6 +292,7 @@ services:
     networks: [backend]
 
   nginx:
+    logging: *logging
     build:
       context: ./docker/nginx
       dockerfile: Dockerfile
@@ -326,6 +347,7 @@ services:
     networks: [backend, edge]
 
   certbot:
+    logging: *logging
     image: certbot/certbot:v3.1.0
     restart: unless-stopped
     volumes:

@@ -151,14 +151,34 @@ groups:
       - alert: DiskFillingUp
         # Predictive, not threshold-based. "Disk is 90% full" tells you after it is
         # too late to act calmly; "will be full in four hours" is actionable.
+        #
+        # mountpoint="/", not "/host": node-exporter runs with --path.rootfs=/host
+        # and reports mount points relative to it. The old selector matched no
+        # series, so this alert could never fire - and it did not, while the disk
+        # filled and Postgres stopped with "No space left on device".
         expr: |
-          predict_linear(node_filesystem_avail_bytes{mountpoint="/host"}[6h], 4 * 3600) < 0
+          predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 4 * 3600) < 0
         for: 30m
         labels:
           severity: critical
         annotations:
           summary: "دیسک طی حدود چهار ساعت پر می‌شود"
           description: "A full disk stops Postgres accepting writes, which stops sales."
+          runbook: "docs/runbook.md#disk"
+
+      - alert: DiskAlmostFull
+        # The floor under the prediction. A sudden fill - a log storm during an
+        # outage, a large build - outruns a six-hour trend; under 10% free is
+        # worth a message whatever the slope.
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/"}
+            / node_filesystem_size_bytes{mountpoint="/"} < 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "کمتر از ۱۰٪ فضای دیسک مانده"
+          description: "Postgres stops accepting writes when the disk is full, which stops sales."
           runbook: "docs/runbook.md#disk"
 
       - alert: PostgresConnectionsHigh

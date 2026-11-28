@@ -315,13 +315,33 @@ du -sh backups/ && ls -lt backups/ | head
 docker system df
 ```
 
+This alert, and `DiskAlmostFull` (under 10% free), read `mountpoint="/"`.
+Until that was corrected neither could fire: node-exporter reports mount points
+relative to `--path.rootfs=/host`, and the rule asked for `"/host"`. The first
+anyone heard of a full disk was Postgres stopping with `PANIC: could not write
+... No space left on device`.
+
+What uses the space, largest first:
+
+```bash
+docker system df
+sudo du -sh /var/lib/docker/containers/*/*-json.log 2>/dev/null | sort -h | tail
+sudo du -sh /var/lib/docker/volumes/* | sort -h | tail
+```
+
+Container logs are capped at 5 x 20 MB each (`x-logging` in the compose
+files); a container created before that cap keeps its old, uncapped log until
+it is recreated. Prometheus keeps at most `PROMETHEUS_RETENTION_SIZE` (2GB).
+
 **Likely causes**, in order: old encrypted backups (`BACKUP_RETENTION_DAYS`
 controls this, and pruning happens only after a successful new backup); Docker
 image layers from repeated deploys; Postgres logs, which are verbose in production
 because `log_min_duration_statement` and `log_lock_waits` are on.
 
 **Resolution.** `docker image prune -a` is usually enough and is safe: running
-containers keep their images. **Never delete the newest backup to free space.**
+containers keep their images. `scripts/deploy.sh` removes dangling images after
+every deploy; `docker builder prune` frees the build cache, at the cost of the
+next deploy downloading every package again. **Never delete the newest backup to free space.**
 
 ---
 
