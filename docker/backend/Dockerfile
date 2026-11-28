@@ -61,8 +61,12 @@ FROM base AS runtime
 # Debian's security fixes, applied on top of the python image: it is rebuilt
 # on Debian's point releases, not on every advisory, so a fixed zlib can sit
 # in the archive for weeks while the image still ships the vulnerable one.
-# Cached as one layer, so a deploy pays for it only when the base changes.
-RUN apt-get update \
+# One layer, rebuilt when OS_REFRESH changes - the build's day, passed by CI
+# and deploy.sh. Cached on the base alone, it never ran again once built, and
+# the image kept the fixes of whatever day it was first cached.
+ARG OS_REFRESH=""
+RUN : "refresh ${OS_REFRESH}" \
+ && apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 1001 app \

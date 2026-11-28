@@ -6,6 +6,8 @@ application with an injected container.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,6 +19,7 @@ from geekvpn.infrastructure.config.settings import Settings, get_settings
 from geekvpn.infrastructure.di.container import Container, build_container, close_container
 from geekvpn.infrastructure.logging.setup import configure_logging, get_logger
 from geekvpn.infrastructure.observability.metrics import AppMetrics
+from geekvpn.infrastructure.observability.shared import SharedMetrics
 from geekvpn.infrastructure.security.ip_allowlist import IpAllowlist
 from geekvpn.infrastructure.security.throttling import Decision, Policy
 from geekvpn.presentation.api.errors import register_exception_handlers
@@ -122,9 +125,15 @@ def create_app(
         app.state.container = container or build_container(settings)
         app.state.settings = settings
         logger.info("api.startup", env=settings.app.env.value, version=app.version)
+        shared: SharedMetrics | None = app.state.shared_metrics
+        writer = asyncio.create_task(shared.run()) if shared is not None else None
         try:
             yield
         finally:
+            if writer is not None:
+                writer.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await writer
             if not externally_owned_container:
                 await close_container(app.state.container)
             logger.info("api.shutdown")
@@ -145,6 +154,13 @@ def create_app(
 
     app.state.metrics = AppMetrics.create()
     app.state.metrics.build_info.set(1, version=app.version, environment=settings.app.env.value)
+    # Built here, per worker: uvicorn imports this module once in each worker
+    # process, so each gets its own file in the shared directory.
+    app.state.shared_metrics = (
+        SharedMetrics(app.state.metrics.registry, directory=settings.app.metrics_dir)
+        if settings.app.metrics_dir
+        else None
+    )
 
     # Starlette applies middleware in reverse registration order, so this block
     # is written bottom-up. A request travels:

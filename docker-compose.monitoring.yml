@@ -13,8 +13,20 @@
 
 name: geekvpn
 
+# Every container's log, capped. Docker's default json-file driver keeps a
+# container's whole log forever: a burst of tracebacks during a database outage
+# is about 20 KB a request, and the disk filling is what took Postgres down
+# (PANIC: could not write ... No space left on device). Five files of 20 MB is
+# 100 MB a container at most, and `docker logs` still reaches days back.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   prometheus:
+    logging: *logging
     image: prom/prometheus:v3.1.0
     restart: unless-stopped
     user: "65534:65534"
@@ -25,7 +37,10 @@ services:
       # investigation, short enough that the TSDB stays small on a VPS disk.
       # Long-term trend data belongs in the analytics tables, not here.
       - --storage.tsdb.retention.time=15d
-      - --storage.tsdb.retention.size=8GB
+      # Bounded by size as well as time, and smaller than it was (8GB): on a
+      # server whose disk also holds Postgres, monitoring must not be the
+      # thing that fills it.
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-2GB}
       - --web.enable-lifecycle
     volumes:
       - ./docker/monitoring/prometheus:/etc/prometheus:ro
@@ -38,6 +53,7 @@ services:
     networks: [backend, monitoring]
 
   alertmanager:
+    logging: *logging
     image: prom/alertmanager:v0.28.0
     restart: unless-stopped
     user: "65534:65534"
@@ -62,6 +78,7 @@ services:
     networks: [monitoring, edge]
 
   grafana:
+    logging: *logging
     image: grafana/grafana:11.5.0
     restart: unless-stopped
     environment:
@@ -91,6 +108,7 @@ services:
     networks: [monitoring, backend]
 
   node-exporter:
+    logging: *logging
     image: prom/node-exporter:v1.8.2
     restart: unless-stopped
     command:
@@ -110,6 +128,7 @@ services:
     networks: [monitoring]
 
   postgres-exporter:
+    logging: *logging
     image: prometheuscommunity/postgres-exporter:v0.16.0
     restart: unless-stopped
     environment:
@@ -120,6 +139,7 @@ services:
     networks: [backend, monitoring]
 
   redis-exporter:
+    logging: *logging
     image: oliver006/redis_exporter:v1.67.0
     restart: unless-stopped
     environment:

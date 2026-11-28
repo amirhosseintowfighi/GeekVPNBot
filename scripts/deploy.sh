@@ -211,6 +211,9 @@ log "building images"
 # PULL_BASE=1 refreshes the base images (security updates) on purpose.
 PULL_FLAG=""
 [[ "${PULL_BASE:-0}" == "1" ]] && PULL_FLAG="--pull"
+# Today's date, so the images' OS security upgrade runs again on the first
+# deploy of each day instead of coming out of the cache forever.
+export OS_REFRESH="${OS_REFRESH:-$(date -u +%Y-%m-%d)}"
 $COMPOSE build $PULL_FLAG "$IDLE" bot worker nginx miniapp admin || die "build failed"
 
 log "ensuring infrastructure is up"
@@ -312,6 +315,14 @@ if [[ "${WITH_MONITORING:-1}" == "1" && -f docker-compose.monitoring.yml ]]; the
   $COMPOSE up -d prometheus alertmanager grafana node-exporter \
     postgres-exporter redis-exporter || warn "monitoring did not start; the platform is unaffected"
 fi
+
+log "removing images no container uses"
+# Every deploy rebuilds the images under the same tag, so the previous build
+# is left behind untagged - several hundred MB a deploy, kept forever, on the
+# disk Postgres writes to. Dangling images only: one that any container still
+# uses, running or stopped, is kept, so the stopped colour can still be rolled
+# back to. The build cache is not touched (see "building images" above).
+docker image prune -f >/dev/null || warn "could not prune old images"
 
 log "deployed ${IDLE} successfully."
 log "rollback if needed:  scripts/deploy.sh rollback"

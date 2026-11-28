@@ -969,6 +969,8 @@ export interface BroadcastResult {
   sent: number
   failed: number
   total: number
+  /** Handed to the worker, which sends it within a minute; `sent` is 0 then. */
+  queued?: boolean
 }
 
 /** One screen a shop may rewrite. `bodyFa` null means it follows ours. */

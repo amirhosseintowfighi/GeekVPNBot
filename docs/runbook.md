@@ -102,6 +102,23 @@ On the Grafana overview, the **slowest paths** panel identifies whether this is
 one endpoint or everything. One endpoint is a code bug; everything is a
 dependency.
 
+Which route, by exact status code, from the access log (`/metrics` only has
+the class):
+
+```bash
+for c in geekvpn-api-blue geekvpn-api-green; do docker logs "$c" --since 1h 2>&1; done \
+  | grep '"http.request"' | grep -E '"status_code": ?5[0-9]{2}' \
+  | grep -oE '"(method|path|status_code)": ?"?[^,"]*' | paste - - - | sort | uniq -c | sort -rn
+```
+
+**If the logs show no 5xx and the alert still fires,** check that the API
+containers have `APP__METRICS_DIR` set (`docker-compose.prod.yml` does). Without
+it each uvicorn worker reports only its own counters, every scrape reaches a
+different worker, Prometheus reads each drop as a restart, and the error rate
+becomes the workers' lifetime share of 5xx: one old burst keeps this alert on
+until the containers restart. `infrastructure/observability/shared.py` explains
+the fix.
+
 **Likely causes.** A newly deployed bug on one route; Postgres connection pool
 exhaustion (see [postgres-connections](#postgres-connections)); a panel provider
 returning errors, which surfaces as 502 through our adapters.
@@ -298,13 +315,33 @@ du -sh backups/ && ls -lt backups/ | head
 docker system df
 ```
 
+This alert, and `DiskAlmostFull` (under 10% free), read `mountpoint="/"`.
+Until that was corrected neither could fire: node-exporter reports mount points
+relative to `--path.rootfs=/host`, and the rule asked for `"/host"`. The first
+anyone heard of a full disk was Postgres stopping with `PANIC: could not write
+... No space left on device`.
+
+What uses the space, largest first:
+
+```bash
+docker system df
+sudo du -sh /var/lib/docker/containers/*/*-json.log 2>/dev/null | sort -h | tail
+sudo du -sh /var/lib/docker/volumes/* | sort -h | tail
+```
+
+Container logs are capped at 5 x 20 MB each (`x-logging` in the compose
+files); a container created before that cap keeps its old, uncapped log until
+it is recreated. Prometheus keeps at most `PROMETHEUS_RETENTION_SIZE` (2GB).
+
 **Likely causes**, in order: old encrypted backups (`BACKUP_RETENTION_DAYS`
 controls this, and pruning happens only after a successful new backup); Docker
 image layers from repeated deploys; Postgres logs, which are verbose in production
 because `log_min_duration_statement` and `log_lock_waits` are on.
 
 **Resolution.** `docker image prune -a` is usually enough and is safe: running
-containers keep their images. **Never delete the newest backup to free space.**
+containers keep their images. `scripts/deploy.sh` removes dangling images after
+every deploy; `docker builder prune` frees the build cache, at the cost of the
+next deploy downloading every package again. **Never delete the newest backup to free space.**
 
 ---
 

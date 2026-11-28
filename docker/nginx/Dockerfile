@@ -12,9 +12,15 @@ FROM nginx:${NGINX_VERSION}-alpine
 # `apk upgrade` because a base tag is only as fresh as its last rebuild; this
 # picks up security fixes published since then.
 #
+# OS_REFRESH is the day of the build (CI and deploy.sh pass it). Without it
+# the layer came out of the build cache and the upgrade never ran again:
+# CI scanned a libxml2 two fixes behind while this line said it upgraded.
+# Changing once a day reruns it at most once a day.
+ARG OS_REFRESH=""
+#
 # curl is removed: nothing here uses it (healthchecks use busybox wget), and
 # the base image's copy is a standing source of HIGH CVEs that fail the scan.
-RUN apk upgrade --no-cache && apk add --no-cache openssl gettext && apk del --no-cache curl
+RUN : "refresh ${OS_REFRESH}" && apk upgrade --no-cache && apk add --no-cache openssl gettext && apk del --no-cache curl
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY snippets/ /etc/nginx/snippets/

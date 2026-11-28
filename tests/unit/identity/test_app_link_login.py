@@ -473,3 +473,28 @@ async def test_a_disconnected_device_cannot_refresh_its_session() -> None:
         await world.sessions.rotate(
             refresh_token=tokens.refresh_token, context=CONTEXT, role_resolver=roles
         )
+
+
+async def test_a_refresh_keeps_the_devices_platform_and_version() -> None:
+    """Every refresh used to write the HTTP client's user agent over the
+    session's - `okhttp/5` over `GeekVPN/0.1.0 (android)` - so after the
+    app's first refresh its device row lost both."""
+    world = World()
+    user = await world.customer()
+    started = await world.start()
+    request = await world.login.claim(started.code, telegram_user_id=OWNER)
+    await world.login.decide(request.id, telegram_user_id=OWNER, approve=True)
+    outcome = await world.login.poll(started.poll_token, context=CONTEXT)
+    assert outcome.result is not None
+
+    async def roles(*_: object) -> tuple[None, frozenset[str]]:
+        return None, frozenset()
+
+    await world.sessions.rotate(
+        refresh_token=outcome.result.tokens.refresh_token,
+        context=RequestContext(ip="9.9.9.9", user_agent="okhttp/5"),
+        role_resolver=roles,
+    )
+
+    [device] = await world.login.devices(user.id)
+    assert (device.platform, device.app_version) == ("android", "0.1.0")

@@ -31,7 +31,7 @@ from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, Select
 
-from geekvpn.domain.analytics.calendar import jalali_month_label
+from geekvpn.domain.analytics.calendar import jalali_month_label, to_jalali
 from geekvpn.domain.analytics.enums import FunnelStage
 from geekvpn.domain.analytics.nodes import NodeUsage
 from geekvpn.domain.analytics.referral import (
@@ -42,8 +42,9 @@ from geekvpn.domain.analytics.referral import (
 from geekvpn.domain.analytics.retention import Cohort, RetentionSummary
 from geekvpn.domain.analytics.revenue import PlanSales, RevenueTotals, TrafficSold, gib_from_mib
 from geekvpn.domain.analytics.segmentation import CustomerSnapshot
-from geekvpn.domain.analytics.timeframe import DateRange
+from geekvpn.domain.analytics.timeframe import DateRange, as_date
 from geekvpn.domain.payments.enums import PaymentState, TransactionKind
+from geekvpn.domain.provisioning.enums import OrderSource
 from geekvpn.infrastructure.persistence.models.catalog import CampaignModel
 from geekvpn.infrastructure.persistence.models.identity import UserModel
 from geekvpn.infrastructure.persistence.models.payments import (
@@ -60,14 +61,14 @@ from geekvpn.infrastructure.persistence.models.provisioning import (
 )
 from geekvpn.infrastructure.persistence.models.support import TicketModel
 
-#: Orders that represent money we actually kept.
-SETTLED_ORDER_STATES = ("paid", "provisioning", "active")
+#: Orders that represent money we actually kept. ``failed`` is among them: the
+#: customer paid and the panel refused, so the money is held for a retry or a
+#: refund - which the nightly orders report has always counted as taken.
+SETTLED_ORDER_STATES = ("paid", "provisioning", "active", "failed")
 #: Everything that was ever paid for, including money later returned. Refunds
 #: are subtracted separately rather than by dropping the order, so that a
 #: refunded sale still appears in gross revenue where it belongs.
 PAID_ORDER_STATES = (*SETTLED_ORDER_STATES, "refunded")
-
-MONTH_KEY_FORMAT = "%Y-%m"
 
 
 def _zero_filled(
@@ -96,7 +97,39 @@ class SqlRevenueReader:
             OrderModel.paid_at >= range.start,
             OrderModel.paid_at < range.end,
             OrderModel.state.in_(PAID_ORDER_STATES),
+            # A free trial is an order marked paid with a total of zero. It
+            # took no money, and counting it made every trial a "paying
+            # customer" and dragged the average order towards zero.
+            OrderModel.source != OrderSource.TRIAL.value,
         )
+
+    def _refunds_in(self, range: DateRange) -> list[tuple[datetime, int]]:
+        """Every refund issued in the range, as (when, toman).
+
+        Two kinds. A payment refund writes a ``refunds`` row, and when it
+        goes to the wallet also a wallet credit whose reference is that row's
+        id. A refund of an unused service only credits the wallet, with the
+        order number as reference - so the wallet credits not already counted
+        as a ``refunds`` row are added, and none is counted twice.
+        """
+        payment_refunds = self._session.execute(
+            select(RefundModel.refunded_at, RefundModel.amount).where(
+                RefundModel.refunded_at >= range.start,
+                RefundModel.refunded_at < range.end,
+            )
+        ).all()
+        wallet_only = self._session.execute(
+            select(WalletEntryModel.occurred_at, WalletEntryModel.amount).where(
+                WalletEntryModel.kind == TransactionKind.REFUND.value,
+                WalletEntryModel.occurred_at >= range.start,
+                WalletEntryModel.occurred_at < range.end,
+                or_(
+                    WalletEntryModel.reference.is_(None),
+                    WalletEntryModel.reference.not_in(select(RefundModel.id)),
+                ),
+            )
+        ).all()
+        return [(at, int(amount)) for at, amount in [*payment_refunds, *wallet_only]]
 
     def totals(self, range: DateRange) -> RevenueTotals:
         row = self._session.execute(
@@ -109,12 +142,7 @@ class SqlRevenueReader:
         ).one()
         gross, discounts, orders, paying_users = row
 
-        refunds = self._session.execute(
-            select(func.coalesce(func.sum(RefundModel.amount), 0)).where(
-                RefundModel.refunded_at >= range.start,
-                RefundModel.refunded_at < range.end,
-            )
-        ).scalar_one()
+        refunds = sum(amount for _, amount in self._refunds_in(range))
 
         # Top-ups are money received, not revenue earned. They are reported
         # beside revenue, never inside it: crediting a wallet and then selling
@@ -153,13 +181,7 @@ class SqlRevenueReader:
         # Refunds land in the bucket they were issued in, not the bucket of the
         # original sale. Rewriting history would make yesterday's published
         # chart change overnight.
-        refunds = self._session.execute(
-            select(RefundModel.refunded_at, RefundModel.amount).where(
-                RefundModel.refunded_at >= range.start,
-                RefundModel.refunded_at < range.end,
-            )
-        ).all()
-        for at, amount in refunds:
+        for at, amount in self._refunds_in(range):
             bucket = range.bucket_of(at)
             if bucket in buckets:
                 buckets[bucket] -= float(amount)
@@ -380,6 +402,8 @@ class SqlRetentionReader:
                 OrderModel.paid_at.is_not(None),
                 OrderModel.paid_at >= first_day,
                 OrderModel.state.in_(PAID_ORDER_STATES),
+                # A free trial is not somebody's first purchase.
+                OrderModel.source != OrderSource.TRIAL.value,
             )
             .group_by(OrderModel.user_id)
         ).all()
@@ -388,7 +412,10 @@ class SqlRetentionReader:
         for user_id, first_paid in rows:
             if first_paid is None:  # pragma: no cover - filtered out by the query
                 continue
-            key = first_paid.strftime(MONTH_KEY_FORMAT)
+            # The Jalali month in Tehran, the one the label names. A
+            # Gregorian UTC month put late-month buyers under the wrong name.
+            year, month, _ = to_jalali(as_date(first_paid))
+            key = f"{year:04d}-{month:02d}"
             members.setdefault(key, []).append((int(user_id), first_paid))
 
         cohorts: list[Cohort] = []
@@ -410,13 +437,14 @@ class SqlRetentionReader:
                         OrderModel.paid_at >= window_start,
                         OrderModel.paid_at < window_end,
                         OrderModel.state.in_(PAID_ORDER_STATES),
+                        OrderModel.source != OrderSource.TRIAL.value,
                     )
                 ).scalar_one()
                 retained.append(int(still_here))
             cohorts.append(
                 Cohort.build(
                     key=key,
-                    label_fa=jalali_month_label(anchor),
+                    label_fa=jalali_month_label(as_date(anchor)),
                     size=len(user_ids),
                     retained=tuple(retained),
                 )
@@ -713,7 +741,8 @@ class SqlWorkQueueReader:
             select(func.count(OrderModel.id)).where(OrderModel.state == "failed")
         ).scalar_one()
 
-        end_of_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        # The shop's day, not UTC's: "today" ends at midnight in Tehran.
+        end_of_day = DateRange.calendar_days(1, now=now).end
         expiring_today = self._session.execute(
             select(func.count(SubscriptionModel.id)).where(
                 SubscriptionModel.state == "active",
@@ -722,7 +751,12 @@ class SqlWorkQueueReader:
             )
         ).scalar_one()
 
+        active_subscriptions = self._session.execute(
+            select(func.count(SubscriptionModel.id)).where(SubscriptionModel.state == "active")
+        ).scalar_one()
+
         return WorkQueue(
+            active_subscriptions=int(active_subscriptions),
             pending_payments=int(pending_payments),
             open_tickets=int(open_tickets),
             overdue_tickets=int(overdue),

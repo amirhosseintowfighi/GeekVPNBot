@@ -58,3 +58,8 @@ class AuthMethod(enum.StrEnum):
     APP_PASSWORD = "app_password"  # noqa: S105 - a constant name, not a credential
     ADMIN_PASSWORD = "admin_password"  # noqa: S105 - a constant name, not a credential
     REFRESH = "refresh"
+
+    @property
+    def is_app(self) -> bool:
+        """A sign-in from one of the GeekVPN apps (Android, desktop)."""
+        return self in (AuthMethod.TELEGRAM_APP_LINK, AuthMethod.APP_PASSWORD)

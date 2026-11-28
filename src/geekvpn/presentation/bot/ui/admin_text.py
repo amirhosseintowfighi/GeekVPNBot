@@ -212,8 +212,8 @@ RETRY_FAILED: Final = (
 # -- numbers ---------------------------------------------------------------
 
 BTN_STATS: Final = "📊 آمار امروز"
-STATS_CARD: Final = "📊 <b>{title}</b>\n\n{lines}"
-STATS_ROW: Final = "• {label}: <b>{value}</b>"
+#: The nightly orders report, for the day still running.
+STATS_TODAY_TITLE: Final = "📊 <b>آمار امروز تا این لحظه</b>"
 
 # -- shared ----------------------------------------------------------------
 

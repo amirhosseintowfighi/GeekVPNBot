@@ -206,3 +206,61 @@ def test_editing_a_draft_changes_the_preview():
         broadcast.id, body_fa="\u0645\u062a\u0646 \u062a\u0627\u0632\u0647\u0654 \u062a\u0633\u062a"
     )
     assert "\u062a\u0627\u0632\u0647" in w.broadcasts.preview(broadcast.id).body_fa
+
+
+# -- queueing for the worker -----------------------------------------------------
+#
+# "Send now" from the admin panel or a reseller's portal used to run the whole
+# send inside the HTTP request. One Telegram call per recipient, through a
+# proxy from a server in Iran, outlasts nginx's 120s: the operator saw a
+# gateway error while the send carried on, pressed again, and every press was
+# a new broadcast to everybody. Now the request queues it and the worker's
+# one-minute BROADCAST_DISPATCH sends it.
+
+
+def test_queueing_sends_nothing_in_the_callers_hands():
+    w = World()
+    w.audience.ids = [1, 2, 3]
+    broadcast = _create(w)
+
+    queued = w.broadcasts.queue_now(broadcast.id)
+
+    assert queued.state is BroadcastState.SCHEDULED
+    assert w.stored() == []
+
+
+def test_a_queued_broadcast_is_due_at_once_and_sent_by_the_dispatcher():
+    w = World()
+    w.audience.ids = [1, 2, 3]
+    broadcast = _create(w)
+    w.broadcasts.queue_now(broadcast.id)
+
+    [progress] = w.broadcasts.dispatch_due()
+
+    assert progress.broadcast_id == broadcast.id
+    assert progress.sent == 3
+    assert w.broadcast_repo.get(broadcast.id).state is BroadcastState.SENT
+
+
+def test_queueing_an_empty_audience_is_refused_and_leaves_a_draft():
+    """Refused here, while the operator is looking - not by a worker that
+    would retry it every minute and log the same failure forever."""
+    w = World()
+    w.audience.ids = []
+    broadcast = _create(w)
+
+    with pytest.raises(EmptyAudience):
+        w.broadcasts.queue_now(broadcast.id)
+    assert w.broadcast_repo.get(broadcast.id).state is BroadcastState.DRAFT
+
+
+def test_a_queued_broadcast_can_be_cancelled_before_the_worker_reaches_it():
+    w = World()
+    w.audience.ids = [1, 2]
+    broadcast = _create(w)
+    w.broadcasts.queue_now(broadcast.id)
+
+    w.broadcasts.cancel(broadcast.id, cancelled_by=ADMIN_ID)
+
+    assert w.broadcasts.dispatch_due() == []
+    assert w.stored() == []

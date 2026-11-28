@@ -46,7 +46,8 @@ class DashboardService:
                 MetricCard.of(MetricKey.NET_REVENUE, revenue.net, previous=before.net),
                 MetricCard.of(MetricKey.ORDERS, revenue.orders, previous=before.orders),
                 MetricCard.of(MetricKey.NEW_USERS, revenue.new_users, previous=before.new_users),
-                MetricCard.of(MetricKey.ACTIVE_SUBSCRIPTIONS, float(queue.expiring_today)),
+                # It showed `expiring_today` under this label.
+                MetricCard.of(MetricKey.ACTIVE_SUBSCRIPTIONS, float(queue.active_subscriptions)),
             ),
             actions=self._actions(queue, fleet),
             revenue_series=TimeSeries.build(

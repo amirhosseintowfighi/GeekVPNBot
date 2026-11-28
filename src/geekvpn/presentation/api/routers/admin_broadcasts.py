@@ -155,7 +155,9 @@ async def create_broadcast(
             created_by=actor,
         )
         if payload.send_now:
-            scope.broadcast_service.send_now(broadcast.id)
+            # Queued for the worker, which sends it within a minute; see
+            # `BroadcastService.queue_now` for why not here.
+            scope.broadcast_service.queue_now(broadcast.id)
         return _view(scope.broadcasts.get(broadcast.id))
 
     return await mutate_scope(container, work)
@@ -177,7 +179,7 @@ async def send_broadcast(
     )
 
     def work(scope: SyncScope) -> dict[str, Any]:
-        scope.broadcast_service.send_now(broadcast_id)
+        scope.broadcast_service.queue_now(broadcast_id)
         return _view(scope.broadcasts.get(broadcast_id))
 
     return await mutate_scope(container, work)

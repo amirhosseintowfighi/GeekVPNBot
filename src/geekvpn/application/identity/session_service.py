@@ -219,7 +219,15 @@ class SessionService:
             now=now,
             device=DeviceInfo(
                 ip=context.ip,
-                user_agent=context.user_agent,
+                # An app's sign-in recorded `GeekVPN/<version> (<platform>)`,
+                # which the device list reads back. Its refresh comes from the
+                # HTTP library (`okhttp/5`), and writing that over it blanked
+                # the platform and version after the first refresh.
+                user_agent=(
+                    session.device.user_agent
+                    if session.auth_method.is_app and session.device.user_agent
+                    else context.user_agent
+                ),
                 label=session.device.label,
             ),
         )

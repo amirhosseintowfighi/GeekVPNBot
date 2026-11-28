@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 import uuid
+from datetime import datetime
 from typing import Any
 
 from aiogram import F, Router
@@ -28,6 +29,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from geekvpn.application.analytics.daily_report import TEHRAN, bounds
 from geekvpn.application.payments.review_service import ApprovalRequest
 from geekvpn.application.resellers.applications import ApplicationNotFound
 from geekvpn.application.resellers.topups import TopupNotFound
@@ -41,17 +43,18 @@ from geekvpn.domain.notifications.message import RenderedMessage
 from geekvpn.domain.panels.errors import PanelError
 from geekvpn.domain.payments.enums import PaymentState
 from geekvpn.domain.provisioning.enums import OrderState, SubscriptionState
+from geekvpn.infrastructure.analytics.daily_orders import SqlDayOrdersReader
 from geekvpn.infrastructure.backup.service import backup_settings, send_backup
 from geekvpn.infrastructure.di.container import Container
 from geekvpn.infrastructure.di.sync_scope import SyncScope
 from geekvpn.infrastructure.logging.setup import get_logger
 from geekvpn.presentation.api.admin_common import mutate_scope, read_scope
-from geekvpn.presentation.api.routers.admin_analytics import run_report
 from geekvpn.presentation.bot.admin_access import AdminAccess, current_staff
 from geekvpn.presentation.bot.handlers.common import answer, safe_edit, toast
 from geekvpn.presentation.bot.ui import admin_text as A
 from geekvpn.presentation.bot.ui import keyboards as K
 from geekvpn.presentation.bot.ui.callbacks import AdminCB
+from geekvpn.presentation.bot.ui.daily_report import render_daily_report
 from geekvpn.presentation.bot.ui.fa import fa_date, fa_digits, normalize_input, toman
 
 logger = get_logger("bot.admin")
@@ -1601,34 +1604,31 @@ async def on_retry(
 # -- the numbers -----------------------------------------------------------
 
 
+async def today_report(session: Any, now: datetime) -> str:
+    """The nightly orders report's figures for today, so far.
+
+    The same reader and the same lines as the report the worker sends after
+    midnight, over today's Tehran day. This button used to render the
+    dashboard's cards - fourteen days of totals under the word "today" - and
+    read a `display` field the cards do not have, so it only ever answered
+    with an error.
+    """
+    today = now.astimezone(TEHRAN).date()
+    start, end = bounds(today)
+    figures = await SqlDayOrdersReader(session).day(today, start=start, end=end)
+    return render_daily_report(figures, title=A.STATS_TODAY_TITLE)
+
+
 @router.callback_query(AdminCB.filter(F.action == "stats"))
 async def on_stats(
     query: CallbackQuery, container: Container, scope: Any = None, user: Any = None
 ) -> None:
-    """The dashboard's own metric cards, rendered as lines.
-
-    The same builder the panel's dashboard uses, so the two cannot disagree
-    about what "today" means or which orders count.
-    """
     if await _guard(scope, user) is None:
         await toast(query, A.NOT_AN_ADMIN, alert=True)
         return
-
-    def work(services: dict[str, Any]) -> list[tuple[str, str]]:
-        dashboard = services["dashboard"].build()
-        return [(card.label_fa, card.display) for card in dashboard.metrics]
-
-    try:
-        # The panel's own dashboard builder, on its own reporting session, so
-        # the two cannot disagree about what "today" means or which orders
-        # count towards it.
-        metrics = await run_report(container, work)
-    except Exception as failure:
-        await toast(query, A.ACTION_FAILED.format(reason=str(failure)), alert=True)
-        return
-
-    lines = "\n".join(A.STATS_ROW.format(label=label, value=value) for label, value in metrics)
-    await safe_edit(query, A.STATS_CARD.format(title=A.BTN_STATS, lines=lines), markup=_back())
+    await toast(query)
+    body = await today_report(scope.session, container.clock.now())
+    await safe_edit(query, body, markup=_back())
 
 
 # -- shared ----------------------------------------------------------------
